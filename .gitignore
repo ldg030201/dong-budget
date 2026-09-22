@@ -1,0 +1,51 @@
+# ── Gradle ──────────────────────────────────────────────
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+!gradle/wrapper/gradle-wrapper.properties
+
+# ── Android SDK 경로 (머신마다 달라서 커밋 금지) ────────
+local.properties
+
+# ── 서명키 (절대 커밋 금지. 유출되면 앱 위조 가능) ──────
+*.jks
+*.keystore
+*.p12
+*.pepk
+keystore.properties
+signing.properties
+release/
+
+# ── 빌드 산출물 ─────────────────────────────────────────
+*.apk
+*.aab
+*.ap_
+*.dex
+*.class
+output.json
+captures/
+
+# ── Android Studio / IntelliJ ──────────────────────────
+.idea/
+*.iml
+.navigation/
+.cxx/
+misc.xml
+
+# ── 로그 / 임시 ─────────────────────────────────────────
+*.log
+*.hprof
+.kotlin/
+
+# ── macOS ───────────────────────────────────────────────
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# ── 기타 ────────────────────────────────────────────────
+.externalNativeBuild
+lint/intermediates/
+lint/generated/
+lint/outputs/
+lint/tmp/
