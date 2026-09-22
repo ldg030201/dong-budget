@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<data-extraction-rules>
+    <!-- include 를 하나라도 쓰면 지정한 파일만 백업된다.
+         따라서 -wal / -shm / -journal 을 exclude 로 적을 필요가 없다. 이미 제외 상태다.
+         단 BudgetDatabase 의 journalMode 를 WAL 로 바꾸면 최근 거래가 -wal 에만 남아
+         백업에서 조용히 빠지므로 그때는 이 파일도 같이 손봐야 한다. -->
+    <cloud-backup>
+        <include domain="database" path="dong-budget.db" />
+        <include domain="file" path="datastore" />
+    </cloud-backup>
+    <device-transfer>
+        <include domain="database" path="dong-budget.db" />
+        <include domain="file" path="datastore" />
+    </device-transfer>
+</data-extraction-rules>
