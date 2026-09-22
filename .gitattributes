@@ -1,0 +1,14 @@
+# 줄바꿈을 각자 git 설정에 맡기지 않고 저장소에서 고정한다.
+# 이걸 두지 않으면 윈도우에서 클론한 사람과 diff 가 통째로 어긋난다.
+* text=auto eol=lf
+
+# 윈도우 배치 파일은 CRLF 여야 한다.
+*.bat text eol=crlf
+
+# 이진 파일은 건드리지 않는다.
+*.jar binary
+*.otf binary
+*.ttf binary
+*.png binary
+*.apk binary
+*.jks binary

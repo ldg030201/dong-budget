@@ -15,6 +15,16 @@ local.properties
 keystore.properties
 signing.properties
 release/
+*.jks.b64
+*.keystore.b64
+*.jks.bak
+*.keystore.bak
+
+# ── 기타 비밀 (실수 방지용) ─────────────────────────────
+secrets.properties
+.env
+.env.*
+!.env.example
 
 # ── 빌드 산출물 ─────────────────────────────────────────
 *.apk

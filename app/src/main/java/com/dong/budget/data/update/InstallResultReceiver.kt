@@ -51,20 +51,29 @@ class InstallResultReceiver : BroadcastReceiver() {
     private fun describe(status: Int, message: String?): String = when {
         status == PackageInstaller.STATUS_FAILURE_ABORTED -> "설치를 취소했어요"
 
-        message?.contains("VERIFICATION_FAILURE") == true ->
+        // 서명 불일치를 가장 먼저 본다.
+        // 안드로이드가 서명이 다를 때 주는 코드는 INSTALL_FAILED_UPDATE_INCOMPATIBLE 이라
+        // 아래의 일반적인 INCOMPATIBLE 검사보다 반드시 앞에 있어야 한다.
+        // 순서가 뒤바뀌면 서명 문제인데 "이 기기에서는 설치할 수 없다"고 잘못 안내하게 된다.
+        message.containsAny("UPDATE_INCOMPATIBLE", "INCONSISTENT_CERTIFICATES", "SIGNATURE") ->
+            "설치된 앱과 서명이 달라요. 기존 앱을 지우고 새로 설치해야 하는데 그러면 기록이 사라져요"
+
+        message.containsAny("VERIFICATION_FAILURE") ->
             "기기 보안 검사에 막혔어요. 설치 화면에서 '무시하고 설치'를 눌러주세요"
 
-        message?.contains("INCOMPATIBLE") == true ->
+        message.containsAny("VERSION_DOWNGRADE") ->
+            "지금 쓰는 버전이 더 최신이에요"
+
+        message.containsAny("INSUFFICIENT_STORAGE") ->
+            "저장 공간이 부족해요"
+
+        message.containsAny("INCOMPATIBLE", "INVALID_APK", "NO_MATCHING_ABIS") ->
             "이 기기에서는 설치할 수 없는 파일이에요"
-
-        message?.contains("VERSION_DOWNGRADE") == true ->
-            "지금 버전이 더 최신이에요"
-
-        message?.contains("SIGNATURE") == true ->
-            "서명이 달라 설치할 수 없어요. 앱을 지우고 새로 설치해야 해요"
 
         else -> "설치를 마치지 못했어요"
     }
+
+    private fun String?.containsAny(vararg needles: String): Boolean = this != null && needles.any { contains(it) }
 
     private companion object {
         const val TAG = "DongBudgetInstall"

@@ -14,21 +14,21 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # gradle/gradle-daemon-jvm.properties 가 데몬 JVM 을 25 로 고정한다.
       # 여기서 25 를 깔아두지 않으면 Gradle 이 빌드마다 JDK 를 새로 내려받는다(약 145MB).
       - name: JDK 25 준비
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '25'
 
       - name: Android SDK 준비
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
 
       - name: Gradle 준비
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v5
 
       # 태그와 앱 버전이 어긋난 채로 배포되면
       # 앱이 새 버전을 확인할 때 계속 업데이트가 있다고 하거나 아예 못 찾는다.
@@ -46,14 +46,30 @@ jobs:
       # 서명키는 저장소에 두지 않는다. Secrets 에 base64 로 넣어두고 여기서만 되살린다.
       # 키가 바뀌면 기존 사용자의 업데이트 설치와 자동 백업 복원이 모두 깨지므로
       # 한 번 만든 키는 절대 바꾸지 않는다.
+      # 네 개 중 하나라도 비면 Gradle 이 서명 설정을 만들지 않고
+      # 서명 없는 APK 를 조용히 만들어낸다. 여기서 먼저 막는다.
+      - name: 서명 시크릿이 모두 있는지 확인
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          missing=""
+          [ -n "$KEYSTORE_BASE64" ]   || missing="$missing KEYSTORE_BASE64"
+          [ -n "$KEYSTORE_PASSWORD" ] || missing="$missing KEYSTORE_PASSWORD"
+          [ -n "$KEY_ALIAS" ]         || missing="$missing KEY_ALIAS"
+          [ -n "$KEY_PASSWORD" ]      || missing="$missing KEY_PASSWORD"
+          if [ -n "$missing" ]; then
+            echo "::error::서명 시크릿이 없다:$missing"
+            echo "::error::저장소 Settings → Secrets and variables → Actions 에서 등록하라."
+            exit 1
+          fi
+
       - name: 서명키 복원
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
         run: |
-          if [ -z "$KEYSTORE_BASE64" ]; then
-            echo "::error::KEYSTORE_BASE64 시크릿이 없다. 서명 없이 배포하면 안 된다."
-            exit 1
-          fi
           echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
 
       - name: 서명된 APK 빌드
@@ -64,9 +80,12 @@ jobs:
           DONG_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: ./gradlew assembleRelease
 
-      # 서명이 실제로 붙었는지 확인한다.
-      # 서명 없는 APK 가 올라가면 사용자가 설치할 수 없다.
-      - name: 서명 확인
+      # 서명이 붙었는지, 그리고 '올바른 키로' 붙었는지 확인한다.
+      #
+      # 두 번째가 핵심이다. 서명키가 바뀐 APK 를 배포하면 기존 사용자는
+      # 업데이트를 설치할 수 없고, 앱을 지우고 새로 깔아야 해서 가계부가 전부 사라진다.
+      # 배포한 뒤에는 되돌릴 방법이 없으므로 여기서 막는다.
+      - name: 서명과 서명키 확인
         run: |
           APK=$(find app/build/outputs/apk/release -name '*.apk' | head -1)
           echo "APK: $APK"
@@ -74,8 +93,24 @@ jobs:
           case "$APK" in
             *unsigned*) echo "::error::서명되지 않은 APK 다. 시크릿 설정을 확인하라."; exit 1 ;;
           esac
+
           BUILD_TOOLS=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
-          "$BUILD_TOOLS/apksigner" verify --print-certs "$APK"
+          "$BUILD_TOOLS/apksigner" verify --print-certs "$APK" | tee certs.txt
+
+          if [ ! -f .signing-fingerprint ]; then
+            echo "::error::.signing-fingerprint 가 없어서 서명키를 대조할 수 없다."
+            echo "::error::로컬에서 ./scripts/release.sh 를 한 번 돌려 지문을 기록하고 커밋하라."
+            exit 1
+          fi
+          EXPECTED=$(tr -d '[:space:]' < .signing-fingerprint)
+          if ! grep -qi "$EXPECTED" certs.txt; then
+            echo "::error::서명키가 .signing-fingerprint 와 다르다. 배포를 중단한다."
+            echo "::error::이대로 내보내면 기존 사용자가 업데이트를 설치할 수 없고 가계부가 사라진다."
+            echo "::error::정말로 키를 바꾸는 것이 맞다면 .signing-fingerprint 를 갱신해서 커밋하라."
+            exit 1
+          fi
+          echo "서명키가 기대값과 일치한다."
+          rm -f certs.txt
           echo "SIGNED_APK=$APK" >> "$GITHUB_ENV"
 
       - name: 배포용 이름으로 변경
@@ -89,7 +124,7 @@ jobs:
         run: rm -f "$RUNNER_TEMP/release.jks"
 
       - name: Releases 에 올리기
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: dong-budget-*.apk
           generate_release_notes: true

@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- 새 버전 확인과 내려받기에만 쓴다. 가계부 데이터는 기기 밖으로 나가지 않는다. -->
+    <!-- 새 버전 확인과 내려받기에만 쓴다. 앱이 가계부 내용을 어디로도 보내지 않는다.
+         다만 Android 자동 백업이 켜져 있으면 OS 가 데이터베이스를 사용자의 구글 계정에 백업한다.
+         그건 앱이 보내는 것이 아니라 기기 설정에 따른 동작이고 사용자가 끌 수 있다. -->
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- 내려받은 APK 를 설치 화면까지 띄우기 위해 필요하다.
          실제 설치는 사용자가 시스템 확인창에서 직접 눌러야 진행된다. -->
