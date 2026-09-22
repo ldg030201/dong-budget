@@ -39,6 +39,11 @@ val hasSigning =
         keyPasswordValue != null &&
         rootProject.file(storeFilePath).exists()
 
+// gradle.properties 에서 읽는다. 버전과 배포처를 한 곳에서만 고치기 위함이다.
+fun requiredProperty(name: String): String =
+    providers.gradleProperty(name).orNull
+        ?: error("gradle.properties 에 $name 이 없다")
+
 android {
     namespace = "com.dong.budget"
 
@@ -52,8 +57,12 @@ android {
         // 36 으로 두는 이유: Android 17(API 37)의 동작 변경을 알림 리스너 구현 전에 떠안지 않으려는 것.
         // 2단계(토스 알림)가 동작한 뒤 37 로 올린다. 그때 아래 lint 의 OldTargetApi 억제도 같이 지운다.
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = requiredProperty("dongbudget.versionCode").toInt()
+        versionName = requiredProperty("dongbudget.versionName")
+
+        // 앱이 새 버전을 확인할 위치. 코드에 박지 않고 설정에서 읽는다.
+        buildConfigField("String", "GITHUB_OWNER", "\"${requiredProperty("dongbudget.githubOwner")}\"")
+        buildConfigField("String", "GITHUB_REPO", "\"${requiredProperty("dongbudget.githubRepo")}\"")
     }
 
     signingConfigs {
@@ -84,6 +93,8 @@ android {
 
     buildFeatures {
         compose = true
+        // BuildConfig 는 AGP 8 부터 기본으로 생성되지 않는다. 업데이트 확인에 필요해서 켠다.
+        buildConfig = true
     }
 
     lint {

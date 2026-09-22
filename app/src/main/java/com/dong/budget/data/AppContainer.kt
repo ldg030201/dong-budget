@@ -3,6 +3,8 @@ package com.dong.budget.data
 import android.content.Context
 import com.dong.budget.data.db.BudgetDatabase
 import com.dong.budget.data.settings.SettingsRepository
+import com.dong.budget.data.update.ApkInstaller
+import com.dong.budget.data.update.UpdateRepository
 
 /**
  * 수동 의존성 컨테이너.
@@ -22,4 +24,8 @@ class AppContainer(context: Context) {
     }
 
     val settingsRepository by lazy { SettingsRepository(context) }
+
+    val updateRepository by lazy { UpdateRepository() }
+
+    val apkInstaller by lazy { ApkInstaller(context) }
 }

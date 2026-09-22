@@ -27,6 +27,8 @@ import com.dong.budget.navigation.TransactionEditorKey
 import com.dong.budget.ui.editor.TransactionEditorScreen
 import com.dong.budget.ui.editor.TransactionEditorViewModel
 import com.dong.budget.ui.home.HomeViewModel
+import com.dong.budget.ui.settings.SettingsScreen
+import com.dong.budget.ui.settings.SettingsViewModel
 import com.dong.budget.ui.shell.HomeShell
 
 /**
@@ -99,7 +101,20 @@ fun DongBudgetApp(container: AppContainer) {
             }
 
             entry<SettingsKey> {
-                PlaceholderSubflow(title = "설정", onClose = navigator::goBack)
+                val viewModel: SettingsViewModel =
+                    viewModel(factory = settingsViewModelFactory(container))
+                val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
+                val updateState by viewModel.updateState.collectAsStateWithLifecycle()
+
+                SettingsScreen(
+                    themeMode = themeMode,
+                    currentVersion = viewModel.currentVersion,
+                    updateState = updateState,
+                    onThemeModeChange = viewModel::selectThemeMode,
+                    onCheckUpdate = viewModel::checkForUpdate,
+                    onDownloadUpdate = viewModel::downloadAndInstall,
+                    onBack = navigator::goBack,
+                )
             }
         },
     )
@@ -128,4 +143,14 @@ private fun homeViewModelFactory(container: AppContainer) = viewModelFactory {
 
 private fun editorViewModelFactory(container: AppContainer, transactionId: Long?) = viewModelFactory {
     initializer { TransactionEditorViewModel(container.transactionRepository, transactionId) }
+}
+
+private fun settingsViewModelFactory(container: AppContainer) = viewModelFactory {
+    initializer {
+        SettingsViewModel(
+            settingsRepository = container.settingsRepository,
+            updateRepository = container.updateRepository,
+            apkInstaller = container.apkInstaller,
+        )
+    }
 }
