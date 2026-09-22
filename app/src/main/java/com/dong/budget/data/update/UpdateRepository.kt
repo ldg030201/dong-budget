@@ -47,6 +47,7 @@ class UpdateRepository(
     private val owner: String = BuildConfig.GITHUB_OWNER,
     private val repo: String = BuildConfig.GITHUB_REPO,
     private val currentVersion: String = BuildConfig.VERSION_NAME,
+    private val apiBase: String = BuildConfig.UPDATE_API_BASE,
 ) {
     private val json = Json { ignoreUnknownKeys = true }
 
@@ -59,7 +60,7 @@ class UpdateRepository(
     }
 
     private fun fetchLatest(): UpdateStatus {
-        val url = URL("https://api.github.com/repos/$owner/$repo/releases/latest")
+        val url = URL("$apiBase/repos/$owner/$repo/releases/latest")
         val connection = (url.openConnection() as HttpURLConnection).apply {
             requestMethod = "GET"
             connectTimeout = TIMEOUT_MS

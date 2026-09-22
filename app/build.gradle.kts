@@ -63,6 +63,12 @@ android {
         // 앱이 새 버전을 확인할 위치. 코드에 박지 않고 설정에서 읽는다.
         buildConfigField("String", "GITHUB_OWNER", "\"${requiredProperty("dongbudget.githubOwner")}\"")
         buildConfigField("String", "GITHUB_REPO", "\"${requiredProperty("dongbudget.githubRepo")}\"")
+        // 기본값은 GitHub. 업데이트 흐름을 로컬에서 검증할 때만 -P 로 바꾼다.
+        buildConfigField(
+            "String",
+            "UPDATE_API_BASE",
+            "\"${providers.gradleProperty("dongbudget.updateApiBase").getOrElse("https://api.github.com")}\"",
+        )
     }
 
     signingConfigs {

@@ -6,6 +6,8 @@ import com.dong.budget.BuildConfig
 import com.dong.budget.data.settings.SettingsRepository
 import com.dong.budget.data.settings.ThemeMode
 import com.dong.budget.data.update.ApkInstaller
+import com.dong.budget.data.update.InstallEvent
+import com.dong.budget.data.update.InstallEvents
 import com.dong.budget.data.update.UpdateRepository
 import com.dong.budget.data.update.UpdateStatus
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -54,6 +56,19 @@ class SettingsViewModel(
     private var pendingDownloadUrl: String? = null
     private var pendingSize: Long = 0
 
+    init {
+        // 설치 결과는 시스템이 브로드캐스트로 알려준다. 그걸 화면 상태로 옮긴다.
+        viewModelScope.launch {
+            InstallEvents.events.collect { event ->
+                _updateState.value =
+                    when (event) {
+                        is InstallEvent.Succeeded -> UpdateUiState.UpToDate
+                        is InstallEvent.Failed -> UpdateUiState.Failed(event.reason)
+                    }
+            }
+        }
+    }
+
     fun selectThemeMode(mode: ThemeMode) {
         viewModelScope.launch { settingsRepository.setThemeMode(mode) }
     }
@@ -84,6 +99,8 @@ class SettingsViewModel(
     fun downloadAndInstall() {
         val url = pendingDownloadUrl ?: return
         val version = (_updateState.value as? UpdateUiState.Available)?.version ?: return
+        // 지난 설치 결과가 남아 있으면 새 시도의 상태를 덮어쓴다.
+        InstallEvents.clear()
         _updateState.value = UpdateUiState.Downloading(version, 0f)
         viewModelScope.launch {
             val result =

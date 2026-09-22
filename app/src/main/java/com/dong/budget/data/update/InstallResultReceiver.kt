@@ -29,13 +29,41 @@ class InstallResultReceiver : BroadcastReceiver() {
                 context.startActivity(confirmIntent)
             }
 
-            PackageInstaller.STATUS_SUCCESS -> Log.i(TAG, "설치 완료")
+            PackageInstaller.STATUS_SUCCESS -> {
+                Log.i(TAG, "설치 완료")
+                InstallEvents.publish(InstallEvent.Succeeded)
+            }
 
             else -> {
                 val message = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE)
                 Log.w(TAG, "설치가 끝나지 않았다 (상태 $status): $message")
+                InstallEvents.publish(InstallEvent.Failed(describe(status, message)))
             }
         }
+    }
+
+    /**
+     * 시스템이 주는 영문 메시지를 사용자가 행동할 수 있는 안내로 바꾼다.
+     *
+     * 특히 검증 실패는 Play Protect 가 막은 경우가 대부분인데,
+     * 그냥 두면 사용자는 아무 일도 일어나지 않은 것으로 느낀다.
+     */
+    private fun describe(status: Int, message: String?): String = when {
+        status == PackageInstaller.STATUS_FAILURE_ABORTED -> "설치를 취소했어요"
+
+        message?.contains("VERIFICATION_FAILURE") == true ->
+            "기기 보안 검사에 막혔어요. 설치 화면에서 '무시하고 설치'를 눌러주세요"
+
+        message?.contains("INCOMPATIBLE") == true ->
+            "이 기기에서는 설치할 수 없는 파일이에요"
+
+        message?.contains("VERSION_DOWNGRADE") == true ->
+            "지금 버전이 더 최신이에요"
+
+        message?.contains("SIGNATURE") == true ->
+            "서명이 달라 설치할 수 없어요. 앱을 지우고 새로 설치해야 해요"
+
+        else -> "설치를 마치지 못했어요"
     }
 
     private companion object {
