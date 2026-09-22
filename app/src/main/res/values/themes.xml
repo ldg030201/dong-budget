@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 실제 색/타이포는 Compose 쪽 테마가 담당한다.
+         이 XML 테마는 앱이 뜨기 전 잠깐 보이는 창 배경만 정의한다. -->
+    <style name="Theme.DongBudget" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>
