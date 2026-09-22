@@ -1,0 +1,65 @@
+[versions]
+# ── 빌드 툴체인 (서로 묶여 있음. 하나만 따로 올리지 말 것) ──────────────
+# AGP 9.3.3 : API 37 지원(9.1.1부터 가능), 최소 Gradle 9.5.0.
+#             Kotlin 공식 호환표의 AGP 상한은 9.3.1이라 패치 하나를 넘지만,
+#             같은 9.3 마이너 라인이라 Kotlin 쪽 API 표면이 같고 실측 빌드로 확인함.
+#             9.3.2(JDK 17 lint 크래시) / 9.3.3(D8) 버그픽스를 얻는 대가로 택함.
+agp = "9.3.3"
+# Kotlin 2.4.20 : AGP 9의 built-in Kotlin 때문에 kotlin-android 플러그인을 쓰지 않는다.
+#                 아래 compose-compiler 플러그인의 버전이 곧 KGP 버전이 된다
+#                 (AGP가 선언한 kotlin-gradle-plugin:2.2.10 을 Gradle 충돌 해소로 끌어올림).
+#                 그래서 AGP가 선언한 버전보다 낮출 수는 없다.
+kotlin = "2.4.20"
+# KSP 2.3.12 : 2.3.0부터 <kotlin>-<ksp> 스킴을 버리고 Kotlin 버전과 분리됨. Kotlin 2.2+ 와 동작.
+ksp = "2.3.12"
+# Gradle 은 gradle/wrapper/gradle-wrapper.properties 에서 9.6.1 로 고정
+
+# ── AndroidX / Compose ────────────────────────────────────────────────
+# compose-bom 2026.09.00 이 material3 1.4.0, ui/foundation/runtime 1.12.1 을 고정한다.
+# Compose 1.12.0부터 compileSdk 37 이 필수다 (36으로 내리면 checkDebugAarMetadata 실패).
+composeBom = "2026.09.00"
+coreKtx = "1.19.0"
+activityCompose = "1.13.0"
+lifecycle = "2.11.0"
+navigationCompose = "2.10.1"
+room = "2.8.5"
+datastore = "1.2.1"
+
+# ── 코드 품질 ──────────────────────────────────────────────────────────
+spotless = "8.10.2"
+ktlint = "1.8.0"
+
+# ── 테스트 ────────────────────────────────────────────────────────────
+# 지금은 테스트 소스가 없다. 실제로 테스트를 쓰는 커밋에서 그때 필요한 것만 추가한다.
+junit = "4.13.2"
+
+[libraries]
+androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
+androidx-activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
+androidx-lifecycle-runtime-compose = { group = "androidx.lifecycle", name = "lifecycle-runtime-compose", version.ref = "lifecycle" }
+androidx-lifecycle-viewmodel-compose = { group = "androidx.lifecycle", name = "lifecycle-viewmodel-compose", version.ref = "lifecycle" }
+androidx-navigation-compose = { group = "androidx.navigation", name = "navigation-compose", version.ref = "navigationCompose" }
+androidx-datastore-preferences = { group = "androidx.datastore", name = "datastore-preferences", version.ref = "datastore" }
+
+# Compose 는 BOM 이 버전을 관리하므로 version 을 적지 않는다
+androidx-compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }
+androidx-compose-ui = { group = "androidx.compose.ui", name = "ui" }
+androidx-compose-ui-tooling = { group = "androidx.compose.ui", name = "ui-tooling" }
+androidx-compose-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-tooling-preview" }
+androidx-compose-material3 = { group = "androidx.compose.material3", name = "material3" }
+
+androidx-room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }
+androidx-room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
+
+junit = { group = "junit", name = "junit", version.ref = "junit" }
+
+[plugins]
+android-application = { id = "com.android.application", version.ref = "agp" }
+# AGP 9 built-in Kotlin: org.jetbrains.kotlin.android 는 적용하지 않는다.
+# 이 플러그인의 버전이 곧 Kotlin(KGP) 버전이 된다.
+compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
+# Room 플러그인: 스키마 출력을 Gradle 태스크의 선언된 출력으로 등록해준다.
+# KSP arg 방식은 태스크가 UP-TO-DATE 로 스킵되면 스키마가 조용히 갱신되지 않는다.
+room = { id = "androidx.room", version.ref = "room" }
+spotless = { id = "com.diffplug.spotless", version.ref = "spotless" }
