@@ -6,6 +6,8 @@ plugins {
     // 아래 플러그인의 버전이 곧 Kotlin(KGP) 버전이 된다.
     alias(libs.plugins.compose.compiler)
     alias(libs.plugins.ksp)
+    // Navigation 3 의 백스택은 화면 키를 직렬화해서 프로세스 사망 후에 복원한다.
+    alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.room)
 }
 
@@ -102,13 +104,17 @@ dependencies {
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
-    implementation(libs.androidx.navigation.compose)
+    implementation(libs.androidx.navigation3.runtime)
+    implementation(libs.androidx.navigation3.ui)
+    implementation(libs.androidx.lifecycle.viewmodel.navigation3)
+    implementation(libs.kotlinx.serialization.json)
     implementation(libs.androidx.datastore.preferences)
 
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.compose.ui)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
+    implementation(libs.androidx.compose.material.icons.core)
     debugImplementation(libs.androidx.compose.ui.tooling)
 
     implementation(libs.androidx.room.runtime)

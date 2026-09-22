@@ -7,14 +7,13 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dong.budget.data.settings.SettingsRepository
 import com.dong.budget.data.settings.ThemeMode
+import com.dong.budget.ui.DongBudgetApp
 import com.dong.budget.ui.theme.BudgetTheme
 
 class MainActivity : ComponentActivity() {
@@ -61,9 +60,7 @@ class MainActivity : ComponentActivity() {
             }
 
             BudgetTheme(darkTheme = dark) {
-                Surface {
-                    Text("동계부")
-                }
+                DongBudgetApp(container = (application as BudgetApplication).container)
             }
         }
     }
