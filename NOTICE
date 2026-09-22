@@ -1,0 +1,13 @@
+# 포함된 제3자 저작물
+
+## Pretendard
+
+app/src/main/res/font/ 에 들어 있는 폰트 파일.
+
+- 저작권: Copyright (c) 2021, Kil Hyung-jin
+- 라이선스: SIL Open Font License, Version 1.1
+- 원본: https://github.com/orioncactus/pretendard
+- 전문: app/src/main/assets/licenses/pretendard_ofl.txt
+
+이 프로젝트의 MIT 라이선스는 Pretendard 에 적용되지 않는다.
+폰트는 위 라이선스를 따르며 파일을 수정하지 않고 그대로 포함했다.
