@@ -6,6 +6,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -23,6 +24,8 @@ import com.dong.budget.navigation.SettingsKey
 import com.dong.budget.navigation.ShellKey
 import com.dong.budget.navigation.StatisticsKey
 import com.dong.budget.navigation.TransactionEditorKey
+import com.dong.budget.ui.editor.TransactionEditorScreen
+import com.dong.budget.ui.editor.TransactionEditorViewModel
 import com.dong.budget.ui.home.HomeViewModel
 import com.dong.budget.ui.shell.HomeShell
 
@@ -66,10 +69,27 @@ fun DongBudgetApp(container: AppContainer) {
             }
 
             entry<TransactionEditorKey>(metadata = modalTransitions()) { key ->
-                PlaceholderSubflow(
-                    title = if (key.transactionId == null) "거래 등록" else "거래 수정",
+                val viewModel: TransactionEditorViewModel =
+                    viewModel(factory = editorViewModelFactory(container, key.transactionId))
+                val state by viewModel.uiState.collectAsStateWithLifecycle()
+
+                // 저장이 끝나면 화면을 닫는다.
+                LaunchedEffect(state.saved) {
+                    if (state.saved) navigator.closeIfTop(key)
+                }
+
+                TransactionEditorScreen(
+                    state = state,
                     onClose = navigator::goBack,
-                    isModal = true,
+                    onSelectType = viewModel::selectType,
+                    onDigit = viewModel::appendDigit,
+                    onDelete = viewModel::deleteDigit,
+                    onClearAmount = viewModel::clearAmount,
+                    onSelectCategory = viewModel::selectCategory,
+                    onSelectPaymentMethod = viewModel::selectPaymentMethod,
+                    onMerchantChange = viewModel::updateMerchant,
+                    onMemoChange = viewModel::updateMemo,
+                    onSave = viewModel::save,
                 )
             }
 
@@ -103,4 +123,8 @@ private fun modalTransitions(): Map<String, Any> = NavDisplay.transitionSpec {
 
 private fun homeViewModelFactory(container: AppContainer) = viewModelFactory {
     initializer { HomeViewModel(container.transactionRepository) }
+}
+
+private fun editorViewModelFactory(container: AppContainer, transactionId: Long?) = viewModelFactory {
+    initializer { TransactionEditorViewModel(container.transactionRepository, transactionId) }
 }

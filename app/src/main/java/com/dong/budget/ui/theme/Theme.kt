@@ -23,7 +23,10 @@ import androidx.compose.ui.unit.Density
 // secondary/tertiary 는 무채색으로 봉인한다. 브랜드색을 두 번째로 쓸 곳이 없고,
 // 컴포넌트가 실수로 집어도 최악이 회색이면 화면이 망가지지 않는다.
 //
-// surfaceTint 는 투명으로 둔다. M3 의 tonal elevation 착색을 완전히 끄기 위함이다.
+// surfaceTint 에는 surface 와 '같은 색'을 넣어야 tonal elevation 착색이 꺼진다.
+// Color.Transparent 를 넣으면 안 된다. 그건 알파가 0인 검정이라서,
+// surfaceColorAtElevation 이 surfaceTint.copy(alpha).compositeOver(surface) 를 할 때
+// RGB 성분인 검정이 남아 표면이 오히려 어두워진다.
 // 이 앱은 계층을 그림자나 착색이 아니라 배경색 차이로만 표현한다.
 // ─────────────────────────────────────────────────────────────────────
 
@@ -52,7 +55,7 @@ private val LightScheme: ColorScheme =
         onSurface = Gray900,
         surfaceVariant = Gray100,
         onSurfaceVariant = Gray700,
-        surfaceTint = Color.Transparent,
+        surfaceTint = Color.White,
         inverseSurface = Gray900,
         inverseOnSurface = Gray50,
         outline = Gray400,
@@ -104,7 +107,7 @@ private val DarkScheme: ColorScheme =
         onSurface = DarkText,
         surfaceVariant = Dark700,
         onSurfaceVariant = DarkTextSecondary,
-        surfaceTint = Color.Transparent,
+        surfaceTint = Dark900,
         inverseSurface = Gray100,
         inverseOnSurface = Gray900,
         outline = Gray600,
