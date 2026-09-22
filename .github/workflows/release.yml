@@ -1,0 +1,95 @@
+name: 배포
+
+# v1.0.1 같은 태그를 올리면 서명된 APK 를 만들어 Releases 에 올린다.
+# 앱은 여기 올라온 APK 를 보고 새 버전을 확인한다.
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: JDK 21 준비
+        uses: actions/setup-java@v4
+        with:
+          distribution: corretto
+          java-version: '21'
+
+      - name: Android SDK 준비
+        uses: android-actions/setup-android@v3
+
+      - name: Gradle 준비
+        uses: gradle/actions/setup-gradle@v4
+
+      # 태그와 앱 버전이 어긋난 채로 배포되면
+      # 앱이 새 버전을 확인할 때 계속 업데이트가 있다고 하거나 아예 못 찾는다.
+      - name: 태그와 앱 버전이 같은지 확인
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          APP_VERSION=$(grep '^dongbudget.versionName=' gradle.properties | cut -d= -f2)
+          echo "태그: $TAG_VERSION / gradle.properties: $APP_VERSION"
+          if [ "$TAG_VERSION" != "$APP_VERSION" ]; then
+            echo "::error::태그($TAG_VERSION)와 gradle.properties 의 versionName($APP_VERSION)이 다르다."
+            echo "::error::gradle.properties 의 versionCode 와 versionName 을 올리고 같은 이름으로 태그를 다시 만들어라."
+            exit 1
+          fi
+
+      # 서명키는 저장소에 두지 않는다. Secrets 에 base64 로 넣어두고 여기서만 되살린다.
+      # 키가 바뀌면 기존 사용자의 업데이트 설치와 자동 백업 복원이 모두 깨지므로
+      # 한 번 만든 키는 절대 바꾸지 않는다.
+      - name: 서명키 복원
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::error::KEYSTORE_BASE64 시크릿이 없다. 서명 없이 배포하면 안 된다."
+            exit 1
+          fi
+          echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+
+      - name: 서명된 APK 빌드
+        env:
+          DONG_KEYSTORE_FILE: ${{ runner.temp }}/release.jks
+          DONG_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          DONG_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          DONG_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: ./gradlew assembleRelease
+
+      # 서명이 실제로 붙었는지 확인한다.
+      # 서명 없는 APK 가 올라가면 사용자가 설치할 수 없다.
+      - name: 서명 확인
+        run: |
+          APK=$(find app/build/outputs/apk/release -name '*.apk' | head -1)
+          echo "APK: $APK"
+          if [ -z "$APK" ]; then echo "::error::APK 를 찾지 못했다."; exit 1; fi
+          case "$APK" in
+            *unsigned*) echo "::error::서명되지 않은 APK 다. 시크릿 설정을 확인하라."; exit 1 ;;
+          esac
+          BUILD_TOOLS=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)
+          "$BUILD_TOOLS/apksigner" verify --print-certs "$APK"
+          echo "SIGNED_APK=$APK" >> "$GITHUB_ENV"
+
+      - name: 배포용 이름으로 변경
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          cp "$SIGNED_APK" "dong-budget-${VERSION}.apk"
+          ls -lh "dong-budget-${VERSION}.apk"
+
+      - name: 키 파일 정리
+        if: always()
+        run: rm -f "$RUNNER_TEMP/release.jks"
+
+      - name: Releases 에 올리기
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dong-budget-*.apk
+          generate_release_notes: true
+          draft: false
+          prerelease: false
