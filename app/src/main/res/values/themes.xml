@@ -1,6 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- 실제 색/타이포는 Compose 쪽 테마가 담당한다.
-         이 XML 테마는 앱이 뜨기 전 잠깐 보이는 창 배경만 정의한다. -->
-    <style name="Theme.DongBudget" parent="android:Theme.Material.Light.NoActionBar" />
+    <!-- 실제 색과 타이포는 Compose 테마가 담당한다.
+         이 XML 테마는 앱이 뜨기 전 잠깐 보이는 창 배경과,
+         플랫폼이 직접 그리는 것들(권한 다이얼로그, 텍스트 선택 핸들 등)의 기본값만 정한다.
+
+         parent 로 DayNight 를 쓰는 이유: android:Theme.DeviceDefault 는 Light 접미사가 없으면
+         다크 변종이라 라이트 모드에서도 플랫폼 기본값이 다크 기준으로 남는다.
+         플랫폼에 DayNight.NoActionBar 조합은 없어서 액션바는 직접 끈다. -->
+    <style name="Theme.DongBudget" parent="android:Theme.DeviceDefault.DayNight">
+        <item name="android:windowActionBar">false</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowBackground">@color/window_background</item>
+    </style>
 </resources>

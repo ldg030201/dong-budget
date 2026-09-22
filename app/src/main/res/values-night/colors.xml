@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 이 파일이 실제로 존재해야 한다. 주석으로만 적어두면 다크 모드에서
+         앱이 뜨기 전 흰 배경이 번쩍인다. -->
+    <color name="window_background">#FF14161C</color>
+</resources>

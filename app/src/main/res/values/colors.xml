@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Compose 의 Color.kt 와 값을 맞춰야 한다.
+         라이트 배경 = 흰색, 다크 배경 = Dark900(#14161C). -->
+    <color name="window_background">#FFFFFFFF</color>
+</resources>
