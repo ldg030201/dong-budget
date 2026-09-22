@@ -33,6 +33,7 @@ import com.dong.budget.ui.components.BudgetChip
 import com.dong.budget.ui.components.BudgetPrimaryButton
 import com.dong.budget.ui.components.BudgetTextField
 import com.dong.budget.ui.components.BudgetTopAppBar
+import com.dong.budget.ui.components.ConfirmDialog
 import com.dong.budget.ui.components.NavButtonStyle
 import com.dong.budget.ui.components.NumberKeypad
 import com.dong.budget.ui.format.formatAmount
@@ -47,17 +48,32 @@ fun TransactionEditorScreen(
     onClose: () -> Unit,
     onSelectType: (TransactionType) -> Unit,
     onDigit: (String) -> Unit,
-    onDelete: () -> Unit,
+    onDeleteDigit: () -> Unit,
     onClearAmount: () -> Unit,
     onSelectCategory: (Long) -> Unit,
     onSelectPaymentMethod: (Long) -> Unit,
     onMerchantChange: (String) -> Unit,
     onMemoChange: (String) -> Unit,
     onSave: () -> Unit,
+    onDeleteTransaction: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     // 글자를 입력하는 동안에는 시스템 키보드가 올라오므로 숫자 키패드를 숨긴다.
     var textFieldFocused by remember { mutableStateOf(false) }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+
+    if (showDeleteConfirm) {
+        ConfirmDialog(
+            title = "이 거래를 지울까요?",
+            message = "지운 거래는 되돌릴 수 없어요.",
+            confirmLabel = "지우기",
+            onConfirm = {
+                showDeleteConfirm = false
+                onDeleteTransaction()
+            },
+            onDismiss = { showDeleteConfirm = false },
+        )
+    }
 
     Surface(
         modifier = modifier.fillMaxSize(),
@@ -68,6 +84,11 @@ fun TransactionEditorScreen(
                 onNavigationClick = onClose,
                 title = if (state.isEditing) "거래 수정" else "거래 등록",
                 style = NavButtonStyle.CLOSE,
+                actions = {
+                    if (state.isEditing) {
+                        DeleteAction(onClick = { showDeleteConfirm = true })
+                    }
+                },
             )
 
             Column(
@@ -160,7 +181,7 @@ fun TransactionEditorScreen(
                                 textFieldFocused = false
                                 onDigit(digit)
                             },
-                            onDelete = onDelete,
+                            onDelete = onDeleteDigit,
                             onClear = onClearAmount,
                         )
                         Spacer(Modifier.height(BudgetTheme.spacing.ctaTopGap))
@@ -242,4 +263,22 @@ private fun ToggleCell(label: String, selected: Boolean, onClick: () -> Unit, mo
             color = if (selected) BudgetTheme.colors.textPrimary else BudgetTheme.colors.textSecondary,
         )
     }
+}
+
+@Composable
+private fun DeleteAction(onClick: () -> Unit) {
+    Text(
+        text = "삭제",
+        style = MaterialTheme.typography.labelLarge,
+        color = BudgetTheme.colors.danger,
+        modifier =
+        Modifier
+            .pressScaleClickable(
+                shape = RoundedCornerShape(BudgetTheme.radius.chip),
+                onClick = onClick,
+            ).padding(
+                horizontal = BudgetTheme.spacing.itemGap,
+                vertical = BudgetTheme.spacing.inlineGap,
+            ),
+    )
 }

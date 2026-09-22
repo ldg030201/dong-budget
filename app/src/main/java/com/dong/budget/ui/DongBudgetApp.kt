@@ -83,13 +83,14 @@ fun DongBudgetApp(container: AppContainer) {
                     onClose = navigator::goBack,
                     onSelectType = viewModel::selectType,
                     onDigit = viewModel::appendDigit,
-                    onDelete = viewModel::deleteDigit,
+                    onDeleteDigit = viewModel::deleteDigit,
                     onClearAmount = viewModel::clearAmount,
                     onSelectCategory = viewModel::selectCategory,
                     onSelectPaymentMethod = viewModel::selectPaymentMethod,
                     onMerchantChange = viewModel::updateMerchant,
                     onMemoChange = viewModel::updateMemo,
                     onSave = viewModel::save,
+                    onDeleteTransaction = viewModel::delete,
                 )
             }
 
