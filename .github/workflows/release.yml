@@ -16,11 +16,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: JDK 21 준비
+      # gradle/gradle-daemon-jvm.properties 가 데몬 JVM 을 25 로 고정한다.
+      # 여기서 25 를 깔아두지 않으면 Gradle 이 빌드마다 JDK 를 새로 내려받는다(약 145MB).
+      - name: JDK 25 준비
         uses: actions/setup-java@v4
         with:
-          distribution: corretto
-          java-version: '21'
+          distribution: temurin
+          java-version: '25'
 
       - name: Android SDK 준비
         uses: android-actions/setup-android@v3
