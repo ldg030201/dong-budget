@@ -70,11 +70,10 @@ android {
     buildTypes {
         release {
             signingConfig = signingConfigs.findByName("release")
-            // 1단계에서는 R8 을 끈다. Compose + Room 에 R8 을 처음부터 켜면
-            // keep rule 문제로 런타임에서만 터지는 버그가 나기 쉽다.
-            // 거래 등록이 에뮬레이터에서 도는 걸 확인한 직후, 첫 release 태그 전에 켠다.
-            // (미축소 APK 는 25MB 대인데 앱 내 업데이터가 매번 이걸 통째로 받으므로 켜는 게 맞다)
-            isMinifyEnabled = false
+            // 코드와 리소스를 줄인다.
+            // 앱 내 업데이터가 업데이트마다 이 APK 를 통째로 내려받으므로 크기가 곧 비용이다.
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 // AGP 9 에서 "proguard-android.txt" 는 금지됐다. 반드시 -optimize 판을 써야 한다.
                 getDefaultProguardFile("proguard-android-optimize.txt"),
