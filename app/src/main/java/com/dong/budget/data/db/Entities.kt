@@ -136,5 +136,10 @@ data class PaymentMethodEntity(
     val name: String,
     val type: PaymentMethodType,
     val sortOrder: Int = 0,
+    /** 지울 수 없는 결제수단인지. 결제수단은 비워둘 수 있어서 지금은 전부 false 다. */
     val isSystem: Boolean = false,
+    /** 아이콘 이름. [CategoryStyle.ICONS] 중 하나 */
+    @ColumnInfo(defaultValue = CategoryStyle.FALLBACK_ICON) val icon: String = CategoryStyle.FALLBACK_ICON,
+    /** 색 이름. [CategoryStyle.COLORS] 중 하나 */
+    @ColumnInfo(defaultValue = CategoryStyle.FALLBACK_COLOR) val color: String = CategoryStyle.FALLBACK_COLOR,
 )

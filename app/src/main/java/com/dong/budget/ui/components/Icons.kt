@@ -47,6 +47,11 @@ fun categoryIconRes(key: String?): Int = when (key) {
     "redeem" -> R.drawable.ic_sym_redeem
     "payments" -> R.drawable.ic_sym_payments
     "savings" -> R.drawable.ic_sym_savings
+    "credit_card" -> R.drawable.ic_sym_credit_card
+    "account_balance" -> R.drawable.ic_sym_account_balance
+    "account_balance_wallet" -> R.drawable.ic_sym_account_balance_wallet
+    "contactless" -> R.drawable.ic_sym_contactless
+    "interests" -> R.drawable.ic_sym_interests
     else -> R.drawable.ic_sym_more_horiz
 }
 

@@ -36,7 +36,8 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
-import com.dong.budget.data.CategoryRepository
+import com.dong.budget.data.AddResult
+import com.dong.budget.data.MAX_NAME_LENGTH
 import com.dong.budget.data.db.CategoryStyle
 import com.dong.budget.ui.components.BudgetPrimaryButton
 import com.dong.budget.ui.components.CategoryBadge
@@ -47,7 +48,7 @@ import com.dong.budget.ui.theme.BudgetTheme
 import com.dong.budget.ui.theme.pressScaleClickable
 
 /**
- * 분류를 새로 만드는 시트. 이름, 색, 아이콘을 고른다.
+ * 분류나 결제수단을 새로 만드는 시트. 이름, 색, 아이콘을 고른다.
  *
  * 입력 중인 값은 이 시트 안에만 있다. 저장이 끝나면 부르는 쪽이 시트를 닫고,
  * 닫히면 값도 함께 사라져 다음에 열 때 새로 시작한다.
@@ -57,7 +58,9 @@ import com.dong.budget.ui.theme.pressScaleClickable
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-fun CategoryAddSheet(
+fun AddItemSheet(
+    title: String,
+    namePlaceholder: String,
     usedColors: Set<String>,
     error: String?,
     onDismiss: () -> Unit,
@@ -86,7 +89,7 @@ fun CategoryAddSheet(
                 .padding(bottom = BudgetTheme.spacing.sectionPadding),
         ) {
             Text(
-                text = "분류 추가",
+                text = title,
                 style = MaterialTheme.typography.titleLarge,
                 color = BudgetTheme.colors.textPrimary,
             )
@@ -100,9 +103,9 @@ fun CategoryAddSheet(
                     label = "이름",
                     value = name,
                     onValueChange = { name = it },
-                    placeholder = "예: 카페",
+                    placeholder = namePlaceholder,
                     imeAction = ImeAction.Done,
-                    maxLength = CategoryRepository.MAX_NAME_LENGTH,
+                    maxLength = MAX_NAME_LENGTH,
                     modifier = Modifier.weight(1f),
                 )
             }
@@ -222,7 +225,7 @@ private fun colorLabel(key: String): String = when (key) {
 }
 
 /** 아이콘의 뜻. 화면 읽기 기능이 이 이름으로 읽어준다. */
-private fun iconLabel(key: String): String = when (key) {
+internal fun iconLabel(key: String): String = when (key) {
     "restaurant" -> "식사"
     "local_cafe" -> "카페"
     "local_bar" -> "술"
@@ -246,5 +249,18 @@ private fun iconLabel(key: String): String = when (key) {
     "redeem" -> "선물"
     "payments" -> "돈"
     "savings" -> "저금"
+    "credit_card" -> "카드"
+    "account_balance" -> "은행"
+    "account_balance_wallet" -> "지갑"
+    "contactless" -> "간편결제"
+    "interests" -> "여러 가지"
     else -> "기타"
+}
+
+/** 추가가 거절된 이유를 사람이 읽을 문장으로 */
+fun AddResult.message(): String? = when (this) {
+    is AddResult.Added -> null
+    AddResult.BlankName -> "이름을 적어주세요"
+    AddResult.NameTooLong -> "이름은 ${MAX_NAME_LENGTH}자까지 쓸 수 있어요"
+    AddResult.DuplicateName -> "이미 있는 이름이에요"
 }

@@ -2,13 +2,15 @@ package com.dong.budget.ui.editor
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.dong.budget.data.AddCategoryResult
+import com.dong.budget.data.AddResult
 import com.dong.budget.data.CategoryRepository
+import com.dong.budget.data.PaymentMethodRepository
 import com.dong.budget.data.TransactionRepository
 import com.dong.budget.data.db.CategoryEntity
 import com.dong.budget.data.db.CategoryScope
 import com.dong.budget.data.db.PaymentMethodEntity
 import com.dong.budget.data.db.TransactionType
+import com.dong.budget.ui.category.message
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -19,6 +21,9 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.Instant
+
+/** 등록 화면에서 새로 만들 수 있는 것 */
+enum class AddTarget { CATEGORY, PAYMENT }
 
 /** 금액 입력 자리수 상한. 원 단위라 12자리면 조 단위까지 들어간다. */
 private const val MAX_AMOUNT_DIGITS = 12
@@ -35,8 +40,12 @@ data class EditorUiState(
     val occurredAt: Instant = Instant.now(),
     val categories: List<CategoryEntity> = emptyList(),
     val paymentMethods: List<PaymentMethodEntity> = emptyList(),
-    val showAddCategory: Boolean = false,
-    val addCategoryError: String? = null,
+    /** 열려 있는 추가 시트. 없으면 null */
+    val addTarget: AddTarget? = null,
+    val addError: String? = null,
+    /** 방금 추가에 성공한 것. 화면이 이 값의 변화를 보고 입력판을 닫는다. */
+    val lastAddedCategoryId: Long? = null,
+    val lastAddedPaymentId: Long? = null,
     val saved: Boolean = false,
 ) {
     val amount: Long get() = amountDigits.toLongOrNull() ?: 0L
@@ -48,12 +57,15 @@ data class EditorUiState(
 
     val selectedPaymentMethod: PaymentMethodEntity? get() = paymentMethods.firstOrNull { it.id == paymentMethodId }
 
-    val usedColors: Set<String> get() = categories.mapTo(mutableSetOf()) { it.color }
+    val usedCategoryColors: Set<String> get() = categories.mapTo(mutableSetOf()) { it.color }
+
+    val usedPaymentColors: Set<String> get() = paymentMethods.mapTo(mutableSetOf()) { it.color }
 }
 
 class TransactionEditorViewModel(
     private val repository: TransactionRepository,
     private val categoryRepository: CategoryRepository,
+    private val paymentMethodRepository: PaymentMethodRepository,
     private val transactionId: Long?,
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(EditorUiState(isEditing = transactionId != null))
@@ -149,25 +161,36 @@ class TransactionEditorViewModel(
         _uiState.update { it.copy(memo = value) }
     }
 
-    fun openAddCategory() {
-        _uiState.update { it.copy(showAddCategory = true, addCategoryError = null) }
+    fun openAdd(target: AddTarget) {
+        _uiState.update { it.copy(addTarget = target, addError = null) }
     }
 
-    fun dismissAddCategory() {
-        _uiState.update { it.copy(showAddCategory = false, addCategoryError = null) }
+    fun dismissAdd() {
+        _uiState.update { it.copy(addTarget = null, addError = null) }
     }
 
-    /** 등록 도중에 분류를 새로 만든다. 만들어지면 바로 그 분류를 고른 상태가 된다. */
-    fun addCategory(name: String, icon: String, color: String) {
-        val scope = _uiState.value.type.categoryScope()
+    /** 등록 도중에 분류나 결제수단을 새로 만든다. 만들어지면 바로 그것을 고른 상태가 된다. */
+    fun submitAdd(name: String, icon: String, color: String) {
+        val state = _uiState.value
+        val target = state.addTarget ?: return
         viewModelScope.launch {
-            when (val result = categoryRepository.add(scope, name, icon, color)) {
-                is AddCategoryResult.Added ->
-                    _uiState.update {
-                        it.copy(categoryId = result.id, showAddCategory = false, addCategoryError = null)
-                    }
+            val result =
+                when (target) {
+                    AddTarget.CATEGORY -> categoryRepository.add(state.type.categoryScope(), name, icon, color)
+                    AddTarget.PAYMENT -> paymentMethodRepository.add(name, icon, color)
+                }
+            _uiState.update {
+                if (result !is AddResult.Added) {
+                    it.copy(addError = result.message())
+                } else {
+                    when (target) {
+                        AddTarget.CATEGORY ->
+                            it.copy(categoryId = result.id, lastAddedCategoryId = result.id, addTarget = null, addError = null)
 
-                else -> _uiState.update { it.copy(addCategoryError = result.message()) }
+                        AddTarget.PAYMENT ->
+                            it.copy(paymentMethodId = result.id, lastAddedPaymentId = result.id, addTarget = null, addError = null)
+                    }
+                }
             }
         }
     }
@@ -212,11 +235,3 @@ class TransactionEditorViewModel(
 }
 
 fun TransactionType.categoryScope(): CategoryScope = if (this == TransactionType.INCOME) CategoryScope.INCOME else CategoryScope.EXPENSE
-
-/** 분류 추가가 거절된 이유를 사람이 읽을 문장으로 */
-fun AddCategoryResult.message(): String? = when (this) {
-    is AddCategoryResult.Added -> null
-    AddCategoryResult.BlankName -> "이름을 적어주세요"
-    AddCategoryResult.NameTooLong -> "이름은 ${CategoryRepository.MAX_NAME_LENGTH}자까지 쓸 수 있어요"
-    AddCategoryResult.DuplicateName -> "이미 있는 이름이에요"
-}

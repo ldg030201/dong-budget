@@ -25,6 +25,8 @@ class AppContainer(context: Context) {
 
     val categoryRepository by lazy { CategoryRepository(database.categoryDao()) }
 
+    val paymentMethodRepository by lazy { PaymentMethodRepository(database.paymentMethodDao()) }
+
     val settingsRepository by lazy { SettingsRepository(context) }
 
     val updateRepository by lazy { UpdateRepository() }

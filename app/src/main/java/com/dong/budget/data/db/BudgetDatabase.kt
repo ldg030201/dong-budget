@@ -71,10 +71,10 @@ private fun insertDefaultCategory(db: SupportSQLiteDatabase, c: DefaultCategory,
 private object SeedCallback : RoomDatabase.Callback() {
     override fun onCreate(db: SupportSQLiteDatabase) {
         DEFAULT_CATEGORIES.forEach { insertDefaultCategory(db, it, orIgnore = false) }
-        DefaultPaymentMethods.forEachIndexed { index, (code, name, type) ->
+        DEFAULT_PAYMENT_METHODS.forEach { m ->
             db.execSQL(
-                "INSERT INTO payment_methods (uuid, name, type, sortOrder, isSystem) VALUES (?, ?, ?, ?, 1)",
-                arrayOf<Any?>("seed:payment:$code", name, type.name, index),
+                "INSERT INTO payment_methods (uuid, name, type, sortOrder, isSystem, icon, color) VALUES (?, ?, ?, ?, 0, ?, ?)",
+                arrayOf<Any?>(m.uuid, m.name, m.type.name, m.sortOrder, m.icon, m.color),
             )
         }
     }
@@ -88,6 +88,7 @@ private object SeedCallback : RoomDatabase.Callback() {
  * 2. 거래가 걸려 있어 지울 수 없는 옛 기본 분류는 사용자 분류로 바꾸고
  *    어울리는 아이콘·색을 붙인다. 이제 사용자가 지울 수 있다.
  * 3. 새 기본 분류를 넣는다. 이름이 이미 있으면(예: '식비', '기타') 그 행에 아이콘·색만 입힌다.
+ * 4. 기본 결제수단에 아이콘·색을 입히고 지울 수 있게 바꾼다.
  *
  * 주의: Room 이 생성한 코드는 onPostMigrate(SQLiteConnection) 을 부른다.
  * 그 기본 구현은 연결이 SupportSQLiteConnection 일 때만 아래 SupportSQLiteDatabase 버전으로 넘긴다.
@@ -126,6 +127,14 @@ class Migration1To2 : AutoMigrationSpec {
                 arrayOf<Any?>(c.code, c.icon, c.color, c.sortOrder, if (c.isSystem) 1 else 0, c.scope.name, c.name),
             )
         }
+
+        // 4
+        DEFAULT_PAYMENT_METHODS.forEach { m ->
+            db.execSQL(
+                "UPDATE payment_methods SET icon = ?, color = ?, isSystem = 0 WHERE uuid = ?",
+                arrayOf<Any?>(m.icon, m.color, m.uuid),
+            )
+        }
     }
 
     private companion object {
@@ -146,11 +155,3 @@ class Migration1To2 : AutoMigrationSpec {
             )
     }
 }
-
-private val DefaultPaymentMethods =
-    listOf(
-        Triple("CASH", "현금", PaymentMethodType.CASH),
-        Triple("CHECK_CARD", "체크카드", PaymentMethodType.CARD),
-        Triple("CREDIT_CARD", "신용카드", PaymentMethodType.CARD),
-        Triple("ACCOUNT", "계좌이체", PaymentMethodType.ACCOUNT),
-    )

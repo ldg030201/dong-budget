@@ -19,11 +19,14 @@ import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import com.dong.budget.data.AppContainer
+import com.dong.budget.navigation.CategoryManageKey
 import com.dong.budget.navigation.Navigator
 import com.dong.budget.navigation.SettingsKey
 import com.dong.budget.navigation.ShellKey
 import com.dong.budget.navigation.StatisticsKey
 import com.dong.budget.navigation.TransactionEditorKey
+import com.dong.budget.ui.category.CategoryManageScreen
+import com.dong.budget.ui.category.CategoryManageViewModel
 import com.dong.budget.ui.editor.TransactionEditorScreen
 import com.dong.budget.ui.editor.TransactionEditorViewModel
 import com.dong.budget.ui.home.HomeViewModel
@@ -65,6 +68,7 @@ fun DongBudgetApp(container: AppContainer) {
                     onNextMonth = viewModel::showNextMonth,
                     onAddTransaction = { navigator.go(TransactionEditorKey()) },
                     onEditTransaction = { id -> navigator.go(TransactionEditorKey(id)) },
+                    onOpenCategories = { navigator.go(CategoryManageKey) },
                     onOpenStatistics = { navigator.go(StatisticsKey) },
                     onOpenSettings = { navigator.go(SettingsKey) },
                 )
@@ -88,14 +92,31 @@ fun DongBudgetApp(container: AppContainer) {
                     onDeleteDigit = viewModel::deleteDigit,
                     onClearAmount = viewModel::clearAmount,
                     onSelectCategory = viewModel::selectCategory,
-                    onOpenAddCategory = viewModel::openAddCategory,
-                    onDismissAddCategory = viewModel::dismissAddCategory,
-                    onSubmitCategory = viewModel::addCategory,
                     onSelectPaymentMethod = viewModel::selectPaymentMethod,
+                    onOpenAdd = viewModel::openAdd,
+                    onDismissAdd = viewModel::dismissAdd,
+                    onSubmitAdd = viewModel::submitAdd,
                     onMerchantChange = viewModel::updateMerchant,
                     onMemoChange = viewModel::updateMemo,
                     onSave = viewModel::save,
                     onDeleteTransaction = viewModel::delete,
+                )
+            }
+
+            entry<CategoryManageKey> {
+                val viewModel: CategoryManageViewModel =
+                    viewModel(factory = categoryManageViewModelFactory(container))
+                val state by viewModel.uiState.collectAsStateWithLifecycle()
+                CategoryManageScreen(
+                    state = state,
+                    onTabChange = viewModel::selectTab,
+                    onOpenAdd = viewModel::openAdd,
+                    onDismissAdd = viewModel::dismissAdd,
+                    onSubmitAdd = viewModel::add,
+                    onRequestDelete = viewModel::requestDelete,
+                    onCancelDelete = viewModel::cancelDelete,
+                    onConfirmDelete = viewModel::confirmDelete,
+                    onBack = navigator::goBack,
                 )
             }
 
@@ -149,6 +170,7 @@ private fun editorViewModelFactory(container: AppContainer, transactionId: Long?
         TransactionEditorViewModel(
             repository = container.transactionRepository,
             categoryRepository = container.categoryRepository,
+            paymentMethodRepository = container.paymentMethodRepository,
             transactionId = transactionId,
         )
     }
@@ -162,4 +184,8 @@ private fun settingsViewModelFactory(container: AppContainer) = viewModelFactory
             apkInstaller = container.apkInstaller,
         )
     }
+}
+
+private fun categoryManageViewModelFactory(container: AppContainer) = viewModelFactory {
+    initializer { CategoryManageViewModel(container.categoryRepository, container.paymentMethodRepository) }
 }
