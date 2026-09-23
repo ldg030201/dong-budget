@@ -108,11 +108,18 @@ data class CategoryEntity(
     val uuid: String,
     val scope: CategoryScope,
     val name: String,
-    /** 기본 제공 카테고리를 알아보기 위한 코드. 사용자가 만든 것은 null */
+    /** 기본 제공 분류를 알아보기 위한 코드. 사용자가 만든 것은 null */
     val code: String? = null,
     val sortOrder: Int = 0,
-    /** 기본 제공 여부. true 면 삭제할 수 없다 */
+    /**
+     * 지울 수 없는 분류인지. 지금은 '기타' 만 true 다.
+     * 다른 분류를 지우면 그 거래가 '기타' 로 옮겨가므로 '기타' 는 항상 있어야 한다.
+     */
     val isSystem: Boolean = false,
+    /** 아이콘 이름. [CategoryStyle.ICONS] 중 하나 */
+    @ColumnInfo(defaultValue = CategoryStyle.FALLBACK_ICON) val icon: String = CategoryStyle.FALLBACK_ICON,
+    /** 색 이름. [CategoryStyle.COLORS] 중 하나 */
+    @ColumnInfo(defaultValue = CategoryStyle.FALLBACK_COLOR) val color: String = CategoryStyle.FALLBACK_COLOR,
 )
 
 @Entity(
