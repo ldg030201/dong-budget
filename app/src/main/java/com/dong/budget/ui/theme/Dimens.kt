@@ -65,6 +65,19 @@ data class BudgetSize(
     val iconSmall: Dp = 18.dp,
     val icon: Dp = 24.dp,
     val topBarHeight: Dp = 56.dp,
+    /** 목록 줄 앞의 아이콘 원 */
+    val badge: Dp = 40.dp,
+    /** 입력칸 안처럼 좁은 곳의 아이콘 원 */
+    val badgeSmall: Dp = 28.dp,
+    /** 분류 표의 아이콘 원 */
+    val badgeLarge: Dp = 48.dp,
+    /** 입력칸 한 줄의 최소 높이 */
+    val formFieldMinHeight: Dp = 64.dp,
+    /** 입력칸 밑줄 두께. 선택된 칸은 굵게 */
+    val underline: Dp = 1.dp,
+    val underlineActive: Dp = 2.dp,
+    /** 아래에서 올라오는 입력판(키패드, 분류 표)의 높이. 판을 바꿔도 화면이 출렁이지 않게 맞춘다 */
+    val inputPanelHeight: Dp = 264.dp,
 )
 
 /** 화면 코드에서 참조하는 전체 토큰 묶음 */
@@ -76,6 +89,7 @@ data class BudgetTokens(
     val elevation: BudgetElevation = BudgetElevation(),
     val size: BudgetSize = BudgetSize(),
     val amount: BudgetAmountTypography = DefaultAmountTypography,
+    val categoryPalette: CategoryPalette = LightCategoryPalette,
 )
 
 internal val BudgetShapes =

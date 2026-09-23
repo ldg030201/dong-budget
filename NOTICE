@@ -11,3 +11,15 @@ app/src/main/res/font/ 에 들어 있는 폰트 파일.
 
 이 프로젝트의 MIT 라이선스는 Pretendard 에 적용되지 않는다.
 폰트는 위 라이선스를 따르며 파일을 수정하지 않고 그대로 포함했다.
+
+## Material Symbols
+
+app/src/main/res/drawable/ic_sym_*.xml 아이콘.
+
+- 저작권: Copyright Google LLC
+- 라이선스: Apache License, Version 2.0
+- 원본: https://github.com/google/material-design-icons (Material Symbols Rounded, FILL 1)
+- 전문: https://www.apache.org/licenses/LICENSE-2.0
+
+원본 대비 변경: 이 앱 테마에 없는 속성(android:tint="?attr/colorControlNormal")을 지우고
+기본 채움색을 바꿨다. 실제 색은 화면에서 입힌다.

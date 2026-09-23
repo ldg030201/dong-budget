@@ -164,12 +164,18 @@ object BudgetTheme {
     val amount: BudgetAmountTypography
         @Composable @ReadOnlyComposable
         get() = LocalBudgetTokens.current.amount
+    val categoryPalette: CategoryPalette
+        @Composable @ReadOnlyComposable
+        get() = LocalBudgetTokens.current.categoryPalette
 }
 
 @Composable
 fun BudgetTheme(darkTheme: Boolean, content: @Composable () -> Unit) {
     val tokens =
-        BudgetTokens(colors = if (darkTheme) DarkColorTokens else LightColorTokens)
+        BudgetTokens(
+            colors = if (darkTheme) DarkColorTokens else LightColorTokens,
+            categoryPalette = if (darkTheme) DarkCategoryPalette else LightCategoryPalette,
+        )
 
     val density = LocalDensity.current
 

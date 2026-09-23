@@ -2,8 +2,10 @@ package com.dong.budget.ui.components
 
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -24,6 +26,7 @@ fun BudgetListItem(
     title: String,
     modifier: Modifier = Modifier,
     subtitle: String? = null,
+    leading: @Composable (() -> Unit)? = null,
     trailing: @Composable (() -> Unit)? = null,
     onClick: (() -> Unit)? = null,
 ) {
@@ -45,6 +48,10 @@ fun BudgetListItem(
             )
 
     Row(modifier = base, verticalAlignment = Alignment.CenterVertically) {
+        if (leading != null) {
+            leading()
+            Spacer(Modifier.width(BudgetTheme.spacing.itemGap))
+        }
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = title,
