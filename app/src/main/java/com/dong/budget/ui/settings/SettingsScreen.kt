@@ -107,19 +107,35 @@ private fun UpdateSection(state: UpdateUiState, onCheckUpdate: () -> Unit, onDow
                 style = MaterialTheme.typography.titleMedium,
                 color = BudgetTheme.colors.textPrimary,
             )
-            if (state.notes.isNotEmpty()) {
-                Spacer(Modifier.height(BudgetTheme.spacing.tightGap))
-                Text(
-                    text = state.notes,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = BudgetTheme.colors.textSecondary,
-                )
-            }
+            // 버튼을 바뀐 점보다 먼저 둔다.
+            // 글이 길어져도 버튼이 화면 밖으로 밀려나지 않게 하기 위함이다.
             Spacer(Modifier.height(BudgetTheme.spacing.itemGap))
             BudgetPrimaryButton(
                 text = "내려받고 설치 (${state.sizeBytes.toMegabytes()}MB)",
                 onClick = onDownloadUpdate,
             )
+            Spacer(Modifier.height(BudgetTheme.spacing.inlineGap))
+            // 앱이 자기 자신을 업데이트하면 안드로이드가 실행 중인 앱을 종료한다.
+            // 미리 알려주지 않으면 앱이 죽은 줄 안다.
+            Text(
+                text = "설치가 끝나면 앱이 닫혀요. 다시 열어주세요.",
+                style = MaterialTheme.typography.bodySmall,
+                color = BudgetTheme.colors.textSecondary,
+            )
+            if (state.notes.isNotEmpty()) {
+                Spacer(Modifier.height(BudgetTheme.spacing.sectionPadding))
+                Text(
+                    text = "바뀐 점",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = BudgetTheme.colors.textSecondary,
+                )
+                Spacer(Modifier.height(BudgetTheme.spacing.tightGap))
+                Text(
+                    text = state.notes,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = BudgetTheme.colors.textPrimary,
+                )
+            }
         }
 
         is UpdateUiState.Downloading -> {
@@ -134,7 +150,7 @@ private fun UpdateSection(state: UpdateUiState, onCheckUpdate: () -> Unit, onDow
         }
 
         UpdateUiState.AwaitingInstall ->
-            StatusText("설치 화면이 뜨면 설치를 눌러주세요")
+            StatusText("설치 화면에서 설치를 눌러주세요. 끝나면 앱이 닫히니 다시 열어주세요.")
 
         is UpdateUiState.Failed -> {
             StatusText(state.reason)

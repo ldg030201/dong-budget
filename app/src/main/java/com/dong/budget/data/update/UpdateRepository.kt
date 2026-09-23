@@ -98,7 +98,8 @@ class UpdateRepository(
 
             return UpdateStatus.Available(
                 version = latest.toString(),
-                notes = release.body.orEmpty().trim(),
+                // 본문 전체가 아니라 앱용 구간만. 웹 페이지용 설치 안내는 여기서 걸러진다.
+                notes = ReleaseNotes.forApp(release.body),
                 downloadUrl = apk.downloadUrl,
                 sizeBytes = apk.size,
             )
