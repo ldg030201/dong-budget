@@ -17,6 +17,7 @@ import androidx.compose.ui.Modifier
 import com.dong.budget.data.db.TransactionListItem
 import com.dong.budget.data.db.TransactionType
 import com.dong.budget.ui.components.BudgetListItem
+import com.dong.budget.ui.components.CategoryBadge
 import com.dong.budget.ui.format.formatSignedAmount
 import com.dong.budget.ui.format.formatTime
 import com.dong.budget.ui.theme.BudgetTheme
@@ -49,6 +50,7 @@ fun HistoryScreen(items: List<TransactionListItem>, onItemClick: (Long) -> Unit,
         items(items = items, key = { it.id }) { item ->
             BudgetListItem(
                 title = item.merchant ?: item.categoryName ?: "이름 없는 거래",
+                leading = { CategoryBadge(icon = item.categoryIcon, color = item.categoryColor) },
                 subtitle =
                 listOfNotNull(
                     formatTime(item.occurredAt),

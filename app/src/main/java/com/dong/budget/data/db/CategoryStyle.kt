@@ -13,29 +13,41 @@ object CategoryStyle {
     /** 아이콘 이름은 Material Symbols 의 이름과 같다. res/drawable/ic_sym_<이름>.xml */
     val ICONS =
         listOf(
+            // 먹고 마시기
             "restaurant",
             "local_cafe",
             "local_bar",
+            // 가게·쇼핑
             "storefront",
             "shopping_bag",
+            "checkroom",
+            "content_cut",
+            // 이동
             "directions_car",
             "directions_bus",
             "local_gas_station",
-            "checkroom",
-            "content_cut",
-            "event_repeat",
+            "flight",
+            // 생활
             "home",
             "smartphone",
+            "event_repeat",
             "local_hospital",
             "school",
+            "pets",
+            // 여가
             "movie",
             "sports_esports",
             "fitness_center",
-            "flight",
-            "pets",
             "redeem",
+            // 돈·결제수단
             "payments",
+            "credit_card",
+            "account_balance",
+            "account_balance_wallet",
+            "contactless",
             "savings",
+            // 기타
+            "interests",
             "more_horiz",
         )
 
@@ -78,13 +90,38 @@ val DEFAULT_CATEGORIES =
         DefaultCategory(CategoryScope.EXPENSE, "CONVENIENCE", "편의점", "storefront", "green", 2),
         DefaultCategory(CategoryScope.EXPENSE, "FASHION", "패션/미용", "checkroom", "pink", 3),
         DefaultCategory(CategoryScope.EXPENSE, "FIXED", "고정지출", "event_repeat", "purple", 4),
-        DefaultCategory(CategoryScope.EXPENSE, ETC_EXPENSE_CODE, "기타", "more_horiz", "gray", ETC_SORT_ORDER),
+        DefaultCategory(CategoryScope.EXPENSE, ETC_EXPENSE_CODE, "기타", "interests", "gray", ETC_SORT_ORDER),
         DefaultCategory(CategoryScope.INCOME, "SALARY", "급여", "payments", "teal", 0),
         DefaultCategory(CategoryScope.INCOME, "ALLOWANCE", "용돈", "redeem", "amber", 1),
-        DefaultCategory(CategoryScope.INCOME, ETC_INCOME_CODE, "기타", "more_horiz", "gray", ETC_SORT_ORDER),
+        DefaultCategory(CategoryScope.INCOME, ETC_INCOME_CODE, "기타", "interests", "gray", ETC_SORT_ORDER),
     )
 
 fun etcCodeFor(scope: CategoryScope): String = when (scope) {
     CategoryScope.EXPENSE -> ETC_EXPENSE_CODE
     CategoryScope.INCOME -> ETC_INCOME_CODE
 }
+
+/** 기본 결제수단 한 줄 */
+data class DefaultPaymentMethod(
+    val code: String,
+    val name: String,
+    val type: PaymentMethodType,
+    val icon: String,
+    val color: String,
+    val sortOrder: Int,
+) {
+    /** 1.x 부터 쓰던 uuid 를 그대로 쓴다. 결제수단은 이름이 바뀌지 않아서 겹칠 일이 없다. */
+    val uuid: String get() = "seed:payment:$code"
+}
+
+/**
+ * 기본 결제수단. 분류와 마찬가지로 새 설치와 옛 DB 변환이 같은 목록을 쓴다.
+ * 결제수단은 비워둘 수 있는 칸이라 지울 수 없는 '기타' 같은 것은 두지 않는다.
+ */
+val DEFAULT_PAYMENT_METHODS =
+    listOf(
+        DefaultPaymentMethod("CASH", "현금", PaymentMethodType.CASH, "payments", "green", 0),
+        DefaultPaymentMethod("CHECK_CARD", "체크카드", PaymentMethodType.CARD, "credit_card", "blue", 1),
+        DefaultPaymentMethod("CREDIT_CARD", "신용카드", PaymentMethodType.CARD, "credit_card", "purple", 2),
+        DefaultPaymentMethod("ACCOUNT", "계좌이체", PaymentMethodType.ACCOUNT, "account_balance", "teal", 3),
+    )

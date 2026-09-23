@@ -53,6 +53,7 @@ fun HomeShell(
     onNextMonth: () -> Unit,
     onAddTransaction: () -> Unit,
     onEditTransaction: (Long) -> Unit,
+    onOpenCategories: () -> Unit,
     onOpenStatistics: () -> Unit,
     onOpenSettings: () -> Unit,
     modifier: Modifier = Modifier,
@@ -111,6 +112,7 @@ fun HomeShell(
 
                     ShellTab.MORE ->
                         MoreScreen(
+                            onOpenCategories = onOpenCategories,
                             onOpenStatistics = onOpenStatistics,
                             onOpenSettings = onOpenSettings,
                         )

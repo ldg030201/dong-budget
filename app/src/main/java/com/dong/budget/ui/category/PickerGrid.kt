@@ -28,7 +28,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import com.dong.budget.R
-import com.dong.budget.data.db.CategoryEntity
 import com.dong.budget.ui.components.CategoryBadge
 import com.dong.budget.ui.components.IconBadge
 import com.dong.budget.ui.theme.BudgetTheme
@@ -36,33 +35,30 @@ import com.dong.budget.ui.theme.pressScaleClickable
 
 private const val COLUMNS = 4
 
+/** 표에 올릴 항목. 분류와 결제수단이 같은 모양으로 보인다. */
+data class PickerItem(val id: Long, val name: String, val icon: String, val color: String)
+
 /**
- * 분류를 고르는 표. 한 줄에 네 개씩, 맨 끝에 '추가' 칸.
- * 등록 화면 아래 입력판으로 쓴다.
+ * 아이콘 붙은 항목을 고르는 표. 한 줄에 네 개씩, 맨 끝에 '추가' 칸.
+ * 등록 화면 아래 입력판으로 쓴다. 분류와 결제수단이 같이 쓴다.
  */
 @Composable
-fun CategoryGrid(
-    categories: List<CategoryEntity>,
-    selectedId: Long?,
-    onSelect: (Long) -> Unit,
-    onAdd: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
+fun PickerGrid(items: List<PickerItem>, selectedId: Long?, onSelect: (Long) -> Unit, onAdd: () -> Unit, modifier: Modifier = Modifier) {
     LazyVerticalGrid(
         columns = GridCells.Fixed(COLUMNS),
         modifier = modifier,
         contentPadding = PaddingValues(vertical = BudgetTheme.spacing.inlineGap),
         verticalArrangement = Arrangement.spacedBy(BudgetTheme.spacing.itemGap),
     ) {
-        items(categories, key = { it.id }) { category ->
-            CategoryTile(
-                selected = category.id == selectedId,
-                label = category.name,
-                onClick = { onSelect(category.id) },
-            ) { CategoryBadge(icon = category.icon, color = category.color, size = BudgetTheme.size.badgeLarge) }
+        items(items, key = { it.id }) { item ->
+            PickerTile(
+                selected = item.id == selectedId,
+                label = item.name,
+                onClick = { onSelect(item.id) },
+            ) { CategoryBadge(icon = item.icon, color = item.color, size = BudgetTheme.size.badgeLarge) }
         }
         item(key = "add") {
-            CategoryTile(selected = false, label = "추가", onClick = onAdd) {
+            PickerTile(selected = false, label = "추가", onClick = onAdd) {
                 IconBadge(
                     iconRes = R.drawable.ic_sym_add,
                     swatch = BudgetTheme.categoryPalette["gray"],
@@ -74,7 +70,7 @@ fun CategoryGrid(
 }
 
 @Composable
-private fun CategoryTile(selected: Boolean, label: String, onClick: () -> Unit, badge: @Composable () -> Unit) {
+private fun PickerTile(selected: Boolean, label: String, onClick: () -> Unit, badge: @Composable () -> Unit) {
     Column(
         modifier =
         Modifier

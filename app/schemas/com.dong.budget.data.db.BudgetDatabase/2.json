@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 2,
-    "identityHash": "8e8714f7a8e1a2b6f4495d05ae404957",
+    "identityHash": "aadf64702ea794af7927de1d5e48204a",
     "entities": [
       {
         "tableName": "transactions",
@@ -284,7 +284,7 @@
       },
       {
         "tableName": "payment_methods",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `uuid` TEXT NOT NULL, `name` TEXT NOT NULL, `type` TEXT NOT NULL, `sortOrder` INTEGER NOT NULL, `isSystem` INTEGER NOT NULL)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `uuid` TEXT NOT NULL, `name` TEXT NOT NULL, `type` TEXT NOT NULL, `sortOrder` INTEGER NOT NULL, `isSystem` INTEGER NOT NULL, `icon` TEXT NOT NULL DEFAULT 'more_horiz', `color` TEXT NOT NULL DEFAULT 'gray')",
         "fields": [
           {
             "fieldPath": "id",
@@ -321,6 +321,20 @@
             "columnName": "isSystem",
             "affinity": "INTEGER",
             "notNull": true
+          },
+          {
+            "fieldPath": "icon",
+            "columnName": "icon",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'more_horiz'"
+          },
+          {
+            "fieldPath": "color",
+            "columnName": "color",
+            "affinity": "TEXT",
+            "notNull": true,
+            "defaultValue": "'gray'"
           }
         ],
         "primaryKey": {
@@ -362,7 +376,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '8e8714f7a8e1a2b6f4495d05ae404957')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'aadf64702ea794af7927de1d5e48204a')"
     ]
   }
 }

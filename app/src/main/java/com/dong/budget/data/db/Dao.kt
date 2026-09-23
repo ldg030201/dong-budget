@@ -25,6 +25,9 @@ data class TransactionListItem(
     val paymentMethodName: String?,
 )
 
+/** 결제수단 목록에 거래 건수를 붙인 것 */
+data class PaymentMethodWithCount(@Embedded val paymentMethod: PaymentMethodEntity, val transactionCount: Int)
+
 /** 분류 목록에 거래 건수를 붙인 것. 지울 때 '몇 건이 옮겨진다' 를 알려주는 데 쓴다. */
 data class CategoryWithCount(@Embedded val category: CategoryEntity, val transactionCount: Int)
 
@@ -117,6 +120,37 @@ interface PaymentMethodDao {
     @Query("SELECT * FROM payment_methods ORDER BY sortOrder, name")
     fun observeAll(): Flow<List<PaymentMethodEntity>>
 
+    @Query(
+        """
+        SELECT p.*, (SELECT COUNT(*) FROM transactions t WHERE t.paymentMethodId = p.id) AS transactionCount
+        FROM payment_methods p
+        ORDER BY p.sortOrder, p.name
+        """,
+    )
+    fun observeWithCount(): Flow<List<PaymentMethodWithCount>>
+
+    @Query("SELECT * FROM payment_methods WHERE id = :id")
+    suspend fun findById(id: Long): PaymentMethodEntity?
+
+    @Query("SELECT COALESCE(MAX(sortOrder), -1) FROM payment_methods")
+    suspend fun maxSortOrder(): Int
+
     @Insert
     suspend fun insert(paymentMethod: PaymentMethodEntity): Long
+
+    @Query("UPDATE transactions SET paymentMethodId = NULL, updatedAt = :now WHERE paymentMethodId = :id")
+    suspend fun clearFromTransactions(id: Long, now: Instant)
+
+    @Query("DELETE FROM payment_methods WHERE id = :id AND isSystem = 0")
+    suspend fun deleteById(id: Long): Int
+
+    /**
+     * 거래에서 이 결제수단을 먼저 비우고 지운다.
+     * 외래키의 SET NULL 에 기대지 않고 직접 비우는 이유: 거래의 수정 시각도 함께 남기기 위해서다.
+     */
+    @Transaction
+    suspend fun deleteClearingTransactions(id: Long, now: Instant): Boolean {
+        clearFromTransactions(id, now)
+        return deleteById(id) > 0
+    }
 }

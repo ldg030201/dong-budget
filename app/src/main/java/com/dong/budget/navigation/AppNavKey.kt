@@ -28,6 +28,9 @@ data object ShellKey : AppNavKey
 data class TransactionEditorKey(val transactionId: Long? = null) : AppNavKey
 
 @Serializable
+data object CategoryManageKey : AppNavKey
+
+@Serializable
 data object StatisticsKey : AppNavKey
 
 @Serializable

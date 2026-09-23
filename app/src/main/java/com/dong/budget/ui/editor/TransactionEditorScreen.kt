@@ -2,11 +2,8 @@ package com.dong.budget.ui.editor
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -21,6 +18,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -31,9 +29,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
 import com.dong.budget.data.db.TransactionType
-import com.dong.budget.ui.category.CategoryAddSheet
-import com.dong.budget.ui.category.CategoryGrid
-import com.dong.budget.ui.components.BudgetChip
+import com.dong.budget.ui.category.AddItemSheet
+import com.dong.budget.ui.category.PickerGrid
+import com.dong.budget.ui.category.PickerItem
 import com.dong.budget.ui.components.BudgetPrimaryButton
 import com.dong.budget.ui.components.BudgetTopAppBar
 import com.dong.budget.ui.components.CategoryBadge
@@ -42,7 +40,6 @@ import com.dong.budget.ui.components.FormField
 import com.dong.budget.ui.components.FormIconValue
 import com.dong.budget.ui.components.FormPlaceholder
 import com.dong.budget.ui.components.FormTextField
-import com.dong.budget.ui.components.FormValue
 import com.dong.budget.ui.components.NavButtonStyle
 import com.dong.budget.ui.components.NumberKeypad
 import com.dong.budget.ui.components.SegmentedToggle
@@ -61,10 +58,9 @@ private val TYPE_OPTIONS = listOf(TransactionType.EXPENSE to "지출", Transacti
  *
  * 처음에는 금액, 분류, 결제수단, 내용, 메모 칸만 보인다.
  * 칸을 누르면 그 칸에 맞는 입력판만 아래에 열린다.
- *   금액 → 숫자 키패드 / 분류 → 분류 표 / 결제수단 → 선택지 / 내용·메모 → 시스템 키보드
+ *   금액 → 숫자 키패드 / 분류·결제수단 → 아이콘 표 / 내용·메모 → 시스템 키보드
  * 모든 선택지를 한꺼번에 펼치지 않아서 화면이 복잡하지 않다.
  */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun TransactionEditorScreen(
     state: EditorUiState,
@@ -74,10 +70,10 @@ fun TransactionEditorScreen(
     onDeleteDigit: () -> Unit,
     onClearAmount: () -> Unit,
     onSelectCategory: (Long) -> Unit,
-    onOpenAddCategory: () -> Unit,
-    onDismissAddCategory: () -> Unit,
-    onSubmitCategory: (name: String, icon: String, color: String) -> Unit,
     onSelectPaymentMethod: (Long) -> Unit,
+    onOpenAdd: (AddTarget) -> Unit,
+    onDismissAdd: () -> Unit,
+    onSubmitAdd: (name: String, icon: String, color: String) -> Unit,
     onMerchantChange: (String) -> Unit,
     onMemoChange: (String) -> Unit,
     onSave: () -> Unit,
@@ -96,6 +92,15 @@ fun TransactionEditorScreen(
         panel = if (panel == target) null else target
     }
 
+    // 새로 만든 것은 고른 상태로 들어오므로 입력판을 닫는다.
+    // 저장을 누른 순간이 아니라 성공했을 때만 닫는다. 같은 이름이라 거절되면 시트가 남아 있어야 한다.
+    LaunchedEffect(state.lastAddedCategoryId) {
+        if (state.lastAddedCategoryId != null) panel = null
+    }
+    LaunchedEffect(state.lastAddedPaymentId) {
+        if (state.lastAddedPaymentId != null) panel = null
+    }
+
     // 입력판이 열려 있으면 뒤로가기는 화면이 아니라 입력판을 닫는다.
     BackHandler(enabled = panel != null) { panel = null }
 
@@ -112,17 +117,28 @@ fun TransactionEditorScreen(
         )
     }
 
-    if (state.showAddCategory) {
-        CategoryAddSheet(
-            usedColors = state.usedColors,
-            error = state.addCategoryError,
-            onDismiss = onDismissAddCategory,
-            onSubmit = { name, icon, color ->
-                onSubmitCategory(name, icon, color)
-                // 새 분류가 고른 상태로 들어오므로 분류 표는 닫는다
-                panel = null
-            },
-        )
+    when (state.addTarget) {
+        AddTarget.CATEGORY ->
+            AddItemSheet(
+                title = "분류 추가",
+                namePlaceholder = "예: 카페",
+                usedColors = state.usedCategoryColors,
+                error = state.addError,
+                onDismiss = onDismissAdd,
+                onSubmit = onSubmitAdd,
+            )
+
+        AddTarget.PAYMENT ->
+            AddItemSheet(
+                title = "결제수단 추가",
+                namePlaceholder = "예: 신한카드",
+                usedColors = state.usedPaymentColors,
+                error = state.addError,
+                onDismiss = onDismissAdd,
+                onSubmit = onSubmitAdd,
+            )
+
+        null -> Unit
     }
 
     Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -175,7 +191,14 @@ fun TransactionEditorScreen(
 
                 FormField(label = "결제수단", active = panel == EditorPanel.PAYMENT, onClick = { toggle(EditorPanel.PAYMENT) }) {
                     val method = state.selectedPaymentMethod
-                    if (method == null) FormPlaceholder("고르지 않아도 돼요") else FormValue(method.name)
+                    if (method == null) {
+                        FormPlaceholder("고르지 않아도 돼요")
+                    } else {
+                        FormIconValue(
+                            icon = { CategoryBadge(method.icon, method.color, size = BudgetTheme.size.badgeSmall) },
+                            text = method.name,
+                        )
+                    }
                 }
 
                 FormTextField(
@@ -214,34 +237,31 @@ fun TransactionEditorScreen(
 
                         EditorPanel.CATEGORY ->
                             PanelBox {
-                                CategoryGrid(
-                                    categories = state.categories,
+                                PickerGrid(
+                                    items = state.categories.map { PickerItem(it.id, it.name, it.icon, it.color) },
                                     selectedId = state.categoryId,
                                     onSelect = { id ->
                                         onSelectCategory(id)
                                         panel = null
                                     },
-                                    onAdd = onOpenAddCategory,
+                                    onAdd = { onOpenAdd(AddTarget.CATEGORY) },
                                     modifier = Modifier.fillMaxSize(),
                                 )
                             }
 
                         EditorPanel.PAYMENT ->
-                            FlowRow(
-                                modifier = Modifier.fillMaxWidth().padding(bottom = BudgetTheme.spacing.ctaTopGap),
-                                horizontalArrangement = Arrangement.spacedBy(BudgetTheme.spacing.inlineGap),
-                                verticalArrangement = Arrangement.spacedBy(BudgetTheme.spacing.inlineGap),
-                            ) {
-                                state.paymentMethods.forEach { method ->
-                                    BudgetChip(
-                                        label = method.name,
-                                        selected = method.id == state.paymentMethodId,
-                                        onClick = {
-                                            onSelectPaymentMethod(method.id)
-                                            panel = null
-                                        },
-                                    )
-                                }
+                            PanelBox {
+                                PickerGrid(
+                                    items = state.paymentMethods.map { PickerItem(it.id, it.name, it.icon, it.color) },
+                                    selectedId = state.paymentMethodId,
+                                    onSelect = { id ->
+                                        // 이미 고른 것을 다시 누르면 선택이 풀린다. 결제수단은 비워둘 수 있다.
+                                        onSelectPaymentMethod(id)
+                                        panel = null
+                                    },
+                                    onAdd = { onOpenAdd(AddTarget.PAYMENT) },
+                                    modifier = Modifier.fillMaxSize(),
+                                )
                             }
 
                         null -> Box(Modifier.fillMaxWidth())
@@ -259,8 +279,8 @@ fun TransactionEditorScreen(
 }
 
 /**
- * 키패드와 분류 표의 높이를 맞춘다.
- * 둘 사이를 오갈 때 등록 버튼이 위아래로 출렁이지 않게 하기 위함이다.
+ * 입력판들의 높이를 맞춘다.
+ * 입력판 사이를 오갈 때 등록 버튼이 위아래로 출렁이지 않게 하기 위함이다.
  */
 @Composable
 private fun PanelBox(content: @Composable () -> Unit) {
