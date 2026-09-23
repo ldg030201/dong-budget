@@ -88,6 +88,9 @@ fun DongBudgetApp(container: AppContainer) {
                     onDeleteDigit = viewModel::deleteDigit,
                     onClearAmount = viewModel::clearAmount,
                     onSelectCategory = viewModel::selectCategory,
+                    onOpenAddCategory = viewModel::openAddCategory,
+                    onDismissAddCategory = viewModel::dismissAddCategory,
+                    onSubmitCategory = viewModel::addCategory,
                     onSelectPaymentMethod = viewModel::selectPaymentMethod,
                     onMerchantChange = viewModel::updateMerchant,
                     onMemoChange = viewModel::updateMemo,
@@ -142,7 +145,13 @@ private fun homeViewModelFactory(container: AppContainer) = viewModelFactory {
 }
 
 private fun editorViewModelFactory(container: AppContainer, transactionId: Long?) = viewModelFactory {
-    initializer { TransactionEditorViewModel(container.transactionRepository, transactionId) }
+    initializer {
+        TransactionEditorViewModel(
+            repository = container.transactionRepository,
+            categoryRepository = container.categoryRepository,
+            transactionId = transactionId,
+        )
+    }
 }
 
 private fun settingsViewModelFactory(container: AppContainer) = viewModelFactory {
