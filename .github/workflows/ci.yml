@@ -43,6 +43,9 @@ jobs:
       - name: 디버그 빌드
         run: ./gradlew assembleDebug
 
+      - name: 단위 테스트
+        run: ./gradlew testDebugUnitTest
+
       - name: 린트
         run: ./gradlew lintDebug
 

@@ -131,10 +131,40 @@ jobs:
         if: always()
         run: rm -f "$RUNNER_TEMP/release.jks"
 
+      # 릴리스 본문을 두 구간으로 나눈다.
+      #   위: 태그 메시지 (이번에 바뀐 점) — 앱이 업데이트 화면에 보여준다
+      #   아래: 처음 설치하는 사람용 안내 — 웹 페이지에서만 보인다
+      # 둘 사이의 표시는 HTML 주석이라 웹에는 안 보이고, 앱은 그 위쪽만 읽는다.
+      # 표시 문자열은 앱의 ReleaseNotes.APP_NOTES_END 와 반드시 같아야 한다.
+      - name: 릴리스 본문 만들기
+        run: |
+          # actions/checkout 은 태그를 가벼운 태그로 가져와서 메시지가 사라진다. 다시 받아온다.
+          git fetch --force origin "refs/tags/${GITHUB_REF_NAME}:refs/tags/${GITHUB_REF_NAME}"
+
+          NOTES=""
+          if [ "$(git cat-file -t "$GITHUB_REF_NAME")" = "tag" ]; then
+            NOTES=$(git tag -l --format='%(contents)' "$GITHUB_REF_NAME" \
+              | sed '/-----BEGIN PGP SIGNATURE-----/,$d')
+          else
+            echo "::warning::가벼운 태그라서 바뀐 점을 적을 수 없다. git tag -a 로 메시지를 달아라."
+          fi
+
+          VERSION="${GITHUB_REF_NAME#v}"
+          {
+            printf '%s\n\n' "$NOTES"
+            echo "<!-- dong-budget:app-notes-end -->"
+            echo
+            sed "s/{{VERSION}}/${VERSION}/g" .github/release-install-guide.md
+          } > "$RUNNER_TEMP/release-body.md"
+
+          echo "── 만들어진 본문 ──"
+          cat "$RUNNER_TEMP/release-body.md"
+
       - name: Releases 에 올리기
         uses: softprops/action-gh-release@v3
         with:
           files: dong-budget-*.apk
+          # 자동 생성 변경 기록은 본문 뒤에 붙는다. 표시 아래라서 앱에는 안 보인다.
           generate_release_notes: true
           draft: false
           # prerelease 로 올리면 안 된다.
@@ -142,24 +172,4 @@ jobs:
           # 앱 내 자동 업데이트가 이 버전을 영영 찾지 못한다.
           # 아직 안정 버전이 아니라는 표시는 0.x 버전 번호가 대신한다.
           prerelease: false
-          body: |
-            아래 `dong-budget-<버전>.apk` 를 받아서 설치하세요.
-
-            ### 처음 설치하는 경우
-
-            스토어를 거치지 않으므로 최초 한 번 기기 설정이 필요합니다.
-            두 번째부터는 앱 안에서 업데이트를 받을 수 있습니다.
-
-            1. **(갤럭시)** 설정 → 보안 및 개인정보 보호 → **자동 차단 끄기**
-            2. 브라우저에서 APK 를 받고 **알 수 없는 출처 설치를 허용**
-               (Play Protect 경고가 뜨면 무시하고 설치)
-            3. 설정 → 앱 → 동계부 → 우측 상단 메뉴 → **제한된 설정 허용**
-            4. 배터리 최적화에서 동계부 **제외**
-            5. 앱에 **설치 권한 허용** (앱 안에서 업데이트를 받기 위해 필요)
-
-            ### 이미 쓰고 있는 경우
-
-            앱의 전체 → 설정 → 업데이트 확인에서 바로 받을 수 있습니다.
-
-            ---
-            아직 개발 중인 버전입니다. 거래 등록·수정·삭제와 월별 합계까지 동작합니다.
+          body_path: ${{ runner.temp }}/release-body.md
