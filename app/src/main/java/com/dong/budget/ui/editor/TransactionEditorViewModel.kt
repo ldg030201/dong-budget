@@ -6,6 +6,7 @@ import com.dong.budget.data.AddResult
 import com.dong.budget.data.CategoryRepository
 import com.dong.budget.data.PaymentMethodRepository
 import com.dong.budget.data.TransactionRepository
+import com.dong.budget.data.db.BudgetTime
 import com.dong.budget.data.db.CategoryEntity
 import com.dong.budget.data.db.CategoryScope
 import com.dong.budget.data.db.PaymentMethodEntity
@@ -21,6 +22,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.Instant
+import java.time.LocalDate
 
 /** 등록 화면에서 새로 만들 수 있는 것 */
 enum class AddTarget { CATEGORY, PAYMENT }
@@ -151,6 +153,25 @@ class TransactionEditorViewModel(
     fun selectPaymentMethod(id: Long) {
         // 이미 고른 것을 다시 누르면 선택을 푼다. 결제수단은 비워둘 수 있다.
         _uiState.update { it.copy(paymentMethodId = if (it.paymentMethodId == id) null else id) }
+    }
+
+    /**
+     * 날짜만 바꾸고 시각은 그대로 둔다.
+     * 시간대는 기기 설정이 아니라 서울로 고정한다(BudgetTime). 해외에서 고쳐도 날짜가 밀리지 않는다.
+     */
+    fun updateDate(date: LocalDate) {
+        _uiState.update { state ->
+            val time = state.occurredAt.atZone(BudgetTime.ZONE).toLocalTime()
+            state.copy(occurredAt = date.atTime(time).atZone(BudgetTime.ZONE).toInstant())
+        }
+    }
+
+    /** 시각만 바꾸고 날짜는 그대로 둔다. 초는 0 으로 맞춘다. */
+    fun updateTime(hour: Int, minute: Int) {
+        _uiState.update { state ->
+            val date = state.occurredAt.atZone(BudgetTime.ZONE).toLocalDate()
+            state.copy(occurredAt = date.atTime(hour, minute).atZone(BudgetTime.ZONE).toInstant())
+        }
     }
 
     fun updateMerchant(value: String) {

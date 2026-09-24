@@ -3,6 +3,7 @@ package com.dong.budget.ui.format
 import com.dong.budget.data.db.BudgetTime
 import com.dong.budget.data.db.TransactionType
 import java.time.Instant
+import java.time.LocalDate
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -26,6 +27,16 @@ fun formatSignedAmount(type: TransactionType, amount: Long): String = when (type
 }
 
 fun formatDay(instant: Instant): String = dayFormatter.format(instant.atZone(BudgetTime.ZONE))
+
+/**
+ * 날짜 하나만 따로 보여줄 때 (등록 화면의 날짜 칸 등).
+ * 올해가 아니면 연도를 붙인다. 지난해 거래를 고칠 때 몇 년도인지 헷갈리지 않게.
+ */
+fun formatDate(instant: Instant, today: LocalDate = LocalDate.now(BudgetTime.ZONE)): String {
+    val date = instant.atZone(BudgetTime.ZONE)
+    val day = dayFormatter.format(date)
+    return if (date.year == today.year) day else "${date.year}년 $day"
+}
 
 fun formatTime(instant: Instant): String = timeFormatter.format(instant.atZone(BudgetTime.ZONE))
 
