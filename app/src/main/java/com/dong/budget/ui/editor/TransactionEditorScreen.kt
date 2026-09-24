@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -24,10 +26,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
+import com.dong.budget.data.db.BudgetTime
 import com.dong.budget.data.db.TransactionType
 import com.dong.budget.ui.category.AddItemSheet
 import com.dong.budget.ui.category.PickerGrid
@@ -40,25 +44,37 @@ import com.dong.budget.ui.components.FormField
 import com.dong.budget.ui.components.FormIconValue
 import com.dong.budget.ui.components.FormPlaceholder
 import com.dong.budget.ui.components.FormTextField
+import com.dong.budget.ui.components.FormValue
 import com.dong.budget.ui.components.NavButtonStyle
 import com.dong.budget.ui.components.NumberKeypad
 import com.dong.budget.ui.components.SegmentedToggle
 import com.dong.budget.ui.format.formatAmount
-import com.dong.budget.ui.format.formatDay
+import com.dong.budget.ui.format.formatDate
+import com.dong.budget.ui.format.formatTime
 import com.dong.budget.ui.theme.BudgetTheme
 import com.dong.budget.ui.theme.pressScaleClickable
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
+import java.time.LocalDate
 
 /** 화면 아래에 열리는 입력판. 한 번에 하나만 열린다. */
-enum class EditorPanel { AMOUNT, CATEGORY, PAYMENT }
+enum class EditorPanel { AMOUNT, CATEGORY, PAYMENT, DATE, TIME }
+
+/**
+ * 칸 목록의 높이가 이만큼 멈춰 있으면 입력판이 다 열렸다고 본다.
+ * 애니메이션 중에는 매 프레임(16ms) 높이가 바뀌므로 그보다 넉넉하면 된다.
+ */
+private const val PANEL_SETTLE_MS = 100L
 
 private val TYPE_OPTIONS = listOf(TransactionType.EXPENSE to "지출", TransactionType.INCOME to "수입")
 
 /**
  * 거래 등록·수정 화면.
  *
- * 처음에는 금액, 분류, 결제수단, 내용, 메모 칸만 보인다.
+ * 처음에는 금액, 분류, 결제수단, 내용, 메모, 날짜, 시간 칸만 보인다.
  * 칸을 누르면 그 칸에 맞는 입력판만 아래에 열린다.
  *   금액 → 숫자 키패드 / 분류·결제수단 → 아이콘 표 / 내용·메모 → 시스템 키보드
+ *   날짜 → 달력 / 시간 → 시계
  * 모든 선택지를 한꺼번에 펼치지 않아서 화면이 복잡하지 않다.
  */
 @Composable
@@ -76,6 +92,8 @@ fun TransactionEditorScreen(
     onSubmitAdd: (name: String, icon: String, color: String) -> Unit,
     onMerchantChange: (String) -> Unit,
     onMemoChange: (String) -> Unit,
+    onDateChange: (LocalDate) -> Unit,
+    onTimeChange: (hour: Int, minute: Int) -> Unit,
     onSave: () -> Unit,
     onDeleteTransaction: () -> Unit,
     modifier: Modifier = Modifier,
@@ -100,6 +118,21 @@ fun TransactionEditorScreen(
     LaunchedEffect(state.lastAddedPaymentId) {
         if (state.lastAddedPaymentId != null) panel = null
     }
+
+    // 입력판이 열리면 칸 목록이 그만큼 줄어든다. 날짜·시간처럼 목록 아래쪽 칸을 누르면
+    // 방금 누른 칸이 입력판에 밀려 가려질 수 있어서, 열린 칸이 보이도록 스크롤을 맞춘다.
+    // 열리는 도중에 맞추면 줄어들기 전 높이로 계산해 여전히 가려지므로, 높이가 멈춘 뒤에 맞춘다.
+    val scrollState = rememberScrollState()
+    val requesters = remember { EditorPanel.entries.associateWith { BringIntoViewRequester() } }
+    LaunchedEffect(panel) {
+        val requester = requesters[panel] ?: return@LaunchedEffect
+        snapshotFlow { scrollState.viewportSize }.collectLatest {
+            delay(PANEL_SETTLE_MS)
+            requester.bringIntoView()
+        }
+    }
+
+    fun fieldModifier(target: EditorPanel) = Modifier.bringIntoViewRequester(requesters.getValue(target))
 
     // 입력판이 열려 있으면 뒤로가기는 화면이 아니라 입력판을 닫는다.
     BackHandler(enabled = panel != null) { panel = null }
@@ -154,7 +187,7 @@ fun TransactionEditorScreen(
                 modifier =
                 Modifier
                     .weight(1f)
-                    .verticalScroll(rememberScrollState())
+                    .verticalScroll(scrollState)
                     .padding(horizontal = BudgetTheme.spacing.screenHorizontal),
             ) {
                 SegmentedToggle(
@@ -162,14 +195,13 @@ fun TransactionEditorScreen(
                     selectedIndex = TYPE_OPTIONS.indexOfFirst { it.first == state.type }.coerceAtLeast(0),
                     onSelect = { onSelectType(TYPE_OPTIONS[it].first) },
                 )
-                Spacer(Modifier.height(BudgetTheme.spacing.itemGap))
-                Text(
-                    text = formatDay(state.occurredAt),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = BudgetTheme.colors.textSecondary,
-                )
 
-                FormField(label = "금액", active = panel == EditorPanel.AMOUNT, onClick = { toggle(EditorPanel.AMOUNT) }) {
+                FormField(
+                    label = "금액",
+                    active = panel == EditorPanel.AMOUNT,
+                    onClick = { toggle(EditorPanel.AMOUNT) },
+                    modifier = fieldModifier(EditorPanel.AMOUNT),
+                ) {
                     Text(
                         text = "${formatAmount(state.amount)}원",
                         style = BudgetTheme.amount.large,
@@ -177,7 +209,12 @@ fun TransactionEditorScreen(
                     )
                 }
 
-                FormField(label = "분류", active = panel == EditorPanel.CATEGORY, onClick = { toggle(EditorPanel.CATEGORY) }) {
+                FormField(
+                    label = "분류",
+                    active = panel == EditorPanel.CATEGORY,
+                    onClick = { toggle(EditorPanel.CATEGORY) },
+                    modifier = fieldModifier(EditorPanel.CATEGORY),
+                ) {
                     val category = state.selectedCategory
                     if (category == null) {
                         FormPlaceholder("분류를 골라주세요")
@@ -189,7 +226,12 @@ fun TransactionEditorScreen(
                     }
                 }
 
-                FormField(label = "결제수단", active = panel == EditorPanel.PAYMENT, onClick = { toggle(EditorPanel.PAYMENT) }) {
+                FormField(
+                    label = "결제수단",
+                    active = panel == EditorPanel.PAYMENT,
+                    onClick = { toggle(EditorPanel.PAYMENT) },
+                    modifier = fieldModifier(EditorPanel.PAYMENT),
+                ) {
                     val method = state.selectedPaymentMethod
                     if (method == null) {
                         FormPlaceholder("고르지 않아도 돼요")
@@ -218,6 +260,24 @@ fun TransactionEditorScreen(
                     onFocusChanged = { focused -> if (focused) panel = null },
                 )
 
+                FormField(
+                    label = "날짜",
+                    active = panel == EditorPanel.DATE,
+                    onClick = { toggle(EditorPanel.DATE) },
+                    modifier = fieldModifier(EditorPanel.DATE),
+                ) {
+                    FormValue(formatDate(state.occurredAt))
+                }
+
+                FormField(
+                    label = "시간",
+                    active = panel == EditorPanel.TIME,
+                    onClick = { toggle(EditorPanel.TIME) },
+                    modifier = fieldModifier(EditorPanel.TIME),
+                ) {
+                    FormValue(formatTime(state.occurredAt))
+                }
+
                 Spacer(Modifier.height(BudgetTheme.spacing.sectionGap))
             }
 
@@ -225,8 +285,7 @@ fun TransactionEditorScreen(
                 modifier =
                 Modifier
                     .imePadding()
-                    .navigationBarsPadding()
-                    .padding(horizontal = BudgetTheme.spacing.screenHorizontal),
+                    .navigationBarsPadding(),
             ) {
                 AnimatedContent(targetState = panel, label = "editorPanel") { current ->
                     when (current) {
@@ -264,6 +323,20 @@ fun TransactionEditorScreen(
                                 )
                             }
 
+                        EditorPanel.DATE ->
+                            DatePanel(
+                                date = BudgetTime.toLocalDate(state.occurredAt),
+                                onPick = { date ->
+                                    onDateChange(date)
+                                    panel = null
+                                },
+                            )
+
+                        EditorPanel.TIME -> {
+                            val time = state.occurredAt.atZone(BudgetTime.ZONE)
+                            TimePanel(hour = time.hour, minute = time.minute, onChange = onTimeChange)
+                        }
+
                         null -> Box(Modifier.fillMaxWidth())
                     }
                 }
@@ -271,6 +344,7 @@ fun TransactionEditorScreen(
                     text = if (state.isEditing) "수정하기" else "등록하기",
                     onClick = onSave,
                     enabled = state.canSave,
+                    modifier = Modifier.padding(horizontal = BudgetTheme.spacing.screenHorizontal),
                 )
                 Spacer(Modifier.height(BudgetTheme.spacing.sectionPadding))
             }
@@ -279,8 +353,9 @@ fun TransactionEditorScreen(
 }
 
 /**
- * 입력판들의 높이를 맞춘다.
- * 입력판 사이를 오갈 때 등록 버튼이 위아래로 출렁이지 않게 하기 위함이다.
+ * 키패드와 아이콘 표 입력판의 높이를 맞춘다.
+ * 둘 사이를 오갈 때 등록 버튼이 위아래로 출렁이지 않게 하기 위함이다.
+ * 달력과 시계는 이 높이에 들어가지 않아서 제 크기대로 둔다.
  */
 @Composable
 private fun PanelBox(content: @Composable () -> Unit) {
@@ -289,6 +364,7 @@ private fun PanelBox(content: @Composable () -> Unit) {
         Modifier
             .fillMaxWidth()
             .height(BudgetTheme.size.inputPanelHeight)
+            .padding(horizontal = BudgetTheme.spacing.screenHorizontal)
             .padding(bottom = BudgetTheme.spacing.ctaTopGap),
         contentAlignment = Alignment.TopCenter,
     ) {

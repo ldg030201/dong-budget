@@ -98,6 +98,8 @@ fun DongBudgetApp(container: AppContainer) {
                     onSubmitAdd = viewModel::submitAdd,
                     onMerchantChange = viewModel::updateMerchant,
                     onMemoChange = viewModel::updateMemo,
+                    onDateChange = viewModel::updateDate,
+                    onTimeChange = viewModel::updateTime,
                     onSave = viewModel::save,
                     onDeleteTransaction = viewModel::delete,
                 )
