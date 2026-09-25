@@ -85,6 +85,10 @@ val PATCH_NOTES: List<Release> =
                     PatchMenu.SETTINGS,
                     added("앱을 열 때 새 버전이 있는지 알아서 확인해요 (6시간에 한 번)"),
                 ),
+                menu(
+                    PatchMenu.COMMON,
+                    added("앱 아이콘이 생겼어요"),
+                ),
             ),
         ),
         Release(

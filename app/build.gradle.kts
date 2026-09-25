@@ -107,6 +107,9 @@ android {
         // compileSdk 37 + targetSdk 36 조합이면 이 경고가 상시로 뜬다. 의도된 상태다.
         // targetSdk 를 37 로 올릴 때 이 줄을 지운다.
         disable += "OldTargetApi"
+        // 앱 아이콘은 사진을 적응형 아이콘의 배경 층으로 쓴다. 이 검사는 옛 방식(단독 PNG) 아이콘의
+        // 모양을 보는 것이라 맞지 않고, 사진이라 단색 테마 아이콘도 일부러 만들지 않았다.
+        disable += listOf("IconLauncherShape", "MonochromeLauncherIcon")
     }
 }
 

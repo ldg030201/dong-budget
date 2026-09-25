@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 앱 아이콘. 잠든 강아지 사진을 자르지 않고 통째로 배경 층에 깐다. 앞 층은 비워둔다.
+     런처는 가운데 2/3 만 동그라미나 둥근 사각형으로 잘라 보여준다. 그래서 사진 전체를 그 2/3 칸에 맞춰 줄여 넣고,
+     바깥 1/6 테두리는 같은 사진을 흐리게 채웠다. 런처가 아이콘을 살짝 움직이는 효과를 줄 때 빈 곳이 보이지 않게 하기 위함이다.
+     갤럭시(둥근 사각형)에서는 사진이 거의 그대로 보이고, 동그라미 모양 런처에서는 네 모서리가 잘린다.
+     사진이라 단색 테마 아이콘(monochrome)은 만들지 않는다. 테마 아이콘을 켜도 원래 색으로 보인다.
+     minSdk 31 이라 적응형 아이콘만 두고 옛 방식 PNG 아이콘은 두지 않는다. -->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@mipmap/ic_launcher_photo" />
+    <foreground android:drawable="@android:color/transparent" />
+</adaptive-icon>
