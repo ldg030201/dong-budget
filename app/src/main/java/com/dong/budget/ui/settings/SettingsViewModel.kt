@@ -48,6 +48,8 @@ class SettingsViewModel(
     private val updateRepository: UpdateRepository,
     private val apkInstaller: ApkInstaller,
     private val updateChecker: UpdateChecker,
+    /** 들어오자마자 새 버전을 다시 확인할지. 패치노트의 [업데이트하러 가기] 로 올 때 켠다. */
+    checkOnOpen: Boolean = false,
 ) : ViewModel() {
     val themeMode: StateFlow<ThemeMode> =
         settingsRepository.themeMode.stateIn(
@@ -88,6 +90,9 @@ class SettingsViewModel(
             // 다른 버전으로 받아둔 파일이 남아 있으면 그 버전을 설치하라고 권하게 된다. 지금 새 버전 것만 남긴다.
             forgetDownloadsExcept(update.version)
         }
+
+        // 저장된 결과보다 새 버전이 나왔을 수 있으면 바로 다시 확인한다. 화면을 돌려도 ViewModel 은 남아 있어 한 번만 돈다.
+        if (checkOnOpen) checkForUpdate()
 
         // 설치 결과는 시스템이 브로드캐스트로 알려준다. 그걸 화면 상태로 옮긴다.
         viewModelScope.launch {
