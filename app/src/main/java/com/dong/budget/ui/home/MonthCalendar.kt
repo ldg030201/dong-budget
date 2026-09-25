@@ -228,8 +228,14 @@ private fun DayCell(
             )
         }
         if (totals != null) {
+            // 들어온 돈은 초록 +, 쓴 돈은 빨강 - 로 한눈에 구분한다
             if (totals.income > 0) DayAmount("+${formatAmount(totals.income)}", BudgetTheme.colors.income)
-            if (totals.expense != 0L) DayAmount(formatAmount(totals.expense), BudgetTheme.colors.textSecondary)
+            when {
+                totals.expense > 0 -> DayAmount("-${formatAmount(totals.expense)}", BudgetTheme.colors.expense)
+
+                // 환불이 그날 쓴 돈보다 많으면 돈이 돌아온 날이다. 들어온 돈처럼 + 로 적는다.
+                totals.expense < 0 -> DayAmount("+${formatAmount(-totals.expense)}", BudgetTheme.colors.income)
+            }
         }
     }
 }
@@ -255,7 +261,8 @@ private fun describeDay(date: LocalDate, totals: Totals?, isToday: Boolean): Str
     if (isToday) add("오늘")
     if (totals != null) {
         if (totals.income > 0) add("수입 ${formatAmount(totals.income)}원")
-        if (totals.expense != 0L) add("지출 ${formatAmount(totals.expense)}원")
+        if (totals.expense > 0) add("지출 ${formatAmount(totals.expense)}원")
+        if (totals.expense < 0) add("환불 ${formatAmount(-totals.expense)}원")
     }
 }.joinToString(", ")
 
