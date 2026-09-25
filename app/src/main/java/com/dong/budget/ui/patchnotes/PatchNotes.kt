@@ -76,7 +76,7 @@ val PATCH_NOTES: List<Release> =
             listOf(
                 menu(
                     PatchMenu.CATEGORIES,
-                    added("분류와 결제수단을 끌어서 순서를 바꿀 수 있어요. 바꾼 순서는 거래 등록 화면에도 그대로 보여요"),
+                    added("분류와 결제수단을 길게 눌러 끌면 순서를 바꿀 수 있어요. 바꾼 순서는 거래 등록 화면에도 그대로 보여요"),
                 ),
                 menu(
                     PatchMenu.SETTINGS,
