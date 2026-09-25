@@ -42,6 +42,9 @@ fun ConfirmDialog(
     onDismiss: () -> Unit,
     destructive: Boolean = true,
     dismissLabel: String = "취소",
+    /** 두 버튼 아래에 둘 보조 동작. 없으면 null */
+    extraLabel: String? = null,
+    onExtra: () -> Unit = {},
 ) {
     Dialog(onDismissRequest = onDismiss) {
         Surface(
@@ -87,6 +90,17 @@ fun ConfirmDialog(
                         content = BudgetTheme.colors.textPrimary,
                         onClick = onDismiss,
                         modifier = Modifier.weight(1f),
+                    )
+                }
+                if (extraLabel != null) {
+                    Spacer(Modifier.height(BudgetTheme.spacing.inlineGap))
+                    // 보조 동작은 테두리 없는 글자 버튼으로 둔다. 확인·취소보다 눈에 덜 띄어야 한다.
+                    DialogButton(
+                        label = extraLabel,
+                        container = Color.Transparent,
+                        content = MaterialTheme.colorScheme.primary,
+                        onClick = onExtra,
+                        modifier = Modifier.fillMaxWidth(),
                     )
                 }
             }

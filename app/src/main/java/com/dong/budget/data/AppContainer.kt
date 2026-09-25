@@ -1,6 +1,9 @@
 package com.dong.budget.data
 
 import android.content.Context
+import com.dong.budget.data.capture.CaptureNotifier
+import com.dong.budget.data.capture.CaptureStore
+import com.dong.budget.data.capture.PaymentCapture
 import com.dong.budget.data.db.BudgetDatabase
 import com.dong.budget.data.settings.SettingsRepository
 import com.dong.budget.data.update.ApkInstaller
@@ -51,6 +54,17 @@ class AppContainer(context: Context) {
                     }
                 }
             },
+        )
+    }
+
+    val captureNotifier by lazy { CaptureNotifier(context) }
+
+    /** 토스 결제 알림을 읽어 등록할지 묻는다 */
+    val paymentCapture by lazy {
+        PaymentCapture(
+            store = CaptureStore(context.getSharedPreferences(CaptureStore.PREFS_NAME, Context.MODE_PRIVATE)),
+            prompt = captureNotifier,
+            isRegistered = transactionRepository::isRegistered,
         )
     }
 }

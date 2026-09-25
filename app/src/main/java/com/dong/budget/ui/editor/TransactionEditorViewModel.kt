@@ -1,5 +1,6 @@
 package com.dong.budget.ui.editor
 
+import android.database.sqlite.SQLiteConstraintException
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dong.budget.data.AddResult
@@ -11,6 +12,7 @@ import com.dong.budget.data.db.CategoryEntity
 import com.dong.budget.data.db.CategoryScope
 import com.dong.budget.data.db.PaymentMethodEntity
 import com.dong.budget.data.db.TransactionType
+import com.dong.budget.navigation.EditorPrefill
 import com.dong.budget.ui.category.message
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -38,6 +40,17 @@ private const val MAX_AMOUNT_DIGITS = 12
 
 data class EditorUiState(
     val isEditing: Boolean = false,
+    /** 결제 알림에서 읽은 값으로 채워 연 등록창인지 */
+    val isPrefilled: Boolean = false,
+    /**
+     * 알림에서 읽은 카드 이름인데 같은 이름의 결제수단이 아직 없을 때 그 이름. 저장할 때 새로 만든다.
+     * 사용자가 다른 결제수단을 고르면 비운다.
+     */
+    val pendingPaymentName: String? = null,
+    /** 알림에서 읽은 결제의 열쇠. 같은 결제를 두 번 등록하지 않게 거래에 함께 저장한다. */
+    val dedupKey: String? = null,
+    /** 저장이 거절된 이유(이미 등록한 결제 등). 없으면 null */
+    val saveError: String? = null,
     val type: TransactionType = TransactionType.EXPENSE,
     /** 숫자만 담는다. 표시할 때 세 자리마다 끊는다. */
     val amountDigits: String = "",
@@ -75,7 +88,7 @@ data class EditorUiState(
             buildList {
                 if (amount <= 0) add(RequiredField.AMOUNT)
                 if (selectedCategory == null) add(RequiredField.CATEGORY)
-                if (selectedPaymentMethod == null) add(RequiredField.PAYMENT)
+                if (selectedPaymentMethod == null && pendingPaymentName == null) add(RequiredField.PAYMENT)
                 if (merchant.isBlank()) add(RequiredField.MERCHANT)
             }
 
@@ -96,18 +109,59 @@ class TransactionEditorViewModel(
     private val categoryRepository: CategoryRepository,
     private val paymentMethodRepository: PaymentMethodRepository,
     private val transactionId: Long?,
+    private val prefill: EditorPrefill? = null,
 ) : ViewModel() {
-    private val _uiState = MutableStateFlow(EditorUiState(isEditing = transactionId != null))
+    private val _uiState = MutableStateFlow(initialState())
     val uiState: StateFlow<EditorUiState> = _uiState.asStateFlow()
 
     init {
         observeCategories()
         viewModelScope.launch {
             repository.observePaymentMethods().collect { methods ->
-                _uiState.update { it.copy(paymentMethods = methods) }
+                _uiState.update { state ->
+                    // 알림에서 읽은 카드 이름과 같은 결제수단이 있으면 그것을 고른다(띄어쓰기·대소문자 무시)
+                    val pending = state.pendingPaymentName
+                    val match =
+                        if (pending != null && state.paymentMethodId == null) {
+                            methods.firstOrNull { PaymentMethodRepository.sameName(it.name, pending) }
+                        } else {
+                            null
+                        }
+                    state.copy(
+                        paymentMethods = methods,
+                        paymentMethodId = match?.id ?: state.paymentMethodId,
+                        pendingPaymentName = if (match != null) null else pending,
+                    )
+                }
             }
         }
         if (transactionId != null) loadExisting(transactionId)
+        if (transactionId == null && prefill != null) guessCategory(prefill.merchant)
+    }
+
+    /** 새 등록이면서 알림에서 읽은 값이 있으면 그 값으로 채워 시작한다 */
+    private fun initialState(): EditorUiState {
+        val base = EditorUiState(isEditing = transactionId != null)
+        val data = prefill?.takeIf { transactionId == null } ?: return base
+        return base.copy(
+            isPrefilled = true,
+            type = TransactionType.EXPENSE,
+            amountDigits = data.amount.takeIf { it > 0 }?.toString()?.take(MAX_AMOUNT_DIGITS).orEmpty(),
+            merchant = data.merchant,
+            memo = data.memo.orEmpty(),
+            occurredAt = Instant.ofEpochMilli(data.occurredAtMillis),
+            pendingPaymentName = data.paymentName?.takeIf { it.isNotBlank() },
+            dedupKey = data.dedupKey,
+        )
+    }
+
+    /** 전에 같은 가게로 등록한 적이 있으면 그때의 분류를 미리 골라둔다. 사용자가 이미 골랐으면 건드리지 않는다. */
+    private fun guessCategory(merchant: String) {
+        if (merchant.isBlank()) return
+        viewModelScope.launch {
+            val categoryId = repository.lastCategoryIdForMerchant(merchant) ?: return@launch
+            _uiState.update { if (it.categoryId == null) it.copy(categoryId = categoryId) else it }
+        }
     }
 
     /**
@@ -178,8 +232,9 @@ class TransactionEditorViewModel(
     }
 
     fun selectPaymentMethod(id: Long) {
-        // 결제수단은 필수라서 이미 고른 것을 다시 눌러도 선택을 풀지 않는다
-        _uiState.update { it.copy(paymentMethodId = id) }
+        // 결제수단은 필수라서 이미 고른 것을 다시 눌러도 선택을 풀지 않는다.
+        // 직접 골랐으면 알림에서 읽은 카드 이름으로 새로 만들 필요가 없다.
+        _uiState.update { it.copy(paymentMethodId = id, pendingPaymentName = null) }
     }
 
     /**
@@ -257,15 +312,25 @@ class TransactionEditorViewModel(
         }
         viewModelScope.launch {
             if (transactionId == null) {
-                repository.add(
-                    type = state.type,
-                    amount = state.amount,
-                    occurredAt = state.occurredAt,
-                    categoryId = state.categoryId,
-                    paymentMethodId = state.paymentMethodId,
-                    merchant = state.merchant,
-                    memo = state.memo,
-                )
+                // 알림에서 읽은 카드가 아직 결제수단에 없으면 이때 만든다. 등록을 취소하면 만들지 않는다.
+                val paymentMethodId =
+                    state.paymentMethodId ?: state.pendingPaymentName?.let { paymentMethodRepository.findOrCreate(it) }
+                try {
+                    repository.add(
+                        type = state.type,
+                        amount = state.amount,
+                        occurredAt = state.occurredAt,
+                        categoryId = state.categoryId,
+                        paymentMethodId = paymentMethodId,
+                        merchant = state.merchant,
+                        memo = state.memo,
+                        dedupKey = state.dedupKey,
+                    )
+                } catch (e: SQLiteConstraintException) {
+                    // 같은 알림으로 이미 등록했다(dedupKey 가 겹침)
+                    _uiState.update { it.copy(saveError = "이미 가계부에 등록한 결제예요") }
+                    return@launch
+                }
             } else {
                 repository.update(
                     id = transactionId,
