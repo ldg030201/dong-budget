@@ -93,6 +93,7 @@ val PATCH_NOTES: List<Release> =
                 menu(
                     PatchMenu.COMMON,
                     added("앱 아이콘이 생겼어요"),
+                    fixed("다크 테마에서 메뉴에 들어갈 때 흰빛이 잠깐 비치던 문제를 고쳤어요"),
                 ),
             ),
         ),
