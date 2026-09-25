@@ -39,8 +39,14 @@ sealed interface UpdateUiState {
     /**
      * @property detail 시스템이 알려준 원래 사유. 없으면 null
      * @property canTryOtherWays 받은 파일이나 브라우저로 다시 설치해 볼 만한 실패인지
+     * @property suggestGalaxySecurity 갤럭시 '보안 위험 자동 차단' 설정으로 가는 버튼을 보여줄지
      */
-    data class Failed(val reason: String, val detail: String? = null, val canTryOtherWays: Boolean = true) : UpdateUiState
+    data class Failed(
+        val reason: String,
+        val detail: String? = null,
+        val canTryOtherWays: Boolean = true,
+        val suggestGalaxySecurity: Boolean = false,
+    ) : UpdateUiState
 }
 
 class SettingsViewModel(
@@ -100,7 +106,9 @@ class SettingsViewModel(
                 _updateState.value =
                     when (event) {
                         is InstallEvent.Succeeded -> UpdateUiState.UpToDate
-                        is InstallEvent.Failed -> UpdateUiState.Failed(event.reason, event.detail, event.canTryOtherWays)
+
+                        is InstallEvent.Failed ->
+                            UpdateUiState.Failed(event.reason, event.detail, event.canTryOtherWays, event.suggestGalaxySecurity)
                     }
             }
         }

@@ -14,8 +14,14 @@ sealed interface InstallEvent {
      *   왜 실패했는지 알아내려면 이 원문이 필요하다.
      * @property canTryOtherWays 받은 파일이나 브라우저로 설치하면 풀릴 수 있는 실패인지.
      *   서명이 다르거나 저장 공간이 없으면 어느 길로 설치해도 똑같이 막히므로 권하지 않는다.
+     * @property suggestGalaxySecurity 갤럭시 '보안 위험 자동 차단' 설정으로 가는 버튼을 보여줄지
      */
-    data class Failed(val reason: String, val detail: String? = null, val canTryOtherWays: Boolean = true) : InstallEvent
+    data class Failed(
+        val reason: String,
+        val detail: String? = null,
+        val canTryOtherWays: Boolean = true,
+        val suggestGalaxySecurity: Boolean = false,
+    ) : InstallEvent
 }
 
 /**

@@ -85,10 +85,25 @@ enum class AppPermission(val title: String, val message: String) {
         }
 
     /**
-     * 안내창에 '앱 정보 열기' 를 함께 둘지.
-     * 플레이 스토어 밖에서 설치한 앱은 알림 읽기가 '제한된 설정' 으로 막혀 있고, 푸는 메뉴가 앱 정보 화면에 있다.
+     * 안내창 아래에 둘 보조 버튼의 글. 없으면 null
+     * - 알림 읽기: 플레이 스토어 밖에서 설치한 앱은 '제한된 설정' 으로 막혀 있고, 푸는 메뉴가 앱 정보 화면에 있다.
+     * - 설치 허용(갤럭시): '보안 위험 자동 차단' 이 켜져 있으면 설치 허용을 켜도 업데이트가 막힌다. 끄는 화면으로 보낸다.
      */
-    val offersAppInfo: Boolean get() = this == READ_NOTIFICATIONS
+    val extraLabel: String?
+        get() = when (this) {
+            READ_NOTIFICATIONS -> "앱 정보 열기"
+            INSTALL_UPDATES -> if (GalaxyAutoBlocker.isGalaxy) "보안 위험 자동 차단 열기" else null
+            POST_NOTIFICATIONS -> null
+        }
+
+    /** [extraLabel] 버튼을 눌렀을 때 */
+    fun openExtra(context: Context) {
+        when (this) {
+            READ_NOTIFICATIONS -> runCatching { context.startActivity(appInfoIntent(context)) }
+            INSTALL_UPDATES -> GalaxyAutoBlocker.open(context)
+            POST_NOTIFICATIONS -> Unit
+        }
+    }
 
     /** 이 권한을 켜는 설정 화면들. 앞의 것이 안 열리면 다음 것을 연다. 동계부 항목이 바로 열리는 것을 앞에 둔다. */
     fun settingsIntents(context: Context): List<Intent> = when (this) {
@@ -151,9 +166,9 @@ fun PermissionDialog(permission: AppPermission, onGoToSettings: () -> Unit, onLa
             }
         },
         onDismiss = onLater,
-        extraLabel = if (permission.offersAppInfo) "앱 정보 열기" else null,
+        extraLabel = permission.extraLabel,
         onExtra = {
-            runCatching { context.startActivity(appInfoIntent(context)) }
+            permission.openExtra(context)
             onGoToSettings()
         },
     )
