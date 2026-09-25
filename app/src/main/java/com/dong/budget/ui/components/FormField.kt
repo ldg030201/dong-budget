@@ -22,10 +22,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.error
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import com.dong.budget.ui.theme.BudgetTheme
@@ -36,6 +41,7 @@ import com.dong.budget.ui.theme.pressScaleClickable
  * 지금 입력 중인 칸은 밑줄이 굵은 브랜드색으로 바뀐다.
  *
  * [onClick] 이 있으면 칸 전체를 눌러 아래 입력판(키패드, 분류 표 등)을 여는 칸이 된다.
+ * [error] 가 있으면 이름표와 밑줄이 경고색이 되고 밑줄 아래에 그 문구가 나온다.
  */
 @Composable
 fun FormField(
@@ -43,6 +49,7 @@ fun FormField(
     active: Boolean,
     modifier: Modifier = Modifier,
     onClick: (() -> Unit)? = null,
+    error: String? = null,
     content: @Composable () -> Unit,
 ) {
     val clickable =
@@ -64,12 +71,18 @@ fun FormField(
                 .fillMaxWidth()
                 .then(clickable)
                 .defaultMinSize(minHeight = BudgetTheme.size.formFieldMinHeight)
+                .semantics { if (error != null) error(error) }
                 .padding(top = BudgetTheme.spacing.itemGap, bottom = BudgetTheme.spacing.inlineGap),
         ) {
             Text(
                 text = label,
                 style = MaterialTheme.typography.labelMedium,
-                color = if (active) MaterialTheme.colorScheme.primary else BudgetTheme.colors.textSecondary,
+                color =
+                when {
+                    error != null -> BudgetTheme.colors.danger
+                    active -> MaterialTheme.colorScheme.primary
+                    else -> BudgetTheme.colors.textSecondary
+                },
             )
             Spacer(Modifier.height(BudgetTheme.spacing.tightGap))
             Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterStart) {
@@ -79,9 +92,27 @@ fun FormField(
         Box(
             Modifier
                 .fillMaxWidth()
-                .height(if (active) BudgetTheme.size.underlineActive else BudgetTheme.size.underline)
-                .background(if (active) MaterialTheme.colorScheme.primary else BudgetTheme.colors.divider),
+                .height(if (active || error != null) BudgetTheme.size.underlineActive else BudgetTheme.size.underline)
+                .background(
+                    when {
+                        error != null -> BudgetTheme.colors.danger
+                        active -> MaterialTheme.colorScheme.primary
+                        else -> BudgetTheme.colors.divider
+                    },
+                ),
         )
+        if (error != null) {
+            Text(
+                text = error,
+                style = MaterialTheme.typography.bodySmall,
+                color = BudgetTheme.colors.danger,
+                modifier =
+                Modifier
+                    .padding(top = BudgetTheme.spacing.tightGap)
+                    // 문구는 칸 안의 오류 표시(error)로 이미 읽힌다. 새로 나타날 때 한 번 알려주기만 한다.
+                    .semantics { liveRegion = LiveRegionMode.Polite },
+            )
+        }
     }
 }
 
@@ -114,10 +145,12 @@ fun FormTextField(
     modifier: Modifier = Modifier,
     imeAction: ImeAction = ImeAction.Next,
     maxLength: Int = Int.MAX_VALUE,
+    error: String? = null,
+    focusRequester: FocusRequester? = null,
     onFocusChanged: (Boolean) -> Unit = {},
 ) {
     var focused by remember { mutableStateOf(false) }
-    FormField(label = label, active = focused, modifier = modifier) {
+    FormField(label = label, active = focused, modifier = modifier, error = error) {
         if (value.isEmpty()) FormPlaceholder(placeholder)
         BasicTextField(
             value = value,
@@ -131,7 +164,10 @@ fun FormTextField(
                 .fillMaxWidth()
                 // 위쪽 이름표와 안내 문구는 별개의 글자라서, 화면 읽기로는
                 // 이 칸이 이름 없는 '편집창' 으로만 읽힌다. 이름을 직접 붙인다.
-                .semantics { contentDescription = if (value.isEmpty()) "$label, $placeholder" else label }
+                .semantics {
+                    contentDescription = if (value.isEmpty()) "$label, $placeholder" else label
+                    if (error != null) error(error)
+                }.then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
                 .onFocusChanged {
                     focused = it.isFocused
                     onFocusChanged(it.isFocused)
