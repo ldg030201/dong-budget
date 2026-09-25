@@ -1,5 +1,6 @@
 package com.dong.budget.data.db
 
+import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
@@ -36,5 +37,9 @@ object BudgetTime {
         return start to end
     }
 
-    fun currentMonth(): YearMonth = YearMonth.now(ZONE)
+    /** [now] 부터 서울 기준 다음 날 0시까지 남은 밀리초. 자정에 '오늘' 을 바꿀 때 쓴다. 0 이 되지 않게 최소 1 이다. */
+    fun millisUntilNextDay(now: Instant): Long {
+        val nextDay = toLocalDate(now).plusDays(1).atStartOfDay(ZONE).toInstant()
+        return Duration.between(now, nextDay).toMillis().coerceAtLeast(1)
+    }
 }

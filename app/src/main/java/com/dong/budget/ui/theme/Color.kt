@@ -71,6 +71,11 @@ data class BudgetColorTokens(
     val textTertiary: Color,
     val income: Color,
     val danger: Color,
+    /**
+     * 배경 위에 올리는 브랜드색 글자(오늘 날짜, 강조 금액 등).
+     * 다크의 primary(Indigo550)는 흰 글자를 올리는 채움용이라 어두운 배경 위 글자로는 대비가 모자라다(3.61:1).
+     */
+    val brandText: Color,
     val sectionBackground: Color,
     val divider: Color,
     /** 통계 차트용. 빨강-초록 조합은 적녹색맹에서 구분이 불가능해서 쓰지 않는다. */
@@ -85,6 +90,7 @@ internal val LightColorTokens =
         textTertiary = Gray500,
         income = IncomeLight,
         danger = DangerLight,
+        brandText = Indigo500, // Gray50 5.11
         sectionBackground = Gray50,
         divider = Gray200,
         chartExpense = Indigo500,
@@ -98,6 +104,7 @@ internal val DarkColorTokens =
         textTertiary = Gray600,
         income = IncomeDark,
         danger = DangerDark,
+        brandText = Indigo400, // Dark800 4.66 / Dark900 5.06
         sectionBackground = Dark800,
         divider = Dark600,
         chartExpense = Indigo550,
