@@ -33,6 +33,7 @@ import com.dong.budget.ui.editor.TransactionEditorScreen
 import com.dong.budget.ui.editor.TransactionEditorViewModel
 import com.dong.budget.ui.home.HomeViewModel
 import com.dong.budget.ui.patchnotes.PatchNotesScreen
+import com.dong.budget.ui.permission.PermissionGate
 import com.dong.budget.ui.settings.SettingsScreen
 import com.dong.budget.ui.settings.SettingsViewModel
 import com.dong.budget.ui.shell.HomeShell
@@ -47,6 +48,9 @@ import com.dong.budget.ui.shell.HomeShell
 fun DongBudgetApp(container: AppContainer) {
     val backStack = rememberNavBackStack(ShellKey)
     val navigator = remember(backStack) { Navigator(backStack) }
+
+    // 설정에서 켜야 하는 권한이 꺼져 있으면 앱을 켤 때 안내한다
+    PermissionGate()
 
     NavDisplay(
         backStack = backStack,
