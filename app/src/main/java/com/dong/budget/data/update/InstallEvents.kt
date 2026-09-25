@@ -8,7 +8,14 @@ import kotlinx.coroutines.flow.asSharedFlow
 sealed interface InstallEvent {
     data object Succeeded : InstallEvent
 
-    data class Failed(val reason: String) : InstallEvent
+    /**
+     * @property reason 사용자가 읽을 안내
+     * @property detail 시스템이 알려준 원래 사유(상태 코드와 메시지). 기기마다 설치기가 달라서
+     *   왜 실패했는지 알아내려면 이 원문이 필요하다.
+     * @property canTryOtherWays 받은 파일이나 브라우저로 설치하면 풀릴 수 있는 실패인지.
+     *   서명이 다르거나 저장 공간이 없으면 어느 길로 설치해도 똑같이 막히므로 권하지 않는다.
+     */
+    data class Failed(val reason: String, val detail: String? = null, val canTryOtherWays: Boolean = true) : InstallEvent
 }
 
 /**

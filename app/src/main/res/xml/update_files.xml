@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 업데이트 설치 파일만 시스템 설치기에 넘길 수 있게 연다. 캐시의 updates 폴더 밖은 열지 않는다.
+     경로 이름은 ApkInstaller.DIRECTORY 와 같아야 한다. -->
+<paths>
+    <cache-path name="updates" path="updates/" />
+</paths>
