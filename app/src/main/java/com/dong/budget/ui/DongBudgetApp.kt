@@ -22,7 +22,9 @@ import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import com.dong.budget.BuildConfig
 import com.dong.budget.data.AppContainer
+import com.dong.budget.data.capture.CapturedPayment
 import com.dong.budget.navigation.CategoryManageKey
+import com.dong.budget.navigation.EditorPrefill
 import com.dong.budget.navigation.Navigator
 import com.dong.budget.navigation.PatchNotesKey
 import com.dong.budget.navigation.SettingsKey
@@ -39,7 +41,9 @@ import com.dong.budget.ui.permission.PermissionGate
 import com.dong.budget.ui.settings.SettingsScreen
 import com.dong.budget.ui.settings.SettingsViewModel
 import com.dong.budget.ui.shell.HomeShell
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * 앱 전체 네비게이션.
@@ -48,9 +52,19 @@ import kotlinx.coroutines.launch
  * 그래서 서브플로우를 쌓으면 탭바가 화면과 함께 밀려나간다.
  */
 @Composable
-fun DongBudgetApp(container: AppContainer) {
+fun DongBudgetApp(container: AppContainer, capturedToOpen: String? = null, onCapturedOpened: () -> Unit = {}) {
     val backStack = rememberNavBackStack(ShellKey)
     val navigator = remember(backStack) { Navigator(backStack) }
+
+    // 결제 등록 알림을 눌러 들어왔으면 그 결제로 채운 등록창을 연다
+    LaunchedEffect(capturedToOpen) {
+        val dedupKey = capturedToOpen ?: return@LaunchedEffect
+        // 기록이 지난 알림이면 채울 내용이 없다. 그때는 그냥 앱만 열린다.
+        val payment = withContext(Dispatchers.IO) { container.paymentCapture.find(dedupKey) }
+        if (payment != null) navigator.go(TransactionEditorKey(prefill = payment.toPrefill()))
+        // 다 연 뒤에 비운다. 먼저 비우면 값이 바뀌면서 이 작업 자체가 취소된다.
+        onCapturedOpened()
+    }
 
     // 설정에서 켜야 하는 권한이 꺼져 있으면 앱을 켤 때 안내한다
     PermissionGate()
@@ -98,12 +112,15 @@ fun DongBudgetApp(container: AppContainer) {
 
             entry<TransactionEditorKey>(metadata = modalTransitions()) { key ->
                 val viewModel: TransactionEditorViewModel =
-                    viewModel(factory = editorViewModelFactory(container, key.transactionId))
+                    viewModel(factory = editorViewModelFactory(container, key.transactionId, key.prefill))
                 val state by viewModel.uiState.collectAsStateWithLifecycle()
 
-                // 저장이 끝나면 화면을 닫는다.
+                // 저장이 끝나면 화면을 닫는다. 결제 알림에서 온 것이면 묻던 알림도 치운다.
                 LaunchedEffect(state.saved) {
-                    if (state.saved) navigator.closeIfTop(key)
+                    if (state.saved) {
+                        key.prefill?.let { container.paymentCapture.dismiss(it.dedupKey) }
+                        navigator.closeIfTop(key)
+                    }
                 }
 
                 TransactionEditorScreen(
@@ -194,17 +211,28 @@ private fun modalTransitions(): Map<String, Any> = NavDisplay.transitionSpec {
         EnterTransition.None togetherWith slideOutVertically(targetOffsetY = { height -> height })
     }
 
+/** 알림에서 읽은 결제를 등록창에 채울 값으로 바꾼다. 할부는 메모로 남긴다. */
+private fun CapturedPayment.toPrefill() = EditorPrefill(
+    amount = amount,
+    merchant = merchant,
+    paymentName = paymentName,
+    memo = installmentMonths?.let { "${it}개월 할부" },
+    occurredAtMillis = occurredAtMillis,
+    dedupKey = dedupKey,
+)
+
 private fun homeViewModelFactory(container: AppContainer) = viewModelFactory {
     initializer { HomeViewModel(container.transactionRepository) }
 }
 
-private fun editorViewModelFactory(container: AppContainer, transactionId: Long?) = viewModelFactory {
+private fun editorViewModelFactory(container: AppContainer, transactionId: Long?, prefill: EditorPrefill?) = viewModelFactory {
     initializer {
         TransactionEditorViewModel(
             repository = container.transactionRepository,
             categoryRepository = container.categoryRepository,
             paymentMethodRepository = container.paymentMethodRepository,
             transactionId = transactionId,
+            prefill = prefill,
         )
     }
 }

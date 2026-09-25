@@ -1,5 +1,6 @@
 package com.dong.budget
 
+import android.content.Intent
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import android.os.Bundle
@@ -19,14 +20,21 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.toArgb
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.dong.budget.data.capture.CaptureNotifier
 import com.dong.budget.data.settings.SettingsRepository
 import com.dong.budget.data.settings.ThemeMode
 import com.dong.budget.ui.DongBudgetApp
 import com.dong.budget.ui.theme.BudgetTheme
+import kotlinx.coroutines.flow.MutableStateFlow
 
 class MainActivity : ComponentActivity() {
+    /** 결제 등록 알림을 눌러 들어왔을 때 그 결제의 열쇠. 등록창을 열면 비운다. */
+    private val capturedToOpen = MutableStateFlow<String?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // 화면 회전 등으로 다시 만들어질 때는 같은 Intent 가 또 들어온다. 등록창은 백스택에 이미 복원돼 있다.
+        if (savedInstanceState == null) receiveCaptured(intent)
 
         setContent {
             val settings = remember { SettingsRepository(applicationContext) }
@@ -74,9 +82,27 @@ class MainActivity : ComponentActivity() {
                 SideEffect { window.setBackgroundDrawable(ColorDrawable(background.toArgb())) }
                 // 화면 전환 중에 비치는 바닥도 앱 테마의 배경색으로 칠해 둔다
                 Box(modifier = Modifier.fillMaxSize().background(background)) {
-                    DongBudgetApp(container = (application as BudgetApplication).container)
+                    val captured by capturedToOpen.collectAsStateWithLifecycle()
+                    DongBudgetApp(
+                        container = (application as BudgetApplication).container,
+                        capturedToOpen = captured,
+                        onCapturedOpened = { capturedToOpen.value = null },
+                    )
                 }
             }
         }
+    }
+
+    /** 앱이 열린 채로 결제 등록 알림을 누르면 여기로 온다(singleTop) */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        receiveCaptured(intent)
+    }
+
+    private fun receiveCaptured(intent: Intent?) {
+        if (intent?.action != CaptureNotifier.ACTION_OPEN_CAPTURED) return
+        // 최근 앱 목록에서 다시 열면 처음 열었던 Intent 가 그대로 다시 온다. 그때 등록창을 또 띄우지 않는다.
+        if (intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0) return
+        capturedToOpen.value = intent.getStringExtra(CaptureNotifier.EXTRA_DEDUP_KEY)
     }
 }

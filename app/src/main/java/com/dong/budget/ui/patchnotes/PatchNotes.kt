@@ -70,6 +70,25 @@ private fun menu(menu: PatchMenu, vararg changes: Change) = MenuChanges(menu, ch
 val PATCH_NOTES: List<Release> =
     listOf(
         Release(
+            version = "0.1.6",
+            date = null,
+            menus =
+            listOf(
+                menu(
+                    PatchMenu.EDITOR,
+                    added("토스 결제 알림이 오면 '가계부에 등록할까요?' 알림을 보내요. 누르면 금액·카드·가게·결제 시각이 채워진 등록창이 열려요"),
+                    added("알림에서 가져온 카드가 결제수단에 없으면 저장할 때 새로 만들어요"),
+                    added("전에 같은 가게로 등록한 적이 있으면 그때 고른 분류를 미리 골라 둬요"),
+                    added("할부 결제는 '3개월 할부'처럼 메모에 적어 둬요"),
+                    added("같은 결제를 두 번 등록하려고 하면 알려줘요"),
+                ),
+                menu(
+                    PatchMenu.COMMON,
+                    added("앱을 켤 때 '알림 읽기'와 알림 권한이 꺼져 있으면 알려줘요. '제한된 설정'으로 막힌 경우 푸는 방법도 안내해요"),
+                ),
+            ),
+        ),
+        Release(
             version = "0.1.5",
             date = LocalDate.of(2026, 9, 25),
             menus =

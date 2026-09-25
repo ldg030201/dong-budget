@@ -1,0 +1,94 @@
+package com.dong.budget.data.capture
+
+import com.dong.budget.BuildConfig
+
+/** 결제를 등록할지 사용자에게 묻는 창구. 실제로는 우리 앱의 알림이다(CaptureNotifier). */
+interface CapturePrompt {
+    /** 물어볼 수 있는 상태인지(알림이 허용됐는지) */
+    fun canAsk(): Boolean
+
+    /** @param quietly 소리 없이 띄운다. 이미 한 번 알린 결제를 다시 띄울 때 쓴다. */
+    fun ask(payment: CapturedPayment, quietly: Boolean = false)
+
+    fun dismiss(dedupKey: String)
+}
+
+/**
+ * 다른 앱의 알림을 받아 결제면 등록할지 묻는다.
+ *
+ * 알림 읽기(PaymentNotificationListener)가 모든 알림을 여기로 넘긴다.
+ * 토스가 아닌 앱의 알림은 [isSource] 에서 바로 버리고, 어디에도 남기지 않는다.
+ */
+class PaymentCapture(
+    private val store: CaptureStore,
+    private val prompt: CapturePrompt,
+    /** 이미 가계부에 등록한 결제인지. 보통 TransactionRepository.isRegistered */
+    private val isRegistered: suspend (dedupKey: String) -> Boolean,
+    private val now: () -> Long = System::currentTimeMillis,
+) {
+    /**
+     * 토스 알림 하나를 살펴 결제면 등록할지 묻는다.
+     *
+     * 제목과 본문은 알림에 따라 담기는 칸이 달라서 후보를 여러 개 받는다. 짧은 본문부터 맞춰 본다.
+     * 펼친 본문에는 줄이 더 붙을 수 있어 딱 맞는 모양을 찾기 어렵기 때문이다.
+     *
+     * @return 물어봤으면 true
+     */
+    suspend fun onNotification(titles: List<CharSequence?>, texts: List<CharSequence?>, occurredAtMillis: Long): Boolean {
+        // 너무 오래된 결제는 묻지 않는다. 기록을 지운 뒤 같은 알림이 다시 들어와도 또 묻지 않게 하기 위함이다.
+        if (now() - occurredAtMillis > CaptureStore.RETENTION_MS) return false
+        val payment =
+            titles.firstNotNullOfOrNull { title ->
+                texts.firstNotNullOfOrNull { text -> TossPaymentParser.parse(title, text, occurredAtMillis) }
+            } ?: return false
+        // 알림을 보낼 수 없으면 기록하지 않는다. 나중에 알림을 허용한 뒤 다시 연결될 때 물을 수 있게 둔다.
+        if (!prompt.canAsk()) return false
+        if (!store.remember(payment)) return false
+        if (isRegistered(payment.dedupKey)) return false
+        prompt.ask(payment)
+        return true
+    }
+
+    /**
+     * 앱 업데이트나 기기 재시작으로 지워진 묻는 알림을 다시 띄운다. 알림 읽기가 연결될 때 부른다.
+     * 사용자가 밀어서 지운 것, 이미 등록한 것, 지금 떠 있는 것([showing])은 빼고 소리 없이 띄운다.
+     */
+    suspend fun restorePrompts(showing: Set<String>) {
+        if (!prompt.canAsk()) return
+        store
+            .pending()
+            .filter { it.dedupKey !in showing && !isRegistered(it.dedupKey) }
+            .forEach { prompt.ask(it, quietly = true) }
+    }
+
+    /** 사용자가 묻는 알림을 밀어서 지웠다. 등록하지 않겠다는 뜻이니 다시 띄우지 않는다. */
+    fun onPromptDismissed(dedupKey: String) = store.markDismissed(dedupKey)
+
+    /** 우리 알림을 눌렀을 때 채울 결제. 기록이 지났으면 null */
+    fun find(dedupKey: String): CapturedPayment? = store.find(dedupKey)
+
+    /** 등록을 마쳤으면 묻던 알림을 치운다 */
+    fun dismiss(dedupKey: String) = prompt.dismiss(dedupKey)
+
+    companion object {
+        /** 토스 앱 */
+        const val TOSS_PACKAGE = "viva.republica.toss"
+
+        /** 개발 빌드에서는 adb 로 올린 가짜 알림(`adb shell cmd notification post`)도 받는다 */
+        private const val SHELL_PACKAGE = "com.android.shell"
+
+        private const val CLOCK_SKEW_MS = 60 * 1000L
+        private const val MAX_DELAY_MS = 24 * 60 * 60 * 1000L
+
+        fun isSource(packageName: String?): Boolean = packageName == TOSS_PACKAGE || (BuildConfig.DEBUG && packageName == SHELL_PACKAGE)
+
+        /**
+         * 결제 시각. 토스가 알림에 적은 시각(when)을 쓴다.
+         * 알림이 늦게 도착해도 결제한 시각이 들어가고, 같은 알림이 다시 올라와도 시각이 바뀌지 않는다.
+         * 그 값이 없거나 알림이 올라온 시각과 너무 어긋나면(하루 넘게 이르거나 미래) 올라온 시각을 쓴다.
+         */
+        fun paymentTime(whenMillis: Long, postTimeMillis: Long): Long =
+            whenMillis.takeIf { it > 0 && it in (postTimeMillis - MAX_DELAY_MS)..(postTimeMillis + CLOCK_SKEW_MS) }
+                ?: postTimeMillis
+    }
+}

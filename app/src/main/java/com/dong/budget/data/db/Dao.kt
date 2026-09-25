@@ -60,6 +60,20 @@ interface TransactionDao {
     @Query("SELECT * FROM transactions WHERE id = :id")
     suspend fun findById(id: Long): TransactionEntity?
 
+    /** 이 가게로 가장 최근에 등록한 지출의 분류. 알림으로 들어온 결제의 분류를 미리 고를 때 쓴다. */
+    @Query(
+        """
+        SELECT categoryId FROM transactions
+        WHERE merchant = :merchant AND type = 'EXPENSE' AND categoryId IS NOT NULL
+        ORDER BY occurredAt DESC LIMIT 1
+        """,
+    )
+    suspend fun lastCategoryIdForMerchant(merchant: String): Long?
+
+    /** 알림에서 읽은 결제가 이미 등록됐는지 */
+    @Query("SELECT EXISTS(SELECT 1 FROM transactions WHERE dedupKey = :key)")
+    suspend fun existsByDedupKey(key: String): Boolean
+
     @Insert
     suspend fun insert(transaction: TransactionEntity): Long
 
@@ -131,6 +145,9 @@ interface PaymentMethodDao {
 
     @Query("SELECT * FROM payment_methods WHERE id = :id")
     suspend fun findById(id: Long): PaymentMethodEntity?
+
+    @Query("SELECT * FROM payment_methods")
+    suspend fun getAll(): List<PaymentMethodEntity>
 
     @Query("SELECT COALESCE(MAX(sortOrder), -1) FROM payment_methods")
     suspend fun maxSortOrder(): Int

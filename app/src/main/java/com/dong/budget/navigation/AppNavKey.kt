@@ -23,9 +23,26 @@ sealed interface AppNavKey : NavKey
 @Serializable
 data object ShellKey : AppNavKey
 
-/** 거래 등록/수정. transactionId 가 null 이면 새로 등록하는 것이다. */
+/**
+ * 결제 알림에서 읽어 등록창을 미리 채울 값.
+ * 알림을 눌러 들어오면 이 값으로 채워진 채 열리고, 사용자가 확인하고 저장해야 거래가 된다.
+ *
+ * @property paymentName 카드 이름. 같은 이름의 결제수단이 없으면 저장할 때 새로 만든다.
+ * @property dedupKey 같은 결제를 두 번 등록하지 않게 거래에 함께 저장한다.
+ */
 @Serializable
-data class TransactionEditorKey(val transactionId: Long? = null) : AppNavKey
+data class EditorPrefill(
+    val amount: Long,
+    val merchant: String,
+    val paymentName: String?,
+    val memo: String?,
+    val occurredAtMillis: Long,
+    val dedupKey: String,
+)
+
+/** 거래 등록/수정. transactionId 가 null 이면 새로 등록하는 것이다. prefill 이 있으면 그 값으로 채워 연다. */
+@Serializable
+data class TransactionEditorKey(val transactionId: Long? = null, val prefill: EditorPrefill? = null) : AppNavKey
 
 @Serializable
 data object CategoryManageKey : AppNavKey

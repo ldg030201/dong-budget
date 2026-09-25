@@ -115,7 +115,8 @@ fun TransactionEditorScreen(
 ) {
     // 새로 등록할 때는 금액부터 받으므로 키패드를 열어둔다.
     // 수정할 때는 값을 먼저 훑어보게 모두 닫아둔다.
-    var panel by rememberSaveable { mutableStateOf(if (state.isEditing) null else EditorPanel.AMOUNT) }
+    // 알림에서 채워 들어온 경우도 값부터 확인하게 닫아둔다.
+    var panel by rememberSaveable { mutableStateOf(if (state.isEditing || state.isPrefilled) null else EditorPanel.AMOUNT) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
     val focusManager = LocalFocusManager.current
 
@@ -245,6 +246,14 @@ fun TransactionEditorScreen(
                     selectedIndex = TYPE_OPTIONS.indexOfFirst { it.first == state.type }.coerceAtLeast(0),
                     onSelect = { onSelectType(TYPE_OPTIONS[it].first) },
                 )
+                if (state.isPrefilled) {
+                    Text(
+                        text = "결제 알림에서 가져왔어요. 확인하고 등록해 주세요.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = BudgetTheme.colors.textSecondary,
+                        modifier = Modifier.padding(top = BudgetTheme.spacing.inlineGap),
+                    )
+                }
 
                 FormField(
                     label = "금액",
@@ -286,7 +295,14 @@ fun TransactionEditorScreen(
                     error = missingMessage(RequiredField.PAYMENT),
                 ) {
                     val method = state.selectedPaymentMethod
-                    if (method == null) {
+                    val pendingName = state.pendingPaymentName
+                    if (method == null && pendingName != null) {
+                        // 알림에서 읽은 카드가 아직 결제수단에 없다. 저장할 때 새로 만든다.
+                        FormIconValue(
+                            icon = { CategoryBadge("credit_card", "blue", size = BudgetTheme.size.badgeSmall) },
+                            text = "$pendingName (새로 추가돼요)",
+                        )
+                    } else if (method == null) {
                         FormPlaceholder("결제수단을 골라주세요")
                     } else {
                         FormIconValue(
@@ -393,6 +409,17 @@ fun TransactionEditorScreen(
 
                         null -> Box(Modifier.fillMaxWidth())
                     }
+                }
+                state.saveError?.let { error ->
+                    Text(
+                        text = error,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = BudgetTheme.colors.danger,
+                        modifier =
+                        Modifier
+                            .padding(horizontal = BudgetTheme.spacing.screenHorizontal)
+                            .padding(bottom = BudgetTheme.spacing.inlineGap),
+                    )
                 }
                 BudgetPrimaryButton(
                     text = if (state.isEditing) "수정하기" else "등록하기",
