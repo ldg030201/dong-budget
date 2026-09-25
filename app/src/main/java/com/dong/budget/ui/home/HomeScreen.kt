@@ -18,7 +18,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
@@ -28,6 +30,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material3.FloatingActionButton
@@ -48,11 +51,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
+import com.dong.budget.R
 import com.dong.budget.data.db.TransactionListItem
 import com.dong.budget.data.db.TransactionType
 import com.dong.budget.ui.components.BudgetListItem
@@ -64,6 +71,7 @@ import com.dong.budget.ui.format.formatSignedAmount
 import com.dong.budget.ui.format.formatSignedTotal
 import com.dong.budget.ui.format.formatTime
 import com.dong.budget.ui.theme.BudgetTheme
+import com.dong.budget.ui.theme.pressScaleClickable
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.YearMonth
@@ -80,6 +88,9 @@ import java.time.YearMonth
 @Composable
 fun HomeScreen(
     state: HomeUiState,
+    updateVersion: String?,
+    onOpenUpdate: () -> Unit,
+    onDismissUpdate: () -> Unit,
     onPreviousMonth: () -> Unit,
     onNextMonth: () -> Unit,
     onAddTransaction: () -> Unit,
@@ -95,6 +106,14 @@ fun HomeScreen(
     ) {
         Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
             MonthSelector(month = state.month, onPreviousMonth = onPreviousMonth, onNextMonth = onNextMonth)
+            // 새 버전이 있으면 달 선택 아래에 알림 줄을 둔다. 목록 안이 아니라 고정 자리에 두어
+            // 달력을 누를 때 쓰는 목록 줄 번호가 흔들리지 않게 한다.
+            AnimatedVisibility(visible = updateVersion != null) {
+                // 사라지는 애니메이션 동안에도 마지막 버전을 보여준다
+                var shownVersion by remember { mutableStateOf(updateVersion.orEmpty()) }
+                if (updateVersion != null) shownVersion = updateVersion
+                UpdateBanner(version = shownVersion, onOpen = onOpenUpdate, onDismiss = onDismissUpdate)
+            }
             // 달이 바뀌면 스크롤 위치와 고른 날짜를 처음부터 다시 시작한다
             key(state.month) {
                 MonthBody(state = state, onEditTransaction = onEditTransaction, modifier = Modifier.weight(1f))
@@ -237,6 +256,51 @@ private fun isCalendarScrolledAway(listState: LazyListState, stripHeightPx: Int)
         listState.firstVisibleItemIndex > CALENDAR_INDEX
     } else {
         calendar.offset + calendar.size <= stripHeightPx
+    }
+}
+
+/** 새 버전 알림 줄. 누르면 설정의 업데이트 화면으로 간다. 닫으면 앱을 다시 켤 때까지 숨긴다. */
+@Composable
+private fun UpdateBanner(version: String, onOpen: () -> Unit, onDismiss: () -> Unit) {
+    val shape = RoundedCornerShape(BudgetTheme.radius.control)
+    val content = MaterialTheme.colorScheme.onPrimaryContainer
+    Row(
+        modifier =
+        Modifier
+            .padding(horizontal = BudgetTheme.spacing.screenHorizontal)
+            .padding(bottom = BudgetTheme.spacing.inlineGap)
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.primaryContainer, shape)
+            .pressScaleClickable(shape = shape, onClick = onOpen)
+            .padding(start = BudgetTheme.spacing.sectionPadding),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            painter = painterResource(R.drawable.ic_sym_new_releases),
+            contentDescription = null,
+            tint = content,
+            modifier = Modifier.size(BudgetTheme.size.icon),
+        )
+        Spacer(Modifier.width(BudgetTheme.spacing.itemGap))
+        Column(modifier = Modifier.weight(1f).padding(vertical = BudgetTheme.spacing.itemGap)) {
+            Text(text = "새 버전($version)이 나왔어요", style = MaterialTheme.typography.labelLarge, color = content)
+            Text(text = "눌러서 업데이트하기", style = MaterialTheme.typography.bodySmall, color = content)
+        }
+        Box(
+            modifier =
+            Modifier
+                .size(BudgetTheme.size.minTouchTarget)
+                .pressScaleClickable(shape = CircleShape, onClick = onDismiss)
+                .semantics { contentDescription = "새 버전 알림 닫기" },
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Close,
+                contentDescription = null,
+                tint = content,
+                modifier = Modifier.size(BudgetTheme.size.iconSmall),
+            )
+        }
     }
 }
 

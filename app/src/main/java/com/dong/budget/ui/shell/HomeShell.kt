@@ -46,6 +46,9 @@ enum class ShellTab(val label: String, val icon: ImageVector) {
 @Composable
 fun HomeShell(
     state: HomeUiState,
+    updateVersion: String?,
+    onOpenUpdate: () -> Unit,
+    onDismissUpdate: () -> Unit,
     onPreviousMonth: () -> Unit,
     onNextMonth: () -> Unit,
     onAddTransaction: () -> Unit,
@@ -94,6 +97,9 @@ fun HomeShell(
                     ShellTab.HOME ->
                         HomeScreen(
                             state = state,
+                            updateVersion = updateVersion,
+                            onOpenUpdate = onOpenUpdate,
+                            onDismissUpdate = onDismissUpdate,
                             onPreviousMonth = onPreviousMonth,
                             onNextMonth = onNextMonth,
                             onAddTransaction = onAddTransaction,

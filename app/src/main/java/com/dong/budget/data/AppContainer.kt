@@ -4,7 +4,11 @@ import android.content.Context
 import com.dong.budget.data.db.BudgetDatabase
 import com.dong.budget.data.settings.SettingsRepository
 import com.dong.budget.data.update.ApkInstaller
+import com.dong.budget.data.update.UpdateChecker
 import com.dong.budget.data.update.UpdateRepository
+import com.dong.budget.data.update.UpdateStatus
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * 수동 의존성 컨테이너.
@@ -32,4 +36,21 @@ class AppContainer(context: Context) {
     val updateRepository by lazy { UpdateRepository() }
 
     val apkInstaller by lazy { ApkInstaller(context) }
+
+    val updateChecker by lazy {
+        UpdateChecker(
+            fetch = updateRepository::check,
+            prefs = context.getSharedPreferences(UpdateChecker.PREFS_NAME, Context.MODE_PRIVATE),
+            // 새 버전이 바뀌었거나 없으면, 다른 버전으로 받아둔 설치 파일은 권하지 않도록 지운다
+            onChecked = { status ->
+                withContext(Dispatchers.IO) {
+                    when (status) {
+                        is UpdateStatus.Available -> apkInstaller.keepOnly(status.version)
+                        UpdateStatus.UpToDate -> apkInstaller.keepOnly(null)
+                        is UpdateStatus.Failed -> Unit
+                    }
+                }
+            },
+        )
+    }
 }
