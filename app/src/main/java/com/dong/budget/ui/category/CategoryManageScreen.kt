@@ -4,7 +4,6 @@ import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
@@ -31,12 +30,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
-import com.dong.budget.R
 import com.dong.budget.ui.components.BudgetListItem
 import com.dong.budget.ui.components.BudgetPrimaryButton
 import com.dong.budget.ui.components.BudgetTopAppBar
@@ -49,7 +46,7 @@ import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
 
 /**
- * 전체 → 분류 관리. 지출·수입 분류와 결제수단을 추가하고 지우고, 끌어서 순서를 바꾼다.
+ * 전체 → 분류 관리. 지출·수입 분류와 결제수단을 추가하고 지우고, 길게 눌러 끌어서 순서를 바꾼다.
  * 바꾼 순서는 거래 등록 화면의 분류·결제수단 표에도 그대로 쓰인다.
  */
 @Composable
@@ -113,7 +110,7 @@ fun CategoryManageScreen(
                 modifier = Modifier.padding(horizontal = BudgetTheme.spacing.screenHorizontal),
             )
             Text(
-                text = "오른쪽 ≡ 를 끌거나 길게 눌러서 순서를 바꿀 수 있어요",
+                text = "길게 눌러서 끌면 순서를 바꿀 수 있어요",
                 style = MaterialTheme.typography.bodySmall,
                 color = BudgetTheme.colors.textSecondary,
                 modifier =
@@ -191,12 +188,6 @@ private fun ReorderableList(
                     ManagedRow(
                         item = item,
                         onDelete = { onRequestDelete(item) },
-                        dragHandle =
-                        if (item.movable) {
-                            { DragHandle(Modifier.draggableHandle(onDragStarted = onDragStarted, onDragStopped = save)) }
-                        } else {
-                            null
-                        },
                         modifier =
                         Modifier
                             .longPressDraggableHandle(enabled = item.movable, onDragStarted = onDragStarted, onDragStopped = save)
@@ -224,7 +215,7 @@ private fun ReorderableList(
 }
 
 @Composable
-private fun ManagedRow(item: ManagedItem, onDelete: () -> Unit, dragHandle: (@Composable () -> Unit)?, modifier: Modifier = Modifier) {
+private fun ManagedRow(item: ManagedItem, onDelete: () -> Unit, modifier: Modifier = Modifier) {
     BudgetListItem(
         title = item.name,
         subtitle =
@@ -234,32 +225,9 @@ private fun ManagedRow(item: ManagedItem, onDelete: () -> Unit, dragHandle: (@Co
             else -> "아직 쓴 거래가 없어요"
         },
         leading = { CategoryBadge(icon = item.icon, color = item.color) },
-        trailing =
-        if (item.deletable || dragHandle != null) {
-            {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (item.deletable) DeleteButton(name = item.name, onClick = onDelete)
-                    dragHandle?.invoke()
-                }
-            }
-        } else {
-            null
-        },
+        trailing = if (item.deletable) ({ DeleteButton(name = item.name, onClick = onDelete) }) else null,
         modifier = modifier,
     )
-}
-
-/** 끌기 손잡이. 뜻은 화면 읽기의 '위로/아래로 옮기기' 동작이 대신 전하므로 따로 읽히지 않게 둔다. */
-@Composable
-private fun DragHandle(modifier: Modifier) {
-    Box(modifier = modifier.size(BudgetTheme.size.minTouchTarget), contentAlignment = Alignment.Center) {
-        Icon(
-            painter = painterResource(R.drawable.ic_sym_drag_handle),
-            contentDescription = null,
-            tint = BudgetTheme.colors.textSecondary,
-            modifier = Modifier.size(BudgetTheme.size.icon),
-        )
-    }
 }
 
 @Composable
