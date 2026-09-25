@@ -30,6 +30,18 @@
             </intent-filter>
         </activity>
 
+        <!-- 받아둔 업데이트 파일을 시스템 설치기로 열 때, 그 파일 하나만 읽을 수 있게 잠깐 빌려준다.
+             authorities 뒷부분은 ApkInstaller.AUTHORITY_SUFFIX 와 같아야 한다. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.updates"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/update_files" />
+        </provider>
+
         <!-- 설치 세션의 진행 상황을 받는다. 앱 내부에서만 쓰므로 외부에 열지 않는다. -->
         <receiver
             android:name=".data.update.InstallResultReceiver"

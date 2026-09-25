@@ -48,6 +48,25 @@ private fun menu(name: String, vararg changes: Change) = MenuChanges(name, chang
 val PATCH_NOTES: List<Release> =
     listOf(
         Release(
+            version = "0.1.4",
+            date = null,
+            menus =
+            listOf(
+                menu(
+                    "설정",
+                    added("앱 안에서 업데이트가 안 되면 받아둔 파일로 직접 설치하거나, 브라우저에서 설치 파일을 받을 수 있어요"),
+                    improved("받아둔 설치 파일은 앱을 다시 켜도 남아 있어서 처음부터 다시 받지 않아도 돼요"),
+                    improved("업데이트가 실패하면 시스템이 알려준 이유도 함께 보여줘요"),
+                    improved("설치 중에 Play 프로텍트 창이 뜨면 무엇을 눌러야 하는지 알려줘요"),
+                    fixed("설치가 중간에 멈춘 경우에도 '설치를 취소했어요' 라고 잘못 알려주던 문구를 고쳤어요"),
+                ),
+                menu(
+                    "공통",
+                    added("앱을 켤 때 꺼져 있는 권한이 있으면 알려주고, 누르면 바로 설정 화면으로 가요"),
+                ),
+            ),
+        ),
+        Release(
             version = "0.1.3",
             date = LocalDate.of(2026, 9, 25),
             menus =

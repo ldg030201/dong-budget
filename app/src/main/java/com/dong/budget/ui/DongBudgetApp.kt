@@ -140,6 +140,7 @@ fun DongBudgetApp(container: AppContainer) {
                     viewModel(factory = settingsViewModelFactory(container))
                 val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
                 val updateState by viewModel.updateState.collectAsStateWithLifecycle()
+                val downloadedVersion by viewModel.downloadedVersion.collectAsStateWithLifecycle()
 
                 SettingsScreen(
                     themeMode = themeMode,
@@ -148,6 +149,9 @@ fun DongBudgetApp(container: AppContainer) {
                     onThemeModeChange = viewModel::selectThemeMode,
                     onCheckUpdate = viewModel::checkForUpdate,
                     onDownloadUpdate = viewModel::downloadAndInstall,
+                    downloadedVersion = downloadedVersion,
+                    onInstallDownloaded = viewModel::installDownloadedManually,
+                    releasePageUrl = viewModel.releasePageUrl,
                     onBack = navigator::goBack,
                 )
             }

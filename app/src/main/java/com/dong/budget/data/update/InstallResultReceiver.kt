@@ -37,7 +37,13 @@ class InstallResultReceiver : BroadcastReceiver() {
             else -> {
                 val message = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE)
                 Log.w(TAG, "설치가 끝나지 않았다 (상태 $status): $message")
-                InstallEvents.publish(InstallEvent.Failed(describe(status, message)))
+                InstallEvents.publish(
+                    InstallEvent.Failed(
+                        reason = describe(status, message),
+                        detail = listOfNotNull("상태 $status", message?.takeIf { it.isNotBlank() }).joinToString(" · "),
+                        canTryOtherWays = !isDeadEnd(message),
+                    ),
+                )
             }
         }
     }
@@ -49,7 +55,10 @@ class InstallResultReceiver : BroadcastReceiver() {
      * 그냥 두면 사용자는 아무 일도 일어나지 않은 것으로 느낀다.
      */
     private fun describe(status: Int, message: String?): String = when {
-        status == PackageInstaller.STATUS_FAILURE_ABORTED -> "설치를 취소했어요"
+        // 사용자가 취소한 경우뿐 아니라, 갤럭시 등 제조사 설치기가 사용자가 '설치'를 눌렀는데도
+        // 세션을 스스로 중단하는 경우에도 이 상태가 온다. 둘을 구별할 수 없으므로 '취소' 로 단정하지 않는다.
+        status == PackageInstaller.STATUS_FAILURE_ABORTED ->
+            "설치가 중단됐어요. 아래 '받은 파일로 직접 설치'로 다시 해보세요"
 
         // 서명 불일치를 가장 먼저 본다.
         // 안드로이드가 서명이 다를 때 주는 코드는 INSTALL_FAILED_UPDATE_INCOMPATIBLE 이라
@@ -72,6 +81,18 @@ class InstallResultReceiver : BroadcastReceiver() {
 
         else -> "설치를 마치지 못했어요"
     }
+
+    /** 다른 설치 길로도 풀리지 않는 실패. 서명 불일치, 낮은 버전, 기기와 맞지 않는 파일, 저장 공간 부족 */
+    private fun isDeadEnd(message: String?): Boolean = message.containsAny(
+        "UPDATE_INCOMPATIBLE",
+        "INCONSISTENT_CERTIFICATES",
+        "SIGNATURE",
+        "VERSION_DOWNGRADE",
+        "INSUFFICIENT_STORAGE",
+        "INCOMPATIBLE",
+        "INVALID_APK",
+        "NO_MATCHING_ABIS",
+    )
 
     private fun String?.containsAny(vararg needles: String): Boolean = this != null && needles.any { contains(it) }
 
