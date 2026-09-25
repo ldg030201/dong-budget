@@ -40,6 +40,7 @@ import com.dong.budget.ui.editor.TransactionEditorScreen
 import com.dong.budget.ui.editor.TransactionEditorViewModel
 import com.dong.budget.ui.home.HomeViewModel
 import com.dong.budget.ui.patchnotes.PatchNotesScreen
+import com.dong.budget.ui.patchnotes.PatchNotesViewModel
 import com.dong.budget.ui.permission.PermissionGate
 import com.dong.budget.ui.settings.SettingsScreen
 import com.dong.budget.ui.settings.SettingsViewModel
@@ -91,7 +92,7 @@ fun DongBudgetApp(container: AppContainer, capturedToOpen: String? = null, onCap
         onPauseOrDispose {}
     }
 
-    // 앱이 화면에 나올 때마다 새 버전을 확인한다. 실제 확인은 몇 시간에 한 번만 한다(UpdateChecker).
+    // 앱이 화면에 나올 때마다 새 버전을 확인한다. 10분 안에 다시 열면 건너뛴다(UpdateChecker).
     val scope = rememberCoroutineScope()
     LifecycleStartEffect(container) {
         scope.launch { container.updateChecker.checkIfDue() }
@@ -210,7 +211,14 @@ fun DongBudgetApp(container: AppContainer, capturedToOpen: String? = null, onCap
             }
 
             entry<PatchNotesKey> {
-                PatchNotesScreen(currentVersion = BuildConfig.VERSION_NAME, onBack = navigator::goBack)
+                val viewModel: PatchNotesViewModel = viewModel(factory = patchNotesViewModelFactory(container))
+                val newer by viewModel.newer.collectAsStateWithLifecycle()
+                PatchNotesScreen(
+                    currentVersion = BuildConfig.VERSION_NAME,
+                    onBack = navigator::goBack,
+                    newer = newer,
+                    onOpenUpdate = { navigator.go(SettingsKey) },
+                )
             }
         },
     )
@@ -268,6 +276,10 @@ private fun settingsViewModelFactory(container: AppContainer) = viewModelFactory
             updateChecker = container.updateChecker,
         )
     }
+}
+
+private fun patchNotesViewModelFactory(container: AppContainer) = viewModelFactory {
+    initializer { PatchNotesViewModel(container.updateRepository, container.updateChecker) }
 }
 
 private fun categoryManageViewModelFactory(container: AppContainer) = viewModelFactory {

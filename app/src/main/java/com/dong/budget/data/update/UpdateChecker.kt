@@ -14,8 +14,9 @@ import kotlinx.coroutines.sync.withLock
 /**
  * 새 버전 확인 결과를 앱 전체가 함께 쓴다.
  *
- * - 앱을 열 때마다 [checkIfDue] 를 부르지만, 실제 확인은 [INTERVAL_MS] 에 한 번만 한다.
- *   GitHub 는 로그인 없이 부를 수 있는 횟수가 시간당 60번으로 정해져 있고, 자주 볼 이유도 없다.
+ * - 앱을 열 때마다(화면에 나올 때마다) [checkIfDue] 로 확인한다. 백그라운드에서 따로 돌지 않는다.
+ *   다만 앱을 빠르게 오가며 여러 번 열면 마지막 확인에서 [INTERVAL_MS] 가 지나기 전까지는 건너뛴다.
+ *   GitHub 는 로그인 없이 부를 수 있는 횟수가 시간당 60번으로 정해져 있어서다.
  * - 설정 화면에서 직접 확인한 결과도 [record] 로 여기에 맞춘다.
  * - 찾은 새 버전은 저장해 둔다. 앱을 껐다 켜도 확인 간격 안이면 홈 배너가 바로 보인다.
  *
@@ -117,8 +118,8 @@ class UpdateChecker(
         /** SharedPreferences 파일 이름 */
         const val PREFS_NAME = "update_check"
 
-        /** 자동 확인 간격. 6시간 */
-        const val INTERVAL_MS = 6 * 60 * 60 * 1000L
+        /** 자동 확인 사이 최소 간격. 10분 */
+        const val INTERVAL_MS = 10 * 60 * 1000L
 
         private const val KEY_CHECKED_AT = "checked_at"
         private const val KEY_VERSION = "version"
