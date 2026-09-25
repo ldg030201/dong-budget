@@ -17,6 +17,13 @@ class PaymentMethodRepository(private val dao: PaymentMethodDao) {
 
         /** 띄어쓰기와 대소문자를 무시하고 같은 이름인지 본다. '하나 카드' 와 '하나카드' 는 같다. */
         fun sameName(a: String, b: String): Boolean = a.replace(" ", "").equals(b.replace(" ", ""), ignoreCase = true)
+
+        /**
+         * 알림에서 읽은 카드 이름을 결제수단 이름으로 다듬는다. 이름 길이 제한에 맞춰 뒤를 자른다.
+         * [findOrCreate] 와 등록창이 같은 이름으로 비교해야 '새로 추가돼요' 안내가 실제 동작과 맞는다.
+         * @return 비어 있으면 null
+         */
+        fun normalizeName(raw: String): String? = raw.trim().take(MAX_NAME_LENGTH).trim().ifEmpty { null }
     }
 
     fun observeWithCount(): Flow<List<PaymentMethodWithCount>> = dao.observeWithCount()
@@ -49,8 +56,7 @@ class PaymentMethodRepository(private val dao: PaymentMethodDao) {
      * @return 결제수단 id. 이름이 비어 있으면 null
      */
     suspend fun findOrCreate(rawName: String): Long? {
-        val name = rawName.trim().take(MAX_NAME_LENGTH)
-        if (name.isEmpty()) return null
+        val name = normalizeName(rawName) ?: return null
         val existing = dao.getAll()
         existing.firstOrNull { sameName(it.name, name) }?.let { return it.id }
         val used = existing.mapTo(mutableSetOf()) { it.color }

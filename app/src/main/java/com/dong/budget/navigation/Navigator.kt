@@ -12,13 +12,17 @@ import androidx.navigation3.runtime.NavKey
 @Stable
 class Navigator(private val backStack: NavBackStack<NavKey>) {
     /**
-     * 같은 키를 연속으로 쌓지 않는다.
+     * 같은 키를 두 번 쌓지 않는다. 이미 맨 위면 그대로 두고, 아래에 있으면 새로 쌓지 않고 맨 위로 올린다.
      *
      * NavEntry 는 키 값으로 내부 식별자를 만들기 때문에 같은 키가 두 번 쌓이면
-     * 화면 상태 저장소와 ViewModel 이 서로 섞인다.
+     * 화면 상태 저장소와 ViewModel 이 서로 섞인다. 결제 알림을 A → B → A 순서로 누르면
+     * 같은 등록창 키가 떨어진 자리에 다시 들어올 수 있어서, 맨 위만 볼 게 아니라 전체를 본다.
+     * 올린 화면은 입력하던 내용을 그대로 가진다.
      */
     fun go(key: AppNavKey) {
-        if (backStack.lastOrNull() != key) backStack.add(key)
+        if (backStack.lastOrNull() == key) return
+        backStack.remove(key)
+        backStack.add(key)
     }
 
     /**

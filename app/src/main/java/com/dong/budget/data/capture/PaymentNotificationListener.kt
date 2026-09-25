@@ -6,6 +6,7 @@ import android.service.notification.StatusBarNotification
 import com.dong.budget.BudgetApplication
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
@@ -21,6 +22,7 @@ import kotlinx.coroutines.launch
  */
 class PaymentNotificationListener : NotificationListenerService() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private var rescanJob: Job? = null
 
     private val capture: PaymentCapture get() = (application as BudgetApplication).container.paymentCapture
 
@@ -35,12 +37,26 @@ class PaymentNotificationListener : NotificationListenerService() {
         val showing = active.filter(::isOurPrompt).mapNotNull { it.tag }.toSet()
         scope.launch { runCatching { capture.restorePrompts(showing) } }
         active.forEach(::handle)
+        // 연결돼 있는 동안 앱이 다시 훑어 달라고 하면(알림을 막 허용했을 때 등) 알림창의 토스 알림을 다시 살핀다
+        rescanJob?.cancel()
+        rescanJob =
+            scope.launch {
+                capture.rescanRequests.collect {
+                    runCatching { activeNotifications }.getOrNull().orEmpty().forEach(::handle)
+                }
+            }
     }
 
-    /** 사용자가 우리 알림을 밀어서(또는 '모두 지우기' 로) 지우면 그 결제는 다시 묻지 않는다 */
+    override fun onListenerDisconnected() {
+        // 연결이 끊긴 뒤에는 알림창을 읽을 수 없다
+        rescanJob?.cancel()
+        rescanJob = null
+    }
+
+    /** 사용자가 우리 알림을 지우면 그 결제는 다시 묻지 않는다 */
     override fun onNotificationRemoved(sbn: StatusBarNotification?, rankingMap: RankingMap?, reason: Int) {
         if (sbn == null || !isOurPrompt(sbn)) return
-        if (reason != REASON_CANCEL && reason != REASON_CANCEL_ALL) return
+        if (reason !in USER_DISMISS_REASONS) return
         val dedupKey = sbn.tag ?: return
         scope.launch { runCatching { capture.onPromptDismissed(dedupKey) } }
     }
@@ -72,5 +88,17 @@ class PaymentNotificationListener : NotificationListenerService() {
     override fun onDestroy() {
         scope.cancel()
         super.onDestroy()
+    }
+
+    private companion object {
+        /**
+         * 사용자가 지운 것으로 보는 이유.
+         * - 한 건을 밀기(CANCEL), '모두 지우기'(CANCEL_ALL)
+         * - 쌓여서 시스템이 하나로 묶은 알림을 통째로 밀기. 묶음 안의 알림은 GROUP_SUMMARY_CANCELED 로 온다.
+         * - 워치 같은 다른 기기나 다른 앱의 알림 읽기에서 지우기(LISTENER_CANCEL, LISTENER_CANCEL_ALL)
+         * 앱이 등록 뒤 치운 것(APP_CANCEL), 업데이트(PACKAGE_CHANGED), 보관 기간 끝(TIMEOUT), 다시 알림(SNOOZED)은 뺀다.
+         */
+        val USER_DISMISS_REASONS =
+            setOf(REASON_CANCEL, REASON_CANCEL_ALL, REASON_GROUP_SUMMARY_CANCELED, REASON_LISTENER_CANCEL, REASON_LISTENER_CANCEL_ALL)
     }
 }

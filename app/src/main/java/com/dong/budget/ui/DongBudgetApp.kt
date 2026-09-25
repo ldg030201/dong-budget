@@ -1,5 +1,6 @@
 package com.dong.budget.ui
 
+import android.widget.Toast
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.slideInVertically
@@ -10,6 +11,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.LifecycleStartEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -57,17 +60,36 @@ fun DongBudgetApp(container: AppContainer, capturedToOpen: String? = null, onCap
     val navigator = remember(backStack) { Navigator(backStack) }
 
     // 결제 등록 알림을 눌러 들어왔으면 그 결제로 채운 등록창을 연다
+    val context = LocalContext.current
     LaunchedEffect(capturedToOpen) {
         val dedupKey = capturedToOpen ?: return@LaunchedEffect
+        val capture = container.paymentCapture
         // 기록이 지난 알림이면 채울 내용이 없다. 그때는 그냥 앱만 열린다.
-        val payment = withContext(Dispatchers.IO) { container.paymentCapture.find(dedupKey) }
-        if (payment != null) navigator.go(TransactionEditorKey(prefill = payment.toPrefill()))
+        val payment = withContext(Dispatchers.IO) { capture.find(dedupKey) }
+        when {
+            payment == null -> Unit
+
+            // 이미 등록한 결제면 등록창을 열지 않고 알림만 치운다
+            capture.alreadyRegistered(dedupKey) -> {
+                capture.onRegistered(dedupKey)
+                Toast.makeText(context, "이미 가계부에 등록한 결제예요", Toast.LENGTH_SHORT).show()
+            }
+
+            else -> navigator.go(TransactionEditorKey(prefill = payment.toPrefill()))
+        }
         // 다 연 뒤에 비운다. 먼저 비우면 값이 바뀌면서 이 작업 자체가 취소된다.
         onCapturedOpened()
     }
 
     // 설정에서 켜야 하는 권한이 꺼져 있으면 앱을 켤 때 안내한다
     PermissionGate()
+
+    // 앱이 화면에 나올 때마다 알림창에 남은 토스 결제 알림을 다시 살피게 한다.
+    // 알림을 막 허용하고 돌아온 경우, 그전에 들어와 묻지 못한 결제를 이때 묻는다. 이미 물어본 결제는 다시 묻지 않는다.
+    LifecycleResumeEffect(container) {
+        container.paymentCapture.requestRescan()
+        onPauseOrDispose {}
+    }
 
     // 앱이 화면에 나올 때마다 새 버전을 확인한다. 실제 확인은 몇 시간에 한 번만 한다(UpdateChecker).
     val scope = rememberCoroutineScope()
@@ -118,7 +140,7 @@ fun DongBudgetApp(container: AppContainer, capturedToOpen: String? = null, onCap
                 // 저장이 끝나면 화면을 닫는다. 결제 알림에서 온 것이면 묻던 알림도 치운다.
                 LaunchedEffect(state.saved) {
                     if (state.saved) {
-                        key.prefill?.let { container.paymentCapture.dismiss(it.dedupKey) }
+                        key.prefill?.let { container.paymentCapture.onRegistered(it.dedupKey) }
                         navigator.closeIfTop(key)
                     }
                 }

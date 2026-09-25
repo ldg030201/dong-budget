@@ -70,6 +70,29 @@ private fun menu(menu: PatchMenu, vararg changes: Change) = MenuChanges(menu, ch
 val PATCH_NOTES: List<Release> =
     listOf(
         Release(
+            version = "0.1.7",
+            date = null,
+            menus =
+            listOf(
+                menu(
+                    PatchMenu.EDITOR,
+                    improved("이미 등록한 결제의 알림을 누르면 알려주고 알림을 치워요"),
+                    improved("알림을 허용하고 돌아오면, 그전에 와 있던 토스 결제 알림도 등록할지 물어봐요"),
+                    fixed("여러 개가 묶인 결제 알림을 한꺼번에 지우거나 워치에서 지운 결제를, 기기를 다시 켜면 또 물어보던 문제를 고쳤어요"),
+                    fixed("알림으로 등록한 거래를 지운 뒤 기기를 다시 켜면 그 결제를 또 물어보던 문제를 고쳤어요"),
+                    fixed("이름이 긴 카드는 이미 결제수단에 있어도 '새로 추가돼요'로 보이던 문제를 고쳤어요"),
+                    fixed("결제 알림을 번갈아 누르면 같은 등록창이 두 번 열리던 문제를 고쳤어요"),
+                ),
+                menu(
+                    PatchMenu.COMMON,
+                    changed("알림 권한을 알림 읽기보다 먼저 물어봐요"),
+                    fixed("알림 권한 창을 그냥 닫기만 해도 다음부터 설정 화면으로 보내던 문제를 고쳤어요"),
+                    fixed("작은 화면에서 안내창의 버튼이 잘리던 문제를 고쳤어요"),
+                    fixed("다른 앱이 잘못된 값으로 동계부를 열면 앱이 꺼질 수 있던 문제를 고쳤어요"),
+                ),
+            ),
+        ),
+        Release(
             version = "0.1.6",
             date = LocalDate.of(2026, 9, 25),
             menus =

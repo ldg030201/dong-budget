@@ -1,6 +1,10 @@
 package com.dong.budget.data.capture
 
 import com.dong.budget.BuildConfig
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 
 /** 결제를 등록할지 사용자에게 묻는 창구. 실제로는 우리 앱의 알림이다(CaptureNotifier). */
 interface CapturePrompt {
@@ -44,31 +48,62 @@ class PaymentCapture(
         // 알림을 보낼 수 없으면 기록하지 않는다. 나중에 알림을 허용한 뒤 다시 연결될 때 물을 수 있게 둔다.
         if (!prompt.canAsk()) return false
         if (!store.remember(payment)) return false
-        if (isRegistered(payment.dedupKey)) return false
+        if (isRegistered(payment.dedupKey)) {
+            store.markAnswered(payment.dedupKey)
+            return false
+        }
         prompt.ask(payment)
         return true
     }
 
     /**
      * 앱 업데이트나 기기 재시작으로 지워진 묻는 알림을 다시 띄운다. 알림 읽기가 연결될 때 부른다.
-     * 사용자가 밀어서 지운 것, 이미 등록한 것, 지금 떠 있는 것([showing])은 빼고 소리 없이 띄운다.
+     * 답한 것(사용자가 지웠거나 등록한 것), 이미 등록돼 있는 것, 지금 떠 있는 것([showing])은 빼고 소리 없이 띄운다.
      */
     suspend fun restorePrompts(showing: Set<String>) {
         if (!prompt.canAsk()) return
-        store
-            .pending()
-            .filter { it.dedupKey !in showing && !isRegistered(it.dedupKey) }
-            .forEach { prompt.ask(it, quietly = true) }
+        store.pending().forEach { payment ->
+            when {
+                // 이미 등록한 결제는 답한 것으로 적는다. 0.1.6 은 등록해도 기록에 남기지 않아서 여기서 정리한다.
+                // 적어 두지 않으면 그 거래를 나중에 지웠을 때 묻는 알림이 되살아난다.
+                isRegistered(payment.dedupKey) -> store.markAnswered(payment.dedupKey)
+
+                payment.dedupKey !in showing -> prompt.ask(payment, quietly = true)
+            }
+        }
     }
 
-    /** 사용자가 묻는 알림을 밀어서 지웠다. 등록하지 않겠다는 뜻이니 다시 띄우지 않는다. */
-    fun onPromptDismissed(dedupKey: String) = store.markDismissed(dedupKey)
+    /** 사용자가 묻는 알림을 지웠다. 등록하지 않겠다는 뜻이니 다시 띄우지 않는다. */
+    fun onPromptDismissed(dedupKey: String) = store.markAnswered(dedupKey)
 
     /** 우리 알림을 눌렀을 때 채울 결제. 기록이 지났으면 null */
     fun find(dedupKey: String): CapturedPayment? = store.find(dedupKey)
 
-    /** 등록을 마쳤으면 묻던 알림을 치운다 */
-    fun dismiss(dedupKey: String) = prompt.dismiss(dedupKey)
+    /** 이미 가계부에 등록한 결제인지 */
+    suspend fun alreadyRegistered(dedupKey: String): Boolean = isRegistered(dedupKey)
+
+    /**
+     * 등록을 마쳤다(또는 이미 등록돼 있었다). 묻던 알림을 치우고 답한 것으로 적어 둔다.
+     * 적어 두지 않으면 등록한 거래를 나중에 지웠을 때, 다시 연결되는 순간 묻는 알림이 되살아난다.
+     */
+    fun onRegistered(dedupKey: String) {
+        store.markAnswered(dedupKey)
+        prompt.dismiss(dedupKey)
+    }
+
+    /**
+     * 알림창에 남아 있는 토스 알림을 다시 살펴 달라고 알림 읽기에 부탁한다.
+     * 알림을 보낼 수 없던 사이 들어온 결제는 기록하지 않고 넘겼으므로, 알림을 허용한 뒤 여기서 다시 묻는다.
+     * 알림 읽기가 연결돼 있지 않으면 아무 일도 없다(연결될 때 어차피 훑는다).
+     */
+    fun requestRescan() {
+        rescans.tryEmit(Unit)
+    }
+
+    private val rescans = MutableSharedFlow<Unit>(extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+
+    /** 알림 읽기(PaymentNotificationListener)가 연결돼 있는 동안 듣는다 */
+    val rescanRequests: SharedFlow<Unit> = rescans.asSharedFlow()
 
     companion object {
         /** 토스 앱 */

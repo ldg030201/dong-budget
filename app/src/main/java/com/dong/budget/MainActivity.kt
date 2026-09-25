@@ -103,6 +103,8 @@ class MainActivity : ComponentActivity() {
         if (intent?.action != CaptureNotifier.ACTION_OPEN_CAPTURED) return
         // 최근 앱 목록에서 다시 열면 처음 열었던 Intent 가 그대로 다시 온다. 그때 등록창을 또 띄우지 않는다.
         if (intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0) return
-        capturedToOpen.value = intent.getStringExtra(CaptureNotifier.EXTRA_DEDUP_KEY)
+        // 열쇠는 extras 가 아니라 identifier 에 담겨 온다. 동계부 첫 화면은 다른 앱도 열 수 있는데,
+        // extras 를 읽으면 다른 앱이 넣은 망가진 값을 풀다가 앱이 죽을 수 있다. identifier 는 그냥 문자열이다.
+        capturedToOpen.value = intent.identifier
     }
 }

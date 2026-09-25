@@ -1,7 +1,6 @@
 package com.dong.budget.ui.permission
 
 import android.Manifest
-import android.app.Activity
 import android.app.NotificationManager
 import android.content.ComponentName
 import android.content.Context
@@ -19,7 +18,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.app.NotificationManagerCompat
-import androidx.core.content.edit
 import androidx.core.net.toUri
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import com.dong.budget.data.capture.PaymentNotificationListener
@@ -43,6 +41,16 @@ enum class AppPermission(val title: String, val message: String) {
             "갤럭시라면 '설정 > 보안 및 개인정보 보호 > 보안 위험 자동 차단'도 꺼져 있어야 업데이트가 설치돼요.",
     ),
 
+    /**
+     * 알림 보내기. '가계부에 등록할까요?' 알림을 띄우는 데 필요하다.
+     * 알림 읽기보다 먼저 묻는다. 알림 읽기가 처음 연결될 때 알림창에 남은 토스 알림을 훑는데,
+     * 그때 알림을 보낼 수 있어야 바로 물을 수 있다.
+     */
+    POST_NOTIFICATIONS(
+        title = "알림을 허용해 주세요",
+        message = "토스 결제 알림을 읽으면 '가계부에 등록할까요?' 알림을 보내요. 알림을 누르면 결제 내용이 채워진 등록창이 열려요.",
+    ),
+
     /** '알림 읽기'. 토스 결제 알림을 읽는 데 필요하다. */
     READ_NOTIFICATIONS(
         title = "알림 읽기를 허용해 주세요",
@@ -53,12 +61,6 @@ enum class AppPermission(val title: String, val message: String) {
             "토스 결제 알림만 골라 쓰고, 다른 앱의 알림은 저장하거나 어디로 보내지 않아요.\n\n" +
             "스위치를 눌렀는데 '제한된 설정' 창이 뜨면, 아래 '앱 정보 열기'를 눌러 오른쪽 위 ⋮ 에서 " +
             "'제한된 설정 허용'을 누른 뒤 다시 켜 주세요.",
-    ),
-
-    /** 알림 보내기. '가계부에 등록할까요?' 알림을 띄우는 데 필요하다. */
-    POST_NOTIFICATIONS(
-        title = "알림을 허용해 주세요",
-        message = "토스 결제 알림을 읽으면 '가계부에 등록할까요?' 알림을 보내요. 알림을 누르면 결제 내용이 채워진 등록창이 열려요.",
     ),
     ;
 
@@ -107,24 +109,8 @@ enum class AppPermission(val title: String, val message: String) {
     }
 }
 
-/**
- * 시스템 '허용' 창을 띄울 수 있는지.
- *
- * 두 번 거절하면 시스템이 더는 창을 띄우지 않고 바로 거절로 돌려준다. 그때는 설정 화면으로 보내야 한다.
- * 한 번도 묻지 않은 권한과 두 번 거절한 권한은 [Activity.shouldShowRequestPermissionRationale] 로는 구별되지 않아서
- * 물어본 적이 있는지를 따로 적어 둔다.
- */
-private fun canShowSystemPrompt(activity: Activity, permission: String): Boolean {
-    val prefs = activity.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-    return !prefs.getBoolean(permission, false) || activity.shouldShowRequestPermissionRationale(permission)
-}
-
-private fun markSystemPromptShown(context: Context, permission: String) {
-    context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit { putBoolean(permission, true) }
-}
-
-/** 시스템 '허용' 창을 띄운 적이 있는 권한을 적어 두는 SharedPreferences */
-private const val PREFS_NAME = "permission_requests"
+private fun promptHistory(context: Context) =
+    SystemPromptHistory(context.getSharedPreferences(SystemPromptHistory.PREFS_NAME, Context.MODE_PRIVATE))
 
 /** 설정 화면을 연다. 제조사가 해당 화면을 막아둔 기기에서는 동계부의 앱 정보 화면으로 대신 간다. */
 private fun openSettings(context: Context, permission: AppPermission) {
@@ -145,7 +131,11 @@ fun PermissionDialog(permission: AppPermission, onGoToSettings: () -> Unit, onLa
     val context = LocalContext.current
     val activity = LocalActivity.current
     val runtime = permission.runtimePermission
-    val canPrompt = runtime != null && onRequest != null && activity != null && canShowSystemPrompt(activity, runtime)
+    val canPrompt =
+        runtime != null &&
+            onRequest != null &&
+            activity != null &&
+            promptHistory(context).canPrompt(runtime, activity.shouldShowRequestPermissionRationale(runtime))
     ConfirmDialog(
         title = permission.title,
         message = permission.message,
@@ -154,7 +144,6 @@ fun PermissionDialog(permission: AppPermission, onGoToSettings: () -> Unit, onLa
         destructive = false,
         onConfirm = {
             if (canPrompt && runtime != null && onRequest != null) {
-                markSystemPromptShown(context, runtime)
                 onRequest(runtime)
             } else {
                 openSettings(context, permission)
@@ -183,13 +172,22 @@ fun PermissionGate() {
     // enum 이름으로 저장한다. 화면이 다시 만들어져도 '나중에' 가 유지되게 한다.
     var postponed by rememberSaveable { mutableStateOf(emptySet<String>()) }
     var missing by remember { mutableStateOf<AppPermission?>(null) }
-    // 시스템 '허용' 창을 띄운 권한. 결과가 오면 거절한 경우 '나중에' 로 돌린다.
+    val activity = LocalActivity.current
+    // 시스템 '허용' 창을 띄운 권한(enum 이름)과 띄우기 직전의 rationale. 결과가 오면 기록하고, 거절이면 '나중에' 로 돌린다.
     var requesting by rememberSaveable { mutableStateOf<String?>(null) }
+    var rationaleBefore by rememberSaveable { mutableStateOf(false) }
     val launcher =
         rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-            val name = requesting
+            val permission = requesting?.let { name -> AppPermission.entries.firstOrNull { it.name == name } }
             requesting = null
-            if (!granted && name != null) postponed = postponed + name
+            val runtime = permission?.runtimePermission ?: return@rememberLauncherForActivityResult
+            promptHistory(context).record(
+                permission = runtime,
+                granted = granted,
+                rationaleBefore = rationaleBefore,
+                rationaleAfter = activity?.shouldShowRequestPermissionRationale(runtime) ?: false,
+            )
+            if (!granted) postponed = postponed + permission.name
         }
 
     LifecycleResumeEffect(postponed) {
@@ -208,6 +206,7 @@ fun PermissionGate() {
             },
             onRequest = { runtime ->
                 requesting = permission.name
+                rationaleBefore = activity?.shouldShowRequestPermissionRationale(runtime) ?: false
                 missing = null
                 launcher.launch(runtime)
             },
