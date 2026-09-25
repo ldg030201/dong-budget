@@ -97,6 +97,10 @@ data class BudgetAmountTypography(
     val small: TextStyle,
     /** 숫자 키패드의 숫자 */
     val keypadDigit: TextStyle,
+    /** 홈 요약 칸의 이번 달 수입·지출 */
+    val summary: TextStyle,
+    /** 달력 칸 안의 작은 금액 */
+    val calendar: TextStyle,
 )
 
 private fun amount(size: Int, lineHeight: Int, weight: FontWeight) = TextStyle(
@@ -115,4 +119,6 @@ val DefaultAmountTypography =
         medium = amount(17, 24, FontWeight.SemiBold),
         small = amount(15, 22, FontWeight.SemiBold),
         keypadDigit = amount(24, 30, FontWeight.SemiBold),
+        summary = amount(22, 30, FontWeight.Bold),
+        calendar = amount(11, 13, FontWeight.Normal),
     )

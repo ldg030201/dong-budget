@@ -4,7 +4,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material3.Icon
@@ -23,16 +22,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import com.dong.budget.ui.home.DashboardScreen
-import com.dong.budget.ui.home.HistoryScreen
+import com.dong.budget.ui.home.HomeScreen
 import com.dong.budget.ui.home.HomeUiState
 import com.dong.budget.ui.home.MoreScreen
 import com.dong.budget.ui.theme.BudgetTheme
-import java.time.YearMonth
 
 enum class ShellTab(val label: String, val icon: ImageVector) {
+    // 거래 목록은 홈 달력 아래에 있다. 따로 '내역' 탭을 두면 같은 목록이 두 군데 생긴다.
     HOME("홈", Icons.Filled.Home),
-    HISTORY("내역", Icons.AutoMirrored.Filled.List),
     MORE("전체", Icons.Filled.Menu),
 }
 
@@ -94,20 +91,12 @@ fun HomeShell(
             stateHolder.SaveableStateProvider(selectedTab.name) {
                 when (selectedTab) {
                     ShellTab.HOME ->
-                        DashboardScreen(
-                            month = state.month,
-                            expenseTotal = state.expenseTotal,
-                            incomeTotal = state.incomeTotal,
-                            transactionCount = state.items.size,
+                        HomeScreen(
+                            state = state,
                             onPreviousMonth = onPreviousMonth,
                             onNextMonth = onNextMonth,
                             onAddTransaction = onAddTransaction,
-                        )
-
-                    ShellTab.HISTORY ->
-                        HistoryScreen(
-                            items = state.items,
-                            onItemClick = onEditTransaction,
+                            onEditTransaction = onEditTransaction,
                         )
 
                     ShellTab.MORE ->
@@ -121,11 +110,3 @@ fun HomeShell(
         }
     }
 }
-
-/** 프리뷰나 초기 상태에서 쓰는 빈 값 */
-internal fun emptyHomeUiState(): HomeUiState = HomeUiState(
-    month = YearMonth.of(2026, 1),
-    items = emptyList(),
-    expenseTotal = 0,
-    incomeTotal = 0,
-)

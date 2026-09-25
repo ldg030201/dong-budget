@@ -78,6 +78,17 @@ data class BudgetSize(
     val underlineActive: Dp = 2.dp,
     /** 아래에서 올라오는 입력판(키패드, 분류 표)의 높이. 판을 바꿔도 화면이 출렁이지 않게 맞춘다 */
     val inputPanelHeight: Dp = 264.dp,
+    /**
+     * 달력 한 칸의 높이. 날짜 숫자와 수입·지출 두 줄이 들어간다.
+     * 첫 화면에 달력 아래 거래가 두세 개 보이도록 빠듯하게 잡았다. 키우면 목록이 밀려난다.
+     */
+    val calendarDayHeight: Dp = 52.dp,
+    /** 달력 날짜 숫자를 감싸는 동그라미. 고른 날을 표시한다 */
+    val calendarDayMark: Dp = 26.dp,
+    /** 달력 위 요일 머리줄 높이 */
+    val weekdayRowHeight: Dp = 24.dp,
+    /** 떠 있는 추가 버튼 */
+    val fab: Dp = 56.dp,
 )
 
 /** 화면 코드에서 참조하는 전체 토큰 묶음 */
