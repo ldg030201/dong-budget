@@ -101,6 +101,7 @@ fun DongBudgetApp(container: AppContainer) {
                     onDateChange = viewModel::updateDate,
                     onTimeChange = viewModel::updateTime,
                     onSave = viewModel::save,
+                    onJumpHandled = viewModel::onJumpHandled,
                     onDeleteTransaction = viewModel::delete,
                 )
             }

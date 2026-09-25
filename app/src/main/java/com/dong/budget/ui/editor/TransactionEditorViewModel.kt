@@ -27,6 +27,12 @@ import java.time.LocalDate
 /** 등록 화면에서 새로 만들 수 있는 것 */
 enum class AddTarget { CATEGORY, PAYMENT }
 
+/**
+ * 저장하려면 반드시 채워야 하는 칸. 화면 위에서부터의 순서다.
+ * 메모는 비워도 된다. 날짜와 시간은 처음부터 값이 있어서 비는 일이 없다.
+ */
+enum class RequiredField { AMOUNT, CATEGORY, PAYMENT, MERCHANT }
+
 /** 금액 입력 자리수 상한. 원 단위라 12자리면 조 단위까지 들어간다. */
 private const val MAX_AMOUNT_DIGITS = 12
 
@@ -48,12 +54,33 @@ data class EditorUiState(
     /** 방금 추가에 성공한 것. 화면이 이 값의 변화를 보고 입력판을 닫는다. */
     val lastAddedCategoryId: Long? = null,
     val lastAddedPaymentId: Long? = null,
+    /** 저장을 눌렀을 때 비어 있던 첫 칸. 그 칸 밑에 채우라는 안내를 보여준다. */
+    val invalidField: RequiredField? = null,
+    /**
+     * 화면이 옮겨 가야 할 빈 칸. 한 번 옮겨 가면 화면이 [TransactionEditorViewModel.onJumpHandled] 로 비운다.
+     * [invalidField] 와 따로 두는 이유: 화면을 돌려 다시 그려질 때 이미 처리한 이동이 또 일어나면
+     * 사용자가 열어둔 입력판이 닫히고 엉뚱한 칸에 키보드가 뜬다.
+     */
+    val pendingJump: RequiredField? = null,
     val saved: Boolean = false,
 ) {
     val amount: Long get() = amountDigits.toLongOrNull() ?: 0L
 
-    /** 금액이 0이면 저장할 게 없다. */
-    val canSave: Boolean get() = amount > 0
+    /**
+     * 아직 비어 있는 필수 칸. 화면에 보이는 것과 같은 기준으로 본다.
+     * 예를 들어 지운 결제수단이 걸린 옛 거래는 칸이 비어 보이므로 비어 있는 것으로 친다.
+     */
+    val missingFields: List<RequiredField>
+        get() =
+            buildList {
+                if (amount <= 0) add(RequiredField.AMOUNT)
+                if (selectedCategory == null) add(RequiredField.CATEGORY)
+                if (selectedPaymentMethod == null) add(RequiredField.PAYMENT)
+                if (merchant.isBlank()) add(RequiredField.MERCHANT)
+            }
+
+    /** 이 칸 밑에 채우라는 안내를 보여줄지. 저장을 눌러 안내한 칸이 아직 비어 있을 때만 보인다. 채우면 바로 사라진다. */
+    fun showsMissing(field: RequiredField): Boolean = invalidField == field && field in missingFields
 
     val selectedCategory: CategoryEntity? get() = categories.firstOrNull { it.id == categoryId }
 
@@ -151,8 +178,8 @@ class TransactionEditorViewModel(
     }
 
     fun selectPaymentMethod(id: Long) {
-        // 이미 고른 것을 다시 누르면 선택을 푼다. 결제수단은 비워둘 수 있다.
-        _uiState.update { it.copy(paymentMethodId = if (it.paymentMethodId == id) null else id) }
+        // 결제수단은 필수라서 이미 고른 것을 다시 눌러도 선택을 풀지 않는다
+        _uiState.update { it.copy(paymentMethodId = id) }
     }
 
     /**
@@ -216,9 +243,18 @@ class TransactionEditorViewModel(
         }
     }
 
+    fun onJumpHandled() {
+        _uiState.update { it.copy(pendingJump = null) }
+    }
+
+    /** 빈 필수 칸이 있으면 저장하지 않고, 그 첫 칸을 화면에 알린다. */
     fun save() {
         val state = _uiState.value
-        if (!state.canSave) return
+        val missing = state.missingFields.firstOrNull()
+        if (missing != null) {
+            _uiState.update { it.copy(invalidField = missing, pendingJump = missing) }
+            return
+        }
         viewModelScope.launch {
             if (transactionId == null) {
                 repository.add(

@@ -29,7 +29,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.input.ImeAction
 import com.dong.budget.data.db.BudgetTime
 import com.dong.budget.data.db.TransactionType
@@ -66,6 +68,14 @@ enum class EditorPanel { AMOUNT, CATEGORY, PAYMENT, DATE, TIME }
  */
 private const val PANEL_SETTLE_MS = 100L
 
+/** 저장을 눌렀는데 이 칸이 비어 있을 때 칸 밑에 나오는 안내. 무엇을 해야 하는지 칸 이름으로 알려준다. */
+private fun RequiredField.missingMessage(): String = when (this) {
+    RequiredField.AMOUNT -> "금액을 입력해주세요"
+    RequiredField.CATEGORY -> "분류를 선택해주세요"
+    RequiredField.PAYMENT -> "결제수단을 선택해주세요"
+    RequiredField.MERCHANT -> "내용을 입력해주세요"
+}
+
 private val TYPE_OPTIONS = listOf(TransactionType.EXPENSE to "지출", TransactionType.INCOME to "수입")
 
 /**
@@ -76,6 +86,10 @@ private val TYPE_OPTIONS = listOf(TransactionType.EXPENSE to "지출", Transacti
  *   금액 → 숫자 키패드 / 분류·결제수단 → 아이콘 표 / 내용·메모 → 시스템 키보드
  *   날짜 → 달력 / 시간 → 시계
  * 모든 선택지를 한꺼번에 펼치지 않아서 화면이 복잡하지 않다.
+ *
+ * 메모를 뺀 칸은 모두 채워야 저장된다. 빈 칸이 있는데 저장을 누르면
+ * 위에서부터 첫 빈 칸으로 옮겨 가고, 그 칸 밑에 '분류를 선택해주세요' 같은 안내가 나온다.
+ * 안내는 저장을 누른 뒤에만 나온다. 입력하는 도중에 미리 빨갛게 표시하지 않는다.
  */
 @Composable
 fun TransactionEditorScreen(
@@ -95,6 +109,7 @@ fun TransactionEditorScreen(
     onDateChange: (LocalDate) -> Unit,
     onTimeChange: (hour: Int, minute: Int) -> Unit,
     onSave: () -> Unit,
+    onJumpHandled: () -> Unit,
     onDeleteTransaction: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -133,6 +148,41 @@ fun TransactionEditorScreen(
     }
 
     fun fieldModifier(target: EditorPanel) = Modifier.bringIntoViewRequester(requesters.getValue(target))
+
+    fun missingMessage(field: RequiredField) = if (state.showsMissing(field)) field.missingMessage() else null
+
+    // 저장을 눌렀는데 빈 칸이 있으면 그 칸으로 옮겨 간다. 입력판이 있는 칸은 입력판을 열고,
+    // 글자 칸은 커서를 넣어 키보드를 올린다. 칸 밑에는 그 칸에 맞는 안내가 붙는다.
+    val merchantFocus = remember { FocusRequester() }
+    val keyboard = LocalSoftwareKeyboardController.current
+    LaunchedEffect(state.pendingJump) {
+        when (state.pendingJump) {
+            RequiredField.AMOUNT -> {
+                focusManager.clearFocus()
+                panel = EditorPanel.AMOUNT
+            }
+
+            RequiredField.CATEGORY -> {
+                focusManager.clearFocus()
+                panel = EditorPanel.CATEGORY
+            }
+
+            RequiredField.PAYMENT -> {
+                focusManager.clearFocus()
+                panel = EditorPanel.PAYMENT
+            }
+
+            RequiredField.MERCHANT -> {
+                panel = null
+                merchantFocus.requestFocus()
+                // 이미 커서가 있는 채로 키보드만 내려 둔 경우에는 초점이 그대로라 키보드가 다시 뜨지 않는다. 직접 올린다.
+                keyboard?.show()
+            }
+
+            null -> return@LaunchedEffect
+        }
+        onJumpHandled()
+    }
 
     // 입력판이 열려 있으면 뒤로가기는 화면이 아니라 입력판을 닫는다.
     BackHandler(enabled = panel != null) { panel = null }
@@ -201,6 +251,7 @@ fun TransactionEditorScreen(
                     active = panel == EditorPanel.AMOUNT,
                     onClick = { toggle(EditorPanel.AMOUNT) },
                     modifier = fieldModifier(EditorPanel.AMOUNT),
+                    error = missingMessage(RequiredField.AMOUNT),
                 ) {
                     Text(
                         text = "${formatAmount(state.amount)}원",
@@ -214,6 +265,7 @@ fun TransactionEditorScreen(
                     active = panel == EditorPanel.CATEGORY,
                     onClick = { toggle(EditorPanel.CATEGORY) },
                     modifier = fieldModifier(EditorPanel.CATEGORY),
+                    error = missingMessage(RequiredField.CATEGORY),
                 ) {
                     val category = state.selectedCategory
                     if (category == null) {
@@ -231,10 +283,11 @@ fun TransactionEditorScreen(
                     active = panel == EditorPanel.PAYMENT,
                     onClick = { toggle(EditorPanel.PAYMENT) },
                     modifier = fieldModifier(EditorPanel.PAYMENT),
+                    error = missingMessage(RequiredField.PAYMENT),
                 ) {
                     val method = state.selectedPaymentMethod
                     if (method == null) {
-                        FormPlaceholder("고르지 않아도 돼요")
+                        FormPlaceholder("결제수단을 골라주세요")
                     } else {
                         FormIconValue(
                             icon = { CategoryBadge(method.icon, method.color, size = BudgetTheme.size.badgeSmall) },
@@ -248,6 +301,8 @@ fun TransactionEditorScreen(
                     value = state.merchant,
                     onValueChange = onMerchantChange,
                     placeholder = "어디에 썼나요",
+                    error = missingMessage(RequiredField.MERCHANT),
+                    focusRequester = merchantFocus,
                     onFocusChanged = { focused -> if (focused) panel = null },
                 )
 
@@ -314,7 +369,6 @@ fun TransactionEditorScreen(
                                     items = state.paymentMethods.map { PickerItem(it.id, it.name, it.icon, it.color) },
                                     selectedId = state.paymentMethodId,
                                     onSelect = { id ->
-                                        // 이미 고른 것을 다시 누르면 선택이 풀린다. 결제수단은 비워둘 수 있다.
                                         onSelectPaymentMethod(id)
                                         panel = null
                                     },
@@ -342,8 +396,8 @@ fun TransactionEditorScreen(
                 }
                 BudgetPrimaryButton(
                     text = if (state.isEditing) "수정하기" else "등록하기",
+                    // 빈 칸이 있어도 누를 수 있다. 누르면 비어 있는 칸을 알려준다.
                     onClick = onSave,
-                    enabled = state.canSave,
                     modifier = Modifier.padding(horizontal = BudgetTheme.spacing.screenHorizontal),
                 )
                 Spacer(Modifier.height(BudgetTheme.spacing.sectionPadding))
