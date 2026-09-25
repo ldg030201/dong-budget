@@ -23,7 +23,13 @@ import com.dong.budget.ui.theme.BudgetTheme
  * 항목마다 색을 달리하되 옅은 원 안에만 칠한다. 글자와 배경은 그대로 둬서 요란하지 않게 한다.
  */
 @Composable
-fun MoreScreen(onOpenCategories: () -> Unit, onOpenStatistics: () -> Unit, onOpenSettings: () -> Unit, modifier: Modifier = Modifier) {
+fun MoreScreen(
+    onOpenCategories: () -> Unit,
+    onOpenStatistics: () -> Unit,
+    onOpenSettings: () -> Unit,
+    onOpenPatchNotes: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Column(modifier = modifier.fillMaxSize()) {
         Text(
             text = "전체",
@@ -57,6 +63,13 @@ fun MoreScreen(onOpenCategories: () -> Unit, onOpenStatistics: () -> Unit, onOpe
             iconRes = R.drawable.ic_sym_settings,
             color = "gray",
             onClick = onOpenSettings,
+        )
+        MenuItem(
+            title = "패치노트",
+            subtitle = "버전마다 바뀐 점을 봐요",
+            iconRes = R.drawable.ic_sym_new_releases,
+            color = "purple",
+            onClick = onOpenPatchNotes,
         )
     }
 }
