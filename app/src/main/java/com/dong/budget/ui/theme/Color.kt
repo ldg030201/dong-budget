@@ -45,8 +45,9 @@ internal val DarkText = Color(0xFFECEFF4)
 internal val DarkTextSecondary = Color(0xFF9AA3B2)
 
 // 수입/지출.
-// 지출은 색을 쓰지 않고 무채색 본문색으로 둔다. 가계부는 지출 항목이 압도적으로 많아서
-// 지출에 색을 주면 화면 전체가 빨개지고 강조의 의미가 사라진다.
+// 목록처럼 지출이 줄줄이 이어지는 곳은 지출에 색을 쓰지 않고 무채색 본문색으로 둔다.
+// 가계부는 지출 항목이 압도적으로 많아서 거기에 색을 주면 화면 전체가 빨개지고 강조의 의미가 사라진다.
+// 달력 칸처럼 수입과 지출이 한 칸에 나란히 놓이는 곳에서만 지출을 빨강(expense)으로 구분한다.
 internal val IncomeLight = Color(0xFF077A47) // 흰색 5.41 / Gray50 5.09
 internal val IncomeDark = Color(0xFF109E57) // Dark900 5.21 / 본문 DarkText 대비 3.01
 internal val DangerLight = Color(0xFFC42638) // 흰색 5.70. 삭제 확인과 error 공용
@@ -70,6 +71,8 @@ data class BudgetColorTokens(
     /** 대비 3.06:1 로 AA 미달이다. 18sp 이상 또는 14sp Bold 이상에서만 쓴다. */
     val textTertiary: Color,
     val income: Color,
+    /** 달력 칸처럼 수입과 나란히 놓인 지출. 목록의 지출에는 쓰지 않는다(위 설명 참고). */
+    val expense: Color,
     val danger: Color,
     /**
      * 배경 위에 올리는 브랜드색 글자(오늘 날짜, 강조 금액 등).
@@ -89,6 +92,7 @@ internal val LightColorTokens =
         textSecondary = Gray700,
         textTertiary = Gray500,
         income = IncomeLight,
+        expense = DangerLight, // 흰색 5.70
         danger = DangerLight,
         brandText = Indigo500, // Gray50 5.11
         sectionBackground = Gray50,
@@ -103,6 +107,7 @@ internal val DarkColorTokens =
         textSecondary = DarkTextSecondary,
         textTertiary = Gray600,
         income = IncomeDark,
+        expense = DangerDark, // Dark900 7.21
         danger = DangerDark,
         brandText = Indigo400, // Dark800 4.66 / Dark900 5.06
         sectionBackground = Dark800,

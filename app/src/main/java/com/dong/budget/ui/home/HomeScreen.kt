@@ -327,12 +327,12 @@ private fun SummaryCell(label: String, value: String, valueColor: Color, modifie
     }
 }
 
-/** 금액 부분만 색을 입힌다. 덜 썼으면 브랜드색, 더 썼으면 경고색. */
+/** 금액 부분만 색을 입힌다. 덜 썼으면 초록, 더 썼으면 빨강. 달력의 수입·지출 색과 같은 뜻으로 맞춘다. */
 @Composable
 private fun comparisonText(comparison: SpendingComparison): AnnotatedString {
     val sentence = comparison.sentence()
     val amountColor =
-        if (comparison.difference > 0) BudgetTheme.colors.danger else BudgetTheme.colors.brandText
+        if (comparison.difference > 0) BudgetTheme.colors.expense else BudgetTheme.colors.income
     return buildAnnotatedString {
         append(sentence.prefix)
         if (sentence.amount != null) {
