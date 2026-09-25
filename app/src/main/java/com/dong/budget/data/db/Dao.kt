@@ -118,6 +118,16 @@ interface CategoryDao {
     @Query("DELETE FROM categories WHERE id = :id AND isSystem = 0")
     suspend fun deleteUserCategory(id: Long): Int
 
+    /** '기타' 는 늘 맨 뒤에 둔다. 사용자가 순서를 바꿀 수 없다. */
+    @Query("UPDATE categories SET sortOrder = :sortOrder WHERE id = :id AND isSystem = 0")
+    suspend fun updateSortOrder(id: Long, sortOrder: Int)
+
+    /** 주어진 순서대로 0, 1, 2… 를 매긴다. 한꺼번에 바꿔야 중간에 순서가 섞인 채로 보이지 않는다. */
+    @Transaction
+    suspend fun reorder(orderedIds: List<Long>) {
+        orderedIds.forEachIndexed { index, id -> updateSortOrder(id, index) }
+    }
+
     /**
      * 거래를 먼저 옮기고 분류를 지운다. 둘 중 하나만 되는 일이 없도록 한 트랜잭션으로 묶는다.
      * 옮기기 전에 지우면 외래키 설정 때문에 거래의 분류가 빈 값이 된다.
@@ -151,6 +161,15 @@ interface PaymentMethodDao {
 
     @Query("SELECT COALESCE(MAX(sortOrder), -1) FROM payment_methods")
     suspend fun maxSortOrder(): Int
+
+    @Query("UPDATE payment_methods SET sortOrder = :sortOrder WHERE id = :id")
+    suspend fun updateSortOrder(id: Long, sortOrder: Int)
+
+    /** 주어진 순서대로 0, 1, 2… 를 매긴다. 한꺼번에 바꿔야 중간에 순서가 섞인 채로 보이지 않는다. */
+    @Transaction
+    suspend fun reorder(orderedIds: List<Long>) {
+        orderedIds.forEachIndexed { index, id -> updateSortOrder(id, index) }
+    }
 
     @Insert
     suspend fun insert(paymentMethod: PaymentMethodEntity): Long

@@ -75,6 +75,10 @@ val PATCH_NOTES: List<Release> =
             menus =
             listOf(
                 menu(
+                    PatchMenu.CATEGORIES,
+                    added("분류와 결제수단을 끌어서 순서를 바꿀 수 있어요. 바꾼 순서는 거래 등록 화면에도 그대로 보여요"),
+                ),
+                menu(
                     PatchMenu.SETTINGS,
                     improved("업데이트 부분을 간단하게 정리했어요. 큰 버튼은 설치 버튼 하나만 두고, 다른 설치 방법은 글자 버튼으로 줄였어요"),
                     improved("화면 테마 버튼에 아이콘을 달았어요"),
