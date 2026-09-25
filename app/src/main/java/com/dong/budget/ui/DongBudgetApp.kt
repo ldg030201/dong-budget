@@ -9,6 +9,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.lifecycle.compose.LifecycleStartEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
@@ -37,6 +39,7 @@ import com.dong.budget.ui.permission.PermissionGate
 import com.dong.budget.ui.settings.SettingsScreen
 import com.dong.budget.ui.settings.SettingsViewModel
 import com.dong.budget.ui.shell.HomeShell
+import kotlinx.coroutines.launch
 
 /**
  * 앱 전체 네비게이션.
@@ -51,6 +54,13 @@ fun DongBudgetApp(container: AppContainer) {
 
     // 설정에서 켜야 하는 권한이 꺼져 있으면 앱을 켤 때 안내한다
     PermissionGate()
+
+    // 앱이 화면에 나올 때마다 새 버전을 확인한다. 실제 확인은 몇 시간에 한 번만 한다(UpdateChecker).
+    val scope = rememberCoroutineScope()
+    LifecycleStartEffect(container) {
+        scope.launch { container.updateChecker.checkIfDue() }
+        onStopOrDispose {}
+    }
 
     NavDisplay(
         backStack = backStack,
@@ -69,8 +79,12 @@ fun DongBudgetApp(container: AppContainer) {
                     viewModel(factory = homeViewModelFactory(container))
                 val state by viewModel.uiState.collectAsStateWithLifecycle()
 
+                val updateVersion by container.updateChecker.bannerVersion.collectAsStateWithLifecycle(initialValue = null)
                 HomeShell(
                     state = state,
+                    updateVersion = updateVersion,
+                    onOpenUpdate = { navigator.go(SettingsKey) },
+                    onDismissUpdate = container.updateChecker::dismissBanner,
                     onPreviousMonth = viewModel::showPreviousMonth,
                     onNextMonth = viewModel::showNextMonth,
                     onAddTransaction = { navigator.go(TransactionEditorKey()) },
@@ -201,6 +215,7 @@ private fun settingsViewModelFactory(container: AppContainer) = viewModelFactory
             settingsRepository = container.settingsRepository,
             updateRepository = container.updateRepository,
             apkInstaller = container.apkInstaller,
+            updateChecker = container.updateChecker,
         )
     }
 }

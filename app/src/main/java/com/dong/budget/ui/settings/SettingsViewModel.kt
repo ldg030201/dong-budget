@@ -8,6 +8,7 @@ import com.dong.budget.data.settings.ThemeMode
 import com.dong.budget.data.update.ApkInstaller
 import com.dong.budget.data.update.InstallEvent
 import com.dong.budget.data.update.InstallEvents
+import com.dong.budget.data.update.UpdateChecker
 import com.dong.budget.data.update.UpdateRepository
 import com.dong.budget.data.update.UpdateStatus
 import kotlinx.coroutines.Dispatchers
@@ -46,6 +47,7 @@ class SettingsViewModel(
     private val settingsRepository: SettingsRepository,
     private val updateRepository: UpdateRepository,
     private val apkInstaller: ApkInstaller,
+    private val updateChecker: UpdateChecker,
 ) : ViewModel() {
     val themeMode: StateFlow<ThemeMode> =
         settingsRepository.themeMode.stateIn(
@@ -79,6 +81,14 @@ class SettingsViewModel(
             .stateIn(viewModelScope, SharingStarted.Eagerly, downloadedApk.value?.version)
 
     init {
+        // 앱을 열 때 자동 확인에서 이미 찾은 새 버전이 있으면 바로 보여준다.
+        // 홈 배너를 눌러 들어왔을 때 확인 버튼을 한 번 더 누르지 않아도 되게 하기 위함이다.
+        updateChecker.available.value?.let { update ->
+            showAvailable(update)
+            // 다른 버전으로 받아둔 파일이 남아 있으면 그 버전을 설치하라고 권하게 된다. 지금 새 버전 것만 남긴다.
+            forgetDownloadsExcept(update.version)
+        }
+
         // 설치 결과는 시스템이 브로드캐스트로 알려준다. 그걸 화면 상태로 옮긴다.
         viewModelScope.launch {
             InstallEvents.events.collect { event ->
@@ -99,8 +109,11 @@ class SettingsViewModel(
         if (_updateState.value is UpdateUiState.Checking) return
         _updateState.value = UpdateUiState.Checking
         viewModelScope.launch {
+            val checked = updateRepository.check()
+            // 홈 배너도 이 결과에 맞춘다
+            updateChecker.record(checked)
             _updateState.value =
-                when (val status = updateRepository.check()) {
+                when (val status = checked) {
                     is UpdateStatus.UpToDate -> {
                         // 최신이면 받아둔 새 버전 파일은 필요 없다. 배포를 내린 버전일 수도 있다.
                         forgetDownloadsExcept(null)
@@ -111,13 +124,7 @@ class SettingsViewModel(
 
                     is UpdateStatus.Available -> {
                         forgetDownloadsExcept(status.version)
-                        pendingDownloadUrl = status.downloadUrl
-                        pendingSize = status.sizeBytes
-                        UpdateUiState.Available(
-                            version = status.version,
-                            notes = status.notes,
-                            sizeBytes = status.sizeBytes,
-                        )
+                        availableState(status)
                     }
                 }
         }
@@ -150,6 +157,16 @@ class SettingsViewModel(
                     onFailure = { UpdateUiState.Failed("설치를 시작하지 못했어요", it.message) },
                 )
         }
+    }
+
+    private fun showAvailable(status: UpdateStatus.Available) {
+        _updateState.value = availableState(status)
+    }
+
+    private fun availableState(status: UpdateStatus.Available): UpdateUiState.Available {
+        pendingDownloadUrl = status.downloadUrl
+        pendingSize = status.sizeBytes
+        return UpdateUiState.Available(version = status.version, notes = status.notes, sizeBytes = status.sizeBytes)
     }
 
     private fun forgetDownloadsExcept(version: String?) {

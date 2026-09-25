@@ -160,7 +160,7 @@ private fun UpdateSection(
 
         is UpdateUiState.Available -> {
             Text(
-                text = "새 버전 ${state.version} 이 있어요",
+                text = "새 버전(${state.version})이 있어요",
                 style = MaterialTheme.typography.titleMedium,
                 color = BudgetTheme.colors.textPrimary,
             )
@@ -200,7 +200,7 @@ private fun UpdateSection(
         }
 
         is UpdateUiState.Downloading -> {
-            StatusText(if (state.progress >= 1f) "설치를 준비하고 있어요" else "${state.version} 을 내려받고 있어요")
+            StatusText(if (state.progress >= 1f) "설치를 준비하고 있어요" else "${state.version} 버전을 내려받고 있어요")
             Spacer(Modifier.height(BudgetTheme.spacing.itemGap))
             LinearProgressIndicator(
                 progress = { state.progress },
