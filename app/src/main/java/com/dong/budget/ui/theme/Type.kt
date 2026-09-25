@@ -6,6 +6,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.intl.LocaleList
 import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.unit.sp
 import com.dong.budget.R
@@ -33,13 +34,24 @@ val Pretendard =
  */
 private const val TABULAR_NUMBERS = "tnum"
 
+/**
+ * 모든 글자의 언어를 한국어로 지정한다.
+ * 안드로이드는 글의 언어가 한국어일 때만 어절(띄어쓰기) 단위 줄바꿈을 해준다.
+ * 지정하지 않으면 기기 언어를 따라가서, 영어 기기에서는 '있어/요' 처럼 글자 중간에서 끊긴다.
+ */
+private val KOREAN = LocaleList("ko-KR")
+
+/** 여러 줄 본문용. 고품질 줄바꿈에 어절 단위 끊기를 더한다. */
+private val PARAGRAPH_BY_PHRASE = LineBreak.Paragraph.copy(wordBreak = LineBreak.WordBreak.Phrase)
+
 private fun body(size: Int, lineHeight: Int, weight: FontWeight = FontWeight.Normal) = TextStyle(
     fontFamily = Pretendard,
     fontWeight = weight,
     fontSize = size.sp,
     lineHeight = lineHeight.sp,
-    // 여러 줄 본문은 고품질 줄바꿈을 쓴다.
-    lineBreak = LineBreak.Paragraph,
+    // 여러 줄 본문은 고품질 줄바꿈을 쓰고 어절 단위로 끊는다.
+    lineBreak = PARAGRAPH_BY_PHRASE,
+    localeList = KOREAN,
 )
 
 private fun heading(size: Int, lineHeight: Int, weight: FontWeight = FontWeight.Bold) = TextStyle(
@@ -47,8 +59,9 @@ private fun heading(size: Int, lineHeight: Int, weight: FontWeight = FontWeight.
     fontWeight = weight,
     fontSize = size.sp,
     lineHeight = lineHeight.sp,
-    // 제목은 어절 단위로 끊어야 한국어가 자연스럽다. Paragraph 는 어절 단위가 아니다.
+    // 제목은 줄 길이를 고르게 맞추고(Heading) 어절 단위로 끊는다.
     lineBreak = LineBreak.Heading,
+    localeList = KOREAN,
 )
 
 private fun label(size: Int, lineHeight: Int, weight: FontWeight = FontWeight.SemiBold) = TextStyle(
@@ -58,6 +71,7 @@ private fun label(size: Int, lineHeight: Int, weight: FontWeight = FontWeight.Se
     lineHeight = lineHeight.sp,
     // 한 줄짜리 짧은 라벨은 줄바꿈 계산이 필요 없다.
     lineBreak = LineBreak.Simple,
+    localeList = KOREAN,
 )
 
 // 본문 기준을 17sp 로 잡는다. M3 기본(16)보다 한 단계 크다.
@@ -110,6 +124,7 @@ private fun amount(size: Int, lineHeight: Int, weight: FontWeight) = TextStyle(
     lineHeight = lineHeight.sp,
     fontFeatureSettings = TABULAR_NUMBERS,
     lineBreak = LineBreak.Simple,
+    localeList = KOREAN,
 )
 
 val DefaultAmountTypography =

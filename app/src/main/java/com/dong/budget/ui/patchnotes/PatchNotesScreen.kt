@@ -25,8 +25,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.intl.LocaleList
-import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.text.style.TextAlign
 import com.dong.budget.data.update.AppVersion
 import com.dong.budget.ui.components.BudgetTopAppBar
@@ -142,11 +140,6 @@ private fun StatusBadge(text: String, content: Color, container: Color) {
     )
 }
 
-// 본문 기본 줄바꿈은 글자 단위라 '있어/요' 처럼 끊긴다. 어절(띄어쓰기) 단위로 끊는다.
-// 안드로이드는 글의 언어가 한국어일 때만 어절 단위로 끊어주므로, 기기 언어와 상관없이 한국어로 지정한다.
-private val KOREAN_PHRASE_BREAK = LineBreak.Paragraph.copy(wordBreak = LineBreak.WordBreak.Phrase)
-private val KOREAN = LocaleList("ko-KR")
-
 /** 꼬리표와 설명 한 줄. 화면 읽기는 '추가, 달력에 …' 처럼 한 번에 읽는다. */
 @Composable
 private fun ChangeRow(change: Change) {
@@ -158,7 +151,7 @@ private fun ChangeRow(change: Change) {
         Spacer(Modifier.width(BudgetTheme.spacing.inlineGap))
         Text(
             text = change.text,
-            style = MaterialTheme.typography.bodyMedium.copy(lineBreak = KOREAN_PHRASE_BREAK, localeList = KOREAN),
+            style = MaterialTheme.typography.bodyMedium,
             color = BudgetTheme.colors.textPrimary,
             modifier = Modifier.weight(1f),
         )
