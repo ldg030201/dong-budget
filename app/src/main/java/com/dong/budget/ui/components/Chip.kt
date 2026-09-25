@@ -1,17 +1,24 @@
 package com.dong.budget.ui.components
 
+import androidx.annotation.DrawableRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import com.dong.budget.ui.theme.BudgetTheme
@@ -27,7 +34,14 @@ private val UnselectedBorderWidth = 1.dp
  * 채움 색만으로 구분하면 색을 구분하기 어려운 사용자에게 선택 여부가 보이지 않는다.
  */
 @Composable
-fun BudgetChip(label: String, selected: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+fun BudgetChip(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    /** 글 앞에 둘 아이콘. 없으면 글만 보인다. 뜻은 글이 전하므로 화면 읽기에는 읽히지 않게 둔다. */
+    @DrawableRes icon: Int? = null,
+) {
     val shape = RoundedCornerShape(BudgetTheme.radius.chip)
     val borderColor =
         if (selected) MaterialTheme.colorScheme.primary else BudgetTheme.colors.divider
@@ -49,10 +63,21 @@ fun BudgetChip(label: String, selected: Boolean, onClick: () -> Unit, modifier: 
             ).padding(horizontal = BudgetTheme.spacing.itemGap, vertical = BudgetTheme.spacing.inlineGap),
         contentAlignment = Alignment.Center,
     ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.labelLarge,
-            color = contentColor,
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (icon != null) {
+                Icon(
+                    painter = painterResource(icon),
+                    contentDescription = null,
+                    tint = contentColor,
+                    modifier = Modifier.size(BudgetTheme.size.iconSmall),
+                )
+                Spacer(Modifier.width(BudgetTheme.spacing.tightGap * 1.5f))
+            }
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelLarge,
+                color = contentColor,
+            )
+        }
     }
 }
