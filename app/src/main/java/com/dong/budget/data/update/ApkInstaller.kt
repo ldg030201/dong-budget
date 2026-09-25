@@ -26,7 +26,10 @@ import kotlin.coroutines.coroutineContext
  *   2. 시스템 설치기로 파일을 직접 열어(브라우저에서 받은 파일을 여는 것과 같은 길) 설치할 수 있다.
  * 설치가 끝나 새 버전이 켜지면 [deleteStaleDownloads] 가 지난 파일을 지운다.
  *
- * 실제 설치는 어느 길이든 사용자가 시스템 확인창에서 직접 눌러야 진행된다.
+ * 앱 안 설치(세션)는 자기 자신을 업데이트하는 경우라서, 조건이 맞으면(Android 12+, '출처를 알 수 없는 앱 설치'
+ * 허용, targetSdk 가 기준 이상) 확인창 없이 바로 설치된다. 조건이 안 맞으면 시스템이 확인창으로 돌린다.
+ * 받은 파일을 시스템 설치기로 여는 길은 항상 확인창을 거친다.
+ * 어느 길이든 Play 프로텍트나 제조사 보안 검사 창은 따로 뜰 수 있다.
  */
 class ApkInstaller(private val context: Context) {
     private val directory: File get() = File(context.cacheDir, DIRECTORY)
@@ -103,12 +106,22 @@ class ApkInstaller(private val context: Context) {
     suspend fun installWithSession(apk: File): Result<Unit> = withContext(Dispatchers.IO) {
         runCatching {
             val installer = context.packageManager.packageInstaller
+            // 지난 시도에서 남은 세션을 먼저 치운다. 남아 있으면 그 결과가 늦게 도착해
+            // 이번 시도의 결과처럼 보이거나, 기기에 조각 파일이 쌓인다.
+            // 치우기 전에 '어느 세션도 아님' 으로 바꿔 둔다. 치운 세션의 '중단' 결과가 새 세션 번호를
+            // 정하기 전에 도착해도 받지 않게 하기 위함이다.
+            InstallEvents.activeSessionId = InstallEvents.SESSION_PENDING
+            installer.mySessions.forEach { runCatching { installer.abandonSession(it.sessionId) } }
             val params =
                 PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL).apply {
                     setAppPackageName(context.packageName)
                     setSize(apk.length())
+                    // 자기 자신을 업데이트할 때는 확인창 없이 설치해 달라고 요청한다.
+                    // 조건이 안 맞으면(권한이 막 생긴 첫 업데이트, 30초 안의 연속 업데이트 등) 시스템이 확인창으로 돌린다.
+                    setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
                 }
             val sessionId = installer.createSession(params)
+            InstallEvents.activeSessionId = sessionId
             try {
                 installer.openSession(sessionId).use { session ->
                     session.openWrite(WRITE_NAME, 0, apk.length()).use { output ->

@@ -16,6 +16,13 @@ import androidx.core.content.IntentCompat
  */
 class InstallResultReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
+        // 지난 시도의 세션 결과가 늦게 도착하면 이번 시도의 결과처럼 보인다. 지금 세션의 것만 받는다.
+        val sessionId = intent.getIntExtra(PackageInstaller.EXTRA_SESSION_ID, InstallEvents.NO_SESSION)
+        val active = InstallEvents.activeSessionId
+        if (active != InstallEvents.NO_SESSION && sessionId != InstallEvents.NO_SESSION && sessionId != active) {
+            Log.i(TAG, "지난 세션($sessionId)의 결과라 무시한다. 지금 세션은 $active")
+            return
+        }
         when (val status = intent.getIntExtra(PackageInstaller.EXTRA_STATUS, Int.MIN_VALUE)) {
             PackageInstaller.STATUS_PENDING_USER_ACTION -> {
                 val confirmIntent =
@@ -36,11 +43,19 @@ class InstallResultReceiver : BroadcastReceiver() {
 
             else -> {
                 val message = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE)
-                Log.w(TAG, "설치가 끝나지 않았다 (상태 $status): $message")
+                // 공개 상태값은 여러 원인을 하나로 뭉친다(보안 검사 거부도 '중단' 으로 온다).
+                // 숨은 추가 정보인 내부 코드가 있으면 원인을 더 정확히 가를 수 있다.
+                val legacy = intent.getIntExtra(EXTRA_LEGACY_STATUS, 0)
+                Log.w(TAG, "설치가 끝나지 않았다 (상태 $status, 내부 $legacy): $message")
                 InstallEvents.publish(
                     InstallEvent.Failed(
-                        reason = describe(status, message),
-                        detail = listOfNotNull("상태 $status", message?.takeIf { it.isNotBlank() }).joinToString(" · "),
+                        reason = describe(status, legacy, message),
+                        detail =
+                        listOfNotNull(
+                            "상태 $status",
+                            legacy.takeIf { it != 0 }?.let { "내부 코드 $it" },
+                            message?.takeIf { it.isNotBlank() },
+                        ).joinToString(" · "),
                         canTryOtherWays = !isDeadEnd(message),
                     ),
                 )
@@ -54,11 +69,16 @@ class InstallResultReceiver : BroadcastReceiver() {
      * 특히 검증 실패는 Play Protect 가 막은 경우가 대부분인데,
      * 그냥 두면 사용자는 아무 일도 일어나지 않은 것으로 느낀다.
      */
-    private fun describe(status: Int, message: String?): String = when {
-        // 사용자가 취소한 경우뿐 아니라, 갤럭시 등 제조사 설치기가 사용자가 '설치'를 눌렀는데도
-        // 세션을 스스로 중단하는 경우에도 이 상태가 온다. 둘을 구별할 수 없으므로 '취소' 로 단정하지 않는다.
-        status == PackageInstaller.STATUS_FAILURE_ABORTED ->
-            "설치가 중단됐어요. 아래 '받은 파일로 직접 설치'로 다시 해보세요"
+    private fun describe(status: Int, legacy: Int, message: String?): String = when {
+        // 보안 검사(Play 프로텍트 등) 거부와 시간 초과는 공개 상태값으로는 '중단(ABORTED)' 으로 온다.
+        // 그래서 '중단' 보다 먼저 가려내야 한다. 순서가 바뀌면 이 안내에 영영 닿지 못한다.
+        // 시간 초과도 내부 코드는 거부와 같은 -22 로 오고 메시지에만 'timed out' 이 붙으므로 거부보다 먼저 본다.
+        legacy == LEGACY_VERIFICATION_TIMEOUT || message.containsAny("VERIFICATION_TIMEOUT", "timed out") ->
+            "보안 검사가 오래 걸려 설치가 멈췄어요. 잠시 뒤 다시 해보세요"
+
+        legacy == LEGACY_VERIFICATION_FAILURE || message.containsAny("VERIFICATION_FAILURE") ->
+            "Play 프로텍트 검사에서 설치가 멈췄어요. 다시 설치하고 '앱 검사 권장됨' 창이 뜨면 " +
+                "'앱 설치 안함' 대신 '앱 검사'를 눌러주세요"
 
         // 서명 불일치를 가장 먼저 본다.
         // 안드로이드가 서명이 다를 때 주는 코드는 INSTALL_FAILED_UPDATE_INCOMPATIBLE 이라
@@ -66,9 +86,6 @@ class InstallResultReceiver : BroadcastReceiver() {
         // 순서가 뒤바뀌면 서명 문제인데 "이 기기에서는 설치할 수 없다"고 잘못 안내하게 된다.
         message.containsAny("UPDATE_INCOMPATIBLE", "INCONSISTENT_CERTIFICATES", "SIGNATURE") ->
             "설치된 앱과 서명이 달라요. 기존 앱을 지우고 새로 설치해야 하는데 그러면 기록이 사라져요"
-
-        message.containsAny("VERIFICATION_FAILURE") ->
-            "기기 보안 검사에 막혔어요. 설치 화면에서 '무시하고 설치'를 눌러주세요"
 
         message.containsAny("VERSION_DOWNGRADE") ->
             "지금 쓰는 버전이 더 최신이에요"
@@ -78,6 +95,12 @@ class InstallResultReceiver : BroadcastReceiver() {
 
         message.containsAny("INCOMPATIBLE", "INVALID_APK", "NO_MATCHING_ABIS") ->
             "이 기기에서는 설치할 수 없는 파일이에요"
+
+        // 사용자가 취소한 경우뿐 아니라, 갤럭시 등 제조사 설치기가 사용자가 '설치'를 눌렀는데도
+        // 세션을 스스로 중단하는 경우에도 이 상태가 온다. 둘을 구별할 수 없으므로 '취소' 로 단정하지 않는다.
+        status == PackageInstaller.STATUS_FAILURE_ABORTED ->
+            "설치가 중단됐어요. 아래 '받은 파일로 직접 설치'로 다시 해보세요. 갤럭시는 " +
+                "'설정 > 보안 및 개인정보 보호 > 보안 위험 자동 차단'이 켜져 있으면 설치가 막혀요"
 
         else -> "설치를 마치지 못했어요"
     }
@@ -98,5 +121,12 @@ class InstallResultReceiver : BroadcastReceiver() {
 
     private companion object {
         const val TAG = "DongBudgetInstall"
+
+        /** 공개되지 않은 추가 정보. 공개 상태값보다 자세한 내부 코드가 들어 있다. */
+        const val EXTRA_LEGACY_STATUS = "android.content.pm.extra.LEGACY_STATUS"
+
+        // PackageManager 의 내부 설치 실패 코드
+        const val LEGACY_VERIFICATION_TIMEOUT = -21
+        const val LEGACY_VERIFICATION_FAILURE = -22
     }
 }
