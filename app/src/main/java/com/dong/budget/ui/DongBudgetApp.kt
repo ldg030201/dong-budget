@@ -18,9 +18,11 @@ import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
+import com.dong.budget.BuildConfig
 import com.dong.budget.data.AppContainer
 import com.dong.budget.navigation.CategoryManageKey
 import com.dong.budget.navigation.Navigator
+import com.dong.budget.navigation.PatchNotesKey
 import com.dong.budget.navigation.SettingsKey
 import com.dong.budget.navigation.ShellKey
 import com.dong.budget.navigation.StatisticsKey
@@ -30,6 +32,7 @@ import com.dong.budget.ui.category.CategoryManageViewModel
 import com.dong.budget.ui.editor.TransactionEditorScreen
 import com.dong.budget.ui.editor.TransactionEditorViewModel
 import com.dong.budget.ui.home.HomeViewModel
+import com.dong.budget.ui.patchnotes.PatchNotesScreen
 import com.dong.budget.ui.settings.SettingsScreen
 import com.dong.budget.ui.settings.SettingsViewModel
 import com.dong.budget.ui.shell.HomeShell
@@ -71,6 +74,7 @@ fun DongBudgetApp(container: AppContainer) {
                     onOpenCategories = { navigator.go(CategoryManageKey) },
                     onOpenStatistics = { navigator.go(StatisticsKey) },
                     onOpenSettings = { navigator.go(SettingsKey) },
+                    onOpenPatchNotes = { navigator.go(PatchNotesKey) },
                 )
             }
 
@@ -142,6 +146,10 @@ fun DongBudgetApp(container: AppContainer) {
                     onDownloadUpdate = viewModel::downloadAndInstall,
                     onBack = navigator::goBack,
                 )
+            }
+
+            entry<PatchNotesKey> {
+                PatchNotesScreen(currentVersion = BuildConfig.VERSION_NAME, onBack = navigator::goBack)
             }
         },
     )

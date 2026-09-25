@@ -53,6 +53,7 @@ fun HomeShell(
     onOpenCategories: () -> Unit,
     onOpenStatistics: () -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenPatchNotes: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var selectedTab by rememberSaveable { mutableStateOf(ShellTab.HOME) }
@@ -104,6 +105,7 @@ fun HomeShell(
                             onOpenCategories = onOpenCategories,
                             onOpenStatistics = onOpenStatistics,
                             onOpenSettings = onOpenSettings,
+                            onOpenPatchNotes = onOpenPatchNotes,
                         )
                 }
             }

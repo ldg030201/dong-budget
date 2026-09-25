@@ -89,6 +89,8 @@ data class BudgetSize(
     val weekdayRowHeight: Dp = 24.dp,
     /** 떠 있는 추가 버튼 */
     val fab: Dp = 56.dp,
+    /** 패치노트 종류 꼬리표 너비. 가장 긴 '오류수정' 이 들어가는 폭으로 모두 맞춘다 */
+    val patchTagWidth: Dp = 64.dp,
 )
 
 /** 화면 코드에서 참조하는 전체 토큰 묶음 */

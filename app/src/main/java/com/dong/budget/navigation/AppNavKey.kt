@@ -35,3 +35,6 @@ data object StatisticsKey : AppNavKey
 
 @Serializable
 data object SettingsKey : AppNavKey
+
+@Serializable
+data object PatchNotesKey : AppNavKey

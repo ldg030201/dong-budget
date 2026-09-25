@@ -58,6 +58,24 @@ internal val DangerContainerDark = Color(0xFF5C1A22)
 internal val OnDangerContainerDark = Color(0xFFFFD9DD)
 internal val DarkSurfaceLowest = Color(0xFF0F1116)
 
+// 패치노트 분류 꼬리표. 작은 글자(12sp)가 올라가서 분류 아이콘 색보다 진하게 잡았다. 모두 4.5:1 이상.
+internal val TagGreenLight = Color(0xFF1B7A35) // 바탕 대비 4.8
+internal val TagGreenContainerLight = Color(0xFFE3F6E8)
+internal val TagBlueLight = Color(0xFF1560A8) // 5.55
+internal val TagBlueContainerLight = Color(0xFFE3F0FC)
+internal val TagAmberLight = Color(0xFF8A5300) // 5.73
+internal val TagAmberContainerLight = Color(0xFFFEF3D7)
+internal val TagRedLight = Color(0xFFB3261E) // 5.57
+internal val TagRedContainerLight = Color(0xFFFDE8E8)
+internal val TagGreenDark = Color(0xFF6BD08A) // 7.12
+internal val TagGreenContainerDark = Color(0xFF1B3325)
+internal val TagBlueDark = Color(0xFF6CB4F5) // 6.43
+internal val TagBlueContainerDark = Color(0xFF172C42)
+internal val TagAmberDark = Color(0xFFF5C04A) // 7.76
+internal val TagAmberContainerDark = Color(0xFF3A3016)
+internal val TagRedDark = Color(0xFFFF8589) // 6.33
+internal val TagRedContainerDark = Color(0xFF3D1F22)
+
 // ─────────────────────────────────────────────────────────────────────
 // 의미 토큰.
 // Material3 ColorScheme 에 넣지 않는 도메인 색들. ColorScheme 에 넣으면
@@ -84,6 +102,11 @@ data class BudgetColorTokens(
     /** 통계 차트용. 빨강-초록 조합은 적녹색맹에서 구분이 불가능해서 쓰지 않는다. */
     val chartExpense: Color,
     val chartIncome: Color,
+    /** 패치노트 꼬리표. 추가·개선·수정·오류수정. 색만으로 구분하지 않고 항상 글자를 함께 쓴다. */
+    val tagAdded: CategorySwatch,
+    val tagImproved: CategorySwatch,
+    val tagChanged: CategorySwatch,
+    val tagFixed: CategorySwatch,
 )
 
 internal val LightColorTokens =
@@ -99,6 +122,10 @@ internal val LightColorTokens =
         divider = Gray200,
         chartExpense = Indigo500,
         chartIncome = IncomeLight,
+        tagAdded = CategorySwatch(TagGreenLight, TagGreenContainerLight),
+        tagImproved = CategorySwatch(TagBlueLight, TagBlueContainerLight),
+        tagChanged = CategorySwatch(TagAmberLight, TagAmberContainerLight),
+        tagFixed = CategorySwatch(TagRedLight, TagRedContainerLight),
     )
 
 internal val DarkColorTokens =
@@ -114,4 +141,8 @@ internal val DarkColorTokens =
         divider = Dark600,
         chartExpense = Indigo550,
         chartIncome = IncomeDark,
+        tagAdded = CategorySwatch(TagGreenDark, TagGreenContainerDark),
+        tagImproved = CategorySwatch(TagBlueDark, TagBlueContainerDark),
+        tagChanged = CategorySwatch(TagAmberDark, TagAmberContainerDark),
+        tagFixed = CategorySwatch(TagRedDark, TagRedContainerDark),
     )
