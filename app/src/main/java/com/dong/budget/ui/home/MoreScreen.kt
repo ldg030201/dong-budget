@@ -58,18 +58,19 @@ fun MoreScreen(
             onClick = onOpenStatistics,
         )
         MenuItem(
-            title = "설정",
-            subtitle = "테마, 업데이트",
-            iconRes = R.drawable.ic_sym_settings,
-            color = "gray",
-            onClick = onOpenSettings,
-        )
-        MenuItem(
             title = "패치노트",
             subtitle = "버전마다 바뀐 점을 봐요",
             iconRes = R.drawable.ic_sym_new_releases,
             color = "purple",
             onClick = onOpenPatchNotes,
+        )
+        // 설정은 메뉴가 늘어나도 항상 맨 마지막에 둔다. 새 메뉴는 이 위에 넣는다.
+        MenuItem(
+            title = "설정",
+            subtitle = "테마, 업데이트",
+            iconRes = R.drawable.ic_sym_settings,
+            color = "gray",
+            onClick = onOpenSettings,
         )
     }
 }
