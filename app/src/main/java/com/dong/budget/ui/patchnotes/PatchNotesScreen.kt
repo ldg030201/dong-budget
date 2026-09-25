@@ -1,12 +1,15 @@
 package com.dong.budget.ui.patchnotes
 
+import androidx.annotation.DrawableRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -26,8 +29,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
+import com.dong.budget.R
 import com.dong.budget.data.update.AppVersion
 import com.dong.budget.ui.components.BudgetTopAppBar
+import com.dong.budget.ui.components.IconBadge
 import com.dong.budget.ui.theme.BudgetTheme
 import com.dong.budget.ui.theme.CategorySwatch
 import java.time.format.DateTimeFormatter
@@ -113,17 +118,69 @@ private fun ReleaseBlock(release: Release, status: ReleaseStatus) {
             )
         }
         release.menus.forEach { menu ->
-            Text(
-                text = menu.menu,
-                style = MaterialTheme.typography.labelMedium,
-                color = BudgetTheme.colors.textSecondary,
-                modifier = Modifier.padding(top = BudgetTheme.spacing.sectionPadding, bottom = BudgetTheme.spacing.inlineGap),
-            )
-            Column(verticalArrangement = Arrangement.spacedBy(BudgetTheme.spacing.inlineGap)) {
-                menu.changes.forEach { ChangeRow(it) }
-            }
+            Spacer(Modifier.height(BudgetTheme.spacing.sectionPadding))
+            MenuSection(menu)
         }
     }
+}
+
+/**
+ * 한 메뉴의 바뀐 점. 메뉴 아이콘과 이름 아래로 세로줄을 내려 그 메뉴에 속한 항목을 묶어 보여준다.
+ * 항목은 종류 순서(추가 → 개선 → 수정 → 오류수정)로 정렬한다. 같은 종류 안에서는 적은 순서를 지킨다.
+ */
+@Composable
+private fun MenuSection(menu: MenuChanges) {
+    val badgeSize = BudgetTheme.size.badgeSmall
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        IconBadge(iconRes = menu.menu.iconRes(), swatch = BudgetTheme.categoryPalette[menu.menu.color()], size = badgeSize)
+        Spacer(Modifier.width(BudgetTheme.spacing.inlineGap))
+        Text(
+            text = menu.menu.label,
+            style = MaterialTheme.typography.labelLarge,
+            color = BudgetTheme.colors.textPrimary,
+            modifier = Modifier.semantics { heading() },
+        )
+    }
+    // 세로줄이 항목들 높이만큼만 내려오게 한다
+    Row(modifier = Modifier.height(IntrinsicSize.Min).padding(top = BudgetTheme.spacing.tightGap)) {
+        Box(modifier = Modifier.width(badgeSize).fillMaxHeight(), contentAlignment = Alignment.TopCenter) {
+            Box(
+                Modifier
+                    .width(BudgetTheme.size.underlineActive)
+                    .fillMaxHeight()
+                    .background(BudgetTheme.colors.divider),
+            )
+        }
+        Spacer(Modifier.width(BudgetTheme.spacing.inlineGap))
+        Column(
+            modifier = Modifier.padding(vertical = BudgetTheme.spacing.tightGap),
+            verticalArrangement = Arrangement.spacedBy(BudgetTheme.spacing.inlineGap),
+        ) {
+            menu.changes.sortedBy { it.kind.ordinal }.forEach { ChangeRow(it) }
+        }
+    }
+}
+
+@DrawableRes
+private fun PatchMenu.iconRes(): Int = when (this) {
+    PatchMenu.HOME -> R.drawable.ic_sym_home
+    PatchMenu.HISTORY -> R.drawable.ic_sym_receipt_long
+    PatchMenu.EDITOR -> R.drawable.ic_sym_edit_note
+    PatchMenu.CATEGORIES -> R.drawable.ic_sym_category
+    PatchMenu.MORE -> R.drawable.ic_sym_apps
+    PatchMenu.SETTINGS -> R.drawable.ic_sym_settings
+    PatchMenu.COMMON -> R.drawable.ic_sym_devices
+}
+
+/** 전체 메뉴 화면의 색과 맞춘다(분류 관리는 남색, 설정은 회색). 나머지는 서로 겹치지 않게 고른다. */
+private fun PatchMenu.color(): String = when (this) {
+    PatchMenu.HOME -> "blue"
+    PatchMenu.HISTORY -> "teal"
+    PatchMenu.EDITOR -> "green"
+    PatchMenu.CATEGORIES -> "indigo"
+    PatchMenu.MORE -> "purple"
+    PatchMenu.SETTINGS -> "gray"
+    PatchMenu.COMMON -> "amber"
 }
 
 @Composable
