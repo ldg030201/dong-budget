@@ -1,5 +1,6 @@
 package com.dong.budget.ui.format
 
+import com.dong.budget.data.db.TransactionType
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.time.DayOfWeek
@@ -33,6 +34,21 @@ class FormattersTest {
     @Test
     fun `부호는 떼고 크기만 쓴다`() {
         assertEquals("9만원", formatCompactWon(-90_400))
+    }
+
+    @Test
+    fun `거래 금액은 들어오면 +, 나가면 -, 이체는 부호가 없다`() {
+        assertEquals("+3,000원", formatSignedAmount(TransactionType.INCOME, 3_000))
+        assertEquals("+3,000원", formatSignedAmount(TransactionType.REFUND, 3_000))
+        assertEquals("-55,000원", formatSignedAmount(TransactionType.EXPENSE, 55_000))
+        assertEquals("10,000원", formatSignedAmount(TransactionType.TRANSFER, 10_000))
+    }
+
+    @Test
+    fun `합계는 값의 방향대로 부호를 붙이고 0 은 부호가 없다`() {
+        assertEquals("+2,976,087원", formatSignedTotal(2_976_087))
+        assertEquals("-1,303,998원", formatSignedTotal(-1_303_998))
+        assertEquals("0원", formatSignedTotal(0))
     }
 
     @Test

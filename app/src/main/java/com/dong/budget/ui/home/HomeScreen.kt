@@ -58,10 +58,10 @@ import com.dong.budget.data.db.TransactionType
 import com.dong.budget.ui.components.BudgetListItem
 import com.dong.budget.ui.components.CategoryBadge
 import com.dong.budget.ui.components.NavIconButton
-import com.dong.budget.ui.format.formatAmount
 import com.dong.budget.ui.format.formatDayHeader
 import com.dong.budget.ui.format.formatMonth
 import com.dong.budget.ui.format.formatSignedAmount
+import com.dong.budget.ui.format.formatSignedTotal
 import com.dong.budget.ui.format.formatTime
 import com.dong.budget.ui.theme.BudgetTheme
 import kotlinx.coroutines.launch
@@ -279,16 +279,18 @@ private fun SummaryBlock(totals: Totals, comparison: SpendingComparison?) {
             .padding(BudgetTheme.spacing.sectionPadding),
     ) {
         Row {
+            // 합계는 달력처럼 부호와 색을 함께 쓴다. 쓴 돈은 빨강 -, 들어온 돈은 초록 +.
+            // 환불이 더 많아 지출 합계가 음수면 돈이 돌아온 것이므로 초록 + 로 적는다.
             SummaryCell(
                 label = "지출",
-                value = "${formatAmount(totals.expense)}원",
-                valueColor = BudgetTheme.colors.textPrimary,
+                value = formatSignedTotal(-totals.expense),
+                valueColor = totalColor(-totals.expense),
                 modifier = Modifier.weight(1f),
             )
             SummaryCell(
                 label = "수입",
-                value = "${formatAmount(totals.income)}원",
-                valueColor = BudgetTheme.colors.income,
+                value = formatSignedTotal(totals.income),
+                valueColor = totalColor(totals.income),
                 modifier = Modifier.weight(1f),
             )
         }
@@ -308,6 +310,14 @@ private fun SummaryBlock(totals: Totals, comparison: SpendingComparison?) {
             )
         }
     }
+}
+
+/** 들어온 쪽(+)은 초록, 나간 쪽(-)은 빨강, 0 은 본문색 */
+@Composable
+private fun totalColor(signedAmount: Long): Color = when {
+    signedAmount > 0 -> BudgetTheme.colors.income
+    signedAmount < 0 -> BudgetTheme.colors.expense
+    else -> BudgetTheme.colors.textPrimary
 }
 
 @Composable
