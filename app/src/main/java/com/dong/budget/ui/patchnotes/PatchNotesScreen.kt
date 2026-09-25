@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -31,6 +32,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import com.dong.budget.R
 import com.dong.budget.data.update.AppVersion
+import com.dong.budget.data.update.NewerRelease
+import com.dong.budget.ui.components.BudgetPrimaryButton
 import com.dong.budget.ui.components.BudgetTopAppBar
 import com.dong.budget.ui.components.IconBadge
 import com.dong.budget.ui.theme.BudgetTheme
@@ -43,10 +46,22 @@ import java.util.Locale
  * 바뀐 점마다 종류(추가·개선·수정·오류수정)를 색 꼬리표로 붙인다.
  *
  * @param currentVersion 설치된 버전. 그 버전에 '지금 버전' 을 붙이고, 그보다 새 버전(개발 중)에는 '준비 중' 을 붙인다.
+ * @param newer 이미 배포됐지만 아직 설치하지 않은 버전들. 맨 위에 '새 버전' 으로 보여준다.
+ *   앱에 들어 있는 기록에 같은 버전이 있으면 그쪽을 보여준다(메뉴별로 정리돼 있어서).
+ * @param onOpenUpdate 새 버전 칸의 [업데이트하러 가기]
  */
 @Composable
-fun PatchNotesScreen(currentVersion: String, onBack: () -> Unit, modifier: Modifier = Modifier, releases: List<Release> = PATCH_NOTES) {
+fun PatchNotesScreen(
+    currentVersion: String,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+    releases: List<Release> = PATCH_NOTES,
+    newer: List<NewerRelease> = emptyList(),
+    onOpenUpdate: () -> Unit = {},
+) {
     val installed = AppVersion.parse(currentVersion)
+    val bundled = releases.mapNotNullTo(mutableSetOf()) { AppVersion.parse(it.version) }
+    val newerShown = newer.filter { AppVersion.parse(it.version) !in bundled }
     Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(modifier = Modifier.fillMaxSize()) {
             BudgetTopAppBar(onNavigationClick = onBack, title = "패치노트")
@@ -60,6 +75,10 @@ fun PatchNotesScreen(currentVersion: String, onBack: () -> Unit, modifier: Modif
                 ),
                 verticalArrangement = Arrangement.spacedBy(BudgetTheme.spacing.itemGap),
             ) {
+                // 업데이트 버튼은 가장 새 버전 칸에만 둔다. 업데이트하면 늘 최신 버전이 설치된다.
+                itemsIndexed(items = newerShown, key = { _, release -> "newer-${release.version}" }) { index, release ->
+                    NewerReleaseBlock(release = release, onOpenUpdate = onOpenUpdate.takeIf { index == 0 })
+                }
                 items(items = releases, key = { it.version }) { release ->
                     val version = AppVersion.parse(release.version)
                     ReleaseBlock(
@@ -79,6 +98,50 @@ fun PatchNotesScreen(currentVersion: String, onBack: () -> Unit, modifier: Modif
 }
 
 private enum class ReleaseStatus { PAST, CURRENT, UPCOMING }
+
+/**
+ * 배포됐지만 아직 설치하지 않은 버전. 바뀐 점은 배포 본문의 글 그대로 보여준다.
+ * @param onOpenUpdate null 이면 업데이트 버튼을 두지 않는다
+ */
+@Composable
+private fun NewerReleaseBlock(release: NewerRelease, onOpenUpdate: (() -> Unit)?) {
+    Column(
+        modifier =
+        Modifier
+            .fillMaxWidth()
+            .background(BudgetTheme.colors.sectionBackground, RoundedCornerShape(BudgetTheme.radius.block))
+            .padding(BudgetTheme.spacing.sectionPadding),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                text = release.version,
+                style = MaterialTheme.typography.titleLarge,
+                color = BudgetTheme.colors.textPrimary,
+                modifier = Modifier.semantics { heading() },
+            )
+            StatusBadge("새 버전", MaterialTheme.colorScheme.onPrimaryContainer, MaterialTheme.colorScheme.primaryContainer)
+        }
+        if (release.date != null) {
+            Text(
+                text = dateFormatter.format(release.date),
+                style = MaterialTheme.typography.bodySmall,
+                color = BudgetTheme.colors.textSecondary,
+                modifier = Modifier.padding(top = BudgetTheme.spacing.tightGap),
+            )
+        }
+        Spacer(Modifier.height(BudgetTheme.spacing.sectionPadding))
+        Text(
+            // 예전 형식의 배포는 앱에 보여줄 구간을 알 수 없어 본문이 비어 온다
+            text = release.notes.ifBlank { "바뀐 점은 업데이트한 뒤 여기서 볼 수 있어요." },
+            style = MaterialTheme.typography.bodyMedium,
+            color = BudgetTheme.colors.textPrimary,
+        )
+        if (onOpenUpdate != null) {
+            Spacer(Modifier.height(BudgetTheme.spacing.sectionPadding))
+            BudgetPrimaryButton(text = "업데이트하러 가기", onClick = onOpenUpdate)
+        }
+    }
+}
 
 private val dateFormatter = DateTimeFormatter.ofPattern("yyyy년 M월 d일", Locale.KOREA)
 

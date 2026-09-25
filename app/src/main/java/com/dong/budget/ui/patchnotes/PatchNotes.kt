@@ -84,6 +84,14 @@ val PATCH_NOTES: List<Release> =
                     fixed("결제 알림을 번갈아 누르면 같은 등록창이 두 번 열리던 문제를 고쳤어요"),
                 ),
                 menu(
+                    PatchMenu.PATCH_NOTES,
+                    added("아직 설치하지 않은 새 버전의 바뀐 점을 맨 위에 보여줘요. 바로 업데이트하러 갈 수도 있어요"),
+                ),
+                menu(
+                    PatchMenu.SETTINGS,
+                    changed("새 버전 확인을 6시간에 한 번에서 앱을 열 때마다로 바꿨어요. 새 버전이 나오면 바로 알 수 있어요"),
+                ),
+                menu(
                     PatchMenu.COMMON,
                     changed("알림 권한을 알림 읽기보다 먼저 물어봐요"),
                     fixed("알림 권한 창을 그냥 닫기만 해도 다음부터 설정 화면으로 보내던 문제를 고쳤어요"),
