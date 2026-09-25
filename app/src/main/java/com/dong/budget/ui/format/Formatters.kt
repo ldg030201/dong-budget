@@ -19,14 +19,20 @@ private val timeFormatter = DateTimeFormatter.ofPattern("a h:mm", KOREA)
 fun formatAmount(amount: Long): String = String.format(KOREA, "%,d", amount)
 
 /**
- * 금액에 부호를 붙인다.
- *
- * 지출에는 부호를 붙이지 않는다. 가계부는 지출 항목이 압도적으로 많아서
- * 전부 마이너스를 달면 화면만 지저분해지고 구분에 도움이 안 된다.
+ * 거래 한 건의 금액에 부호를 붙인다. 들어온 돈(수입·환불)은 +, 쓴 돈(지출)은 - 다.
+ * 이체는 내 계좌끼리 옮긴 것이라 부호를 붙이지 않는다.
  */
 fun formatSignedAmount(type: TransactionType, amount: Long): String = when (type) {
     TransactionType.INCOME, TransactionType.REFUND -> "+${formatAmount(amount)}원"
-    TransactionType.EXPENSE, TransactionType.TRANSFER -> "${formatAmount(amount)}원"
+    TransactionType.EXPENSE -> "-${formatAmount(amount)}원"
+    TransactionType.TRANSFER -> "${formatAmount(amount)}원"
+}
+
+/** 합계처럼 방향이 값에 따라 정해지는 금액. 들어온 쪽이면 +, 나간 쪽이면 -, 0 이면 부호 없이 적는다. */
+fun formatSignedTotal(amount: Long): String = when {
+    amount > 0 -> "+${formatAmount(amount)}원"
+    amount < 0 -> "-${formatAmount(-amount)}원"
+    else -> "0원"
 }
 
 fun formatDay(instant: Instant): String = dayFormatter.format(instant.atZone(BudgetTime.ZONE))
