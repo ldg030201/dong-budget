@@ -2,16 +2,22 @@ package com.dong.budget.ui.home
 
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.vectorResource
 import com.dong.budget.R
 import com.dong.budget.ui.components.BudgetListItem
 import com.dong.budget.ui.components.IconBadge
+import com.dong.budget.ui.components.NavIconButton
 import com.dong.budget.ui.theme.BudgetTheme
 
 /**
@@ -31,18 +37,32 @@ fun MoreScreen(
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.fillMaxSize()) {
-        Text(
-            text = "전체",
-            style = MaterialTheme.typography.headlineSmall,
-            color = BudgetTheme.colors.textPrimary,
+        // 설정은 목록이 아니라 제목 줄 오른쪽 위에 둔다. 메뉴가 늘어나도 자리를 찾기 쉽다.
+        Row(
             modifier =
             Modifier
+                .fillMaxWidth()
                 .statusBarsPadding()
                 .padding(
-                    horizontal = BudgetTheme.spacing.screenHorizontal,
-                    vertical = BudgetTheme.spacing.sectionPadding,
+                    start = BudgetTheme.spacing.screenHorizontal,
+                    end = BudgetTheme.spacing.inlineGap,
+                    top = BudgetTheme.spacing.inlineGap,
+                    bottom = BudgetTheme.spacing.inlineGap,
                 ),
-        )
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "전체",
+                style = MaterialTheme.typography.headlineSmall,
+                color = BudgetTheme.colors.textPrimary,
+                modifier = Modifier.weight(1f),
+            )
+            NavIconButton(
+                icon = ImageVector.vectorResource(R.drawable.ic_sym_settings),
+                contentDescription = "설정",
+                onClick = onOpenSettings,
+            )
+        }
         MenuItem(
             title = "분류 관리",
             subtitle = "분류와 결제수단을 추가하거나 지워요",
@@ -63,14 +83,6 @@ fun MoreScreen(
             iconRes = R.drawable.ic_sym_new_releases,
             color = "purple",
             onClick = onOpenPatchNotes,
-        )
-        // 설정은 메뉴가 늘어나도 항상 맨 마지막에 둔다. 새 메뉴는 이 위에 넣는다.
-        MenuItem(
-            title = "설정",
-            subtitle = "테마, 업데이트",
-            iconRes = R.drawable.ic_sym_settings,
-            color = "gray",
-            onClick = onOpenSettings,
         )
     }
 }

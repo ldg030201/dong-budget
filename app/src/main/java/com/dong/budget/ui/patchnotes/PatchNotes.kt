@@ -40,6 +40,7 @@ enum class PatchMenu(val label: String) {
     EDITOR("거래 등록"),
     CATEGORIES("분류 관리"),
     MORE("전체"),
+    PATCH_NOTES("패치노트"),
     SETTINGS("설정"),
 
     /** 특정 메뉴가 아니라 앱 전체에 걸친 변화 */
@@ -63,7 +64,7 @@ private fun fixed(text: String) = Change(ChangeKind.FIXED, text)
 private fun menu(menu: PatchMenu, vararg changes: Change) = MenuChanges(menu, changes.toList())
 
 /**
- * 최신 버전이 맨 위. 메뉴는 앱 화면 순서(홈 → 거래 등록 → 분류 관리 → 전체 → 설정 → 공통)로 적는다.
+ * 최신 버전이 맨 위. 메뉴는 앱 화면 순서(홈 → 거래 등록 → 분류 관리 → 전체 → 패치노트 → 설정 → 공통)로 적는다.
  * 메뉴 안의 항목은 화면에서 종류 순서(추가 → 개선 → 수정 → 오류수정)로 다시 정렬되므로 적는 순서는 자유다.
  */
 val PATCH_NOTES: List<Release> =
@@ -79,7 +80,11 @@ val PATCH_NOTES: List<Release> =
                 ),
                 menu(
                     PatchMenu.MORE,
-                    improved("패치노트를 메뉴별 아이콘과 세로줄로 나누고, 추가·개선·수정·오류수정 순서로 정리했어요"),
+                    changed("설정을 목록 맨 아래에서 오른쪽 위 톱니바퀴 버튼으로 옮겼어요"),
+                ),
+                menu(
+                    PatchMenu.PATCH_NOTES,
+                    improved("메뉴별 아이콘과 세로줄로 나누고, 추가·개선·수정·오류수정 순서로 정리했어요"),
                 ),
                 menu(
                     PatchMenu.SETTINGS,
@@ -147,8 +152,11 @@ val PATCH_NOTES: List<Release> =
                 ),
                 menu(
                     PatchMenu.MORE,
-                    added("패치노트에서 버전별로 바뀐 점을 볼 수 있어요"),
                     improved("메뉴마다 아이콘을 달았어요"),
+                ),
+                menu(
+                    PatchMenu.PATCH_NOTES,
+                    added("새 메뉴예요. 전체 메뉴에서 버전별로 바뀐 점을 볼 수 있어요"),
                 ),
                 menu(
                     PatchMenu.COMMON,

@@ -168,17 +168,19 @@ private fun PatchMenu.iconRes(): Int = when (this) {
     PatchMenu.EDITOR -> R.drawable.ic_sym_edit_note
     PatchMenu.CATEGORIES -> R.drawable.ic_sym_category
     PatchMenu.MORE -> R.drawable.ic_sym_apps
+    PatchMenu.PATCH_NOTES -> R.drawable.ic_sym_new_releases
     PatchMenu.SETTINGS -> R.drawable.ic_sym_settings
     PatchMenu.COMMON -> R.drawable.ic_sym_devices
 }
 
-/** 전체 메뉴 화면의 색과 맞춘다(분류 관리는 남색, 설정은 회색). 나머지는 서로 겹치지 않게 고른다. */
+/** 전체 메뉴 화면의 색과 맞춘다(분류 관리는 남색, 패치노트는 보라, 설정은 회색). 나머지는 서로 겹치지 않게 고른다. */
 private fun PatchMenu.color(): String = when (this) {
     PatchMenu.HOME -> "blue"
     PatchMenu.HISTORY -> "teal"
     PatchMenu.EDITOR -> "green"
     PatchMenu.CATEGORIES -> "indigo"
-    PatchMenu.MORE -> "purple"
+    PatchMenu.MORE -> "pink"
+    PatchMenu.PATCH_NOTES -> "purple"
     PatchMenu.SETTINGS -> "gray"
     PatchMenu.COMMON -> "amber"
 }
