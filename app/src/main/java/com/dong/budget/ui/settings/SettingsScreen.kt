@@ -26,12 +26,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import com.dong.budget.data.settings.ThemeMode
+import com.dong.budget.data.update.GalaxyAutoBlocker
 import com.dong.budget.ui.components.BudgetChip
 import com.dong.budget.ui.components.BudgetPrimaryButton
 import com.dong.budget.ui.components.BudgetSecondaryButton
 import com.dong.budget.ui.components.BudgetTopAppBar
 import com.dong.budget.ui.permission.AppPermission
-import com.dong.budget.ui.permission.GalaxyAutoBlocker
 import com.dong.budget.ui.permission.PermissionDialog
 import com.dong.budget.ui.theme.BudgetTheme
 
@@ -235,13 +235,21 @@ private fun UpdateSection(
                 val context = LocalContext.current
                 BudgetPrimaryButton(text = "보안 위험 자동 차단 열기", onClick = { GalaxyAutoBlocker.open(context) })
                 Spacer(Modifier.height(BudgetTheme.spacing.inlineGap))
-                HintText("자동 차단을 끄고 돌아와서 '다시 확인'을 누르면 다시 설치할 수 있어요. 설치가 끝나면 다시 켜도 돼요.")
+                HintText(
+                    "자동 차단을 끄고 돌아와서 '다시 확인'을 누르면 다시 설치할 수 있어요. " +
+                        "설치가 끝나면 다시 켜도 되지만, 다음 업데이트 때 다시 꺼야 해요.",
+                )
                 Spacer(Modifier.height(BudgetTheme.spacing.itemGap))
             }
             BudgetSecondaryButton(text = "다시 확인", onClick = onCheckUpdate)
             // 서명이 다르거나 저장 공간이 없으면 다른 길로 설치해도 똑같이 막힌다. 헛걸음을 권하지 않는다.
             if (state.canTryOtherWays) {
                 Spacer(Modifier.height(BudgetTheme.spacing.itemGap))
+                // 자동 차단이 켜져 있으면 아래 길도 똑같이 막힌다. 끈 뒤에도 막힐 때 쓰는 길이라고 알려준다.
+                if (state.suggestGalaxySecurity) {
+                    HintText("자동 차단을 끈 뒤에도 똑같이 막히면 아래 방법을 써보세요.")
+                    Spacer(Modifier.height(BudgetTheme.spacing.inlineGap))
+                }
                 OtherWays(downloadedVersion, onInstallDownloaded, onOpenReleasePage)
             }
         }

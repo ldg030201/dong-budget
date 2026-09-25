@@ -21,6 +21,7 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.net.toUri
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import com.dong.budget.data.capture.PaymentNotificationListener
+import com.dong.budget.data.update.GalaxyAutoBlocker
 import com.dong.budget.ui.components.ConfirmDialog
 
 /**
@@ -92,7 +93,7 @@ enum class AppPermission(val title: String, val message: String) {
     val extraLabel: String?
         get() = when (this) {
             READ_NOTIFICATIONS -> "앱 정보 열기"
-            INSTALL_UPDATES -> if (GalaxyAutoBlocker.isGalaxy) "보안 위험 자동 차단 열기" else null
+            INSTALL_UPDATES -> if (GalaxyAutoBlocker.isAvailable) "보안 위험 자동 차단 열기" else null
             POST_NOTIFICATIONS -> null
         }
 

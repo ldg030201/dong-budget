@@ -1,4 +1,4 @@
-package com.dong.budget.ui.permission
+package com.dong.budget.data.update
 
 import android.content.ComponentName
 import android.content.Context
@@ -15,8 +15,12 @@ import android.provider.Settings
  * 설치가 막혔을 때와 설치 허용을 안내할 때 이 화면으로 가는 버튼을 둔다.
  */
 object GalaxyAutoBlocker {
-    /** 갤럭시 기기인지. 다른 기기에는 이 설정이 없으므로 버튼을 보이지 않는다. */
-    val isGalaxy: Boolean get() = Build.MANUFACTURER.equals("samsung", ignoreCase = true)
+    /**
+     * 이 기기에 자동 차단 기능이 있는지. 갤럭시 One UI 6(Android 14)부터 생긴 기능이다.
+     * 다른 기기나 그 전 갤럭시에는 이 설정이 없으므로 안내와 버튼을 보이지 않는다.
+     */
+    val isAvailable: Boolean
+        get() = Build.MANUFACTURER.equals("samsung", ignoreCase = true) && Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE
 
     /**
      * 자동 차단 스위치가 있는 화면을 연다. 앞의 것이 안 열리면 다음 것을 연다.
