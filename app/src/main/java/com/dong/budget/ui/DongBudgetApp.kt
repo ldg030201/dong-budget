@@ -181,6 +181,7 @@ fun DongBudgetApp(container: AppContainer, capturedToOpen: String? = null, onCap
                     onRequestDelete = viewModel::requestDelete,
                     onCancelDelete = viewModel::cancelDelete,
                     onConfirmDelete = viewModel::confirmDelete,
+                    onReorder = viewModel::reorder,
                     onBack = navigator::goBack,
                 )
             }

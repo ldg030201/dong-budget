@@ -40,6 +40,12 @@ class CategoryRepository(private val dao: CategoryDao) {
     }
 
     /**
+     * 분류 순서를 바꾼다. 거래 등록 화면의 분류 표도 이 순서를 따른다.
+     * '기타' 는 목록에 들어와도 옮기지 않고 늘 맨 뒤에 둔다(ETC_SORT_ORDER).
+     */
+    suspend fun reorder(orderedIds: List<Long>) = dao.reorder(orderedIds)
+
+    /**
      * 분류를 지운다. 그 분류로 적힌 거래는 같은 종류의 '기타' 로 옮긴다.
      * '기타' 자체는 지울 수 없다.
      */

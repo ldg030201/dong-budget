@@ -31,9 +31,24 @@ data class ManagedItem(
     val icon: String,
     val color: String,
     val transactionCount: Int,
-    /** '기타' 처럼 지울 수 없는 것은 false */
+    /** '기타' 처럼 지울 수 없는 것은 false. 이런 항목은 순서도 옮길 수 없고 늘 맨 뒤에 있다. */
     val deletable: Boolean,
-)
+) {
+    /** 끌어서 순서를 옮길 수 있는지 */
+    val movable: Boolean get() = deletable
+}
+
+/**
+ * [fromId] 항목을 [toId] 항목 자리로 옮긴 목록. 옮길 수 없으면 null
+ * - 옮길 수 없는 항목('기타')은 끌 수도 없고, 다른 항목이 그 자리로 들어갈 수도 없다.
+ */
+fun List<ManagedItem>.moved(fromId: Long, toId: Long): List<ManagedItem>? {
+    val from = indexOfFirst { it.id == fromId }
+    val to = indexOfFirst { it.id == toId }
+    if (from < 0 || to < 0 || from == to) return null
+    if (!this[from].movable || !this[to].movable) return null
+    return toMutableList().apply { add(to, removeAt(from)) }
+}
 
 data class CategoryManageUiState(
     val tab: ManageTab = ManageTab.EXPENSE,
@@ -125,6 +140,23 @@ class CategoryManageViewModel(
                 } else {
                     it.copy(addError = result.message())
                 }
+            }
+        }
+    }
+
+    /**
+     * 끌어서 바꾼 순서를 저장한다. 옮길 수 있는 항목만 넘긴다('기타' 는 늘 맨 뒤).
+     * 저장하면 목록 구독으로 바뀐 순서가 다시 들어온다.
+     */
+    fun reorder(items: List<ManagedItem>) {
+        val tab = _uiState.value.tab
+        val orderedIds = items.filter { it.movable }.map { it.id }
+        // 저장이 끝나기 전에 목록이 예전 순서로 잠깐 되돌아가 보이지 않게 먼저 바꿔 둔다
+        _uiState.update { if (it.tab == tab) it.copy(items = items) else it }
+        viewModelScope.launch {
+            when (tab) {
+                ManageTab.EXPENSE, ManageTab.INCOME -> categoryRepository.reorder(orderedIds)
+                ManageTab.PAYMENT -> paymentMethodRepository.reorder(orderedIds)
             }
         }
     }

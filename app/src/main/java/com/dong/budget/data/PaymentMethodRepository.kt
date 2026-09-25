@@ -69,6 +69,9 @@ class PaymentMethodRepository(private val dao: PaymentMethodDao) {
         }
     }
 
+    /** 결제수단 순서를 바꾼다. 거래 등록 화면의 결제수단 표도 이 순서를 따른다. */
+    suspend fun reorder(orderedIds: List<Long>) = dao.reorder(orderedIds)
+
     /** 결제수단을 지운다. 그 결제수단으로 적힌 거래는 결제수단 없이 남는다. */
     suspend fun delete(id: Long): Boolean {
         val method = dao.findById(id) ?: return false
