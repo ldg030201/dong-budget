@@ -2,7 +2,6 @@ package com.dong.budget.ui.permission
 
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import android.provider.Settings
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -11,6 +10,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.core.net.toUri
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import com.dong.budget.ui.components.ConfirmDialog
 
@@ -40,7 +40,7 @@ enum class AppPermission(val title: String, val message: String) {
     /** 이 권한을 켜는 설정 화면. 동계부 항목이 바로 열린다. */
     fun settingsIntent(context: Context): Intent = when (this) {
         INSTALL_UPDATES ->
-            Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:${context.packageName}"))
+            Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, "package:${context.packageName}".toUri())
     }
 }
 
@@ -62,7 +62,7 @@ fun PermissionDialog(permission: AppPermission, onGoToSettings: () -> Unit, onLa
             if (!opened) {
                 runCatching {
                     context.startActivity(
-                        Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${context.packageName}")),
+                        Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, "package:${context.packageName}".toUri()),
                     )
                 }
             }
