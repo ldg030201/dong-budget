@@ -89,7 +89,9 @@ val PATCH_NOTES: List<Release> =
                 ),
                 menu(
                     PatchMenu.SETTINGS,
+                    added("갤럭시에서 '보안 위험 자동 차단' 때문에 업데이트가 막히면 알려주고, 버튼을 누르면 그 설정 화면으로 바로 가요"),
                     changed("새 버전 확인을 6시간에 한 번에서 앱을 열 때마다로 바꿨어요. 새 버전이 나오면 바로 알 수 있어요"),
+                    fixed("업데이트 파일을 받는 도중 앱에 돌아오면 받던 파일이 지워져 설치가 실패하던 문제를 고쳤어요"),
                 ),
                 menu(
                     PatchMenu.COMMON,
