@@ -170,9 +170,14 @@ class ApkInstaller(private val context: Context) {
     /**
      * [version] 이 아닌 받아둔 설치 파일을 모두 지운다. null 이면 전부 지운다.
      * 업데이트 확인 결과와 맞춘다. 배포를 내린 버전의 파일이 남아 설치를 권하는 일이 없게 한다.
+     *
+     * 받는 중인 조각('.part')은 건드리지 않는다. 받는 도중 앱에 돌아오면 자동 확인이 돌면서 여기가 불리는데,
+     * 그때 조각을 지우면 받기가 끝나도 파일이 없어 '끝까지 받지 못했어요' 로 실패한다.
+     * 멈춘 채 남은 조각은 앱을 켤 때 [deleteStaleDownloads] 가 치운다.
      */
     fun keepOnly(version: String?) {
         directory.listFiles().orEmpty().forEach { file ->
+            if (file.name.endsWith(PART_SUFFIX)) return@forEach
             if (version == null || file != fileFor(version)) file.delete()
         }
     }
