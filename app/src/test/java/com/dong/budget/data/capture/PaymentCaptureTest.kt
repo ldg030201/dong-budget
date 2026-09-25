@@ -108,6 +108,32 @@ class PaymentCaptureTest {
     }
 
     @Test
+    fun `등록을 마친 결제는 거래를 지워도 다시 띄우지 않는다`() = runBlocking {
+        val capture = capture()
+        capture.post()
+        val key = prompt.asked.single().dedupKey
+        capture.onRegistered(key)
+        assertEquals(listOf(key), prompt.dismissed)
+        // 등록한 거래를 지웠다(가계부에는 없음). 그래도 답한 결제라 되살리지 않는다.
+        capture.restorePrompts(showing = emptySet())
+        assertTrue(prompt.restored.isEmpty())
+    }
+
+    @Test
+    fun `0_1_6 에서 등록만 하고 답함으로 안 남은 결제는 다시 연결될 때 정리한다`() = runBlocking {
+        val capture = capture()
+        capture.post()
+        val key = prompt.asked.single().dedupKey
+        // 0.1.6 처럼 알림만 치우고 기록은 그대로 둔 채 등록했다
+        registered += key
+        capture.restorePrompts(showing = emptySet())
+        // 그 뒤 거래를 지워도 되살리지 않는다
+        registered -= key
+        capture.restorePrompts(showing = emptySet())
+        assertTrue(prompt.restored.isEmpty())
+    }
+
+    @Test
     fun `결제 시각은 알림에 적힌 시각을 쓰고, 어긋나면 올라온 시각을 쓴다`() {
         val posted = clock
         assertEquals(posted - 5_000, PaymentCapture.paymentTime(posted - 5_000, posted))
@@ -128,6 +154,7 @@ class PaymentCaptureTest {
         var allowed = true
         val asked = mutableListOf<CapturedPayment>()
         val restored = mutableListOf<CapturedPayment>()
+        val dismissed = mutableListOf<String>()
 
         override fun canAsk() = allowed
 
@@ -136,6 +163,8 @@ class PaymentCaptureTest {
             if (quietly) restored += payment
         }
 
-        override fun dismiss(dedupKey: String) = Unit
+        override fun dismiss(dedupKey: String) {
+            dismissed += dedupKey
+        }
     }
 }

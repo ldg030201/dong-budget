@@ -9,7 +9,9 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -61,17 +63,20 @@ fun ConfirmDialog(
                     bottom = BudgetTheme.spacing.sectionPadding,
                 ),
             ) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = BudgetTheme.colors.textPrimary,
-                )
-                Spacer(Modifier.height(BudgetTheme.spacing.inlineGap))
-                Text(
-                    text = message,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = BudgetTheme.colors.textSecondary,
-                )
+                // 글이 길어 화면에 다 안 들어가면 글만 스크롤한다. 버튼은 항상 아래에 보이게 둔다.
+                Column(modifier = Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())) {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = BudgetTheme.colors.textPrimary,
+                    )
+                    Spacer(Modifier.height(BudgetTheme.spacing.inlineGap))
+                    Text(
+                        text = message,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = BudgetTheme.colors.textSecondary,
+                    )
+                }
                 Spacer(Modifier.height(BudgetTheme.spacing.sectionPadding * 1.5f))
                 Row(
                     modifier = Modifier.fillMaxWidth(),

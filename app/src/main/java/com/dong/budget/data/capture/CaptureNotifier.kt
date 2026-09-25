@@ -79,15 +79,15 @@ class CaptureNotifier(private val context: Context) : CapturePrompt {
         ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
 
     /**
-     * 누르면 동계부를 여는 Intent. 결제 내용은 담지 않고 열쇠만 담는다(CaptureStore 참고).
-     * 결제마다 identifier 를 달리해 서로 다른 PendingIntent 가 되게 한다. 같으면 뒤의 알림이 앞 알림의 열쇠를 덮어쓴다.
+     * 누르면 동계부를 여는 Intent. 결제 내용은 담지 않고 열쇠만 identifier 에 담는다(CaptureStore 참고).
+     * 결제마다 identifier 가 달라서 서로 다른 PendingIntent 가 된다. 같으면 뒤의 알림이 앞 알림의 열쇠를 덮어쓴다.
+     * extras 는 쓰지 않는다. 받는 쪽(MainActivity)이 extras 를 풀지 않아도 되게 하기 위함이다.
      */
     private fun openIntent(dedupKey: String): PendingIntent {
         val intent =
             Intent(context, MainActivity::class.java)
                 .setAction(ACTION_OPEN_CAPTURED)
                 .setIdentifier(dedupKey)
-                .putExtra(EXTRA_DEDUP_KEY, dedupKey)
                 // 동계부 위에 다른 화면(설정 앱 등)이 떠 있으면 걷어내고, 떠 있는 동계부 화면으로 보낸다(onNewIntent)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
         return PendingIntent.getActivity(context, 0, intent, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
@@ -96,7 +96,6 @@ class CaptureNotifier(private val context: Context) : CapturePrompt {
     companion object {
         const val CHANNEL_ID = "payment_capture"
         const val ACTION_OPEN_CAPTURED = "com.dong.budget.action.OPEN_CAPTURED"
-        const val EXTRA_DEDUP_KEY = "dedup_key"
         private const val NOTIFICATION_ID = 1
     }
 }

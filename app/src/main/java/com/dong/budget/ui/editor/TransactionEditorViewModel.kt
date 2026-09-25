@@ -150,7 +150,8 @@ class TransactionEditorViewModel(
             merchant = data.merchant,
             memo = data.memo.orEmpty(),
             occurredAt = Instant.ofEpochMilli(data.occurredAtMillis),
-            pendingPaymentName = data.paymentName?.takeIf { it.isNotBlank() },
+            // 저장할 때 만들 이름과 똑같이 다듬어 둔다. 그래야 이미 있는 결제수단과 맞춰 볼 수 있다.
+            pendingPaymentName = data.paymentName?.let(PaymentMethodRepository::normalizeName),
             dedupKey = data.dedupKey,
         )
     }
@@ -312,6 +313,11 @@ class TransactionEditorViewModel(
         }
         viewModelScope.launch {
             if (transactionId == null) {
+                // 이미 등록한 결제면 카드를 만들기 전에 멈춘다
+                if (state.dedupKey != null && repository.isRegistered(state.dedupKey)) {
+                    _uiState.update { it.copy(saveError = "이미 가계부에 등록한 결제예요") }
+                    return@launch
+                }
                 // 알림에서 읽은 카드가 아직 결제수단에 없으면 이때 만든다. 등록을 취소하면 만들지 않는다.
                 val paymentMethodId =
                     state.paymentMethodId ?: state.pendingPaymentName?.let { paymentMethodRepository.findOrCreate(it) }
