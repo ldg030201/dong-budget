@@ -28,6 +28,17 @@ sealed interface InstallEvent {
  * 그때 도착한 결과가 버려지면 사용자는 아무 안내도 못 받는다.
  */
 object InstallEvents {
+    /**
+     * 지금 진행 중인 설치 세션. 결과를 받을 때 이 세션의 것만 받는다.
+     * 앱이 다시 시작되면 [NO_SESSION] 으로 돌아가고, 그때는 어느 결과든 받는다.
+     */
+    @Volatile var activeSessionId: Int = NO_SESSION
+
+    const val NO_SESSION = -1
+
+    /** 새 세션을 만드는 중. 세션 번호는 늘 1 이상이라 어떤 결과와도 맞지 않는다. */
+    const val SESSION_PENDING = 0
+
     private val _events = MutableSharedFlow<InstallEvent>(replay = 1, extraBufferCapacity = 4)
     val events: SharedFlow<InstallEvent> = _events.asSharedFlow()
 

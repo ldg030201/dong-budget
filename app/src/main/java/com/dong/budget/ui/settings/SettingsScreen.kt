@@ -200,7 +200,7 @@ private fun UpdateSection(
         }
 
         is UpdateUiState.Downloading -> {
-            StatusText(if (state.progress >= 1f) "설치 화면을 여는 중이에요" else "${state.version} 을 내려받고 있어요")
+            StatusText(if (state.progress >= 1f) "설치를 준비하고 있어요" else "${state.version} 을 내려받고 있어요")
             Spacer(Modifier.height(BudgetTheme.spacing.itemGap))
             LinearProgressIndicator(
                 progress = { state.progress },
@@ -211,10 +211,11 @@ private fun UpdateSection(
         }
 
         UpdateUiState.AwaitingInstall -> {
-            StatusText("설치 화면에서 '업데이트'를 눌러주세요. 끝나면 앱이 닫히니 다시 열어주세요.")
+            // 확인창 없이 바로 설치될 수도 있고(자기 업데이트), 확인창이 뜰 수도 있다. 둘 다 안내한다.
+            StatusText("설치하고 있어요. 확인 창이 뜨면 '업데이트'를 눌러주세요. 끝나면 앱이 닫히니 다시 열어주세요.")
             Spacer(Modifier.height(BudgetTheme.spacing.inlineGap))
             // 스토어 밖에서 받은 앱은 Play 프로텍트가 한 번 더 묻는다. 여기서 '설치 안 함' 을 누르면 설치가 중단된다.
-            HintText("'Play 프로텍트' 창이 뜨면 '앱 스캔'을 누르거나, '자세히'를 눌러 스캔 없이 설치를 골라주세요.")
+            HintText("'앱 검사 권장됨'(Play 프로텍트) 창이 뜨면 '앱 검사'를 눌러주세요. '앱 설치 안함'을 누르면 설치가 멈춰요.")
             // 설치 화면이 뜨지 않거나 거기서 막히면 여기서 바로 다른 길로 갈 수 있게 한다
             Spacer(Modifier.height(BudgetTheme.spacing.itemGap))
             OtherWays(downloadedVersion, onInstallDownloaded, onOpenReleasePage)
