@@ -1,5 +1,6 @@
 package com.dong.budget.ui.settings
 
+import androidx.annotation.DrawableRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -21,15 +22,18 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.lifecycle.compose.LifecycleResumeEffect
+import com.dong.budget.R
 import com.dong.budget.data.settings.ThemeMode
 import com.dong.budget.data.update.GalaxyAutoBlocker
 import com.dong.budget.ui.components.BudgetChip
 import com.dong.budget.ui.components.BudgetPrimaryButton
-import com.dong.budget.ui.components.BudgetSecondaryButton
+import com.dong.budget.ui.components.BudgetSmallButton
+import com.dong.budget.ui.components.BudgetTextButton
 import com.dong.budget.ui.components.BudgetTopAppBar
 import com.dong.budget.ui.permission.AppPermission
 import com.dong.budget.ui.permission.PermissionDialog
@@ -99,6 +103,7 @@ fun SettingsScreen(
                             label = mode.label(),
                             selected = mode == themeMode,
                             onClick = { onThemeModeChange(mode) },
+                            icon = mode.iconRes(),
                         )
                     }
                 }
@@ -106,18 +111,28 @@ fun SettingsScreen(
                 Spacer(Modifier.height(BudgetTheme.spacing.sectionGap))
 
                 SectionTitle("앱 정보")
-                Text(
-                    text = "현재 버전 $currentVersion",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = BudgetTheme.colors.textPrimary,
-                )
+                // 새 버전 확인은 어느 상태에서든 버전 옆 버튼으로 다시 할 수 있다.
+                // 새 버전을 보고 있는 사이 더 새 버전이 나와도 눌러서 바로 최신으로 바꿔 볼 수 있게 하기 위함이다.
+                // 확인 중이거나 내려받는 중에는 막는다. 내려받던 화면이 확인 결과로 덮이면 진행 상황이 사라진다.
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "현재 버전 $currentVersion",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = BudgetTheme.colors.textPrimary,
+                        modifier = Modifier.weight(1f),
+                    )
+                    BudgetSmallButton(
+                        text = "업데이트 확인",
+                        onClick = onCheckUpdate,
+                        enabled = updateState !is UpdateUiState.Checking && updateState !is UpdateUiState.Downloading,
+                    )
+                }
 
-                Spacer(Modifier.height(BudgetTheme.spacing.itemGap))
+                Spacer(Modifier.height(BudgetTheme.spacing.inlineGap))
 
                 UpdateSection(
                     state = updateState,
                     downloadedVersion = downloadedVersion,
-                    onCheckUpdate = onCheckUpdate,
                     onDownloadUpdate = { withInstallPermission(onDownloadUpdate) },
                     onInstallDownloaded = { withInstallPermission(onInstallDownloaded) },
                     onOpenReleasePage = openReleasePage,
@@ -133,33 +148,26 @@ fun SettingsScreen(
 private fun UpdateSection(
     state: UpdateUiState,
     downloadedVersion: String?,
-    onCheckUpdate: () -> Unit,
     onDownloadUpdate: () -> Unit,
     onInstallDownloaded: () -> Unit,
     onOpenReleasePage: () -> Unit,
 ) {
     when (state) {
-        UpdateUiState.Idle -> {
-            BudgetSecondaryButton(text = "업데이트 확인", onClick = onCheckUpdate)
-            // 받아만 두고 설치하지 못한 채 앱이 꺼졌으면, 다시 받지 않고 바로 설치할 수 있게 보여준다
+        // 확인은 버전 옆 버튼으로 한다. 받아만 두고 설치하지 못한 채 앱이 꺼졌으면 다시 받지 않고 설치할 수 있게 보여준다.
+        UpdateUiState.Idle ->
             if (downloadedVersion != null) {
-                Spacer(Modifier.height(BudgetTheme.spacing.sectionPadding))
                 StatusText("$downloadedVersion 설치 파일을 받아뒀어요")
-                Spacer(Modifier.height(BudgetTheme.spacing.itemGap))
-                OtherWays(downloadedVersion, onInstallDownloaded, onOpenReleasePage)
+                OtherWays(downloadedVersion, onInstallDownloaded, onOpenReleasePage, title = null)
             }
-        }
 
         UpdateUiState.Checking ->
             StatusText("새 버전이 있는지 확인하고 있어요")
 
-        UpdateUiState.UpToDate -> {
+        UpdateUiState.UpToDate ->
             StatusText("최신 버전을 쓰고 있어요")
-            Spacer(Modifier.height(BudgetTheme.spacing.itemGap))
-            BudgetSecondaryButton(text = "다시 확인", onClick = onCheckUpdate)
-        }
 
         is UpdateUiState.Available -> {
+            Spacer(Modifier.height(BudgetTheme.spacing.inlineGap))
             Text(
                 text = "새 버전(${state.version})이 있어요",
                 style = MaterialTheme.typography.titleMedium,
@@ -182,7 +190,6 @@ private fun UpdateSection(
             // 앱이 자기 자신을 업데이트하면 안드로이드가 실행 중인 앱을 종료한다.
             // 미리 알려주지 않으면 앱이 죽은 줄 안다.
             HintText("설치가 끝나면 앱이 닫혀요. 다시 열어주세요.")
-            Spacer(Modifier.height(BudgetTheme.spacing.itemGap))
             OtherWays(downloadedVersion, onInstallDownloaded, onOpenReleasePage)
             if (state.notes.isNotEmpty()) {
                 Spacer(Modifier.height(BudgetTheme.spacing.sectionPadding))
@@ -218,7 +225,6 @@ private fun UpdateSection(
             // 스토어 밖에서 받은 앱은 Play 프로텍트가 한 번 더 묻는다. 여기서 '설치 안 함' 을 누르면 설치가 중단된다.
             HintText("'앱 검사 권장됨'(Play 프로텍트) 창이 뜨면 '앱 검사'를 눌러주세요. '앱 설치 안함'을 누르면 설치가 멈춰요.")
             // 설치 화면이 뜨지 않거나 거기서 막히면 여기서 바로 다른 길로 갈 수 있게 한다
-            Spacer(Modifier.height(BudgetTheme.spacing.itemGap))
             OtherWays(downloadedVersion, onInstallDownloaded, onOpenReleasePage)
         }
 
@@ -229,49 +235,54 @@ private fun UpdateSection(
                 // 기기마다 설치기가 달라 실패 이유가 제각각이다. 시스템 원문을 복사해서 알려줄 수 있게 선택 가능하게 둔다.
                 SelectionContainer { HintText("시스템 메시지: ${state.detail}") }
             }
-            Spacer(Modifier.height(BudgetTheme.spacing.itemGap))
             // 갤럭시 자동 차단이 켜져 있으면 어느 길로 설치해도 막힌다. 끄는 화면으로 가는 길을 맨 앞에 둔다.
             if (state.suggestGalaxySecurity) {
                 val context = LocalContext.current
+                Spacer(Modifier.height(BudgetTheme.spacing.itemGap))
                 BudgetPrimaryButton(text = "보안 위험 자동 차단 열기", onClick = { GalaxyAutoBlocker.open(context) })
                 Spacer(Modifier.height(BudgetTheme.spacing.inlineGap))
                 HintText(
-                    "자동 차단을 끄고 돌아와서 '다시 확인'을 누르면 다시 설치할 수 있어요. " +
+                    "자동 차단을 끄고 돌아와서 '업데이트 확인'을 누르면 다시 설치할 수 있어요. " +
                         "설치가 끝나면 다시 켜도 되지만, 다음 업데이트 때 다시 꺼야 해요.",
                 )
-                Spacer(Modifier.height(BudgetTheme.spacing.itemGap))
             }
-            BudgetSecondaryButton(text = "다시 확인", onClick = onCheckUpdate)
             // 서명이 다르거나 저장 공간이 없으면 다른 길로 설치해도 똑같이 막힌다. 헛걸음을 권하지 않는다.
             if (state.canTryOtherWays) {
-                Spacer(Modifier.height(BudgetTheme.spacing.itemGap))
                 // 자동 차단이 켜져 있으면 아래 길도 똑같이 막힌다. 끈 뒤에도 막힐 때 쓰는 길이라고 알려준다.
-                if (state.suggestGalaxySecurity) {
-                    HintText("자동 차단을 끈 뒤에도 똑같이 막히면 아래 방법을 써보세요.")
-                    Spacer(Modifier.height(BudgetTheme.spacing.inlineGap))
-                }
-                OtherWays(downloadedVersion, onInstallDownloaded, onOpenReleasePage)
+                OtherWays(
+                    downloadedVersion,
+                    onInstallDownloaded,
+                    onOpenReleasePage,
+                    title = if (state.suggestGalaxySecurity) "자동 차단을 끈 뒤에도 막히면" else "설치가 안 되면",
+                )
             }
         }
     }
 }
 
 /**
- * 앱 안 설치가 안 될 때 쓰는 다른 길. 위에서부터 손이 덜 가는 순서다.
- *   1. 받아둔 파일로 직접 설치: 이미 받은 파일을 시스템 설치 화면으로 연다. 파일 관리자에서 APK 를 누르는 것과 같다.
- *   2. 브라우저에서 직접 받기: 처음 설치할 때와 같은 길이라 어느 기기에서나 된다.
+ * 앱 안 설치가 안 될 때 쓰는 다른 길. 자주 쓰지 않으므로 글자 버튼 한 줄로 둔다.
+ *   1. 받은 파일로 설치: 이미 받은 파일을 시스템 설치 화면으로 연다. 파일 관리자에서 APK 를 누르는 것과 같다.
+ *   2. 브라우저에서 받기: 처음 설치할 때와 같은 길이라 어느 기기에서나 된다. 기록은 그대로 남는다.
+ *
+ * @param title 줄 위에 붙일 설명. null 이면 붙이지 않는다.
  */
 @Composable
-private fun OtherWays(downloadedVersion: String?, onInstallDownloaded: () -> Unit, onOpenReleasePage: () -> Unit) {
-    if (downloadedVersion != null) {
-        BudgetSecondaryButton(text = "받은 파일로 직접 설치 ($downloadedVersion)", onClick = onInstallDownloaded)
-        Spacer(Modifier.height(BudgetTheme.spacing.inlineGap))
-        HintText("앱 안에서 설치가 안 되면 받아둔 파일을 설치 화면으로 바로 열어요.")
-        Spacer(Modifier.height(BudgetTheme.spacing.itemGap))
+private fun OtherWays(
+    downloadedVersion: String?,
+    onInstallDownloaded: () -> Unit,
+    onOpenReleasePage: () -> Unit,
+    title: String? = "설치가 안 되면",
+) {
+    Spacer(Modifier.height(BudgetTheme.spacing.itemGap))
+    if (title != null) HintText(title)
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        if (downloadedVersion != null) {
+            BudgetTextButton(text = "받은 파일로 설치", onClick = onInstallDownloaded)
+            Text(text = "·", style = MaterialTheme.typography.labelLarge, color = BudgetTheme.colors.textSecondary)
+        }
+        BudgetTextButton(text = "브라우저에서 받기", onClick = onOpenReleasePage)
     }
-    BudgetSecondaryButton(text = "브라우저에서 직접 받기", onClick = onOpenReleasePage)
-    Spacer(Modifier.height(BudgetTheme.spacing.inlineGap))
-    HintText("그래도 안 되면 여기서 설치 파일(APK)을 받아 열어주세요. 기록은 그대로 남아요.")
 }
 
 @Composable
@@ -304,6 +315,14 @@ private fun SectionTitle(text: String) {
             bottom = BudgetTheme.spacing.inlineGap,
         ),
     )
+}
+
+/** 테마 칩 아이콘. 기기 설정은 휴대폰, 밝게는 해, 어둡게는 달 */
+@DrawableRes
+private fun ThemeMode.iconRes(): Int = when (this) {
+    ThemeMode.SYSTEM -> R.drawable.ic_sym_smartphone
+    ThemeMode.LIGHT -> R.drawable.ic_sym_light_mode
+    ThemeMode.DARK -> R.drawable.ic_sym_dark_mode
 }
 
 private fun ThemeMode.label(): String = when (this) {
