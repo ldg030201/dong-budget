@@ -49,7 +49,7 @@ val PATCH_NOTES: List<Release> =
     listOf(
         Release(
             version = "0.1.3",
-            date = null,
+            date = LocalDate.of(2026, 9, 25),
             menus =
             listOf(
                 menu(
