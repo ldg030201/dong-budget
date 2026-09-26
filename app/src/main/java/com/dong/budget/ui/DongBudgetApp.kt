@@ -4,6 +4,9 @@ import android.content.Context
 import android.widget.Toast
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
@@ -15,8 +18,11 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.Lifecycle
@@ -60,6 +66,9 @@ import com.dong.budget.ui.permission.PermissionGate
 import com.dong.budget.ui.settings.SettingsScreen
 import com.dong.budget.ui.settings.SettingsViewModel
 import com.dong.budget.ui.shell.HomeShell
+import com.dong.budget.ui.stats.StatsScreen
+import com.dong.budget.ui.stats.StatsTab
+import com.dong.budget.ui.stats.StatsViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -191,8 +200,27 @@ fun DongBudgetApp(container: AppContainer, capturedToOpen: String? = null, onCap
                 )
             }
 
-            entry<StatisticsKey> {
-                PlaceholderSubflow(title = "통계", onClose = navigator::goBack)
+            entry<StatisticsKey>(metadata = statsTransitions()) {
+                val viewModel: StatsViewModel = viewModel(factory = statsViewModelFactory(container))
+                val state by viewModel.uiState.collectAsStateWithLifecycle()
+                // 하위 탭은 여기서 들고 있다. 회전하거나 상세에 다녀와도 그대로고, 통계를 나갔다 오면 월별부터 다시 시작한다.
+                var tab by rememberSaveable { mutableStateOf(StatsTab.MONTHLY) }
+                // 들어오는 전환 동안 홈의 '통계' 를 연달아 누르면 두 번째 탭이 같은 높이의 떠 있는 메뉴('일별' 자리)에 떨어진다.
+                // 알림 화면처럼 자리 잡은 뒤(RESUMED)에만 탭 선택과 줄 누름을 받는다. 나가는 중이나 등록창이 올라오는 중에 누른 것도 무시한다.
+                val lifecycle = LocalLifecycleOwner.current.lifecycle
+                val settled = { lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED) }
+                StatsScreen(
+                    state = state,
+                    selectedTab = tab,
+                    onSelectTab = { selected -> if (settled()) tab = selected },
+                    onPreviousMonth = viewModel::showPreviousMonth,
+                    onNextMonth = viewModel::showNextMonth,
+                    onThisMonth = viewModel::showThisMonth,
+                    onShowMonth = { month -> if (settled()) viewModel.showMonth(month) },
+                    onOpenDetail = { key -> if (settled()) navigator.go(key) },
+                    onOpenTransaction = { id -> if (settled()) navigator.go(TransactionEditorKey(id)) },
+                    onBack = navigator::goBack,
+                )
             }
 
             entry<SettingsKey> {
@@ -268,6 +296,24 @@ private fun modalTransitions(): Map<String, Any> = NavDisplay.transitionSpec {
     }
 
 /**
+ * 통계는 셸을 그대로 둔 채 그 위에서 빠르게 나타나고 사라진다. 두 화면이 함께 흐려지는 순간을 만들지 않는다.
+ *
+ * 들어갈 때도 나갈 때도 이 설정이 쓰인다. NavDisplay 는 두 화면 중 위에 쌓인 쪽(통계)의 설정을 고른다.
+ * 아래 떠 있는 메뉴는 StatsScreen 이 이 전환에 맞춰 따로 떠오르고 가라앉게 한다.
+ */
+private fun statsTransitions(): Map<String, Any> = NavDisplay.transitionSpec {
+    fadeIn(tween(STATS_FADE_MS)) togetherWith ExitTransition.KeepUntilTransitionsFinished
+} +
+    NavDisplay.popTransitionSpec {
+        EnterTransition.None togetherWith fadeOut(tween(STATS_FADE_MS))
+    } +
+    NavDisplay.predictivePopTransitionSpec { _: Int ->
+        EnterTransition.None togetherWith fadeOut(tween(STATS_FADE_MS))
+    }
+
+private const val STATS_FADE_MS = 200
+
+/**
  * 결제 등록 알림을 연다. 알림창의 알림을 눌렀을 때와 알림 화면에서 눌렀을 때 똑같이 동작한다.
  * 이미 등록한 결제면 등록창을 열지 않고 알려준다(PaymentCapture.open).
  */
@@ -331,4 +377,8 @@ private fun patchNotesViewModelFactory(container: AppContainer) = viewModelFacto
 
 private fun categoryManageViewModelFactory(container: AppContainer) = viewModelFactory {
     initializer { CategoryManageViewModel(container.categoryRepository, container.paymentMethodRepository) }
+}
+
+private fun statsViewModelFactory(container: AppContainer) = viewModelFactory {
+    initializer { StatsViewModel(container.transactionRepository) }
 }
