@@ -82,7 +82,7 @@ val PATCH_NOTES: List<Release> =
                 ),
                 menu(
                     PatchMenu.PATCH_NOTES,
-                    improved("버전을 눌러 바뀐 점을 접고 펼칠 수 있어요. 처음에는 지금 버전과 새 버전만 펼쳐져 있어요"),
+                    improved("버전을 눌러 바뀐 점을 접고 펼칠 수 있어요. 처음에는 가장 최근 버전만 펼쳐져 있어요"),
                 ),
             ),
         ),
