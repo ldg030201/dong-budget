@@ -57,7 +57,7 @@ internal fun Insight.detailKey(month: YearMonth): StatsDetailKey? {
 internal const val TREND_TITLE = "최근 6개월"
 
 /** 기록한 달이 모자라 차트와 표 대신 두는 안내 */
-internal const val TREND_FALLBACK = "두 달 넘게 기록하면 달마다 비교해 보여 드려요"
+internal const val TREND_FALLBACK = "기록한 달이 두 달은 되어야 달마다 비교해 보여 드려요"
 
 /** 6개월 막대 차트의 화면 읽기 요약. 값은 표가 줄마다 읽는다. */
 internal const val TREND_CHART_DESCRIPTION = "최근 6개월 지출과 수입 막대 그래프. 아래 표에 달마다 금액이 있어요"

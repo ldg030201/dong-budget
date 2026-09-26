@@ -124,9 +124,12 @@ fun formatDayShort(date: LocalDate): String = dayFormatter.format(date)
  * 합을 100% 에 억지로 맞추지 않는다.
  */
 fun formatShare(share: Double): String {
-    val percent = (share * 100).roundToLong()
+    // 비율은 나눗셈 결과(소수)라 딱 28.5% 가 28.4999… 로 나올 수 있다. 정수 반올림(divRound)과 같은 값이 나오게 문턱에서만 봐준다.
+    val percent = (share * 100 + SHARE_TOLERANCE).roundToLong()
     return if (share > 0 && percent == 0L) "1% 미만" else "$percent%"
 }
+
+private const val SHARE_TOLERANCE = 1e-9
 
 /** 몇 배인지. 소수 첫째 자리까지 반올림한다. 1.8 → "1.8배" */
 fun formatRatio(ratio: Double): String = String.format(KOREA, "%.1f배", ratio)

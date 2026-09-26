@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -154,6 +155,16 @@ private fun TableRow(cells: List<String>, style: TextStyle, color: Color, modifi
                 color = color,
                 textAlign = if (isMonth) TextAlign.Start else TextAlign.End,
                 maxLines = 1,
+                // 칸보다 긴 금액을 글자 단위로 끊으면 "+1,500,00" 처럼 다른 금액으로 읽힌다. 줄여서 한 줄에 맞춘다.
+                autoSize =
+                if (isMonth) {
+                    null
+                } else {
+                    TextAutoSize.StepBased(
+                        minFontSize = BudgetTheme.amount.chartAxis.fontSize,
+                        maxFontSize = style.fontSize,
+                    )
+                },
                 modifier = Modifier.weight(if (isMonth) MONTH_COLUMN_WEIGHT else 1f),
             )
         }

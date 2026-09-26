@@ -1,6 +1,8 @@
 package com.dong.budget.ui.stats.calc
 
 import com.dong.budget.ui.stats.Breakdown
+import com.dong.budget.ui.stats.BreakdownEntry
+import com.dong.budget.ui.stats.EntryChange
 import com.dong.budget.ui.stats.Insight
 import com.dong.budget.ui.stats.WeekdayStats
 import kotlin.math.abs
@@ -15,10 +17,17 @@ import kotlin.math.abs
  * @param weekday 요일별 하루 평균(창이 2주보다 짧으면 null)
  * @param counted 평균에 넣는 날 범위
  * @param noSpendDays counted 안에서 돈 안 쓴 날 수
+ * @param previousOnly 비교 창의 지난 쪽에만 있던 지출 분류(이 달엔 0). 증감 후보에만 들어간다
  */
-fun insights(expense: Breakdown, weekday: WeekdayStats?, counted: IntRange, noSpendDays: Int?): List<Insight> = listOfNotNull(
+fun insights(
+    expense: Breakdown,
+    weekday: WeekdayStats?,
+    counted: IntRange,
+    noSpendDays: Int?,
+    previousOnly: List<BreakdownEntry> = emptyList(),
+): List<Insight> = listOfNotNull(
     topShare(expense),
-    categoryChange(expense),
+    categoryChange(expense.entries + previousOnly),
     weekPattern(weekday),
     noSpend(counted, noSpendDays),
 ).take(MAX_INSIGHTS)
@@ -32,20 +41,24 @@ private fun topShare(expense: Breakdown): Insight.TopShare? {
 }
 
 /**
- * b. 지난달 대비 가장 크게 달라진 분류. 차이가 3만원 이상이면서 지난 값의 30% 이상이어야 한다.
+ * b. 지난달 대비 달라진 분류 가운데, 차이가 3만원 이상이면서 지난 값의 30% 이상인 것 중 가장 크게 달라진 분류.
  * 지난 값이 0 이면 비율을 낼 수 없어 금액 조건만 본다. 같은 차이면 목록에서 앞선(금액이 큰) 분류다.
+ * 문턱을 먼저 거른다. 문턱에 못 미친 큰 분류가 문턱을 넘은 다른 분류를 가리지 않게.
  */
-private fun categoryChange(expense: Breakdown): Insight.CategoryChange? {
-    val candidate = expense.entries
+private fun categoryChange(candidates: List<BreakdownEntry>): Insight.CategoryChange? {
+    val (entry, change) = candidates
         .mapNotNull { entry -> entry.change?.let { entry to it } }
+        .filter { (_, change) -> change.isNotable() }
         .maxByOrNull { (_, change) -> abs(change.current - change.previous) }
         ?: return null
-    val (entry, change) = candidate
-    val delta = abs(change.current - change.previous)
-    val previous = abs(change.previous)
-    if (delta < CHANGE_MIN_AMOUNT) return null
-    if (previous > 0 && delta * PERCENT < CHANGE_MIN_PERCENT * previous) return null
     return Insight.CategoryChange(entry, change)
+}
+
+/** 말할 만한 차이인지. 3만원 이상이면서 지난 값의 30% 이상(지난 값이 0 이면 금액만) */
+private fun EntryChange.isNotable(): Boolean {
+    val delta = abs(current - previous)
+    val base = abs(previous)
+    return delta >= CHANGE_MIN_AMOUNT && (base == 0L || delta * PERCENT >= CHANGE_MIN_PERCENT * base)
 }
 
 /**

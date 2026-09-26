@@ -5,6 +5,9 @@ import com.dong.budget.data.db.TransactionType.TRANSFER
 import com.dong.budget.testing.day
 import com.dong.budget.testing.tx
 import com.dong.budget.ui.home.Totals
+import com.dong.budget.ui.home.compareSpending
+import com.dong.budget.ui.home.localDate
+import com.dong.budget.ui.stats.Insight
 import com.dong.budget.ui.stats.Period
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -135,5 +138,18 @@ class BuildStatisticsTest {
         // 누적과 속도는 지난달 기록(이체 말고)이 없어서 지난달 쪽이 없다
         assertNull(state.monthly.flow!!.previous)
         assertNull(state.monthly.pace)
+    }
+
+    @Test
+    fun `지난달을 달 중간부터 기록했으면 분류별 증감을 내지 않고 요약 비교는 홈과 같다`() {
+        // 9월 20일에 기록을 시작했다. 지난 쪽 창(9월 1~10일)은 기록 전이라 0원으로 들어가면 모두 '늘었어요' 가 된다.
+        val rows = listOf(tx("2026-09-20", 50_000, categoryId = 1), tx("2026-10-03", 150_000, categoryId = 1))
+        val october = YearMonth.of(2026, 10)
+        val today = day("2026-10-10")
+        val state = buildStatistics(october, today, rows, day("2026-09-20"))
+        assertTrue(state.expenseByCategory.entries.all { it.change == null })
+        assertTrue(state.monthly.insights.none { it is Insight.CategoryChange })
+        val byMonth = rows.groupBy { YearMonth.from(it.localDate()) }
+        assertEquals(compareSpending(october, today, byMonth[october].orEmpty(), byMonth[september].orEmpty()), state.monthly.comparison)
     }
 }

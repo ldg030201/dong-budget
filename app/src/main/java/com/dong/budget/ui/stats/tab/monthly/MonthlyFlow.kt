@@ -47,6 +47,9 @@ internal fun FlowSection(
 ) {
     val colors = BudgetTheme.colors
     val lastDay = flow.month.lengthOfMonth()
+    // 지난달 선이 없으면 이번 달 선 끝(오늘) 뒤에는 읽을 값이 없다. 거기까지만 고른다
+    val lastReadable = if (flow.previous != null) lastDay else flow.thisMonth.size
+    val picked = selectedDay?.coerceAtMost(lastReadable)
     // 오늘이 이 달에 있을 때만 x축에 오늘을 적는다
     val todayDay = today.dayOfMonth.takeIf { YearMonth.from(today) == flow.month }
     val lines =
@@ -61,7 +64,7 @@ internal fun FlowSection(
                 ),
             )
         }
-    val xLabels = remember(lastDay, todayDay, selectedDay) { dailyAxisLabels(lastDay, today = todayDay, selected = selectedDay) }
+    val xLabels = remember(lastDay, todayDay, picked) { dailyAxisLabels(lastDay, today = todayDay, selected = picked) }
 
     StatsSection(modifier = modifier, title = title) {
         if (flow.previous != null) {
@@ -78,12 +81,12 @@ internal fun FlowSection(
             slotCount = lastDay,
             contentDescription = flowDescription(flow),
             xLabels = xLabels,
-            selectedIndex = selectedDay?.minus(1),
-            onSelect = { index -> onSelectDay(index + 1) },
+            selectedIndex = picked?.minus(1),
+            onSelect = { index -> onSelectDay(minOf(index + 1, lastReadable)) },
         )
         // 늘 보이는 읽기 줄. 고른 날이 오늘 뒤면 이번 달 값은 빠지고 지난달 값만 적힌다.
         Text(
-            text = flowReading(flow, selectedDay ?: flow.thisMonth.size),
+            text = flowReading(flow, picked ?: flow.thisMonth.size),
             style = MaterialTheme.typography.bodyMedium,
             color = BudgetTheme.colors.textPrimary,
         )

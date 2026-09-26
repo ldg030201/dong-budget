@@ -68,7 +68,9 @@ fun spendRatioSentence(totals: Totals, period: Period): SpendRatioSentence {
         expense < 0 -> SpendRatioSentence("이 달에는 쓴 돈보다 돌려받은 돈이 많아요", null, false)
 
         expense <= income -> {
-            val percent = divRound(expense * PERCENT, income)
+            // 0 < 지출 < 수입인데 반올림하면 0% 나 100% 가 된다. 그러면 아래 '남은 돈' 줄과 어긋나서 1~99 로 묶는다.
+            val rounded = divRound(expense * PERCENT, income)
+            val percent = if (expense in 1 until income) rounded.coerceIn(1L, PERCENT - 1L) else rounded
             SpendRatioSentence("수입의 $percent%를 썼어요", "${PERCENT - percent}%가 남았어요", false)
         }
 
@@ -103,15 +105,24 @@ fun insightSentence(insight: Insight): String = when (insight) {
 }
 
 /** 이번 달 속도 문장. 하루 허용액은 대략이 아니라 그대로 쓸 돈이라 전체 금액으로 적는다. */
-fun paceSentence(pace: Pace): String = when {
-    pace.remaining > 0 -> {
-        val allowance = pace.dailyAllowance ?: divRound(pace.remaining, pace.daysLeft)
-        "지난달만큼 쓰려면 남은 ${pace.daysLeft}일 동안 하루 ${formatAmount(allowance)}원까지 쓸 수 있어요"
+fun paceSentence(pace: Pace): String {
+    // 미리 적은 지출을 빼기 전, 오늘까지 실제로 쓴 돈으로 본 남은 돈(T₀ − S)
+    val beforeScheduled = pace.remaining + pace.scheduled
+    return when {
+        pace.remaining > 0 -> {
+            val allowance = pace.dailyAllowance ?: divRound(pace.remaining, pace.daysLeft)
+            "지난달만큼 쓰려면 남은 ${pace.daysLeft}일 동안 하루 ${formatAmount(allowance)}원까지 쓸 수 있어요"
+        }
+
+        // 아직은 덜 썼는데 미리 적은 지출까지 치면 지난달만큼(또는 넘게) 쓰게 된다
+        beforeScheduled > 0 && pace.remaining == 0L -> "미리 적은 지출까지 치면 지난달 전체만큼 써요"
+
+        beforeScheduled > 0 -> "미리 적은 지출까지 치면 지난달 전체보다 ${formatCompactWon(-pace.remaining)} 더 써요"
+
+        beforeScheduled == 0L -> "벌써 지난달 전체만큼 썼어요"
+
+        else -> "벌써 지난달 전체보다 ${formatCompactWon(-beforeScheduled)} 더 썼어요"
     }
-
-    pace.remaining == 0L -> "벌써 지난달 전체만큼 썼어요"
-
-    else -> "벌써 지난달 전체보다 ${formatCompactWon(-pace.remaining)} 더 썼어요"
 }
 
 /**

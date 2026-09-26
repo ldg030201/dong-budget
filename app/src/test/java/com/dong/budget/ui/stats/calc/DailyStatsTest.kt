@@ -177,6 +177,11 @@ class DailyStatsTest {
     // ── 요일별 ──────────────────────────────────────────────────────────
 
     @Test
+    fun `오지 않은 달은 요일 통계가 없다`() {
+        assertNull(weekdayStats(YearMonth.of(2026, 10), day("2026-09-27"), day("2025-01-01"), emptyList()))
+    }
+
+    @Test
     fun `요일 창이 13일이면 없고 14일이면 있다`() {
         // 9월 1일에 시작. 13일이면 13일치, 14일이면 14일치
         assertNull(weekdayStats(september, day("2026-09-13"), day("2026-09-01"), emptyList()))

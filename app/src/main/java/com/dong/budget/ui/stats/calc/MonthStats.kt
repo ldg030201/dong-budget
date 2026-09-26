@@ -51,19 +51,34 @@ private fun cumulative(rows: List<TransactionListItem>, lastDay: Int): List<Long
 
 /**
  * 이번 달 속도: 지난달만큼 쓰려면 남은 날 하루에 얼마까지 쓸 수 있는지.
- * 예측이 아니라 지난달이라는 기준에 견준 값이다. 오늘 뒤 날짜로 미리 적은 거래는 아직 쓴 돈에 넣지 않는다.
+ * 예측이 아니라 지난달이라는 기준에 견준 값이다. 오늘 뒤 날짜로 미리 적은 지출은 아직 쓴 돈은 아니지만
+ * 남은 날 안에 나갈 돈이라 쓸 수 있는 돈에서 뺀다.
  *
- * @return 이번 달이 아니거나, 지난달 기록이 없거나, 지난달 지출이 0 이하면 null. 견줄 기준이 없다.
+ * @return 이번 달이 아니거나, 지난달 기록이 없거나, 지난달이 기록을 달 중간에 시작한 달이거나(한 달을 다 세지 않았다),
+ *   지난달 지출이 0 이하면 null. 견줄 기준이 없다.
  */
-fun pace(month: YearMonth, today: LocalDate, current: List<TransactionListItem>, previous: List<TransactionListItem>): Pace? {
+fun pace(
+    month: YearMonth,
+    today: LocalDate,
+    current: List<TransactionListItem>,
+    previous: List<TransactionListItem>,
+    firstRecord: LocalDate?,
+): Pace? {
     if (periodOf(month, today) != Period.CURRENT || previous.none { it.isRecord }) return null
+    if (startsMidMonth(month.minusMonths(1), firstRecord)) return null
     val lastMonthTotal = previous.totals().expense
     if (lastMonthTotal <= 0) return null
     val spent = current.filter { !it.localDate().isAfter(today) }.totals().expense
+    val scheduled = current.totals().expense - spent
     // 오늘도 아직 쓸 수 있는 날이라 남은 날에 넣는다
     val daysLeft = month.lengthOfMonth() - today.dayOfMonth + 1
-    val remaining = lastMonthTotal - spent
-    return Pace(remaining = remaining, daysLeft = daysLeft, dailyAllowance = if (remaining > 0) divRound(remaining, daysLeft) else null)
+    val remaining = lastMonthTotal - spent - scheduled
+    return Pace(
+        remaining = remaining,
+        scheduled = scheduled,
+        daysLeft = daysLeft,
+        dailyAllowance = if (remaining > 0) divRound(remaining, daysLeft) else null,
+    )
 }
 
 /** 고른 달까지 최근 [TREND_MONTHS] 달. 오래된 달이 앞이다. 해를 넘어도 그대로 이어진다(2027년 3월이면 2026년 10월부터). */

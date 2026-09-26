@@ -80,6 +80,28 @@ class InsightsTest {
     }
 
     @Test
+    fun `가장 큰 차이가 비율 문턱에 못 미치면 문턱을 넘는 다음 분류를 말한다`() {
+        val food = entry(1, 580_000, previous = 500_000) // 8만 차이지만 16%
+        val shopping = entry(2, 120_000, previous = 50_000) // 7만 차이, 140%
+        val result = insights(changesOnly(food, shopping), null, IntRange.EMPTY, null).single() as Insight.CategoryChange
+        assertEquals(GroupKey.Id(2), result.entry.key)
+    }
+
+    @Test
+    fun `이 달에 0원이 된 분류도 가장 크게 줄어든 분류로 말한다`() {
+        val food = entry(1, 130_000, previous = 100_000)
+        val travel = entry(2, 0, previous = 400_000)
+        val result = insights(
+            changesOnly(food),
+            null,
+            IntRange.EMPTY,
+            null,
+            previousOnly = listOf(travel),
+        ).single() as Insight.CategoryChange
+        assertEquals(GroupKey.Id(2), result.entry.key)
+    }
+
+    @Test
     fun `주말과 평일의 하루 평균이 문턱만큼 벌어져야 말한다`() {
         assertEquals(listOf<Insight>(Insight.WeekPattern(true, 1.3)), insights(none, weekday(1.3), IntRange.EMPTY, null))
         assertTrue(insights(none, weekday(1.29), IntRange.EMPTY, null).isEmpty())

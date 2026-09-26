@@ -130,10 +130,12 @@ fun defaultDay(period: Period, today: LocalDate, peak: DayPeak?, days: List<DayS
  * 평균의 분모는 창 안의 그 요일 날 수다. 돈을 안 쓴 날도 넣어야 '그 요일에 보통 얼마 쓰나' 가 된다.
  *
  * @param rows 창을 덮는 거래(고른 달과 앞선 두 달). 창 밖 거래는 무시한다.
- * @return 기록이 없거나 창이 [MIN_WEEKDAY_WINDOW_DAYS] 일보다 짧으면 null. 요일마다 한 번꼴이라 평균이 흔들린다.
+ * @return 기록이 없거나, 오지 않은 달이거나, 창이 [MIN_WEEKDAY_WINDOW_DAYS] 일보다 짧으면 null. 짧으면 요일마다 한 번꼴이라 평균이 흔들린다.
  */
 fun weekdayStats(month: YearMonth, today: LocalDate, firstRecord: LocalDate?, rows: List<TransactionListItem>): WeekdayStats? {
     firstRecord ?: return null
+    // 오지 않은 달은 지나간 날이 없다. 지난 달 요일을 빌려 보이지 않는다(눈에 띄는 점 c 도 같이 빠진다).
+    if (periodOf(month, today) == Period.FUTURE) return null
     val from = maxOf(firstRecord, month.minusMonths(WEEKDAY_WINDOW_MONTHS - 1L).atDay(1))
     val to = minOf(today, month.atEndOfMonth())
     if (ChronoUnit.DAYS.between(from, to) + 1 < MIN_WEEKDAY_WINDOW_DAYS) return null
