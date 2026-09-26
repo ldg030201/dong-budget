@@ -71,13 +71,16 @@ fun BudgetSmallButton(text: String, onClick: () -> Unit, modifier: Modifier = Mo
     }
 }
 
-/** 글자만 있는 버튼. 자주 쓰지 않는 보조 동작을 한 줄에 여러 개 늘어놓을 때 쓴다. */
+/**
+ * 글자만 있는 버튼. 자주 쓰지 않는 보조 동작을 한 줄에 여러 개 늘어놓을 때 쓴다.
+ * @param color 기본은 배경 위 브랜드색 글자다. 다크의 primary 는 채움용이라 어두운 바탕 위 글자로는 대비가 모자라다(3.91:1).
+ */
 @Composable
 fun BudgetTextButton(
     text: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    color: Color = MaterialTheme.colorScheme.primary,
+    color: Color = BudgetTheme.colors.brandText,
     enabled: Boolean = true,
 ) {
     val shape = RoundedCornerShape(BudgetTheme.radius.chip)
