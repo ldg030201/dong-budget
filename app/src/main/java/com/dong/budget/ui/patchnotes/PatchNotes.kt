@@ -70,6 +70,17 @@ private fun menu(menu: PatchMenu, vararg changes: Change) = MenuChanges(menu, ch
 val PATCH_NOTES: List<Release> =
     listOf(
         Release(
+            version = "1.1.0",
+            date = null,
+            menus =
+            listOf(
+                menu(
+                    PatchMenu.PATCH_NOTES,
+                    improved("버전을 눌러 바뀐 점을 접고 펼칠 수 있어요. 처음에는 지금 버전과 새 버전만 펼쳐져 있어요"),
+                ),
+            ),
+        ),
+        Release(
             version = "1.0.0",
             date = LocalDate.of(2026, 9, 26),
             menus =
