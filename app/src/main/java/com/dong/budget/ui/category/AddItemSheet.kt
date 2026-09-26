@@ -31,8 +31,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
@@ -68,7 +70,7 @@ fun AddItemSheet(
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var name by rememberSaveable { mutableStateOf("") }
-    var color by rememberSaveable { mutableStateOf(firstUnusedColor(usedColors)) }
+    var color by rememberSaveable { mutableStateOf(CategoryStyle.firstUnusedColor(usedColors)) }
     var icon by rememberSaveable { mutableStateOf(CategoryStyle.FALLBACK_ICON) }
 
     ModalBottomSheet(
@@ -115,6 +117,8 @@ fun AddItemSheet(
                     text = error,
                     style = MaterialTheme.typography.bodySmall,
                     color = BudgetTheme.colors.danger,
+                    // 추가가 거절된 이유를 화면 읽기가 바로 읽어 준다
+                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
                 )
             }
 
@@ -207,10 +211,6 @@ private fun IconChoice(key: String, selected: Boolean, color: String, onClick: (
 }
 
 /** 기타(회색)와 겹치지 않고 아직 안 쓴 색을 먼저 고른다 */
-private fun firstUnusedColor(used: Set<String>): String =
-    CategoryStyle.COLORS.firstOrNull { it != CategoryStyle.FALLBACK_COLOR && it !in used }
-        ?: CategoryStyle.COLORS.first()
-
 private fun colorLabel(key: String): String = when (key) {
     "red" -> "빨강"
     "orange" -> "주황"

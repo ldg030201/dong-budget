@@ -164,6 +164,7 @@ fun DongBudgetApp(container: AppContainer, capturedToOpen: String? = null, onCap
                     onTimeChange = viewModel::updateTime,
                     onSave = viewModel::save,
                     onJumpHandled = viewModel::onJumpHandled,
+                    onAddHandled = viewModel::onAddHandled,
                     onDeleteTransaction = viewModel::delete,
                 )
             }

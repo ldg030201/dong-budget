@@ -194,16 +194,18 @@ private fun ReorderableList(
                         modifier =
                         Modifier
                             .longPressDraggableHandle(enabled = item.movable, onDragStarted = onDragStarted, onDragStopped = { save() })
-                            .semantics {
-                                // 끌기는 화면 읽기로 할 수 없다. 한 칸씩 옮기는 동작을 따로 준다.
+                            // 끌기는 화면 읽기로 할 수 없다. 한 칸씩 옮기는 동작을 따로 준다.
+                            // 줄 전체(이름과 설명)를 한 덩어리로 묶어야 화면 읽기가 이 줄에 초점을 두고 동작을 보여준다.
+                            // 옮길 수 없는 쪽('기타' 와 맞닿은 방향)의 동작은 누르면 아무 일도 없으니 아예 두지 않는다.
+                            .semantics(mergeDescendants = true) {
                                 customActions =
                                     listOfNotNull(
-                                        ordered.getOrNull(index - 1)?.let { above ->
+                                        ordered.getOrNull(index - 1)?.takeIf { item.movable && it.movable }?.let { above ->
                                             CustomAccessibilityAction("위로 옮기기") {
                                                 ordered.moved(item.id, above.id)?.let(onReorder) != null
                                             }
                                         },
-                                        ordered.getOrNull(index + 1)?.let { below ->
+                                        ordered.getOrNull(index + 1)?.takeIf { item.movable && it.movable }?.let { below ->
                                             CustomAccessibilityAction("아래로 옮기기") {
                                                 ordered.moved(item.id, below.id)?.let(onReorder) != null
                                             }

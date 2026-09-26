@@ -32,13 +32,19 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
+import com.dong.budget.data.PaymentMethodRepository
 import com.dong.budget.data.db.BudgetTime
+import com.dong.budget.data.db.CategoryStyle
 import com.dong.budget.data.db.TransactionType
 import com.dong.budget.ui.category.AddItemSheet
 import com.dong.budget.ui.category.PickerGrid
 import com.dong.budget.ui.category.PickerItem
 import com.dong.budget.ui.components.BudgetPrimaryButton
+import com.dong.budget.ui.components.BudgetTextButton
 import com.dong.budget.ui.components.BudgetTopAppBar
 import com.dong.budget.ui.components.CategoryBadge
 import com.dong.budget.ui.components.ConfirmDialog
@@ -110,6 +116,7 @@ fun TransactionEditorScreen(
     onTimeChange: (hour: Int, minute: Int) -> Unit,
     onSave: () -> Unit,
     onJumpHandled: () -> Unit,
+    onAddHandled: () -> Unit,
     onDeleteTransaction: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -128,11 +135,13 @@ fun TransactionEditorScreen(
 
     // 새로 만든 것은 고른 상태로 들어오므로 입력판을 닫는다.
     // 저장을 누른 순간이 아니라 성공했을 때만 닫는다. 같은 이름이라 거절되면 시트가 남아 있어야 한다.
-    LaunchedEffect(state.lastAddedCategoryId) {
-        if (state.lastAddedCategoryId != null) panel = null
-    }
-    LaunchedEffect(state.lastAddedPaymentId) {
-        if (state.lastAddedPaymentId != null) panel = null
+    // 새로 추가했으면 입력판을 닫고, 처리했다고 알린다. 알리지 않으면 값이 남아서
+    // 화면이 다시 만들어질 때(회전, 다크 모드 전환) 이 효과가 또 돌아 사용자가 열어 둔 입력판을 닫는다.
+    LaunchedEffect(state.lastAddedCategoryId, state.lastAddedPaymentId) {
+        if (state.lastAddedCategoryId != null || state.lastAddedPaymentId != null) {
+            panel = null
+            onAddHandled()
+        }
     }
 
     // 입력판이 열리면 칸 목록이 그만큼 줄어든다. 날짜·시간처럼 목록 아래쪽 칸을 누르면
@@ -298,8 +307,15 @@ fun TransactionEditorScreen(
                     val pendingName = state.pendingPaymentName
                     if (method == null && pendingName != null) {
                         // 알림에서 읽은 카드가 아직 결제수단에 없다. 저장할 때 새로 만든다.
+                        // 저장할 때 만들어질 모양(아이콘·색)과 똑같이 보여준다
                         FormIconValue(
-                            icon = { CategoryBadge("credit_card", "blue", size = BudgetTheme.size.badgeSmall) },
+                            icon = {
+                                CategoryBadge(
+                                    PaymentMethodRepository.NEW_CARD_ICON,
+                                    CategoryStyle.firstUnusedColor(state.usedPaymentColors),
+                                    size = BudgetTheme.size.badgeSmall,
+                                )
+                            },
                             text = "$pendingName (새로 추가돼요)",
                         )
                     } else if (method == null) {
@@ -418,7 +434,9 @@ fun TransactionEditorScreen(
                         modifier =
                         Modifier
                             .padding(horizontal = BudgetTheme.spacing.screenHorizontal)
-                            .padding(bottom = BudgetTheme.spacing.inlineGap),
+                            .padding(bottom = BudgetTheme.spacing.inlineGap)
+                            // 저장이 거절된 이유를 화면 읽기가 바로 읽어 준다
+                            .semantics { liveRegion = LiveRegionMode.Polite },
                     )
                 }
                 BudgetPrimaryButton(
@@ -453,15 +471,8 @@ private fun PanelBox(content: @Composable () -> Unit) {
     }
 }
 
+/** 되돌릴 수 없는 삭제로 이어지는 버튼이라 최소 터치 크기(48dp)를 지키는 공용 글자 버튼을 쓴다 */
 @Composable
 private fun DeleteAction(onClick: () -> Unit) {
-    Text(
-        text = "삭제",
-        style = MaterialTheme.typography.labelLarge,
-        color = BudgetTheme.colors.danger,
-        modifier =
-        Modifier
-            .pressScaleClickable(shape = RoundedCornerShape(BudgetTheme.radius.chip), onClick = onClick)
-            .padding(horizontal = BudgetTheme.spacing.itemGap, vertical = BudgetTheme.spacing.inlineGap),
-    )
+    BudgetTextButton(text = "삭제", onClick = onClick, color = BudgetTheme.colors.danger)
 }

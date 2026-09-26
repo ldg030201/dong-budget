@@ -20,6 +20,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.dong.budget.ui.theme.BudgetTheme
 import com.dong.budget.ui.theme.pressScaleClickable
@@ -55,6 +57,8 @@ fun BudgetChip(
         modifier
             .defaultMinSize(minHeight = 40.dp)
             .pressScaleClickable(shape = shape, role = Role.RadioButton, onClick = onClick)
+            // 화면 읽기가 '선택됨' 여부를 읽어 준다. 색과 테두리만으로는 전해지지 않는다.
+            .semantics { this.selected = selected }
             .background(containerColor, shape)
             .border(
                 width = if (selected) SelectedBorderWidth else UnselectedBorderWidth,

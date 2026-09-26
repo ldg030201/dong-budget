@@ -14,6 +14,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import com.dong.budget.ui.theme.BudgetTheme
 import com.dong.budget.ui.theme.pressScaleClickable
 
@@ -37,6 +39,8 @@ fun SegmentedToggle(options: List<String>, selectedIndex: Int, onSelect: (Int) -
                 Modifier
                     .weight(1f)
                     .pressScaleClickable(shape = cellShape, role = Role.Tab, onClick = { onSelect(index) })
+                    // 화면 읽기가 지금 고른 칸을 알려준다(예: '지출, 선택됨, 탭')
+                    .semantics { this.selected = selected }
                     .background(if (selected) MaterialTheme.colorScheme.background else Color.Transparent, cellShape)
                     .height(BudgetTheme.size.minTouchTarget),
                 horizontalArrangement = Arrangement.Center,
