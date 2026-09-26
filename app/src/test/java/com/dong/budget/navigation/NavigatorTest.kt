@@ -28,4 +28,17 @@ class NavigatorTest {
         navigator.go(a)
         assertEquals(listOf(ShellKey, b, a), backStack.toList())
     }
+
+    @Test
+    fun `첫 화면만 남으면 뒤로가기를 여러 번 눌러도 지우지 않는다`() {
+        // 뒤로 버튼을 빠르게 두 번 누른 경우. 두 번째가 셸까지 지우면 NavDisplay 가 앱을 종료시킨다.
+        val backStack = NavBackStack<NavKey>(ShellKey)
+        val navigator = Navigator(backStack)
+        navigator.go(SettingsKey())
+        navigator.goBack()
+        navigator.goBack()
+        assertEquals(listOf(ShellKey), backStack.toList())
+        navigator.closeIfTop(ShellKey)
+        assertEquals(listOf(ShellKey), backStack.toList())
+    }
 }

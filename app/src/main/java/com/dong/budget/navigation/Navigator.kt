@@ -26,18 +26,18 @@ class Navigator(private val backStack: NavBackStack<NavKey>) {
     }
 
     /**
-     * 한 칸 뒤로.
+     * 한 칸 뒤로. 첫 화면(셸)만 남았으면 아무것도 하지 않는다.
      *
-     * '마지막 화면에서 뒤로 누르면 앱 종료' 같은 판단은 여기서 하지 않는다.
-     * NavDisplay 가 백스택이 하나만 남으면 뒤로가기 처리를 아예 비활성화하므로
-     * 그 분기를 여기 두면 도달할 수 없는 코드가 된다.
+     * 시스템 뒤로가기는 NavDisplay 가 하나만 남으면 막아 주지만, 화면 안의 뒤로·닫기 버튼은 그 보호를 거치지 않는다.
+     * 나가는 화면은 전환 애니메이션(약 0.7초) 동안 위에 남아 터치를 받기 때문에, 뒤로 버튼을 빠르게 두 번 누르면
+     * 두 번째 탭이 셸까지 지워 백스택이 비고 NavDisplay 가 앱을 종료시킨다.
      */
     fun goBack() {
-        backStack.removeLastOrNull()
+        if (backStack.size > 1) backStack.removeLastOrNull()
     }
 
     /** 화면이 스스로 닫을 때 쓴다. 이미 다른 화면이 위에 쌓였다면 아무것도 하지 않는다. */
     fun closeIfTop(key: AppNavKey) {
-        if (backStack.lastOrNull() == key) backStack.removeLastOrNull()
+        if (backStack.size > 1 && backStack.lastOrNull() == key) backStack.removeLastOrNull()
     }
 }

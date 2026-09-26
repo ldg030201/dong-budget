@@ -24,6 +24,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -168,7 +169,9 @@ private fun ReorderableList(
             haptic.performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)
         }
     // 손을 떼면 저장한다. 순서가 그대로면 저장하지 않는다.
-    val save = {
+    // 끌기 라이브러리는 손을 뗄 때 부를 함수를 그 줄을 처음 만졌을 때 한 번만 잡아 둔다. 그래서 목록이 바뀐 뒤
+    // 같은 줄을 다시 끌면 옛 목록과 비교하는 함수가 불린다. 늘 최신 함수를 부르도록 한 번 거쳐서 넘긴다.
+    val save by rememberUpdatedState {
         if (ordered.map { it.id } != items.map { it.id }) onReorder(ordered)
     }
 
@@ -190,7 +193,7 @@ private fun ReorderableList(
                         onDelete = { onRequestDelete(item) },
                         modifier =
                         Modifier
-                            .longPressDraggableHandle(enabled = item.movable, onDragStarted = onDragStarted, onDragStopped = save)
+                            .longPressDraggableHandle(enabled = item.movable, onDragStarted = onDragStarted, onDragStopped = { save() })
                             .semantics {
                                 // 끌기는 화면 읽기로 할 수 없다. 한 칸씩 옮기는 동작을 따로 준다.
                                 customActions =
