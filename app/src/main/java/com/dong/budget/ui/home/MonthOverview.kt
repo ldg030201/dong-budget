@@ -81,7 +81,14 @@ enum class ComparisonScope {
 data class SpendingComparison(val difference: Long, val scope: ComparisonScope)
 
 /**
- * 지난달과 지출을 비교한다.
+ * 지난달과 견줄 두 묶음. 홈의 지난달 비교와 통계의 분류별 증감이 같은 범위를 쓴다.
+ * @property current 이번 쪽 거래. 이번 달이면 오늘까지만 들어 있다.
+ * @property previous 지난 쪽 거래. 이번 달이면 지난달 같은 날까지만 들어 있다.
+ */
+data class ComparisonWindow(val scope: ComparisonScope, val current: List<TransactionListItem>, val previous: List<TransactionListItem>)
+
+/**
+ * 지난달과 비교할 범위를 정한다.
  *
  * 이번 달은 '지난달 같은 날까지' 와 비교한다. 지난달 전체와 비교하면
  * 월초에는 늘 크게 덜 쓴 것으로 나와서 쓸모가 없다.
@@ -90,24 +97,33 @@ data class SpendingComparison(val difference: Long, val scope: ComparisonScope)
  * @return 비교할 수 없으면 null. 아직 오지 않은 달이거나, 지난달 기록이 하나도 없을 때다.
  *   지난달이 비어 있는데 비교하면 이번 달 지출 전체가 '더 쓴 돈' 으로 나와 오해를 부른다.
  */
+fun comparisonWindow(
+    month: YearMonth,
+    today: LocalDate,
+    current: List<TransactionListItem>,
+    previous: List<TransactionListItem>,
+): ComparisonWindow? {
+    val thisMonth = YearMonth.from(today)
+    if (month.isAfter(thisMonth) || previous.isEmpty()) return null
+    if (month.isBefore(thisMonth)) return ComparisonWindow(ComparisonScope.WHOLE_MONTH, current, previous)
+
+    val cutoff = minOf(today.dayOfMonth, month.minusMonths(1).lengthOfMonth())
+    return ComparisonWindow(
+        scope = ComparisonScope.SAME_DAY,
+        // 날짜를 바꿔 미래에 적어둔 거래는 아직 쓴 돈이 아니므로 뺀다
+        current = current.filter { !it.localDate().isAfter(today) },
+        previous = previous.filter { it.localDate().dayOfMonth <= cutoff },
+    )
+}
+
+/** 지난달과 지출을 비교한다. 범위는 [comparisonWindow] 가 정한다. 비교할 수 없으면 null */
 fun compareSpending(
     month: YearMonth,
     today: LocalDate,
     current: List<TransactionListItem>,
     previous: List<TransactionListItem>,
-): SpendingComparison? {
-    val thisMonth = YearMonth.from(today)
-    if (month.isAfter(thisMonth) || previous.isEmpty()) return null
-
-    if (month.isBefore(thisMonth)) {
-        return SpendingComparison(current.totals().expense - previous.totals().expense, ComparisonScope.WHOLE_MONTH)
-    }
-
-    val cutoff = minOf(today.dayOfMonth, month.minusMonths(1).lengthOfMonth())
-    // 날짜를 바꿔 미래에 적어둔 거래는 아직 쓴 돈이 아니므로 뺀다
-    val spentSoFar = current.filter { !it.localDate().isAfter(today) }.totals().expense
-    val spentBefore = previous.filter { it.localDate().dayOfMonth <= cutoff }.totals().expense
-    return SpendingComparison(spentSoFar - spentBefore, ComparisonScope.SAME_DAY)
+): SpendingComparison? = comparisonWindow(month, today, current, previous)?.let { window ->
+    SpendingComparison(window.current.totals().expense - window.previous.totals().expense, window.scope)
 }
 
 /** 지난달 비교 문장. 금액 부분에만 색을 입힐 수 있게 셋으로 나눈다. [amount] 가 null 이면 금액이 없는 문장이다. */

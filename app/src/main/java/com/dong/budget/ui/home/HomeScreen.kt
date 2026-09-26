@@ -59,9 +59,11 @@ import com.dong.budget.data.db.TransactionListItem
 import com.dong.budget.data.db.TransactionType
 import com.dong.budget.ui.components.BudgetDivider
 import com.dong.budget.ui.components.BudgetIconButton
-import com.dong.budget.ui.components.BudgetListItem
 import com.dong.budget.ui.components.CategoryBadge
+import com.dong.budget.ui.components.DayHeader
+import com.dong.budget.ui.components.MonthStepper
 import com.dong.budget.ui.components.NoticeDot
+import com.dong.budget.ui.components.TransactionRow
 import com.dong.budget.ui.components.sectionBlock
 import com.dong.budget.ui.format.formatDayHeader
 import com.dong.budget.ui.format.formatMonth
@@ -103,12 +105,11 @@ fun HomeScreen(
     // 가로 화면의 좌우 인셋은 앱 전체(DongBudgetApp)에서 한 번에 뺀다
     Box(modifier = modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
-            MonthSelector(
+            MonthStepper(
                 month = state.month,
                 onPreviousMonth = onPreviousMonth,
                 onNextMonth = onNextMonth,
-                hasNewNotice = hasNewNotice,
-                onOpenInbox = onOpenInbox,
+                trailing = { InboxButton(hasNew = hasNewNotice, onClick = onOpenInbox) },
             )
             // 새 버전이 있으면 달 선택 아래에 알림 줄을 둔다. 목록 안이 아니라 고정 자리에 두어
             // 달력을 누를 때 쓰는 목록 줄 번호가 흔들리지 않게 한다.
@@ -301,42 +302,6 @@ private fun UpdateBanner(version: String, onOpen: () -> Unit, onDismiss: () -> U
     }
 }
 
-@Composable
-private fun MonthSelector(
-    month: YearMonth,
-    onPreviousMonth: () -> Unit,
-    onNextMonth: () -> Unit,
-    hasNewNotice: Boolean,
-    onOpenInbox: () -> Unit,
-) {
-    Row(
-        modifier =
-        Modifier
-            .fillMaxWidth()
-            .padding(horizontal = BudgetTheme.spacing.inlineGap, vertical = BudgetTheme.spacing.tightGap),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        BudgetIconButton(
-            icon = Icons.Filled.KeyboardArrowLeft,
-            contentDescription = "이전 달",
-            onClick = onPreviousMonth,
-        )
-        Text(
-            text = formatMonth(month),
-            style = MaterialTheme.typography.titleLarge,
-            color = BudgetTheme.colors.textPrimary,
-            modifier = Modifier.padding(horizontal = BudgetTheme.spacing.tightGap),
-        )
-        BudgetIconButton(
-            icon = Icons.Filled.KeyboardArrowRight,
-            contentDescription = "다음 달",
-            onClick = onNextMonth,
-        )
-        Spacer(Modifier.weight(1f))
-        InboxButton(hasNew = hasNewNotice, onClick = onOpenInbox)
-    }
-}
-
 /** 오른쪽 위의 종. 새 알림이 있으면 오른쪽 위에 빨간 점을 찍는다. */
 @Composable
 private fun InboxButton(hasNew: Boolean, onClick: () -> Unit) {
@@ -419,7 +384,7 @@ private fun SummaryCell(label: String, value: String, valueColor: Color, modifie
 
 /** 금액 부분만 색을 입힌다. 덜 썼으면 초록, 더 썼으면 빨강. 달력의 수입·지출 색과 같은 뜻으로 맞춘다. */
 @Composable
-private fun comparisonText(comparison: SpendingComparison): AnnotatedString {
+internal fun comparisonText(comparison: SpendingComparison): AnnotatedString {
     val sentence = comparison.sentence()
     val amountColor =
         if (comparison.difference > 0) BudgetTheme.colors.expense else BudgetTheme.colors.income
@@ -430,52 +395,6 @@ private fun comparisonText(comparison: SpendingComparison): AnnotatedString {
         }
         append(sentence.suffix)
     }
-}
-
-/** 날짜 구분선. 가는 선 아래에 날짜를 적는다. */
-@Composable
-private fun DayHeader(date: LocalDate, today: LocalDate) {
-    Column(
-        modifier =
-        Modifier
-            .fillMaxWidth()
-            .padding(horizontal = BudgetTheme.spacing.screenHorizontal)
-            .padding(top = BudgetTheme.spacing.inlineGap),
-    ) {
-        BudgetDivider()
-        Text(
-            text = formatDayHeader(date, today),
-            style = MaterialTheme.typography.labelMedium,
-            color = BudgetTheme.colors.textSecondary,
-            modifier = Modifier.padding(top = BudgetTheme.spacing.inlineGap, bottom = BudgetTheme.spacing.tightGap),
-        )
-    }
-}
-
-@Composable
-private fun TransactionRow(item: TransactionListItem, onClick: () -> Unit) {
-    BudgetListItem(
-        title = item.merchant ?: item.categoryName ?: "이름 없는 거래",
-        leading = { CategoryBadge(icon = item.categoryIcon, color = item.categoryColor) },
-        subtitle =
-        listOfNotNull(
-            formatTime(item.occurredAt),
-            item.categoryName,
-            item.paymentMethodName,
-        ).joinToString(" · "),
-        trailing = {
-            Text(
-                text = formatSignedAmount(item.type, item.amount),
-                style = BudgetTheme.amount.medium,
-                color =
-                when (item.type) {
-                    TransactionType.INCOME, TransactionType.REFUND -> BudgetTheme.colors.income
-                    else -> BudgetTheme.colors.textPrimary
-                },
-            )
-        },
-        onClick = onClick,
-    )
 }
 
 @Composable
