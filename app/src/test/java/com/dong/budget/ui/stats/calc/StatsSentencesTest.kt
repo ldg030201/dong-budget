@@ -53,6 +53,15 @@ class StatsSentencesTest {
         )
         // 지출이 0 이면 돌려받은 돈 이야기가 아니다
         assertEquals("수입의 0%를 썼어요", spendRatioSentence(Totals(expense = 0, income = 1_000), Period.PAST).text)
+        // 조금이라도 쓰고 조금이라도 남았으면 0% 나 100% 로 반올림하지 않는다(아래 '남은 돈' 줄과 어긋나지 않게)
+        assertEquals(
+            SpendRatioSentence("수입의 99%를 썼어요", "1%가 남았어요", overspent = false),
+            spendRatioSentence(Totals(expense = 1_995_000, income = 2_000_000), Period.PAST),
+        )
+        assertEquals(
+            SpendRatioSentence("수입의 1%를 썼어요", "99%가 남았어요", overspent = false),
+            spendRatioSentence(Totals(expense = 9_000, income = 3_000_000), Period.PAST),
+        )
     }
 
     @Test
@@ -85,10 +94,15 @@ class StatsSentencesTest {
     fun `속도 문장`() {
         assertEquals(
             "지난달만큼 쓰려면 남은 21일 동안 하루 4,762원까지 쓸 수 있어요",
-            paceSentence(Pace(remaining = 100_000, daysLeft = 21, dailyAllowance = 4_762)),
+            paceSentence(Pace(remaining = 100_000, scheduled = 0, daysLeft = 21, dailyAllowance = 4_762)),
         )
-        assertEquals("벌써 지난달 전체만큼 썼어요", paceSentence(Pace(0, 21, null)))
-        assertEquals("벌써 지난달 전체보다 5만원 더 썼어요", paceSentence(Pace(-50_000, 21, null)))
+        assertEquals("벌써 지난달 전체만큼 썼어요", paceSentence(Pace(0, 0, 21, null)))
+        assertEquals("벌써 지난달 전체보다 5만원 더 썼어요", paceSentence(Pace(-50_000, 0, 21, null)))
+        // 오늘까지는 덜 썼는데 미리 적은 지출까지 치면 지난달만큼(또는 넘게) 쓰게 된다
+        assertEquals("미리 적은 지출까지 치면 지난달 전체만큼 써요", paceSentence(Pace(0, 100_000, 21, null)))
+        assertEquals("미리 적은 지출까지 치면 지난달 전체보다 5만원 더 써요", paceSentence(Pace(-50_000, 100_000, 21, null)))
+        // 미리 적은 지출을 빼도 이미 더 썼으면 실제로 쓴 만큼만 말한다
+        assertEquals("벌써 지난달 전체보다 3만원 더 썼어요", paceSentence(Pace(-80_000, 50_000, 21, null)))
     }
 
     @Test

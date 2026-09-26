@@ -144,11 +144,12 @@ data class CumulativeFlow(val month: YearMonth, val thisMonth: List<Long>, val p
 
 /**
  * 이번 달 속도. S = 오늘까지 쓴 돈, T₀ = 지난달 전체 지출.
- * @property remaining T₀ − S. 음수면 이미 지난달보다 더 썼다.
+ * @property remaining T₀ − S − scheduled. 음수면 (미리 적은 지출까지 쳐서) 지난달보다 더 쓰게 된다.
+ * @property scheduled 오늘 뒤 날짜로 미리 적은 이번 달 순지출
  * @property daysLeft 오늘을 포함한 남은 날 수
  * @property dailyAllowance remaining > 0 일 때 하루에 쓸 수 있는 돈(반올림). 아니면 null
  */
-data class Pace(val remaining: Long, val daysLeft: Int, val dailyAllowance: Long?)
+data class Pace(val remaining: Long, val scheduled: Long, val daysLeft: Int, val dailyAllowance: Long?)
 
 /** 월별 '눈에 띄는 점' 한 줄. 문장은 calc 의 insightSentence 가 만든다. */
 sealed interface Insight {

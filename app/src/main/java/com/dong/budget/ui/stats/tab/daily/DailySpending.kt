@@ -257,7 +257,9 @@ private fun DetailRow(color: Color, name: String, amount: Long) {
 @Composable
 private fun DayTransactions(day: DayStack, onOpenTransaction: (Long) -> Unit) {
     if (day.items.isEmpty()) return
-    var expanded by rememberSaveable(day.date) { mutableStateOf(false) }
+    // 펼친 날짜를 들고 있는다. 복원된 옛 값(다른 날)이면 접힌 것으로 본다
+    var expandedDate by rememberSaveable(day.date) { mutableStateOf<LocalDate?>(null) }
+    val expanded = expandedDate == day.date
     val shown = if (expanded) day.items else day.items.take(PREVIEW_ITEMS)
     val hidden = day.items.size - shown.size
     Column(modifier = Modifier.fillMaxWidth().padding(top = BudgetTheme.spacing.itemGap)) {
@@ -268,7 +270,7 @@ private fun DayTransactions(day: DayStack, onOpenTransaction: (Long) -> Unit) {
         if (hidden > 0) {
             BudgetTextButton(
                 text = moreItemsText(hidden),
-                onClick = { expanded = true },
+                onClick = { expandedDate = day.date },
                 // 버튼 안쪽 여백만큼 당겨서 글자가 거래 줄의 뱃지와 줄을 맞춘다
                 modifier = Modifier.padding(horizontal = BudgetTheme.spacing.screenHorizontal - BudgetTheme.spacing.tightGap),
             )

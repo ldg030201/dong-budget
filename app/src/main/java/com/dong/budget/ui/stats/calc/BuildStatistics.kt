@@ -1,11 +1,13 @@
 package com.dong.budget.ui.stats.calc
 
 import com.dong.budget.data.db.TransactionListItem
+import com.dong.budget.ui.home.ComparisonWindow
 import com.dong.budget.ui.home.compareSpending
 import com.dong.budget.ui.home.comparisonWindow
 import com.dong.budget.ui.home.localDate
 import com.dong.budget.ui.home.totals
 import com.dong.budget.ui.stats.Breakdown
+import com.dong.budget.ui.stats.BreakdownEntry
 import com.dong.budget.ui.stats.DailyStats
 import com.dong.budget.ui.stats.MonthlyStats
 import com.dong.budget.ui.stats.Period
@@ -26,8 +28,8 @@ fun buildStatistics(month: YearMonth, today: LocalDate, rows: List<TransactionLi
     val first = effectiveFirstRecord(rows, firstRecord)
     val byMonth = rows.groupBy { YearMonth.from(it.localDate()) }
     val current = byMonth[month].orEmpty()
-    // 홈과 같은 비교가 되도록 홈이 넘기는 것(그 달 거래 전부)을 그대로 넘긴다
-    val window = comparisonWindow(month, today, current, byMonth[month.minusMonths(1)].orEmpty())
+    // 홈과 같은 비교 창이되, 지난달을 1일부터 기록하지 않았으면 분류별 증감을 내지 않는다
+    val window = breakdownWindow(month, today, current, byMonth[month.minusMonths(1)].orEmpty(), first)
     val period = periodOf(month, today)
     val expenseByCategory = breakdown(current, Measure.EXPENSE, Grouping.CATEGORY, window)
     val monthIsEmpty = current.none { it.isRecord }
@@ -41,13 +43,45 @@ fun buildStatistics(month: YearMonth, today: LocalDate, rows: List<TransactionLi
         hasAnyRecord = first != null,
         monthIsEmpty = monthIsEmpty,
         firstRecord = first,
-        monthly = monthlyStats(month, today, byMonth, first, expenseByCategory, daily, monthIsEmpty),
+        monthly = monthlyStats(
+            month,
+            today,
+            byMonth,
+            first,
+            expenseByCategory,
+            goneCategories(expenseByCategory, window),
+            daily,
+            monthIsEmpty,
+        ),
         daily = daily,
         expenseByCategory = expenseByCategory,
         incomeByCategory = breakdown(current, Measure.INCOME, Grouping.CATEGORY, window),
         expenseByPayment = breakdown(current, Measure.EXPENSE, Grouping.PAYMENT_METHOD, window),
         merchants = topMerchants(current),
     )
+}
+
+/**
+ * 분류·결제수단 증감에 쓰는 비교 창. 홈과 같은 [comparisonWindow] 인데, 지난달을 1일부터 기록하지 않았으면 null 이다.
+ * 기록 전 날이 0원으로 들어가면 모든 줄이 '없었어요'·'늘었어요' 가 되고 눈에 띄는 점이 '더 썼어요' 로 나오기 때문이다.
+ * (앞선 달 평균이 기록을 달 중간에 시작한 달을 빼는 것과 같은 규칙. 월별 요약의 비교 문장은 홈과 같게 compareSpending 을 쓴다)
+ */
+internal fun breakdownWindow(
+    month: YearMonth,
+    today: LocalDate,
+    current: List<TransactionListItem>,
+    previous: List<TransactionListItem>,
+    firstRecord: LocalDate?,
+): ComparisonWindow? {
+    if (firstRecord == null || firstRecord.isAfter(month.minusMonths(1).atDay(1))) return null
+    return comparisonWindow(month, today, current, previous)
+}
+
+/** 비교 창의 지난 쪽에만 있던 지출 분류(이 달엔 0 이라 목록에 없다). 눈에 띄는 점이 가장 크게 줄어든 분류도 말할 수 있게 한다. */
+private fun goneCategories(expenseByCategory: Breakdown, window: ComparisonWindow?): List<BreakdownEntry> {
+    window ?: return emptyList()
+    val shown = expenseByCategory.entries.mapTo(HashSet()) { it.key }
+    return breakdown(window.previous, Measure.EXPENSE, Grouping.CATEGORY, window).entries.filter { it.key !in shown }
 }
 
 /**
@@ -65,6 +99,7 @@ private fun monthlyStats(
     byMonth: Map<YearMonth, List<TransactionListItem>>,
     firstRecord: LocalDate?,
     expenseByCategory: Breakdown,
+    goneCategories: List<BreakdownEntry>,
     daily: DailyStats,
     monthIsEmpty: Boolean,
 ): MonthlyStats {
@@ -79,9 +114,10 @@ private fun monthlyStats(
         comparison = compareSpending(month, today, current, previous),
         futureCount = futureCount,
         spendRatioPercent = spendRatioPercent(totals),
-        insights = if (monthIsEmpty) emptyList() else insights(expenseByCategory, daily.weekday, daily.counted, daily.noSpendDays),
+        insights =
+        if (monthIsEmpty) emptyList() else insights(expenseByCategory, daily.weekday, daily.counted, daily.noSpendDays, goneCategories),
         flow = cumulativeFlow(month, today, current, previous),
-        pace = pace(month, today, current, previous),
+        pace = pace(month, today, current, previous, firstRecord),
         trend = trend,
         trendAverage = trendAverage(trend, month, today, firstRecord),
         largest = largestExpenses(current),

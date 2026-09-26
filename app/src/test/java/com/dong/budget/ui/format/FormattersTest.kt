@@ -90,6 +90,8 @@ class FormattersTest {
         assertEquals("42%", formatShare(0.42))
         assertEquals("43%", formatShare(0.4251))
         assertEquals("100%", formatShare(1.0))
+        // 딱 28.5% 는 소수로 28.4999… 가 되지만 눈에 띄는 점(정수 반올림)과 같게 29% 로 올린다
+        assertEquals("29%", formatShare(57_000.0 / 200_000))
         assertEquals("0%", formatShare(0.0))
         assertEquals("1% 미만", formatShare(0.004))
         assertEquals("1%", formatShare(0.005))

@@ -3,13 +3,13 @@ package com.dong.budget.ui.stats.detail
 import com.dong.budget.data.db.StyledItem
 import com.dong.budget.data.db.TransactionListItem
 import com.dong.budget.navigation.StatsDimension
-import com.dong.budget.ui.home.comparisonWindow
 import com.dong.budget.ui.home.groupByDay
 import com.dong.budget.ui.home.localDate
 import com.dong.budget.ui.stats.GroupKey
 import com.dong.budget.ui.stats.calc.Measure
 import com.dong.budget.ui.stats.calc.TREND_MONTHS
 import com.dong.budget.ui.stats.calc.breakdown
+import com.dong.budget.ui.stats.calc.breakdownWindow
 import com.dong.budget.ui.stats.calc.effectiveFirstRecord
 import com.dong.budget.ui.stats.calc.entryChange
 import com.dong.budget.ui.stats.calc.groupKey
@@ -53,10 +53,10 @@ fun buildDetail(
     val inGroup = { item: TransactionListItem -> measure.includes(item) && item.groupKey(grouping) == key }
     val byMonth = rows.groupBy { YearMonth.from(it.localDate()) }
     val current = byMonth[month].orEmpty()
-    // 탭(buildStatistics)과 같은 비교가 되도록 그 달 거래 전부를 넘긴다
-    val window = comparisonWindow(month, today, current, byMonth[month.minusMonths(1)].orEmpty())
-    val mine = current.filter(inGroup)
     val first = effectiveFirstRecord(rows, firstRecord)
+    // 탭(buildStatistics)과 같은 비교가 되도록 그 달 거래 전부를 넘긴다. 지난달을 1일부터 기록하지 않았으면 증감을 내지 않는다.
+    val window = breakdownWindow(month, today, current, byMonth[month.minusMonths(1)].orEmpty(), first)
+    val mine = current.filter(inGroup)
 
     return StatsDetailUiState(
         loaded = true,

@@ -35,7 +35,12 @@ internal fun DayRecordsSection(month: YearMonth, daily: DailyStats, onShowPeak: 
         } else {
             val peak = daily.peak
             StatRow(label = "하루 평균", value = averageValue(daily.average), caption = countedCaption(daily.counted))
-            StatRow(label = "쓴 날 평균", value = averageValue(daily.spentDayAverage), caption = spentDaysCaption(daily.spentDays))
+            StatRow(
+                label = "쓴 날 평균",
+                value = averageValue(daily.spentDayAverage),
+                // 쓴 날이 없으면 '돈을 쓴 0일 기준' 이 어색해서 뺀다
+                caption = daily.spentDays.takeIf { it > 0 }?.let(::spentDaysCaption),
+            )
             StatRow(
                 label = "가장 많이 쓴 날",
                 value = peak?.let { spentAmount(it.amount) } ?: "없어요",
@@ -59,10 +64,11 @@ internal fun DayRecordsSection(month: YearMonth, daily: DailyStats, onShowPeak: 
  * @param weekday 창이 2주보다 짧으면 null
  */
 @Composable
-internal fun WeekdaySection(weekday: WeekdayStats?, modifier: Modifier = Modifier) {
+internal fun WeekdaySection(weekday: WeekdayStats?, noPastDays: Boolean, modifier: Modifier = Modifier) {
     StatsSection(modifier = modifier, title = "요일별 하루 평균", subtitle = weekday?.let(::weekdayRange)) {
         if (weekday == null) {
-            HintText("2주 넘게 기록하면 요일별로 보여 드려요")
+            // 오지 않은 달은 셀 날이 아직 없고, 지나간 날이 있으면 창이 2주보다 짧은 것이다
+            if (noPastDays) SectionNote("아직 지나간 날이 없어요") else HintText("2주 넘게 기록하면 요일별로 보여 드려요")
         } else {
             // 요일별 평균은 일요일부터 토요일까지(WEEK_ORDER) 온다
             val topIndex = weekday.averages.indexOfFirst { it.day == weekday.top }.takeIf { it >= 0 }

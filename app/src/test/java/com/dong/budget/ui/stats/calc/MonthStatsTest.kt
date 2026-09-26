@@ -29,46 +29,69 @@ class MonthStatsTest {
     @Test
     fun `지난달보다 덜 썼으면 남은 날(오늘 포함) 하루에 쓸 수 있는 돈을 낸다`() {
         // 9월은 30일. 10일이면 오늘을 넣어 21일이 남았다
-        val pace = pace(september, day("2026-09-10"), listOf(tx("2026-09-03", 90_000)), lastMonth)
-        assertEquals(Pace(remaining = 210_000, daysLeft = 21, dailyAllowance = 10_000), pace)
+        val pace = pace(september, day("2026-09-10"), listOf(tx("2026-09-03", 90_000)), lastMonth, firstRecord = null)
+        assertEquals(Pace(remaining = 210_000, scheduled = 0, daysLeft = 21, dailyAllowance = 10_000), pace)
     }
 
     @Test
     fun `하루 허용액은 반올림한다`() {
-        val pace = pace(september, day("2026-09-10"), listOf(tx("2026-09-03", 200_000)), lastMonth)
+        val pace = pace(september, day("2026-09-10"), listOf(tx("2026-09-03", 200_000)), lastMonth, firstRecord = null)
         // 100,000 ÷ 21 = 4,761.9…
         assertEquals(4_762L, pace?.dailyAllowance)
     }
 
     @Test
     fun `마지막 날에는 남은 날이 오늘 하루다`() {
-        assertEquals(1, pace(september, day("2026-09-30"), emptyList(), lastMonth)?.daysLeft)
+        assertEquals(1, pace(september, day("2026-09-30"), emptyList(), lastMonth, firstRecord = null)?.daysLeft)
     }
 
     @Test
     fun `지난달만큼 썼거나 더 썼으면 허용액이 없다`() {
-        assertEquals(Pace(0, 21, null), pace(september, day("2026-09-10"), listOf(tx("2026-09-03", 300_000)), lastMonth))
-        assertEquals(Pace(-50_000, 21, null), pace(september, day("2026-09-10"), listOf(tx("2026-09-03", 350_000)), lastMonth))
+        assertEquals(
+            Pace(0, 0, 21, null),
+            pace(september, day("2026-09-10"), listOf(tx("2026-09-03", 300_000)), lastMonth, firstRecord = null),
+        )
+        assertEquals(
+            Pace(-50_000, 0, 21, null),
+            pace(september, day("2026-09-10"), listOf(tx("2026-09-03", 350_000)), lastMonth, firstRecord = null),
+        )
     }
 
     @Test
-    fun `오늘 뒤 날짜로 미리 적은 거래는 쓴 돈에 넣지 않는다`() {
+    fun `오늘 뒤 날짜로 미리 적은 지출은 남은 날 안에 나갈 돈이라 쓸 수 있는 돈에서 뺀다`() {
         val current = listOf(tx("2026-09-03", 90_000), tx("2026-09-20", 1_000_000))
-        assertEquals(210_000L, pace(september, day("2026-09-10"), current, lastMonth)?.remaining)
+        assertEquals(
+            Pace(remaining = -790_000, scheduled = 1_000_000, daysLeft = 21, dailyAllowance = null),
+            pace(september, day("2026-09-10"), current, lastMonth, firstRecord = null),
+        )
+        // 작은 예정 지출은 허용액만 줄인다: (300,000 − 90,000 − 21,000) ÷ 21 = 9,000
+        val small = listOf(tx("2026-09-03", 90_000), tx("2026-09-20", 21_000))
+        assertEquals(9_000L, pace(september, day("2026-09-10"), small, lastMonth, firstRecord = null)?.dailyAllowance)
+    }
+
+    @Test
+    fun `지난달이 기록을 달 중간에 시작한 달이면 속도를 내지 않는다`() {
+        assertNull(pace(september, day("2026-09-10"), emptyList(), lastMonth, firstRecord = day("2026-08-05")))
+    }
+
+    @Test
+    fun `지난달 1일에 기록을 시작했으면 속도를 낸다`() {
+        val pace = pace(september, day("2026-09-10"), emptyList(), listOf(tx("2026-08-01", 300_000)), firstRecord = day("2026-08-01"))
+        assertEquals(21, pace?.daysLeft)
     }
 
     @Test
     fun `지난달 지출이 0 이하이거나 기록이 없으면 속도를 내지 않는다`() {
         val today = day("2026-09-10")
-        assertNull(pace(september, today, emptyList(), emptyList()))
-        assertNull(pace(september, today, emptyList(), listOf(tx("2026-08-05", 1_000_000, INCOME))))
-        assertNull(pace(september, today, emptyList(), listOf(tx("2026-08-05", 5_000, REFUND))))
-        assertNull(pace(september, today, emptyList(), listOf(tx("2026-08-05", 5_000, TRANSFER))))
+        assertNull(pace(september, today, emptyList(), emptyList(), firstRecord = null))
+        assertNull(pace(september, today, emptyList(), listOf(tx("2026-08-05", 1_000_000, INCOME)), firstRecord = null))
+        assertNull(pace(september, today, emptyList(), listOf(tx("2026-08-05", 5_000, REFUND)), firstRecord = null))
+        assertNull(pace(september, today, emptyList(), listOf(tx("2026-08-05", 5_000, TRANSFER)), firstRecord = null))
     }
 
     @Test
     fun `이번 달이 아니면 속도를 내지 않는다`() {
-        assertNull(pace(YearMonth.of(2026, 8), day("2026-09-10"), emptyList(), lastMonth))
+        assertNull(pace(YearMonth.of(2026, 8), day("2026-09-10"), emptyList(), lastMonth, firstRecord = null))
     }
 
     // ── 누적 흐름 ───────────────────────────────────────────────────────

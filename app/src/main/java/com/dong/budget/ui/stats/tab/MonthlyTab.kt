@@ -33,6 +33,7 @@ import com.dong.budget.ui.stats.tab.monthly.flowTitle
 import com.dong.budget.ui.stats.tab.monthly.largestTitle
 import com.dong.budget.ui.stats.tab.monthly.trendTableRows
 import com.dong.budget.ui.theme.BudgetTheme
+import java.time.LocalDate
 import java.time.YearMonth
 
 /**
@@ -62,7 +63,9 @@ fun MonthlyTab(
 ) {
     val monthly = state.monthly
     // 흐름 차트에서 고른 날. 달을 바꾸면 고르기 전(이번 달 선의 마지막 날을 읽음)으로 돌아간다.
-    var flowDay by rememberSaveable(state.month) { mutableStateOf<Int?>(null) }
+    // 흐름 차트에서 고른 날. 날짜(달 포함)로 들고 있다가 다른 달 값이 복원되면 버린다(일별 탭과 같은 이유)
+    var flowDate by rememberSaveable(state.month) { mutableStateOf<LocalDate?>(null) }
+    val flowDay = flowDate?.takeIf { YearMonth.from(it) == state.month }?.dayOfMonth
 
     LazyColumn(
         modifier = modifier.fillMaxSize(),
@@ -104,7 +107,7 @@ fun MonthlyTab(
                         pace = monthly.pace,
                         today = state.today,
                         selectedDay = flowDay,
-                        onSelectDay = { flowDay = it },
+                        onSelectDay = { flowDate = state.month.atDay(it) },
                     )
                 }
             }

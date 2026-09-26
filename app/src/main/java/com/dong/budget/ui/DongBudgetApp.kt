@@ -236,7 +236,8 @@ fun DongBudgetApp(container: AppContainer, capturedToOpen: String? = null, onCap
                 val settled = { lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED) }
                 StatsDetailScreen(
                     state = state,
-                    onBack = navigator::goBack,
+                    // 나가는 동안(약 0.7초) 이 화면이 위에 남아 ← 를 한 번 더 받는다. 맨 위일 때만 닫아서 통계까지 닫지 않게 한다.
+                    onBack = { navigator.closeIfTop(key) },
                     onPreviousMonth = viewModel::showPreviousMonth,
                     onNextMonth = viewModel::showNextMonth,
                     onOpenTransaction = { id -> if (settled()) navigator.go(TransactionEditorKey(id)) },
