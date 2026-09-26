@@ -53,7 +53,7 @@ fun BudgetTopAppBar(
             .padding(horizontal = BudgetTheme.spacing.inlineGap),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        NavIconButton(
+        BudgetIconButton(
             icon =
             when (style) {
                 NavButtonStyle.BACK -> Icons.AutoMirrored.Filled.ArrowBack
@@ -72,27 +72,5 @@ fun BudgetTopAppBar(
         }
         Box(modifier = Modifier.weight(1f))
         actions()
-    }
-}
-
-@Composable
-fun NavIconButton(icon: ImageVector, contentDescription: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    Box(
-        modifier =
-        modifier
-            .size(BudgetTheme.size.minTouchTarget)
-            .pressScaleClickable(
-                shape = MaterialTheme.shapes.small,
-                role = Role.Button,
-                onClick = onClick,
-            ),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = contentDescription,
-            tint = BudgetTheme.colors.textPrimary,
-            modifier = Modifier.size(BudgetTheme.size.icon),
-        )
     }
 }

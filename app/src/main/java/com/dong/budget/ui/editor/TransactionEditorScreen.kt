@@ -48,11 +48,13 @@ import com.dong.budget.ui.components.BudgetTextButton
 import com.dong.budget.ui.components.BudgetTopAppBar
 import com.dong.budget.ui.components.CategoryBadge
 import com.dong.budget.ui.components.ConfirmDialog
+import com.dong.budget.ui.components.ErrorText
 import com.dong.budget.ui.components.FormField
 import com.dong.budget.ui.components.FormIconValue
 import com.dong.budget.ui.components.FormPlaceholder
 import com.dong.budget.ui.components.FormTextField
 import com.dong.budget.ui.components.FormValue
+import com.dong.budget.ui.components.HintText
 import com.dong.budget.ui.components.NavButtonStyle
 import com.dong.budget.ui.components.NumberKeypad
 import com.dong.budget.ui.components.SegmentedToggle
@@ -234,10 +236,8 @@ fun TransactionEditorScreen(
                     onSelect = { onSelectType(TYPE_OPTIONS[it].first) },
                 )
                 if (state.isPrefilled) {
-                    Text(
+                    HintText(
                         text = "결제 알림에서 가져왔어요. 확인하고 등록해 주세요.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = BudgetTheme.colors.textSecondary,
                         modifier = Modifier.padding(top = BudgetTheme.spacing.inlineGap),
                     )
                 }
@@ -405,16 +405,12 @@ fun TransactionEditorScreen(
                     }
                 }
                 state.saveError?.let { error ->
-                    Text(
+                    ErrorText(
                         text = error,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = BudgetTheme.colors.danger,
                         modifier =
                         Modifier
                             .padding(horizontal = BudgetTheme.spacing.screenHorizontal)
-                            .padding(bottom = BudgetTheme.spacing.inlineGap)
-                            // 저장이 거절된 이유를 화면 읽기가 바로 읽어 준다
-                            .semantics { liveRegion = LiveRegionMode.Polite },
+                            .padding(bottom = BudgetTheme.spacing.inlineGap),
                     )
                 }
                 BudgetPrimaryButton(

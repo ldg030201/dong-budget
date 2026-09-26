@@ -15,9 +15,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.vectorResource
 import com.dong.budget.R
+import com.dong.budget.ui.components.BudgetIconButton
 import com.dong.budget.ui.components.BudgetListItem
 import com.dong.budget.ui.components.IconBadge
-import com.dong.budget.ui.components.NavIconButton
 import com.dong.budget.ui.theme.BudgetTheme
 
 /**
@@ -57,7 +57,7 @@ fun MoreScreen(
                 color = BudgetTheme.colors.textPrimary,
                 modifier = Modifier.weight(1f),
             )
-            NavIconButton(
+            BudgetIconButton(
                 icon = ImageVector.vectorResource(R.drawable.ic_sym_settings),
                 contentDescription = "설정",
                 onClick = onOpenSettings,

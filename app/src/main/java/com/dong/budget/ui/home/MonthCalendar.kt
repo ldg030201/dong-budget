@@ -34,8 +34,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.sp
+import com.dong.budget.ui.components.BudgetDivider
 import com.dong.budget.ui.format.formatAmount
 import com.dong.budget.ui.format.formatDateSpoken
+import com.dong.budget.ui.format.formatSignedTotal
 import com.dong.budget.ui.format.formatWeekday
 import com.dong.budget.ui.theme.BudgetTheme
 import com.dong.budget.ui.theme.pressScaleClickable
@@ -110,12 +112,7 @@ fun WeekStrip(
                 tint = BudgetTheme.colors.textTertiary,
             )
         }
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .height(BudgetTheme.size.underline)
-                .background(BudgetTheme.colors.divider),
-        )
+        BudgetDivider()
     }
 }
 
@@ -228,14 +225,10 @@ private fun DayCell(
             )
         }
         if (totals != null) {
-            // 들어온 돈은 초록 +, 쓴 돈은 빨강 - 로 한눈에 구분한다
-            if (totals.income > 0) DayAmount("+${formatAmount(totals.income)}", BudgetTheme.colors.income)
-            when {
-                totals.expense > 0 -> DayAmount("-${formatAmount(totals.expense)}", BudgetTheme.colors.expense)
-
-                // 환불이 그날 쓴 돈보다 많으면 돈이 돌아온 날이다. 들어온 돈처럼 + 로 적는다.
-                totals.expense < 0 -> DayAmount("+${formatAmount(-totals.expense)}", BudgetTheme.colors.income)
-            }
+            // 들어온 돈은 초록 +, 쓴 돈은 빨강 - 로 한눈에 구분한다.
+            // 환불이 그날 쓴 돈보다 많으면(지출 합계가 음수) 돈이 돌아온 날이라 들어온 돈처럼 + 로 적힌다.
+            if (totals.income > 0) DayAmount(formatSignedTotal(totals.income, unit = ""), totalColor(totals.income))
+            if (totals.expense != 0L) DayAmount(formatSignedTotal(-totals.expense, unit = ""), totalColor(-totals.expense))
         }
     }
 }

@@ -28,11 +28,14 @@ fun formatSignedAmount(type: TransactionType, amount: Long): String = when (type
     TransactionType.TRANSFER -> "${formatAmount(amount)}원"
 }
 
-/** 합계처럼 방향이 값에 따라 정해지는 금액. 들어온 쪽이면 +, 나간 쪽이면 -, 0 이면 부호 없이 적는다. */
-fun formatSignedTotal(amount: Long): String = when {
-    amount > 0 -> "+${formatAmount(amount)}원"
-    amount < 0 -> "-${formatAmount(-amount)}원"
-    else -> "0원"
+/**
+ * 합계처럼 방향이 값에 따라 정해지는 금액. 들어온 쪽이면 +, 나간 쪽이면 -, 0 이면 부호 없이 적는다.
+ * @param unit 뒤에 붙일 단위. 달력 칸처럼 좁은 곳은 빈 문자열로 뺀다.
+ */
+fun formatSignedTotal(amount: Long, unit: String = "원"): String = when {
+    amount > 0 -> "+${formatAmount(amount)}$unit"
+    amount < 0 -> "-${formatAmount(-amount)}$unit"
+    else -> "0$unit"
 }
 
 /**

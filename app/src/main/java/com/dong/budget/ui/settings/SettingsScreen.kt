@@ -36,6 +36,8 @@ import com.dong.budget.ui.components.BudgetPrimaryButton
 import com.dong.budget.ui.components.BudgetSmallButton
 import com.dong.budget.ui.components.BudgetTextButton
 import com.dong.budget.ui.components.BudgetTopAppBar
+import com.dong.budget.ui.components.HintText
+import com.dong.budget.ui.components.SectionLabel
 import com.dong.budget.ui.permission.AppPermission
 import com.dong.budget.ui.permission.PermissionDialog
 import com.dong.budget.ui.theme.BudgetTheme
@@ -101,7 +103,7 @@ fun SettingsScreen(
                     .navigationBarsPadding()
                     .padding(horizontal = BudgetTheme.spacing.screenHorizontal),
             ) {
-                SectionTitle("화면 테마")
+                SectionLabel("화면 테마")
                 Row(horizontalArrangement = Arrangement.spacedBy(BudgetTheme.spacing.inlineGap)) {
                     ThemeMode.entries.forEach { mode ->
                         BudgetChip(
@@ -115,7 +117,7 @@ fun SettingsScreen(
 
                 Spacer(Modifier.height(BudgetTheme.spacing.sectionGap))
 
-                SectionTitle("앱 정보")
+                SectionLabel("앱 정보")
                 // 새 버전 확인은 어느 상태에서든 버전 옆 버튼으로 다시 할 수 있다.
                 // 새 버전을 보고 있는 사이 더 새 버전이 나와도 눌러서 바로 최신으로 바꿔 볼 수 있게 하기 위함이다.
                 // 확인 중이거나 내려받는 중에는 막는다. 내려받던 화면이 확인 결과로 덮이면 진행 상황이 사라진다.
@@ -292,34 +294,11 @@ private fun OtherWays(
 }
 
 @Composable
-private fun HintText(text: String) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.bodySmall,
-        color = BudgetTheme.colors.textSecondary,
-    )
-}
-
-@Composable
 private fun StatusText(text: String) {
     Text(
         text = text,
         style = MaterialTheme.typography.bodyMedium,
         color = BudgetTheme.colors.textSecondary,
-    )
-}
-
-@Composable
-private fun SectionTitle(text: String) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.labelMedium,
-        color = BudgetTheme.colors.textSecondary,
-        modifier =
-        Modifier.padding(
-            top = BudgetTheme.spacing.sectionPadding,
-            bottom = BudgetTheme.spacing.inlineGap,
-        ),
     )
 }
 

@@ -101,18 +101,8 @@ fun FormField(
                     },
                 ),
         )
-        if (error != null) {
-            Text(
-                text = error,
-                style = MaterialTheme.typography.bodySmall,
-                color = BudgetTheme.colors.danger,
-                modifier =
-                Modifier
-                    .padding(top = BudgetTheme.spacing.tightGap)
-                    // 문구는 칸 안의 오류 표시(error)로 이미 읽힌다. 새로 나타날 때 한 번 알려주기만 한다.
-                    .semantics { liveRegion = LiveRegionMode.Polite },
-            )
-        }
+        // 문구는 칸 안의 오류 표시(error)로 이미 읽힌다. 새로 나타날 때 한 번 알려주기만 한다.
+        if (error != null) ErrorText(error, Modifier.padding(top = BudgetTheme.spacing.tightGap))
     }
 }
 

@@ -3,9 +3,7 @@ package com.dong.budget.ui.theme
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
@@ -19,8 +17,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 
 /**
@@ -29,9 +25,17 @@ import androidx.compose.ui.unit.dp
  * 주의: indication 을 null 로 두면 누름 표시뿐 아니라 포커스와 호버 표시까지 전부 사라진다.
  * 물리 키보드나 스위치 접근성으로 조작할 때 지금 어디에 있는지 보이지 않게 되므로
  * (WCAG 2.4.7 위반) 포커스 테두리를 여기서 직접 그린다.
+ *
+ * @param onLongClick 길게 눌렀을 때 할 보조 동작(키패드의 전체 지우기 등). 없으면 null
  */
 @Composable
-fun Modifier.pressScaleClickable(shape: Shape, enabled: Boolean = true, role: Role? = Role.Button, onClick: () -> Unit): Modifier {
+fun Modifier.pressScaleClickable(
+    shape: Shape,
+    enabled: Boolean = true,
+    role: Role? = Role.Button,
+    onLongClick: (() -> Unit)? = null,
+    onClick: () -> Unit,
+): Modifier {
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
     val focused by interactionSource.collectIsFocusedAsState()
@@ -53,64 +57,15 @@ fun Modifier.pressScaleClickable(shape: Shape, enabled: Boolean = true, role: Ro
             } else {
                 Modifier
             },
-        ).clickable(
+        ).combinedClickable(
             interactionSource = interactionSource,
             indication = null,
             enabled = enabled,
             role = role,
+            onLongClick = onLongClick,
             onClick = onClick,
         )
 }
 
 private const val PRESSED_SCALE = 0.97f
 private const val PRESS_DURATION_MS = 90
-
-/**
- * 키패드 키용 변형.
- *
- * 길게 누르면 전체 지우기 같은 보조 동작을 실행한다.
- * 누름 표현과 포커스 처리는 [pressScaleClickable] 과 같다.
- */
-@OptIn(ExperimentalFoundationApi::class)
-@Composable
-fun Modifier.keypadClickable(
-    shape: Shape,
-    onClick: () -> Unit,
-    onLongClick: (() -> Unit)? = null,
-    contentDescription: String? = null,
-): Modifier {
-    val interactionSource = remember { MutableInteractionSource() }
-    val pressed by interactionSource.collectIsPressedAsState()
-    val focused by interactionSource.collectIsFocusedAsState()
-    val scale by animateFloatAsState(
-        targetValue = if (pressed) PRESSED_SCALE else 1f,
-        animationSpec = tween(durationMillis = PRESS_DURATION_MS),
-        label = "keypadPressScale",
-    )
-    val focusColor = MaterialTheme.colorScheme.primary
-
-    return this
-        .graphicsLayer {
-            scaleX = scale
-            scaleY = scale
-        }.clip(shape)
-        .then(
-            if (focused) {
-                Modifier.border(BorderStroke(2.dp, focusColor), shape)
-            } else {
-                Modifier
-            },
-        ).then(
-            if (contentDescription != null) {
-                Modifier.semantics { this.contentDescription = contentDescription }
-            } else {
-                Modifier
-            },
-        ).combinedClickable(
-            interactionSource = interactionSource,
-            indication = null,
-            role = Role.Button,
-            onLongClick = onLongClick,
-            onClick = onClick,
-        )
-}

@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -36,8 +37,10 @@ import com.dong.budget.data.update.NewerRelease
 import com.dong.budget.ui.components.BudgetPrimaryButton
 import com.dong.budget.ui.components.BudgetTopAppBar
 import com.dong.budget.ui.components.IconBadge
+import com.dong.budget.ui.components.sectionBlock
 import com.dong.budget.ui.theme.BudgetTheme
 import com.dong.budget.ui.theme.CategorySwatch
+import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
@@ -105,30 +108,11 @@ private enum class ReleaseStatus { PAST, CURRENT, UPCOMING }
  */
 @Composable
 private fun NewerReleaseBlock(release: NewerRelease, onOpenUpdate: (() -> Unit)?) {
-    Column(
-        modifier =
-        Modifier
-            .fillMaxWidth()
-            .background(BudgetTheme.colors.sectionBackground, RoundedCornerShape(BudgetTheme.radius.block))
-            .padding(BudgetTheme.spacing.sectionPadding),
+    ReleaseCard(
+        version = release.version,
+        date = release.date,
+        badge = { StatusBadge("새 버전", MaterialTheme.colorScheme.onPrimaryContainer, MaterialTheme.colorScheme.primaryContainer) },
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = release.version,
-                style = MaterialTheme.typography.titleLarge,
-                color = BudgetTheme.colors.textPrimary,
-                modifier = Modifier.semantics { heading() },
-            )
-            StatusBadge("새 버전", MaterialTheme.colorScheme.onPrimaryContainer, MaterialTheme.colorScheme.primaryContainer)
-        }
-        if (release.date != null) {
-            Text(
-                text = dateFormatter.format(release.date),
-                style = MaterialTheme.typography.bodySmall,
-                color = BudgetTheme.colors.textSecondary,
-                modifier = Modifier.padding(top = BudgetTheme.spacing.tightGap),
-            )
-        }
         Spacer(Modifier.height(BudgetTheme.spacing.sectionPadding))
         Text(
             // 예전 형식의 배포는 앱에 보여줄 구간을 알 수 없어 본문이 비어 온다
@@ -143,24 +127,12 @@ private fun NewerReleaseBlock(release: NewerRelease, onOpenUpdate: (() -> Unit)?
     }
 }
 
-private val dateFormatter = DateTimeFormatter.ofPattern("yyyy년 M월 d일", Locale.KOREA)
-
 @Composable
 private fun ReleaseBlock(release: Release, status: ReleaseStatus) {
-    Column(
-        modifier =
-        Modifier
-            .fillMaxWidth()
-            .background(BudgetTheme.colors.sectionBackground, RoundedCornerShape(BudgetTheme.radius.block))
-            .padding(BudgetTheme.spacing.sectionPadding),
-    ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = release.version,
-                style = MaterialTheme.typography.titleLarge,
-                color = BudgetTheme.colors.textPrimary,
-                modifier = Modifier.semantics { heading() },
-            )
+    ReleaseCard(
+        version = release.version,
+        date = release.date,
+        badge = {
             when (status) {
                 ReleaseStatus.CURRENT ->
                     StatusBadge("지금 버전", MaterialTheme.colorScheme.onPrimaryContainer, MaterialTheme.colorScheme.primaryContainer)
@@ -171,19 +143,39 @@ private fun ReleaseBlock(release: Release, status: ReleaseStatus) {
 
                 ReleaseStatus.PAST -> Unit
             }
+        },
+    ) {
+        release.menus.forEach { menu ->
+            Spacer(Modifier.height(BudgetTheme.spacing.sectionPadding))
+            MenuSection(menu)
         }
-        if (release.date != null) {
+    }
+}
+
+private val dateFormatter = DateTimeFormatter.ofPattern("yyyy년 M월 d일", Locale.KOREA)
+
+/** 버전 하나의 카드. 버전 제목과 뱃지, 배포한 날 아래에 [content] 를 둔다. */
+@Composable
+private fun ReleaseCard(version: String, date: LocalDate?, badge: @Composable () -> Unit, content: @Composable ColumnScope.() -> Unit) {
+    Column(modifier = Modifier.fillMaxWidth().sectionBlock()) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                text = dateFormatter.format(release.date),
+                text = version,
+                style = MaterialTheme.typography.titleLarge,
+                color = BudgetTheme.colors.textPrimary,
+                modifier = Modifier.semantics { heading() },
+            )
+            badge()
+        }
+        if (date != null) {
+            Text(
+                text = dateFormatter.format(date),
                 style = MaterialTheme.typography.bodySmall,
                 color = BudgetTheme.colors.textSecondary,
                 modifier = Modifier.padding(top = BudgetTheme.spacing.tightGap),
             )
         }
-        release.menus.forEach { menu ->
-            Spacer(Modifier.height(BudgetTheme.spacing.sectionPadding))
-            MenuSection(menu)
-        }
+        content()
     }
 }
 
