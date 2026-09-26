@@ -56,21 +56,21 @@ internal fun InboxButton(hasNew: Boolean, onClick: () -> Unit) {
         if (hasNew) {
             // 종 그림 칸의 오른쪽 위 모서리에 맞춘다
             val inset = (BudgetTheme.size.minTouchTarget - BudgetTheme.size.icon) / 2
-            Box(
-                Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(top = inset, end = inset)
-                    .size(BudgetTheme.size.noticeDot)
-                    .background(BudgetTheme.colors.danger, CircleShape),
-            )
+            NoticeDot(Modifier.align(Alignment.TopEnd).padding(top = inset, end = inset))
         }
     }
+}
+
+/** 새 알림 표시 점. 종과 목록의 새 알림 줄이 같이 쓴다. 화면 읽기는 따로 알려주므로 점은 읽지 않는다. */
+@Composable
+private fun NoticeDot(modifier: Modifier = Modifier) {
+    Box(modifier.size(BudgetTheme.size.noticeDot).background(BudgetTheme.colors.danger, CircleShape))
 }
 
 /**
  * 종을 누르면 뜨는 알림 목록. 지금은 결제 등록 알림만 모은다.
  *
- * 아직 눌러 보지 않은 알림은 연한 남색 바탕, 눌러 본 알림은 바탕 없이 둔다.
+ * 아직 눌러 보지 않은 알림은 연한 남색 바탕에 오른쪽 빨간 점, 눌러 본 알림은 바탕도 점도 없이 둔다.
  * 한 줄을 누르면 알림창의 알림을 누른 것과 똑같이 결제 내용이 채워진 등록창이 열린다.
  * '모두 읽음' 은 새 알림 표시를 모두 없애고 알림창에 남은 묻는 알림도 치운다(PaymentCapture.markAllRead).
  *
@@ -117,8 +117,6 @@ internal fun InboxDialog(
                         text = "모두 읽음",
                         onClick = { onMarkAllRead(items.map { it.payment.dedupKey }) },
                         enabled = items.any { it.isNew },
-                        // 다크의 primary 는 채움용이라 어두운 바탕 위 글자로는 대비가 모자라다
-                        color = BudgetTheme.colors.brandText,
                     )
                 }
                 Spacer(Modifier.height(BudgetTheme.spacing.itemGap))
@@ -204,6 +202,12 @@ private fun InboxRow(item: InboxItem, today: LocalDate, onClick: () -> Unit) {
                 color = BudgetTheme.colors.textSecondary,
                 modifier = Modifier.padding(top = BudgetTheme.spacing.tightGap),
             )
+        }
+        // 새 알림과 등록함은 함께 붙지 않는다(InboxItem). 둘 다 줄 오른쪽 끝을 쓴다.
+        if (item.isNew) {
+            Spacer(Modifier.width(BudgetTheme.spacing.inlineGap))
+            // 연한 바탕은 흰 바탕과 명암 차이가 작아(라이트 1.22:1) 색만으로는 새 알림이 잘 안 보인다
+            NoticeDot()
         }
         if (item.registered) {
             Spacer(Modifier.width(BudgetTheme.spacing.inlineGap))
