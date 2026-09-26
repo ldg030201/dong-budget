@@ -29,15 +29,22 @@ data class CapturedPayment(
 /**
  * 토스 결제 알림을 읽는다.
  *
- * 지금 아는 모양은 하나뿐이다.
- *   제목: "133,500원 결제"
- *   본문: "하나카드 | 비비큐 강동밀레니얼점(일시불)"
+ * 지금 아는 모양은 두 가지다.
+ *   제목: "133,500원 결제"       본문: "하나카드 | 비비큐 강동밀레니얼점(일시불)"
+ *   제목: "15,000원 결제 완료"   본문: "토스뱅크 ・ 구글페이먼트코리아 유한회사" (토스뱅크 카드. 둘째 줄에 혜택 안내가 붙는다)
  * 이 모양과 딱 맞을 때만 읽고, 조금이라도 다르면 null 을 준다. 결제 취소나 입금처럼 모르는 알림을
  * 결제로 잘못 읽으면 가계부가 틀어지므로, 새 모양은 실제 문구를 받은 뒤에 추가한다.
  */
 object TossPaymentParser {
-    /** 제목 전체가 '금액원 결제' 여야 한다. '결제 취소' 처럼 뒤에 무엇이 붙으면 맞지 않는다. */
-    private val titlePattern = Regex("""^([0-9][0-9,]*)\s*원\s*결제$""")
+    /** 제목 전체가 '금액원 결제' 나 '금액원 결제 완료' 여야 한다. '결제 취소' 처럼 다른 말이 붙으면 맞지 않는다. */
+    private val titlePattern = Regex("""^([0-9][0-9,]*)\s*원\s*결제(?:\s*완료)?$""")
+
+    /**
+     * 카드 이름과 가게 사이의 가운뎃점. 토스뱅크 알림이 쓴다. 화면에서 똑같아 보이는 글자가 여럿이라 모두 받는다.
+     * 앞뒤에 빈칸이 있을 때만 나눈다. '스타벅스·강남' 처럼 가게 이름 안에 붙은 가운뎃점은 자르지 않는다.
+     * 빈칸은 normalize 가 보통 공백 하나로 바꿔 두므로 그대로 적는다.
+     */
+    private val dotSeparator = Regex(" [\u00B7\u2022\u2027\u2219\u22C5\u30FB\uFF65] ")
 
     /** 가게 이름 끝의 할부 표시. '(일시불)', '(3개월)', '(3개월 할부)', '(할부 3개월)' */
     private val installmentPattern = Regex("""\(\s*(?:일시불|(\d{1,2})\s*개월(?:\s*할부)?|할부\s*(\d{1,2})\s*개월)\s*\)\s*$""")
@@ -52,9 +59,11 @@ object TossPaymentParser {
         if (amountDigits.length > MAX_AMOUNT_DIGITS) return null
         val amount = amountDigits.toLongOrNull()?.takeIf { it > 0 } ?: return null
 
-        // 카드 이름과 가게 사이는 '|' 로 나뉜다. 가게 이름에 '|' 가 들어갈 수도 있으니 첫 번째 것만 나눈다.
-        val card = cleanText.substringBefore('|', missingDelimiterValue = "").trim().ifEmpty { null }
-        var merchant = if ('|' in cleanText) cleanText.substringAfter('|').trim() else cleanText
+        // 카드 이름과 가게 사이는 '|' 로 나뉜다. 없으면 빈칸을 둔 가운뎃점으로 나뉜 것(토스뱅크)을 본다.
+        // 가게 이름에 구분자가 또 들어갈 수 있으니 첫 번째 것만 나눈다.
+        val separator = if ('|' in cleanText) cleanText.indexOf('|').let { it..it } else dotSeparator.find(cleanText)?.range
+        val card = separator?.let { cleanText.substring(0, it.first).trim().ifEmpty { null } }
+        var merchant = separator?.let { cleanText.substring(it.last + 1).trim() } ?: cleanText
         var months: Int? = null
         installmentPattern.find(merchant)?.let { match ->
             months = (match.groupValues[1].ifEmpty { match.groupValues[2] }).toIntOrNull()?.takeIf { it > 1 }
