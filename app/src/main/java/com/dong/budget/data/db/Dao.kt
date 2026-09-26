@@ -23,6 +23,12 @@ data class TransactionListItem(
     val categoryIcon: String?,
     val categoryColor: String?,
     val paymentMethodName: String?,
+    /** 분류·결제수단별 통계에서 묶는 기준. 이름은 같을 수 있어도 id 는 다르다. 지웠거나 비웠으면 null */
+    val categoryId: Long? = null,
+    val paymentMethodId: Long? = null,
+    /** 결제수단별 통계의 뱃지와 차트 색 */
+    val paymentMethodIcon: String? = null,
+    val paymentMethodColor: String? = null,
 )
 
 /** 결제수단 목록에 거래 건수를 붙인 것 */
@@ -47,7 +53,10 @@ interface TransactionDao {
                c.name AS categoryName,
                c.icon AS categoryIcon,
                c.color AS categoryColor,
-               p.name AS paymentMethodName
+               p.name AS paymentMethodName,
+               t.categoryId, t.paymentMethodId,
+               p.icon AS paymentMethodIcon,
+               p.color AS paymentMethodColor
         FROM transactions t
         LEFT JOIN categories c ON c.id = t.categoryId
         LEFT JOIN payment_methods p ON p.id = t.paymentMethodId
@@ -72,6 +81,10 @@ interface TransactionDao {
         """,
     )
     suspend fun lastCategoryIdForMerchant(merchant: String): Long?
+
+    /** 통계의 기록 시작 시각. 이체는 통계에서 빼므로 여기서도 뺀다. 거래가 없으면 null */
+    @Query("SELECT MIN(occurredAt) FROM transactions WHERE type != 'TRANSFER'")
+    fun observeFirstOccurredAt(): Flow<Instant?>
 
     /** 알림에서 읽은 결제가 이미 등록됐는지 */
     @Query("SELECT EXISTS(SELECT 1 FROM transactions WHERE dedupKey = :key)")
