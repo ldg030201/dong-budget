@@ -7,8 +7,13 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import java.io.IOException
+import java.net.ConnectException
 import java.net.HttpURLConnection
+import java.net.NoRouteToHostException
+import java.net.SocketTimeoutException
 import java.net.URL
+import java.net.UnknownHostException
 import java.time.Instant
 import java.time.LocalDate
 
@@ -32,8 +37,10 @@ sealed interface UpdateStatus {
  * 아직 설치하지 않은 새 버전 하나. 패치노트 맨 위에 보여준다.
  * @property date 배포한 날. 알 수 없으면 null
  * @property notes 릴리스 본문의 앱용 구간(태그 메시지). 줄 수를 자르지 않는다.
+ * @property downloadUrl 설치 파일 주소. 가장 새 버전을 업데이트 확인 결과로 기록할 때 쓴다.
+ * @property sizeBytes 설치 파일 크기
  */
-data class NewerRelease(val version: String, val date: LocalDate?, val notes: String)
+data class NewerRelease(val version: String, val date: LocalDate?, val notes: String, val downloadUrl: String = "", val sizeBytes: Long = 0)
 
 @Serializable
 private data class GithubRelease(
@@ -64,7 +71,7 @@ class UpdateRepository(
         runCatching { fetchLatest() }
             .fold(
                 onSuccess = { it },
-                onFailure = { UpdateStatus.Failed(it.message ?: "알 수 없는 오류") },
+                onFailure = { UpdateStatus.Failed(describeNetworkError(it)) },
             )
     }
 
@@ -76,7 +83,7 @@ class UpdateRepository(
         runCatching {
             val connection = open("$apiBase/repos/$owner/$repo/releases?per_page=$RELEASE_PAGE_SIZE")
             try {
-                check(connection.responseCode in HTTP_OK_RANGE) { "서버 응답 ${connection.responseCode}" }
+                check(connection.responseCode in HTTP_OK_RANGE) { describeHttpError(connection.responseCode) }
                 val body = connection.inputStream.bufferedReader().use { it.readText() }
                 parseNewerReleases(body, currentVersion)
             } finally {
@@ -102,7 +109,7 @@ class UpdateRepository(
                 return UpdateStatus.Failed("아직 배포된 버전이 없어요")
             }
             if (connection.responseCode !in HTTP_OK_RANGE) {
-                return UpdateStatus.Failed("서버 응답 ${connection.responseCode}")
+                return UpdateStatus.Failed(describeHttpError(connection.responseCode))
             }
 
             val release =
@@ -155,20 +162,53 @@ class UpdateRepository(
                 .decodeFromString<List<GithubRelease>>(body)
                 .asSequence()
                 .filter { !it.draft && !it.prerelease }
-                .filter { release -> release.assets.any { it.name.endsWith(".apk", ignoreCase = true) } }
                 .mapNotNull { release ->
+                    val apk = release.assets.firstOrNull { it.name.endsWith(".apk", ignoreCase = true) } ?: return@mapNotNull null
                     val version = AppVersion.parse(release.tagName)?.takeIf { it > current } ?: return@mapNotNull null
-                    version to release
+                    Triple(version, release, apk)
                 }.sortedByDescending { it.first }
-                .map { (version, release) ->
+                // 'v0.1.8' 과 'v0.1.8-hotfix' 처럼 같은 버전으로 읽히는 배포가 둘이면 하나만 남긴다.
+                // 둘 다 남기면 패치노트 목록의 항목 이름(버전)이 겹쳐 화면이 죽는다.
+                .distinctBy { it.first }
+                .map { (version, release, apk) ->
                     NewerRelease(
                         version = version.toString(),
                         date = release.publishedAt?.let {
                             runCatching { Instant.parse(it).atZone(BudgetTime.ZONE).toLocalDate() }.getOrNull()
                         },
                         notes = ReleaseNotes.forApp(release.body, maxLines = Int.MAX_VALUE),
+                        downloadUrl = apk.downloadUrl,
+                        sizeBytes = apk.size,
                     )
                 }.toList()
+        }
+
+        /** 서버가 요청을 거절했을 때 사용자에게 보여줄 말 */
+        internal fun describeHttpError(code: Int): String = when (code) {
+            // 로그인 없이 부를 수 있는 횟수(시간당 60번)를 넘겼을 때 GitHub 가 주는 응답
+            403, 429 -> "잠시 뒤에 다시 확인해 주세요 (확인 요청이 너무 많았어요)"
+
+            in 500..599 -> "배포 서버에 문제가 있어요. 잠시 뒤에 다시 확인해 주세요"
+
+            else -> "새 버전을 확인하지 못했어요 (서버 응답 $code)"
+        }
+
+        /**
+         * 네트워크 예외를 사용자에게 보여줄 말로 바꾼다. 예외의 영문 원문(예: 'Unable to resolve host')을 그대로 보여주지 않는다.
+         * 원문은 화면의 '시스템 메시지' 로 따로 보여줄 수 있다.
+         */
+        fun describeNetworkError(error: Throwable): String = when (error) {
+            is UnknownHostException, is ConnectException, is NoRouteToHostException ->
+                "인터넷에 연결되어 있지 않아요. 연결을 확인하고 다시 해 주세요"
+
+            is SocketTimeoutException -> "서버 응답이 늦어요. 잠시 뒤에 다시 해 주세요"
+
+            is IOException -> "연결이 끊겼어요. 잠시 뒤에 다시 해 주세요"
+
+            // check() 로 만든 한국어 사유(서버 응답 등)는 그대로 쓴다
+            is IllegalStateException -> error.message ?: "새 버전을 확인하지 못했어요"
+
+            else -> "새 버전을 확인하지 못했어요"
         }
     }
 }

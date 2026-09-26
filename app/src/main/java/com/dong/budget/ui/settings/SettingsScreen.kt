@@ -38,6 +38,7 @@ import com.dong.budget.ui.components.BudgetTopAppBar
 import com.dong.budget.ui.permission.AppPermission
 import com.dong.budget.ui.permission.PermissionDialog
 import com.dong.budget.ui.theme.BudgetTheme
+import java.util.Locale
 
 private const val BYTES_PER_MB = 1024.0 * 1024.0
 
@@ -331,4 +332,5 @@ private fun ThemeMode.label(): String = when (this) {
     ThemeMode.DARK -> "어둡게"
 }
 
-private fun Long.toMegabytes(): String = String.format("%.1f", this / BYTES_PER_MB)
+// 기기 언어와 상관없이 같은 모양(12.3)으로 보인다. 로케일을 주지 않으면 독일어 기기에서 '12,3' 이 된다.
+private fun Long.toMegabytes(): String = String.format(Locale.KOREA, "%.1f", this / BYTES_PER_MB)

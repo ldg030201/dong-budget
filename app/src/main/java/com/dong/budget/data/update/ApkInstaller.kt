@@ -6,8 +6,10 @@ import android.content.Intent
 import android.content.pm.PackageInstaller
 import androidx.core.content.FileProvider
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.ensureActive
-import kotlinx.coroutines.job
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.InputStream
@@ -82,19 +84,23 @@ class ApkInstaller(private val context: Context) {
                 directory.mkdirs()
                 val part = File.createTempFile(target.name, PART_SUFFIX, directory)
                 val connection = openConnection(downloadUrl)
-                // 화면을 나가 취소돼도 read() 는 스스로 풀리지 않는다. 연결을 끊어 바로 멈추게 한다.
-                val disconnectOnCancel = coroutineContext.job.invokeOnCompletion { connection.disconnect() }
-                try {
-                    connection.inputStream.use { input ->
-                        part.outputStream().use { output -> copyWithProgress(input, output, expectedSize, onProgress) }
+                coroutineScope {
+                    // 화면을 나가 취소돼도 막혀 있는 read() 는 스스로 풀리지 않는다. 취소되는 즉시 연결을 끊어 풀어 준다.
+                    // 이 감시 작업은 부모가 취소되면 바로 함께 취소되고, 다른 스레드에서 finally 로 연결을 끊는다.
+                    // (job 의 완료 알림은 read() 가 풀려 작업이 끝나야 오므로 이 용도로 쓸 수 없다.)
+                    val watcher = launch { disconnectWhenCancelled(connection) }
+                    try {
+                        connection.inputStream.use { input ->
+                            part.outputStream().use { output -> copyWithProgress(input, output, expectedSize, onProgress) }
+                        }
+                        check(expectedSize <= 0 || part.length() == expectedSize) { "설치 파일을 끝까지 받지 못했어요" }
+                        check(part.renameTo(target)) { "설치 파일을 저장하지 못했어요" }
+                        target
+                    } finally {
+                        watcher.cancel()
+                        connection.disconnect()
+                        part.delete()
                     }
-                    check(expectedSize <= 0 || part.length() == expectedSize) { "설치 파일을 끝까지 받지 못했어요" }
-                    check(part.renameTo(target)) { "설치 파일을 저장하지 못했어요" }
-                    target
-                } finally {
-                    disconnectOnCancel.dispose()
-                    connection.disconnect()
-                    part.delete()
                 }
             }
         }
@@ -179,6 +185,15 @@ class ApkInstaller(private val context: Context) {
         directory.listFiles().orEmpty().forEach { file ->
             if (file.name.endsWith(PART_SUFFIX)) return@forEach
             if (version == null || file != fileFor(version)) file.delete()
+        }
+    }
+
+    /** 취소될 때까지 기다렸다가 연결을 끊는다 */
+    private suspend fun disconnectWhenCancelled(connection: HttpURLConnection) {
+        try {
+            awaitCancellation()
+        } finally {
+            connection.disconnect()
         }
     }
 

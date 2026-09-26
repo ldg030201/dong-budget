@@ -56,7 +56,7 @@ class UpdateCheckerTest {
     fun `최신이라는 결과가 오면 배너를 치운다`() = runBlocking {
         val checker = checker()
         checker.checkIfDue()
-        checker.record(UpdateStatus.UpToDate)
+        checker.apply(UpdateStatus.UpToDate)
         assertNull(checker.available.value)
         assertNull(checker().available.value)
     }
@@ -77,5 +77,33 @@ class UpdateCheckerTest {
         checker.dismissBanner()
         assertNull(checker.bannerVersion.first())
         assertEquals("0.1.5", checker().bannerVersion.first())
+    }
+
+    @Test
+    fun `받아둔 파일 정리는 결과를 기록하기 전에 한다`() = runBlocking {
+        val order = mutableListOf<String>()
+        lateinit var checker: UpdateChecker
+        checker =
+            UpdateChecker(
+                fetch = { next },
+                prefs = prefs,
+                currentVersion = "0.1.4",
+                now = { clock },
+                beforeRecord = { order += "정리(기록 전 배너=${checker.available.value?.version})" },
+            )
+        checker.checkIfDue()
+        // 정리할 때는 아직 새 결과가 기록되지 않았다
+        assertEquals(listOf("정리(기록 전 배너=null)"), order)
+        assertEquals("0.1.5", checker.available.value?.version)
+    }
+
+    @Test
+    fun `마지막 확인에서 간격이 지나지 않았는지 알려준다`() = runBlocking {
+        val checker = checker()
+        assertEquals(false, checker.checkedRecently())
+        checker.checkIfDue()
+        assertEquals(true, checker.checkedRecently())
+        clock += UpdateChecker.INTERVAL_MS
+        assertEquals(false, checker.checkedRecently())
     }
 }

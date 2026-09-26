@@ -23,6 +23,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dong.budget.data.capture.CaptureNotifier
 import com.dong.budget.data.settings.SettingsRepository
 import com.dong.budget.data.settings.ThemeMode
+import com.dong.budget.data.update.InstallEvents
 import com.dong.budget.ui.DongBudgetApp
 import com.dong.budget.ui.theme.BudgetTheme
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -91,6 +92,22 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        InstallEvents.appVisible = true
+    }
+
+    override fun onStop() {
+        InstallEvents.appVisible = false
+        super.onStop()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // 받는 동안 다른 앱에 있어서 띄우지 못한 설치 확인창이 있으면 지금 띄운다
+        InstallEvents.takePendingConfirm()?.let { runCatching { startActivity(it) } }
     }
 
     /** 앱이 열린 채로 결제 등록 알림을 누르면 여기로 온다(singleTop) */

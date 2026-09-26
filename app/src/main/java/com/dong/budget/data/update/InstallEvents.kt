@@ -1,5 +1,6 @@
 package com.dong.budget.data.update
 
+import android.content.Intent
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -30,8 +31,8 @@ sealed interface InstallEvent {
  * 설치 결과는 앱이 아니라 시스템이 브로드캐스트로 알려주기 때문에
  * 받는 곳과 보여주는 곳이 떨어져 있다. 그 사이를 잇는다.
  *
- * replay 를 1로 둔 이유: 설치 확인창이 떠 있는 동안 우리 화면이 잠시 가려지는데,
- * 그때 도착한 결과가 버려지면 사용자는 아무 안내도 못 받는다.
+ * replay 를 1로 둔 이유: 결과가 설치를 시작한 화면의 구독보다 먼저 도착해도 버려지지 않게 하기 위함이다.
+ * 다만 지난 시도의 결과가 남아 있으므로, 받는 쪽은 자기가 시작한 설치의 결과만 반영해야 한다(SettingsViewModel).
  */
 object InstallEvents {
     /**
@@ -49,11 +50,33 @@ object InstallEvents {
     val events: SharedFlow<InstallEvent> = _events.asSharedFlow()
 
     fun publish(event: InstallEvent) {
+        // 결과가 나왔으면 띄우지 못한 확인창도 더는 필요 없다
+        pendingConfirm = null
         _events.tryEmit(event)
     }
 
     /** 새 설치를 시작하기 전에 지난 결과를 비운다. */
     fun clear() {
+        pendingConfirm = null
         _events.resetReplayCache()
     }
+
+    /**
+     * 동계부 화면이 보이는 중인지. MainActivity 가 onStart/onStop 에서 적는다.
+     * 화면이 안 보이면 설치 확인창을 띄워도 안드로이드가 막는다(백그라운드 화면 실행 제한).
+     */
+    @Volatile var appVisible: Boolean = false
+
+    /**
+     * 앱이 안 보일 때 도착해서 띄우지 못한 설치 확인창. 동계부로 돌아오면 [takePendingConfirm] 으로 꺼내 띄운다.
+     * 받는 동안 다른 앱으로 나가 있으면 이렇게 된다. 그냥 두면 설치가 확인을 기다린 채 멈춘다.
+     */
+    @Volatile private var pendingConfirm: Intent? = null
+
+    fun holdConfirm(intent: Intent) {
+        pendingConfirm = intent
+    }
+
+    /** 띄우지 못한 확인창을 꺼낸다. 한 번 꺼내면 비운다. */
+    fun takePendingConfirm(): Intent? = pendingConfirm.also { pendingConfirm = null }
 }

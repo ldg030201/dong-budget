@@ -50,13 +50,8 @@ data object CategoryManageKey : AppNavKey
 @Serializable
 data object StatisticsKey : AppNavKey
 
-/**
- * 설정. [checkOnOpen] 이면 들어가자마자 새 버전을 다시 확인한다.
- * 패치노트의 [업데이트하러 가기] 로 올 때 쓴다. 패치노트는 배포 목록을 새로 받아 보여주는데,
- * 설정이 들고 있는 마지막 확인 결과는 그보다 오래됐을 수 있어서다(그사이 새 버전이 또 나온 경우 등).
- */
 @Serializable
-data class SettingsKey(val checkOnOpen: Boolean = false) : AppNavKey
+data object SettingsKey : AppNavKey
 
 @Serializable
 data object PatchNotesKey : AppNavKey

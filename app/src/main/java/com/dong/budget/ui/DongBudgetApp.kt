@@ -120,7 +120,7 @@ fun DongBudgetApp(container: AppContainer, capturedToOpen: String? = null, onCap
                 HomeShell(
                     state = state,
                     updateVersion = updateVersion,
-                    onOpenUpdate = { navigator.go(SettingsKey()) },
+                    onOpenUpdate = { navigator.go(SettingsKey) },
                     onDismissUpdate = container.updateChecker::dismissBanner,
                     onPreviousMonth = viewModel::showPreviousMonth,
                     onNextMonth = viewModel::showNextMonth,
@@ -128,7 +128,7 @@ fun DongBudgetApp(container: AppContainer, capturedToOpen: String? = null, onCap
                     onEditTransaction = { id -> navigator.go(TransactionEditorKey(id)) },
                     onOpenCategories = { navigator.go(CategoryManageKey) },
                     onOpenStatistics = { navigator.go(StatisticsKey) },
-                    onOpenSettings = { navigator.go(SettingsKey()) },
+                    onOpenSettings = { navigator.go(SettingsKey) },
                     onOpenPatchNotes = { navigator.go(PatchNotesKey) },
                 )
             }
@@ -190,9 +190,9 @@ fun DongBudgetApp(container: AppContainer, capturedToOpen: String? = null, onCap
                 PlaceholderSubflow(title = "통계", onClose = navigator::goBack)
             }
 
-            entry<SettingsKey> { key ->
+            entry<SettingsKey> {
                 val viewModel: SettingsViewModel =
-                    viewModel(factory = settingsViewModelFactory(container, key.checkOnOpen))
+                    viewModel(factory = settingsViewModelFactory(container))
                 val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
                 val updateState by viewModel.updateState.collectAsStateWithLifecycle()
                 val downloadedVersion by viewModel.downloadedVersion.collectAsStateWithLifecycle()
@@ -218,7 +218,7 @@ fun DongBudgetApp(container: AppContainer, capturedToOpen: String? = null, onCap
                     currentVersion = BuildConfig.VERSION_NAME,
                     onBack = navigator::goBack,
                     newer = newer,
-                    onOpenUpdate = { navigator.go(SettingsKey(checkOnOpen = true)) },
+                    onOpenUpdate = { navigator.go(SettingsKey) },
                 )
             }
         },
@@ -268,14 +268,13 @@ private fun editorViewModelFactory(container: AppContainer, transactionId: Long?
     }
 }
 
-private fun settingsViewModelFactory(container: AppContainer, checkOnOpen: Boolean) = viewModelFactory {
+private fun settingsViewModelFactory(container: AppContainer) = viewModelFactory {
     initializer {
         SettingsViewModel(
             settingsRepository = container.settingsRepository,
             updateRepository = container.updateRepository,
             apkInstaller = container.apkInstaller,
             updateChecker = container.updateChecker,
-            checkOnOpen = checkOnOpen,
         )
     }
 }

@@ -33,7 +33,13 @@ class InstallResultReceiver : BroadcastReceiver() {
                 }
                 // 브로드캐스트에서 화면을 띄우려면 새 작업으로 시작해야 한다.
                 confirmIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                context.startActivity(confirmIntent)
+                // 동계부 화면이 안 보이면(받는 동안 다른 앱으로 나감) 안드로이드가 확인창을 조용히 막는다.
+                // 그때는 맡겨 두었다가 동계부로 돌아올 때 띄운다(MainActivity.onResume).
+                if (InstallEvents.appVisible) {
+                    runCatching { context.startActivity(confirmIntent) }.onFailure { InstallEvents.holdConfirm(confirmIntent) }
+                } else {
+                    InstallEvents.holdConfirm(confirmIntent)
+                }
             }
 
             PackageInstaller.STATUS_SUCCESS -> {
@@ -132,7 +138,7 @@ class InstallResultReceiver : BroadcastReceiver() {
                     "아래 버튼으로 꺼져 있는지 확인하고 다시 해보세요"
 
             status == PackageInstaller.STATUS_FAILURE_ABORTED ->
-                "설치가 중단됐어요. 아래 '받은 파일로 직접 설치'로 다시 해보세요"
+                "설치가 중단됐어요. 아래 '받은 파일로 설치'로 다시 해보세요"
 
             else -> "설치를 마치지 못했어요"
         }
