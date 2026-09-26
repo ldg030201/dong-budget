@@ -3,6 +3,7 @@ package com.dong.budget.data.db
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.YearMonth
 import java.time.ZoneId
 
@@ -23,6 +24,8 @@ object BudgetTime {
     }
 
     fun toLocalDate(instant: Instant): LocalDate = instant.atZone(ZONE).toLocalDate()
+
+    fun toLocalTime(instant: Instant): LocalTime = instant.atZone(ZONE).toLocalTime()
 
     /**
      * 한 달의 시작과 끝을 Instant 로 돌려준다.

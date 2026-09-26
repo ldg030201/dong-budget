@@ -49,6 +49,12 @@ import com.dong.budget.ui.components.categoryIconRes
 import com.dong.budget.ui.theme.BudgetTheme
 import com.dong.budget.ui.theme.pressScaleClickable
 
+/** 새로 만들 것. 추가 시트의 제목과 이름 예시가 정해진다. */
+enum class AddTarget(val title: String, val namePlaceholder: String) {
+    CATEGORY("분류 추가", "예: 카페"),
+    PAYMENT("결제수단 추가", "예: 신한카드"),
+}
+
 /**
  * 분류나 결제수단을 새로 만드는 시트. 이름, 색, 아이콘을 고른다.
  *
@@ -61,8 +67,7 @@ import com.dong.budget.ui.theme.pressScaleClickable
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun AddItemSheet(
-    title: String,
-    namePlaceholder: String,
+    target: AddTarget,
     usedColors: Set<String>,
     error: String?,
     onDismiss: () -> Unit,
@@ -91,7 +96,7 @@ fun AddItemSheet(
                 .padding(bottom = BudgetTheme.spacing.sectionPadding),
         ) {
             Text(
-                text = title,
+                text = target.title,
                 style = MaterialTheme.typography.titleLarge,
                 color = BudgetTheme.colors.textPrimary,
             )
@@ -105,7 +110,7 @@ fun AddItemSheet(
                     label = "이름",
                     value = name,
                     onValueChange = { name = it },
-                    placeholder = namePlaceholder,
+                    placeholder = target.namePlaceholder,
                     imeAction = ImeAction.Done,
                     maxLength = MAX_NAME_LENGTH,
                     modifier = Modifier.weight(1f),
@@ -194,7 +199,7 @@ private fun IconChoice(key: String, selected: Boolean, color: String, onClick: (
     // 고르지 않은 아이콘은 회색으로 둔다. 스물네 개가 전부 색칠돼 있으면 화면이 요란하다.
     IconBadge(
         iconRes = categoryIconRes(key),
-        swatch = BudgetTheme.categoryPalette[if (selected) color else "gray"],
+        swatch = BudgetTheme.categoryPalette[if (selected) color else CategoryStyle.FALLBACK_COLOR],
         size = BudgetTheme.size.minTouchTarget,
         modifier =
         Modifier

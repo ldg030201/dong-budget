@@ -36,6 +36,7 @@ import com.dong.budget.navigation.StatisticsKey
 import com.dong.budget.navigation.TransactionEditorKey
 import com.dong.budget.ui.category.CategoryManageScreen
 import com.dong.budget.ui.category.CategoryManageViewModel
+import com.dong.budget.ui.editor.ALREADY_REGISTERED_MESSAGE
 import com.dong.budget.ui.editor.TransactionEditorScreen
 import com.dong.budget.ui.editor.TransactionEditorViewModel
 import com.dong.budget.ui.home.HomeViewModel
@@ -73,7 +74,7 @@ fun DongBudgetApp(container: AppContainer, capturedToOpen: String? = null, onCap
             // 이미 등록한 결제면 등록창을 열지 않고 알림만 치운다
             capture.alreadyRegistered(dedupKey) -> {
                 capture.onRegistered(dedupKey)
-                Toast.makeText(context, "이미 가계부에 등록한 결제예요", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, ALREADY_REGISTERED_MESSAGE, Toast.LENGTH_SHORT).show()
             }
 
             else -> navigator.go(TransactionEditorKey(prefill = payment.toPrefill()))
@@ -138,12 +139,9 @@ fun DongBudgetApp(container: AppContainer, capturedToOpen: String? = null, onCap
                     viewModel(factory = editorViewModelFactory(container, key.transactionId, key.prefill))
                 val state by viewModel.uiState.collectAsStateWithLifecycle()
 
-                // 저장이 끝나면 화면을 닫는다. 결제 알림에서 온 것이면 묻던 알림도 치운다.
+                // 저장이 끝나면 화면을 닫는다
                 LaunchedEffect(state.saved) {
-                    if (state.saved) {
-                        key.prefill?.let { container.paymentCapture.onRegistered(it.dedupKey) }
-                        navigator.closeIfTop(key)
-                    }
+                    if (state.saved) navigator.closeIfTop(key)
                 }
 
                 TransactionEditorScreen(
@@ -163,8 +161,7 @@ fun DongBudgetApp(container: AppContainer, capturedToOpen: String? = null, onCap
                     onDateChange = viewModel::updateDate,
                     onTimeChange = viewModel::updateTime,
                     onSave = viewModel::save,
-                    onJumpHandled = viewModel::onJumpHandled,
-                    onAddHandled = viewModel::onAddHandled,
+                    effects = viewModel.effects,
                     onDeleteTransaction = viewModel::delete,
                 )
             }
@@ -265,6 +262,7 @@ private fun editorViewModelFactory(container: AppContainer, transactionId: Long?
             paymentMethodRepository = container.paymentMethodRepository,
             transactionId = transactionId,
             prefill = prefill,
+            onCaptureRegistered = container.paymentCapture::onRegistered,
         )
     }
 }

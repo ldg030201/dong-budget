@@ -6,6 +6,7 @@ import com.dong.budget.data.db.PaymentMethodDao
 import com.dong.budget.data.db.PaymentMethodEntity
 import com.dong.budget.data.db.PaymentMethodType
 import com.dong.budget.data.db.PaymentMethodWithCount
+import com.dong.budget.data.db.colors
 import kotlinx.coroutines.flow.Flow
 import java.time.Instant
 import java.util.UUID
@@ -26,12 +27,13 @@ class PaymentMethodRepository(private val dao: PaymentMethodDao) {
         fun normalizeName(raw: String): String? = raw.trim().take(MAX_NAME_LENGTH).trim().ifEmpty { null }
     }
 
+    fun observeAll(): Flow<List<PaymentMethodEntity>> = dao.observeAll()
+
     fun observeWithCount(): Flow<List<PaymentMethodWithCount>> = dao.observeWithCount()
 
     suspend fun add(rawName: String, icon: String, color: String): AddResult {
         val name = rawName.trim()
-        if (name.isEmpty()) return AddResult.BlankName
-        if (name.length > MAX_NAME_LENGTH) return AddResult.NameTooLong
+        nameProblem(name)?.let { return it }
 
         val method =
             PaymentMethodEntity(
@@ -40,8 +42,8 @@ class PaymentMethodRepository(private val dao: PaymentMethodDao) {
                 // 사용자가 만든 결제수단의 세부 종류는 아직 쓰는 곳이 없다
                 type = PaymentMethodType.OTHER,
                 sortOrder = dao.maxSortOrder() + 1,
-                icon = icon.takeIf { it in CategoryStyle.ICONS } ?: CategoryStyle.FALLBACK_ICON,
-                color = color.takeIf { it in CategoryStyle.COLORS } ?: CategoryStyle.FALLBACK_COLOR,
+                icon = CategoryStyle.iconOrFallback(icon),
+                color = CategoryStyle.colorOrFallback(color),
             )
         return try {
             AddResult.Added(dao.insert(method))
@@ -59,8 +61,7 @@ class PaymentMethodRepository(private val dao: PaymentMethodDao) {
         val name = normalizeName(rawName) ?: return null
         val existing = dao.getAll()
         existing.firstOrNull { sameName(it.name, name) }?.let { return it.id }
-        val used = existing.mapTo(mutableSetOf()) { it.color }
-        val color = CategoryStyle.firstUnusedColor(used)
+        val color = CategoryStyle.firstUnusedColor(existing.colors())
         return when (val result = add(name, NEW_CARD_ICON, color)) {
             is AddResult.Added -> result.id
 

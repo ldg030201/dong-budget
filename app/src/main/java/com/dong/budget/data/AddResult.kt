@@ -13,3 +13,10 @@ sealed interface AddResult {
 
     data object DuplicateName : AddResult
 }
+
+/** 앞뒤 빈칸을 뗀 이름이 규칙에 어긋나면 그 이유. 괜찮으면 null. 분류와 결제수단이 같은 규칙을 쓴다. */
+internal fun nameProblem(name: String): AddResult? = when {
+    name.isEmpty() -> AddResult.BlankName
+    name.length > MAX_NAME_LENGTH -> AddResult.NameTooLong
+    else -> null
+}

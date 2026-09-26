@@ -2,6 +2,7 @@ package com.dong.budget.ui.theme
 
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.Color
+import com.dong.budget.data.db.CategoryStyle
 
 /**
  * 분류 색 한 벌. 옅은 원 배경(container) 위에 진한 아이콘(content)을 올린다.
@@ -15,7 +16,7 @@ data class CategorySwatch(val content: Color, val container: Color)
 @Immutable
 class CategoryPalette(private val swatches: Map<String, CategorySwatch>) {
     /** 모르는 이름이면 회색으로 떨어진다. DB 에 예전 이름이 남아 있어도 화면이 깨지지 않는다. */
-    operator fun get(key: String?): CategorySwatch = swatches[key] ?: swatches.getValue("gray")
+    operator fun get(key: String?): CategorySwatch = swatches[key] ?: swatches.getValue(CategoryStyle.FALLBACK_COLOR)
 }
 
 // 라이트: 진한 아이콘(대략 600~700 단계) + 옅은 배경(100 단계)

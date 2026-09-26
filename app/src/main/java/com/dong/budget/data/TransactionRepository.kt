@@ -1,11 +1,6 @@
 package com.dong.budget.data
 
 import com.dong.budget.data.db.BudgetTime
-import com.dong.budget.data.db.CategoryDao
-import com.dong.budget.data.db.CategoryEntity
-import com.dong.budget.data.db.CategoryScope
-import com.dong.budget.data.db.PaymentMethodDao
-import com.dong.budget.data.db.PaymentMethodEntity
 import com.dong.budget.data.db.TransactionDao
 import com.dong.budget.data.db.TransactionEntity
 import com.dong.budget.data.db.TransactionListItem
@@ -15,25 +10,20 @@ import java.time.Instant
 import java.time.YearMonth
 import java.util.UUID
 
+/** 금액 자리수 상한. 원 단위라 12자리면 조 단위까지 들어간다. 등록 화면과 결제 알림 읽기가 같이 쓴다. */
+const val MAX_AMOUNT_DIGITS = 12
+
 /**
  * 거래 저장소.
  *
  * 인터페이스를 따로 만들지 않는다. 구현이 하나뿐인데 인터페이스를 두면
  * 파일만 늘고 읽을 때 한 번 더 따라가야 한다.
  */
-class TransactionRepository(
-    private val transactionDao: TransactionDao,
-    private val categoryDao: CategoryDao,
-    private val paymentMethodDao: PaymentMethodDao,
-) {
+class TransactionRepository(private val transactionDao: TransactionDao) {
     fun observeMonth(month: YearMonth): Flow<List<TransactionListItem>> {
         val (start, end) = BudgetTime.monthRange(month)
         return transactionDao.observeBetween(start, end)
     }
-
-    fun observeCategories(scope: CategoryScope): Flow<List<CategoryEntity>> = categoryDao.observeByScope(scope)
-
-    fun observePaymentMethods(): Flow<List<PaymentMethodEntity>> = paymentMethodDao.observeAll()
 
     suspend fun findById(id: Long): TransactionEntity? = transactionDao.findById(id)
 
@@ -70,8 +60,8 @@ class TransactionRepository(
                 occurredDate = BudgetTime.toDateKey(occurredAt),
                 categoryId = categoryId,
                 paymentMethodId = paymentMethodId,
-                merchant = merchant?.trim()?.takeIf { it.isNotEmpty() },
-                memo = memo?.trim()?.takeIf { it.isNotEmpty() },
+                merchant = merchant.trimmedOrNull(),
+                memo = memo.trimmedOrNull(),
                 dedupKey = dedupKey,
                 createdAt = now,
                 updatedAt = now,
@@ -99,8 +89,8 @@ class TransactionRepository(
                 occurredDate = BudgetTime.toDateKey(occurredAt),
                 categoryId = categoryId,
                 paymentMethodId = paymentMethodId,
-                merchant = merchant?.trim()?.takeIf { it.isNotEmpty() },
-                memo = memo?.trim()?.takeIf { it.isNotEmpty() },
+                merchant = merchant.trimmedOrNull(),
+                memo = memo.trimmedOrNull(),
                 updatedAt = Instant.now(),
             ),
         )
@@ -112,3 +102,9 @@ class TransactionRepository(
         transactionDao.delete(existing)
     }
 }
+
+/**
+ * 가게 이름·메모는 앞뒤 빈칸을 떼고 저장한다. 비면 null.
+ * 가게 이름으로 지난 분류를 찾으므로 등록과 수정이 같은 규칙을 써야 한다.
+ */
+private fun String?.trimmedOrNull(): String? = this?.trim()?.takeIf { it.isNotEmpty() }

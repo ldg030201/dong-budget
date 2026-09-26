@@ -57,6 +57,11 @@ object CategoryStyle {
     const val FALLBACK_ICON = "more_horiz"
     const val FALLBACK_COLOR = "gray"
 
+    /** 목록에 없는 이름은 저장하지 않는다. 화면이 그릴 수 없는 이름이 DB 에 남는다. */
+    fun iconOrFallback(icon: String): String = icon.takeIf { it in ICONS } ?: FALLBACK_ICON
+
+    fun colorOrFallback(color: String): String = color.takeIf { it in COLORS } ?: FALLBACK_COLOR
+
     /**
      * 새로 만드는 분류·결제수단의 색. 아직 안 쓴 색 중 첫 번째(회색 제외), 다 쓰였으면 회색.
      * 추가 창의 처음 색과 알림에서 읽은 카드를 새로 만들 때의 색이 같은 규칙을 쓰게 한 곳에 둔다.

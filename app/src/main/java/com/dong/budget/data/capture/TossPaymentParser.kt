@@ -1,5 +1,6 @@
 package com.dong.budget.data.capture
 
+import com.dong.budget.data.MAX_AMOUNT_DIGITS
 import kotlinx.serialization.Serializable
 import java.text.Normalizer
 
@@ -37,9 +38,6 @@ object TossPaymentParser {
 
     /** 가게 이름 끝의 할부 표시. '(일시불)', '(3개월)', '(3개월 할부)', '(할부 3개월)' */
     private val installmentPattern = Regex("""\(\s*(?:일시불|(\d{1,2})\s*개월(?:\s*할부)?|할부\s*(\d{1,2})\s*개월)\s*\)\s*$""")
-
-    /** 원 단위 금액 자리수 상한. 등록 화면과 같게 둔다(조 단위까지). */
-    private const val MAX_AMOUNT_DIGITS = 12
 
     /** @param postedAtMillis 결제 시각. 알림에 적힌 시각이다. */
     fun parse(title: CharSequence?, text: CharSequence?, postedAtMillis: Long): CapturedPayment? {
