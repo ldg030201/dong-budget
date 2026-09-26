@@ -5,6 +5,8 @@ import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /** 결제를 등록할지 사용자에게 묻는 창구. 실제로는 우리 앱의 알림이다(CaptureNotifier). */
 interface CapturePrompt {
@@ -31,6 +33,13 @@ class PaymentCapture(
     private val now: () -> Long = System::currentTimeMillis,
 ) {
     /**
+     * 새 결제 처리와 되살리기([restorePrompts])가 겹치지 않게 한다.
+     * 겹치면 되살리기가 방금 기록된 새 결제를 '소리 없이' 먼저 띄우고, 뒤따른 소리 알림은 같은 알림의 갱신이라
+     * 울리지 않는다(setOnlyAlertOnce). 새 결제인데 조용히 지나가게 된다.
+     */
+    private val mutex = Mutex()
+
+    /**
      * 토스 알림 하나를 살펴 결제면 등록할지 묻는다.
      *
      * 제목과 본문은 알림에 따라 담기는 칸이 달라서 후보를 여러 개 받는다. 짧은 본문부터 맞춰 본다.
@@ -38,7 +47,10 @@ class PaymentCapture(
      *
      * @return 물어봤으면 true
      */
-    suspend fun onNotification(titles: List<CharSequence?>, texts: List<CharSequence?>, occurredAtMillis: Long): Boolean {
+    suspend fun onNotification(titles: List<CharSequence?>, texts: List<CharSequence?>, occurredAtMillis: Long): Boolean =
+        mutex.withLock { handleNotification(titles, texts, occurredAtMillis) }
+
+    private suspend fun handleNotification(titles: List<CharSequence?>, texts: List<CharSequence?>, occurredAtMillis: Long): Boolean {
         // 너무 오래된 결제는 묻지 않는다. 기록을 지운 뒤 같은 알림이 다시 들어와도 또 묻지 않게 하기 위함이다.
         if (now() - occurredAtMillis > CaptureStore.RETENTION_MS) return false
         val payment =
@@ -57,11 +69,12 @@ class PaymentCapture(
     }
 
     /**
-     * 앱 업데이트나 기기 재시작으로 지워진 묻는 알림을 다시 띄운다. 알림 읽기가 연결될 때 부른다.
+     * 지워졌거나 띄우지 못한 묻는 알림을 다시 띄운다. 알림 읽기가 연결될 때(앱 업데이트·재시작 뒤)와
+     * 앱으로 돌아올 때(다시 살피기) 부른다. 알림이나 채널을 꺼 둔 동안 시스템이 지운 알림도 이때 되살아난다.
      * 답한 것(사용자가 지웠거나 등록한 것), 이미 등록돼 있는 것, 지금 떠 있는 것([showing])은 빼고 소리 없이 띄운다.
      */
-    suspend fun restorePrompts(showing: Set<String>) {
-        if (!prompt.canAsk()) return
+    suspend fun restorePrompts(showing: Set<String>) = mutex.withLock {
+        if (!prompt.canAsk()) return@withLock
         store.pending().forEach { payment ->
             when {
                 // 이미 등록한 결제는 답한 것으로 적는다. 0.1.6 은 등록해도 기록에 남기지 않아서 여기서 정리한다.
@@ -92,7 +105,7 @@ class PaymentCapture(
     }
 
     /**
-     * 알림창에 남아 있는 토스 알림을 다시 살펴 달라고 알림 읽기에 부탁한다.
+     * 알림창에 남아 있는 토스 알림을 다시 살피고, 띄우지 못한 묻는 알림을 되살려 달라고 알림 읽기에 부탁한다.
      * 알림을 보낼 수 없던 사이 들어온 결제는 기록하지 않고 넘겼으므로, 알림을 허용한 뒤 여기서 다시 묻는다.
      * 알림 읽기가 연결돼 있지 않으면 아무 일도 없다(연결될 때 어차피 훑는다).
      */

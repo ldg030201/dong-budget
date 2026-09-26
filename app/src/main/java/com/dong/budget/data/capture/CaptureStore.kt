@@ -25,9 +25,10 @@ class CaptureStore(private val prefs: SharedPreferences, private val now: () -> 
     /** 처음 보는 결제면 기록하고 true, 이미 물어본 결제면 false */
     @Synchronized
     fun remember(payment: CapturedPayment): Boolean {
-        prune()
         val key = KEY_PREFIX + payment.dedupKey
+        // 이미 물어본 결제는 여기서 바로 끝낸다. 정리(모든 기록을 읽어 푸는 일)는 새 기록을 넣을 때만 한다.
         if (prefs.contains(key)) return false
+        prune()
         prefs.edit { putString(key, json.encodeToString(Entry(payment))) }
         return true
     }
