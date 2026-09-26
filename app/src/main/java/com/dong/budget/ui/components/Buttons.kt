@@ -41,28 +41,6 @@ fun BudgetPrimaryButton(text: String, onClick: () -> Unit, modifier: Modifier = 
     }
 }
 
-/** 보조 동작용 버튼. 배경은 회색 블록으로 둔다. */
-@Composable
-fun BudgetSecondaryButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
-    val shape = RoundedCornerShape(BudgetTheme.radius.control)
-    Box(
-        modifier =
-        modifier
-            .fillMaxWidth()
-            .height(BudgetTheme.size.ctaHeight)
-            .alpha(if (enabled) 1f else DISABLED_ALPHA)
-            .pressScaleClickable(shape = shape, enabled = enabled, onClick = onClick)
-            .background(BudgetTheme.colors.sectionBackground, shape),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text = text,
-            style = MaterialTheme.typography.titleMedium,
-            color = BudgetTheme.colors.textPrimary,
-        )
-    }
-}
-
 /**
  * 줄 옆에 붙이는 작은 버튼. 화면 폭을 채우지 않고 글자만큼만 차지한다.
  * 보이는 높이는 테마 칩과 같게 두고, 누를 수 있는 범위는 최소 터치 크기를 지킨다.

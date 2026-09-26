@@ -22,7 +22,7 @@ import com.dong.budget.ui.theme.BudgetTheme
  * 먼저 확인하기 위한 임시 화면이다. 각 기능을 만들면서 교체한다.
  */
 @Composable
-fun PlaceholderSubflow(title: String, onClose: () -> Unit, modifier: Modifier = Modifier, isModal: Boolean = false) {
+fun PlaceholderSubflow(title: String, onClose: () -> Unit, modifier: Modifier = Modifier) {
     Surface(
         modifier = modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background,
@@ -31,7 +31,7 @@ fun PlaceholderSubflow(title: String, onClose: () -> Unit, modifier: Modifier = 
             BudgetTopAppBar(
                 onNavigationClick = onClose,
                 title = title,
-                style = if (isModal) NavButtonStyle.CLOSE else NavButtonStyle.BACK,
+                style = NavButtonStyle.BACK,
             )
             Box(
                 modifier =
