@@ -91,8 +91,7 @@ fun CategoryManageScreen(
 
     if (state.showAdd) {
         AddItemSheet(
-            title = "$noun 추가",
-            namePlaceholder = if (isPayment) "예: 신한카드" else "예: 카페",
+            target = if (isPayment) AddTarget.PAYMENT else AddTarget.CATEGORY,
             usedColors = state.usedColors,
             error = state.addError,
             onDismiss = onDismissAdd,

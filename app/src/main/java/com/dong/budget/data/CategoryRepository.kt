@@ -12,21 +12,21 @@ import java.time.Instant
 import java.util.UUID
 
 class CategoryRepository(private val dao: CategoryDao) {
+    fun observe(scope: CategoryScope): Flow<List<CategoryEntity>> = dao.observeByScope(scope)
+
     fun observeWithCount(scope: CategoryScope): Flow<List<CategoryWithCount>> = dao.observeWithCount(scope)
 
     suspend fun add(scope: CategoryScope, rawName: String, icon: String, color: String): AddResult {
         val name = rawName.trim()
-        if (name.isEmpty()) return AddResult.BlankName
-        if (name.length > MAX_NAME_LENGTH) return AddResult.NameTooLong
+        nameProblem(name)?.let { return it }
 
         val category =
             CategoryEntity(
                 uuid = UUID.randomUUID().toString(),
                 scope = scope,
                 name = name,
-                // 목록에 없는 값이 들어오면 저장하지 않는다. 화면이 그릴 수 없는 이름이 DB 에 남는다.
-                icon = icon.takeIf { it in CategoryStyle.ICONS } ?: CategoryStyle.FALLBACK_ICON,
-                color = color.takeIf { it in CategoryStyle.COLORS } ?: CategoryStyle.FALLBACK_COLOR,
+                icon = CategoryStyle.iconOrFallback(icon),
+                color = CategoryStyle.colorOrFallback(color),
                 // '기타' 바로 앞에 붙인다
                 sortOrder = dao.maxUserSortOrder(scope) + 1,
             )

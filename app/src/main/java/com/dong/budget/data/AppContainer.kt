@@ -19,13 +19,7 @@ import com.dong.budget.data.update.UpdateRepository
 class AppContainer(context: Context) {
     private val database by lazy { BudgetDatabase.build(context) }
 
-    val transactionRepository by lazy {
-        TransactionRepository(
-            transactionDao = database.transactionDao(),
-            categoryDao = database.categoryDao(),
-            paymentMethodDao = database.paymentMethodDao(),
-        )
-    }
+    val transactionRepository by lazy { TransactionRepository(database.transactionDao()) }
 
     val categoryRepository by lazy { CategoryRepository(database.categoryDao()) }
 

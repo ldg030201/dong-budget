@@ -95,6 +95,24 @@ data class TransactionEntity(
     val updatedAt: Instant,
 )
 
+/** 아이콘과 색이 붙은 분류·결제수단. 등록 화면의 표와 관리 목록이 둘을 같은 모양으로 보여준다. */
+interface StyledItem {
+    val id: Long
+    val name: String
+
+    /** 아이콘 이름. [CategoryStyle.ICONS] 중 하나 */
+    val icon: String
+
+    /** 색 이름. [CategoryStyle.COLORS] 중 하나 */
+    val color: String
+
+    /** 지울 수 없는 것인지 */
+    val isSystem: Boolean
+}
+
+/** 이미 쓰고 있는 색들. 새로 만들 것의 색을 겹치지 않게 고를 때 쓴다. */
+fun Iterable<StyledItem>.colors(): Set<String> = mapTo(mutableSetOf()) { it.color }
+
 @Entity(
     tableName = "categories",
     indices = [
@@ -104,10 +122,10 @@ data class TransactionEntity(
     ],
 )
 data class CategoryEntity(
-    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    @PrimaryKey(autoGenerate = true) override val id: Long = 0,
     val uuid: String,
     val scope: CategoryScope,
-    val name: String,
+    override val name: String,
     /** 기본 제공 분류를 알아보기 위한 코드. 사용자가 만든 것은 null */
     val code: String? = null,
     val sortOrder: Int = 0,
@@ -115,12 +133,10 @@ data class CategoryEntity(
      * 지울 수 없는 분류인지. 지금은 '기타' 만 true 다.
      * 다른 분류를 지우면 그 거래가 '기타' 로 옮겨가므로 '기타' 는 항상 있어야 한다.
      */
-    val isSystem: Boolean = false,
-    /** 아이콘 이름. [CategoryStyle.ICONS] 중 하나 */
-    @ColumnInfo(defaultValue = CategoryStyle.FALLBACK_ICON) val icon: String = CategoryStyle.FALLBACK_ICON,
-    /** 색 이름. [CategoryStyle.COLORS] 중 하나 */
-    @ColumnInfo(defaultValue = CategoryStyle.FALLBACK_COLOR) val color: String = CategoryStyle.FALLBACK_COLOR,
-)
+    override val isSystem: Boolean = false,
+    @ColumnInfo(defaultValue = CategoryStyle.FALLBACK_ICON) override val icon: String = CategoryStyle.FALLBACK_ICON,
+    @ColumnInfo(defaultValue = CategoryStyle.FALLBACK_COLOR) override val color: String = CategoryStyle.FALLBACK_COLOR,
+) : StyledItem
 
 @Entity(
     tableName = "payment_methods",
@@ -131,15 +147,13 @@ data class CategoryEntity(
     ],
 )
 data class PaymentMethodEntity(
-    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    @PrimaryKey(autoGenerate = true) override val id: Long = 0,
     val uuid: String,
-    val name: String,
+    override val name: String,
     val type: PaymentMethodType,
     val sortOrder: Int = 0,
-    /** 지울 수 없는 결제수단인지. 결제수단은 비워둘 수 있어서 지금은 전부 false 다. */
-    val isSystem: Boolean = false,
-    /** 아이콘 이름. [CategoryStyle.ICONS] 중 하나 */
-    @ColumnInfo(defaultValue = CategoryStyle.FALLBACK_ICON) val icon: String = CategoryStyle.FALLBACK_ICON,
-    /** 색 이름. [CategoryStyle.COLORS] 중 하나 */
-    @ColumnInfo(defaultValue = CategoryStyle.FALLBACK_COLOR) val color: String = CategoryStyle.FALLBACK_COLOR,
-)
+    /** 결제수단은 비워둘 수 있어서 지금은 전부 false 다. */
+    override val isSystem: Boolean = false,
+    @ColumnInfo(defaultValue = CategoryStyle.FALLBACK_ICON) override val icon: String = CategoryStyle.FALLBACK_ICON,
+    @ColumnInfo(defaultValue = CategoryStyle.FALLBACK_COLOR) override val color: String = CategoryStyle.FALLBACK_COLOR,
+) : StyledItem

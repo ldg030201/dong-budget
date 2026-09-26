@@ -6,6 +6,7 @@ import com.dong.budget.data.AddResult
 import com.dong.budget.data.CategoryRepository
 import com.dong.budget.data.PaymentMethodRepository
 import com.dong.budget.data.db.CategoryScope
+import com.dong.budget.data.db.StyledItem
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -36,6 +37,11 @@ data class ManagedItem(
 ) {
     /** 끌어서 순서를 옮길 수 있는지 */
     val movable: Boolean get() = deletable
+
+    companion object {
+        fun of(item: StyledItem, transactionCount: Int) =
+            ManagedItem(item.id, item.name, item.icon, item.color, transactionCount, deletable = !item.isSystem)
+    }
 }
 
 /**
@@ -86,32 +92,10 @@ class CategoryManageViewModel(
 
     private fun itemsFor(tab: ManageTab): Flow<List<ManagedItem>> = when (tab) {
         ManageTab.EXPENSE, ManageTab.INCOME ->
-            categoryRepository.observeWithCount(tab.scope()).map { list ->
-                list.map {
-                    ManagedItem(
-                        id = it.category.id,
-                        name = it.category.name,
-                        icon = it.category.icon,
-                        color = it.category.color,
-                        transactionCount = it.transactionCount,
-                        deletable = !it.category.isSystem,
-                    )
-                }
-            }
+            categoryRepository.observeWithCount(tab.scope()).map { list -> list.map { ManagedItem.of(it.category, it.transactionCount) } }
 
         ManageTab.PAYMENT ->
-            paymentMethodRepository.observeWithCount().map { list ->
-                list.map {
-                    ManagedItem(
-                        id = it.paymentMethod.id,
-                        name = it.paymentMethod.name,
-                        icon = it.paymentMethod.icon,
-                        color = it.paymentMethod.color,
-                        transactionCount = it.transactionCount,
-                        deletable = !it.paymentMethod.isSystem,
-                    )
-                }
-            }
+            paymentMethodRepository.observeWithCount().map { list -> list.map { ManagedItem.of(it.paymentMethod, it.transactionCount) } }
     }
 
     fun selectTab(tab: ManageTab) {

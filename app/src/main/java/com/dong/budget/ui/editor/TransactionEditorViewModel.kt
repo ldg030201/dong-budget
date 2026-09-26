@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dong.budget.data.AddResult
 import com.dong.budget.data.CategoryRepository
+import com.dong.budget.data.MAX_AMOUNT_DIGITS
 import com.dong.budget.data.PaymentMethodRepository
 import com.dong.budget.data.TransactionRepository
 import com.dong.budget.data.db.BudgetTime
@@ -12,22 +13,24 @@ import com.dong.budget.data.db.CategoryEntity
 import com.dong.budget.data.db.CategoryScope
 import com.dong.budget.data.db.PaymentMethodEntity
 import com.dong.budget.data.db.TransactionType
+import com.dong.budget.data.db.colors
 import com.dong.budget.navigation.EditorPrefill
+import com.dong.budget.ui.category.AddTarget
 import com.dong.budget.ui.category.message
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.LocalDate
-
-/** 등록 화면에서 새로 만들 수 있는 것 */
-enum class AddTarget { CATEGORY, PAYMENT }
 
 /**
  * 저장하려면 반드시 채워야 하는 칸. 화면 위에서부터의 순서다.
@@ -35,19 +38,26 @@ enum class AddTarget { CATEGORY, PAYMENT }
  */
 enum class RequiredField { AMOUNT, CATEGORY, PAYMENT, MERCHANT }
 
-/** 금액 입력 자리수 상한. 원 단위라 12자리면 조 단위까지 들어간다. */
-private const val MAX_AMOUNT_DIGITS = 12
+/** 알림에서 읽은 결제가 이미 가계부에 있을 때의 안내. 등록창과 알림을 눌러 들어올 때가 같이 쓴다. */
+const val ALREADY_REGISTERED_MESSAGE = "이미 가계부에 등록한 결제예요"
+
+/** 화면이 한 번만 처리할 일. 화면을 돌려 다시 그려져도 다시 일어나지 않는다. */
+sealed interface EditorEffect {
+    /** 저장을 눌렀는데 비어 있던 첫 칸으로 옮겨 간다 */
+    data class JumpTo(val field: RequiredField) : EditorEffect
+
+    /** 분류나 결제수단을 새로 만들어 골랐다. 입력판을 닫는다. */
+    data object Added : EditorEffect
+}
 
 data class EditorUiState(
     val isEditing: Boolean = false,
-    /** 결제 알림에서 읽은 값으로 채워 연 등록창인지 */
-    val isPrefilled: Boolean = false,
     /**
      * 알림에서 읽은 카드 이름인데 같은 이름의 결제수단이 아직 없을 때 그 이름. 저장할 때 새로 만든다.
      * 사용자가 다른 결제수단을 고르면 비운다.
      */
     val pendingPaymentName: String? = null,
-    /** 알림에서 읽은 결제의 열쇠. 같은 결제를 두 번 등록하지 않게 거래에 함께 저장한다. */
+    /** 알림에서 읽은 결제의 열쇠. 같은 결제를 두 번 등록하지 않게 거래에 함께 저장한다. 직접 입력하면 null */
     val dedupKey: String? = null,
     /** 저장이 거절된 이유(이미 등록한 결제 등). 없으면 null */
     val saveError: String? = null,
@@ -64,20 +74,14 @@ data class EditorUiState(
     /** 열려 있는 추가 시트. 없으면 null */
     val addTarget: AddTarget? = null,
     val addError: String? = null,
-    /** 방금 추가에 성공한 것. 화면이 이 값의 변화를 보고 입력판을 닫는다. */
-    val lastAddedCategoryId: Long? = null,
-    val lastAddedPaymentId: Long? = null,
     /** 저장을 눌렀을 때 비어 있던 첫 칸. 그 칸 밑에 채우라는 안내를 보여준다. */
     val invalidField: RequiredField? = null,
-    /**
-     * 화면이 옮겨 가야 할 빈 칸. 한 번 옮겨 가면 화면이 [TransactionEditorViewModel.onJumpHandled] 로 비운다.
-     * [invalidField] 와 따로 두는 이유: 화면을 돌려 다시 그려질 때 이미 처리한 이동이 또 일어나면
-     * 사용자가 열어둔 입력판이 닫히고 엉뚱한 칸에 키보드가 뜬다.
-     */
-    val pendingJump: RequiredField? = null,
     val saved: Boolean = false,
 ) {
     val amount: Long get() = amountDigits.toLongOrNull() ?: 0L
+
+    /** 결제 알림에서 읽은 값으로 채워 연 등록창인지 */
+    val isPrefilled: Boolean get() = dedupKey != null
 
     /**
      * 아직 비어 있는 필수 칸. 화면에 보이는 것과 같은 기준으로 본다.
@@ -99,9 +103,10 @@ data class EditorUiState(
 
     val selectedPaymentMethod: PaymentMethodEntity? get() = paymentMethods.firstOrNull { it.id == paymentMethodId }
 
-    val usedCategoryColors: Set<String> get() = categories.mapTo(mutableSetOf()) { it.color }
+    val usedPaymentColors: Set<String> get() = paymentMethods.colors()
 
-    val usedPaymentColors: Set<String> get() = paymentMethods.mapTo(mutableSetOf()) { it.color }
+    /** 추가 시트가 기본 색을 겹치지 않게 고를 때 본다 */
+    fun usedColors(target: AddTarget): Set<String> = if (target == AddTarget.PAYMENT) usedPaymentColors else categories.colors()
 }
 
 class TransactionEditorViewModel(
@@ -110,14 +115,19 @@ class TransactionEditorViewModel(
     private val paymentMethodRepository: PaymentMethodRepository,
     private val transactionId: Long?,
     private val prefill: EditorPrefill? = null,
+    /** 알림에서 읽은 결제가 가계부에 들어갔다(방금 등록했거나 이미 있었다). 묻던 알림을 치운다. */
+    private val onCaptureRegistered: (dedupKey: String) -> Unit = {},
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(initialState())
     val uiState: StateFlow<EditorUiState> = _uiState.asStateFlow()
 
+    private val _effects = Channel<EditorEffect>(Channel.BUFFERED)
+    val effects: Flow<EditorEffect> = _effects.receiveAsFlow()
+
     init {
         observeCategories()
         viewModelScope.launch {
-            repository.observePaymentMethods().collect { methods ->
+            paymentMethodRepository.observeAll().collect { methods ->
                 _uiState.update { state ->
                     // 알림에서 읽은 카드 이름과 같은 결제수단이 있으면 그것을 고른다(띄어쓰기·대소문자 무시)
                     val pending = state.pendingPaymentName
@@ -144,7 +154,6 @@ class TransactionEditorViewModel(
         val base = EditorUiState(isEditing = transactionId != null)
         val data = prefill?.takeIf { transactionId == null } ?: return base
         return base.copy(
-            isPrefilled = true,
             type = TransactionType.EXPENSE,
             amountDigits = data.amount.takeIf { it > 0 }?.toString()?.take(MAX_AMOUNT_DIGITS).orEmpty(),
             merchant = data.merchant,
@@ -178,7 +187,7 @@ class TransactionEditorViewModel(
             _uiState
                 .map { it.type.categoryScope() }
                 .distinctUntilChanged()
-                .flatMapLatest { scope -> repository.observeCategories(scope) }
+                .flatMapLatest { scope -> categoryRepository.observe(scope) }
                 .collect { categories ->
                     _uiState.update { state ->
                         // 종류를 바꾸면 이전 분류는 더 이상 맞지 않는다.
@@ -244,7 +253,7 @@ class TransactionEditorViewModel(
      */
     fun updateDate(date: LocalDate) {
         _uiState.update { state ->
-            val time = state.occurredAt.atZone(BudgetTime.ZONE).toLocalTime()
+            val time = BudgetTime.toLocalTime(state.occurredAt)
             state.copy(occurredAt = date.atTime(time).atZone(BudgetTime.ZONE).toInstant())
         }
     }
@@ -252,7 +261,7 @@ class TransactionEditorViewModel(
     /** 시각만 바꾸고 날짜는 그대로 둔다. 초는 0 으로 맞춘다. */
     fun updateTime(hour: Int, minute: Int) {
         _uiState.update { state ->
-            val date = state.occurredAt.atZone(BudgetTime.ZONE).toLocalDate()
+            val date = BudgetTime.toLocalDate(state.occurredAt)
             state.copy(occurredAt = date.atTime(hour, minute).atZone(BudgetTime.ZONE).toInstant())
         }
     }
@@ -283,29 +292,18 @@ class TransactionEditorViewModel(
                     AddTarget.CATEGORY -> categoryRepository.add(state.type.categoryScope(), name, icon, color)
                     AddTarget.PAYMENT -> paymentMethodRepository.add(name, icon, color)
                 }
+            if (result !is AddResult.Added) {
+                _uiState.update { it.copy(addError = result.message()) }
+                return@launch
+            }
             _uiState.update {
-                if (result !is AddResult.Added) {
-                    it.copy(addError = result.message())
-                } else {
-                    when (target) {
-                        AddTarget.CATEGORY ->
-                            it.copy(categoryId = result.id, lastAddedCategoryId = result.id, addTarget = null, addError = null)
-
-                        AddTarget.PAYMENT ->
-                            it.copy(paymentMethodId = result.id, lastAddedPaymentId = result.id, addTarget = null, addError = null)
-                    }
+                when (target) {
+                    AddTarget.CATEGORY -> it.copy(categoryId = result.id, addTarget = null, addError = null)
+                    AddTarget.PAYMENT -> it.copy(paymentMethodId = result.id, addTarget = null, addError = null)
                 }
             }
+            _effects.send(EditorEffect.Added)
         }
-    }
-
-    fun onJumpHandled() {
-        _uiState.update { it.copy(pendingJump = null) }
-    }
-
-    /** 새로 추가했다는 알림을 화면이 처리했다. 한 번만 처리하도록 비운다. */
-    fun onAddHandled() {
-        _uiState.update { it.copy(lastAddedCategoryId = null, lastAddedPaymentId = null) }
     }
 
     /**
@@ -322,7 +320,8 @@ class TransactionEditorViewModel(
         val state = _uiState.value
         val missing = state.missingFields.firstOrNull()
         if (missing != null) {
-            _uiState.update { it.copy(invalidField = missing, pendingJump = missing) }
+            _uiState.update { it.copy(invalidField = missing) }
+            _effects.trySend(EditorEffect.JumpTo(missing))
             return
         }
         busy = true
@@ -332,8 +331,7 @@ class TransactionEditorViewModel(
             if (transactionId == null) {
                 // 이미 등록한 결제면 카드를 만들기 전에 멈춘다
                 if (state.dedupKey != null && repository.isRegistered(state.dedupKey)) {
-                    _uiState.update { it.copy(saveError = "이미 가계부에 등록한 결제예요") }
-                    busy = false
+                    rejectAlreadyRegistered(state.dedupKey)
                     return@launch
                 }
                 // 알림에서 읽은 카드가 아직 결제수단에 없으면 이때 만든다. 등록을 취소하면 만들지 않는다.
@@ -351,11 +349,11 @@ class TransactionEditorViewModel(
                         dedupKey = state.dedupKey,
                     )
                 } catch (e: SQLiteConstraintException) {
-                    // 같은 알림으로 이미 등록했다(dedupKey 가 겹침)
-                    _uiState.update { it.copy(saveError = "이미 가계부에 등록한 결제예요") }
-                    busy = false
+                    // 확인한 사이 같은 알림으로 이미 등록됐다(dedupKey 가 겹침)
+                    rejectAlreadyRegistered(state.dedupKey ?: throw e)
                     return@launch
                 }
+                state.dedupKey?.let(onCaptureRegistered)
             } else {
                 repository.update(
                     id = transactionId,
@@ -370,6 +368,12 @@ class TransactionEditorViewModel(
             }
             _uiState.update { it.copy(saved = true) }
         }
+    }
+
+    private fun rejectAlreadyRegistered(dedupKey: String) {
+        onCaptureRegistered(dedupKey)
+        _uiState.update { it.copy(saveError = ALREADY_REGISTERED_MESSAGE) }
+        busy = false
     }
 
     fun delete() {

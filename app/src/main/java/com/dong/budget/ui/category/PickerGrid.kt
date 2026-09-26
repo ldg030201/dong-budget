@@ -28,6 +28,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import com.dong.budget.R
+import com.dong.budget.data.db.CategoryStyle
+import com.dong.budget.data.db.StyledItem
 import com.dong.budget.ui.components.CategoryBadge
 import com.dong.budget.ui.components.IconBadge
 import com.dong.budget.ui.theme.BudgetTheme
@@ -35,15 +37,12 @@ import com.dong.budget.ui.theme.pressScaleClickable
 
 private const val COLUMNS = 4
 
-/** 표에 올릴 항목. 분류와 결제수단이 같은 모양으로 보인다. */
-data class PickerItem(val id: Long, val name: String, val icon: String, val color: String)
-
 /**
  * 아이콘 붙은 항목을 고르는 표. 한 줄에 네 개씩, 맨 끝에 '추가' 칸.
  * 등록 화면 아래 입력판으로 쓴다. 분류와 결제수단이 같이 쓴다.
  */
 @Composable
-fun PickerGrid(items: List<PickerItem>, selectedId: Long?, onSelect: (Long) -> Unit, onAdd: () -> Unit, modifier: Modifier = Modifier) {
+fun PickerGrid(items: List<StyledItem>, selectedId: Long?, onSelect: (Long) -> Unit, onAdd: () -> Unit, modifier: Modifier = Modifier) {
     LazyVerticalGrid(
         columns = GridCells.Fixed(COLUMNS),
         modifier = modifier,
@@ -61,7 +60,7 @@ fun PickerGrid(items: List<PickerItem>, selectedId: Long?, onSelect: (Long) -> U
             PickerTile(selected = false, label = "추가", onClick = onAdd) {
                 IconBadge(
                     iconRes = R.drawable.ic_sym_add,
-                    swatch = BudgetTheme.categoryPalette["gray"],
+                    swatch = BudgetTheme.categoryPalette[CategoryStyle.FALLBACK_COLOR],
                     size = BudgetTheme.size.badgeLarge,
                 )
             }

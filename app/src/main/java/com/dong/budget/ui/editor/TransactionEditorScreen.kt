@@ -41,8 +41,8 @@ import com.dong.budget.data.db.BudgetTime
 import com.dong.budget.data.db.CategoryStyle
 import com.dong.budget.data.db.TransactionType
 import com.dong.budget.ui.category.AddItemSheet
+import com.dong.budget.ui.category.AddTarget
 import com.dong.budget.ui.category.PickerGrid
-import com.dong.budget.ui.category.PickerItem
 import com.dong.budget.ui.components.BudgetPrimaryButton
 import com.dong.budget.ui.components.BudgetTextButton
 import com.dong.budget.ui.components.BudgetTopAppBar
@@ -62,6 +62,7 @@ import com.dong.budget.ui.format.formatTime
 import com.dong.budget.ui.theme.BudgetTheme
 import com.dong.budget.ui.theme.pressScaleClickable
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collectLatest
 import java.time.LocalDate
 
@@ -81,6 +82,15 @@ private fun RequiredField.missingMessage(): String = when (this) {
     RequiredField.PAYMENT -> "결제수단을 선택해주세요"
     RequiredField.MERCHANT -> "내용을 입력해주세요"
 }
+
+/** 이 칸을 채우는 입력판. 글자 칸(내용)은 입력판 대신 시스템 키보드를 쓴다. */
+private val RequiredField.panel: EditorPanel?
+    get() = when (this) {
+        RequiredField.AMOUNT -> EditorPanel.AMOUNT
+        RequiredField.CATEGORY -> EditorPanel.CATEGORY
+        RequiredField.PAYMENT -> EditorPanel.PAYMENT
+        RequiredField.MERCHANT -> null
+    }
 
 private val TYPE_OPTIONS = listOf(TransactionType.EXPENSE to "지출", TransactionType.INCOME to "수입")
 
@@ -115,8 +125,7 @@ fun TransactionEditorScreen(
     onDateChange: (LocalDate) -> Unit,
     onTimeChange: (hour: Int, minute: Int) -> Unit,
     onSave: () -> Unit,
-    onJumpHandled: () -> Unit,
-    onAddHandled: () -> Unit,
+    effects: Flow<EditorEffect>,
     onDeleteTransaction: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -131,17 +140,6 @@ fun TransactionEditorScreen(
         // 글자 칸에 커서가 있으면 시스템 키보드가 떠 있다. 입력판과 겹치지 않게 먼저 내린다.
         focusManager.clearFocus()
         panel = if (panel == target) null else target
-    }
-
-    // 새로 만든 것은 고른 상태로 들어오므로 입력판을 닫는다.
-    // 저장을 누른 순간이 아니라 성공했을 때만 닫는다. 같은 이름이라 거절되면 시트가 남아 있어야 한다.
-    // 새로 추가했으면 입력판을 닫고, 처리했다고 알린다. 알리지 않으면 값이 남아서
-    // 화면이 다시 만들어질 때(회전, 다크 모드 전환) 이 효과가 또 돌아 사용자가 열어 둔 입력판을 닫는다.
-    LaunchedEffect(state.lastAddedCategoryId, state.lastAddedPaymentId) {
-        if (state.lastAddedCategoryId != null || state.lastAddedPaymentId != null) {
-            panel = null
-            onAddHandled()
-        }
     }
 
     // 입력판이 열리면 칸 목록이 그만큼 줄어든다. 날짜·시간처럼 목록 아래쪽 칸을 누르면
@@ -161,37 +159,31 @@ fun TransactionEditorScreen(
 
     fun missingMessage(field: RequiredField) = if (state.showsMissing(field)) field.missingMessage() else null
 
-    // 저장을 눌렀는데 빈 칸이 있으면 그 칸으로 옮겨 간다. 입력판이 있는 칸은 입력판을 열고,
-    // 글자 칸은 커서를 넣어 키보드를 올린다. 칸 밑에는 그 칸에 맞는 안내가 붙는다.
+    // 뷰모델이 한 번씩 보내는 일을 처리한다.
+    // - 새로 만든 분류·결제수단은 고른 상태로 들어오므로 입력판을 닫는다. 같은 이름이라 거절되면 오지 않아 시트가 남는다.
+    // - 저장을 눌렀는데 빈 칸이 있으면 그 칸으로 옮겨 간다. 입력판이 있는 칸은 입력판을 열고,
+    //   글자 칸은 커서를 넣어 키보드를 올린다. 칸 밑에는 그 칸에 맞는 안내가 붙는다.
     val merchantFocus = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
-    LaunchedEffect(state.pendingJump) {
-        when (state.pendingJump) {
-            RequiredField.AMOUNT -> {
-                focusManager.clearFocus()
-                panel = EditorPanel.AMOUNT
-            }
+    LaunchedEffect(effects) {
+        effects.collect { effect ->
+            when (effect) {
+                EditorEffect.Added -> panel = null
 
-            RequiredField.CATEGORY -> {
-                focusManager.clearFocus()
-                panel = EditorPanel.CATEGORY
+                is EditorEffect.JumpTo -> {
+                    val target = effect.field.panel
+                    if (target != null) {
+                        focusManager.clearFocus()
+                        panel = target
+                    } else {
+                        panel = null
+                        merchantFocus.requestFocus()
+                        // 이미 커서가 있는 채로 키보드만 내려 둔 경우에는 초점이 그대로라 키보드가 다시 뜨지 않는다. 직접 올린다.
+                        keyboard?.show()
+                    }
+                }
             }
-
-            RequiredField.PAYMENT -> {
-                focusManager.clearFocus()
-                panel = EditorPanel.PAYMENT
-            }
-
-            RequiredField.MERCHANT -> {
-                panel = null
-                merchantFocus.requestFocus()
-                // 이미 커서가 있는 채로 키보드만 내려 둔 경우에는 초점이 그대로라 키보드가 다시 뜨지 않는다. 직접 올린다.
-                keyboard?.show()
-            }
-
-            null -> return@LaunchedEffect
         }
-        onJumpHandled()
     }
 
     // 입력판이 열려 있으면 뒤로가기는 화면이 아니라 입력판을 닫는다.
@@ -210,28 +202,14 @@ fun TransactionEditorScreen(
         )
     }
 
-    when (state.addTarget) {
-        AddTarget.CATEGORY ->
-            AddItemSheet(
-                title = "분류 추가",
-                namePlaceholder = "예: 카페",
-                usedColors = state.usedCategoryColors,
-                error = state.addError,
-                onDismiss = onDismissAdd,
-                onSubmit = onSubmitAdd,
-            )
-
-        AddTarget.PAYMENT ->
-            AddItemSheet(
-                title = "결제수단 추가",
-                namePlaceholder = "예: 신한카드",
-                usedColors = state.usedPaymentColors,
-                error = state.addError,
-                onDismiss = onDismissAdd,
-                onSubmit = onSubmitAdd,
-            )
-
-        null -> Unit
+    state.addTarget?.let { target ->
+        AddItemSheet(
+            target = target,
+            usedColors = state.usedColors(target),
+            error = state.addError,
+            onDismiss = onDismissAdd,
+            onSubmit = onSubmitAdd,
+        )
     }
 
     Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -384,7 +362,7 @@ fun TransactionEditorScreen(
                         EditorPanel.CATEGORY ->
                             PanelBox {
                                 PickerGrid(
-                                    items = state.categories.map { PickerItem(it.id, it.name, it.icon, it.color) },
+                                    items = state.categories,
                                     selectedId = state.categoryId,
                                     onSelect = { id ->
                                         onSelectCategory(id)
@@ -398,7 +376,7 @@ fun TransactionEditorScreen(
                         EditorPanel.PAYMENT ->
                             PanelBox {
                                 PickerGrid(
-                                    items = state.paymentMethods.map { PickerItem(it.id, it.name, it.icon, it.color) },
+                                    items = state.paymentMethods,
                                     selectedId = state.paymentMethodId,
                                     onSelect = { id ->
                                         onSelectPaymentMethod(id)
@@ -419,7 +397,7 @@ fun TransactionEditorScreen(
                             )
 
                         EditorPanel.TIME -> {
-                            val time = state.occurredAt.atZone(BudgetTime.ZONE)
+                            val time = BudgetTime.toLocalTime(state.occurredAt)
                             TimePanel(hour = time.hour, minute = time.minute, onChange = onTimeChange)
                         }
 
