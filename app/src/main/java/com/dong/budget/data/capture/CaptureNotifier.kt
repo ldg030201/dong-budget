@@ -34,7 +34,16 @@ class CaptureNotifier(private val context: Context) : CapturePrompt {
         context.getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
     }
 
-    override fun canAsk(): Boolean = hasPermission() && manager.areNotificationsEnabled()
+    /**
+     * 알림을 보낼 수 있는지. 앱 알림 전체뿐 아니라 '결제 등록' 채널만 꺼 둔 경우도 본다.
+     * 채널이 꺼진 채로 보내면 시스템이 예외 없이 버려서, 물어본 것으로 적혀도 사용자는 알림을 못 본다.
+     */
+    override fun canAsk(): Boolean {
+        if (!hasPermission() || !manager.areNotificationsEnabled()) return false
+        // 채널이 아직 없으면 보낼 때 만든다
+        val importance = manager.getNotificationChannel(CHANNEL_ID)?.importance ?: return true
+        return importance != NotificationManager.IMPORTANCE_NONE
+    }
 
     override fun ask(payment: CapturedPayment, quietly: Boolean) {
         if (!hasPermission()) return

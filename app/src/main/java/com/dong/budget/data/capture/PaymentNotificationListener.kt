@@ -14,7 +14,7 @@ import kotlinx.coroutines.launch
 /**
  * 기기에 올라오는 알림을 받는다. 사용자가 '알림 읽기' 를 허용해야 시스템이 연결해 준다.
  *
- * 시스템은 모든 앱의 알림을 넘겨준다. 토스가 아닌 앱의 알림은 [handle] 첫 줄에서 버리고,
+ * 시스템은 모든 앱의 알림을 넘겨준다. 토스가 아닌 앱의 알림은 [read] 첫 줄에서 버리고,
  * 내용을 읽거나 남기지 않는다.
  *
  * 이 클래스의 이름과 패키지 경로는 바꾸지 않는다. 시스템이 사용자의 허용을 이 이름으로 기억해서,
@@ -33,18 +33,24 @@ class PaymentNotificationListener : NotificationListenerService() {
      *    이미 물어본 결제는 다시 묻지 않는다.
      */
     override fun onListenerConnected() {
+        // 알림창을 읽는 일은 모든 앱의 알림을 받아 오는 무거운 호출이라 메인 스레드 밖에서 한다
+        scope.launch { reconcile() }
+        // 연결돼 있는 동안 앱이 다시 살펴 달라고 하면(앱으로 돌아옴, 알림을 막 허용함) 같은 일을 한 번 더 한다
+        rescanJob?.cancel()
+        rescanJob = scope.launch { capture.rescanRequests.collect { reconcile() } }
+    }
+
+    /**
+     * 띄우지 못한 묻는 알림을 되살리고, 알림창의 토스 알림 중 아직 묻지 않은 결제를 묻는다. 이 순서대로 한다.
+     * 되살리기가 먼저여야 새로 들어온 결제를 '되살린 알림' 처럼 소리 없이 띄우지 않는다.
+     */
+    private suspend fun reconcile() {
         val active = runCatching { activeNotifications }.getOrNull().orEmpty()
         val showing = active.filter(::isOurPrompt).mapNotNull { it.tag }.toSet()
-        scope.launch { runCatching { capture.restorePrompts(showing) } }
-        active.forEach(::handle)
-        // 연결돼 있는 동안 앱이 다시 훑어 달라고 하면(알림을 막 허용했을 때 등) 알림창의 토스 알림을 다시 살핀다
-        rescanJob?.cancel()
-        rescanJob =
-            scope.launch {
-                capture.rescanRequests.collect {
-                    runCatching { activeNotifications }.getOrNull().orEmpty().forEach(::handle)
-                }
-            }
+        runCatching { capture.restorePrompts(showing) }
+        active.mapNotNull(::read).forEach { (titles, texts, occurredAt) ->
+            runCatching { capture.onNotification(titles, texts, occurredAt) }
+        }
     }
 
     override fun onListenerDisconnected() {
@@ -65,24 +71,26 @@ class PaymentNotificationListener : NotificationListenerService() {
         sbn.packageName == packageName && sbn.notification?.channelId == CaptureNotifier.CHANNEL_ID
 
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
-        sbn?.let(::handle)
+        val (titles, texts, occurredAt) = sbn?.let(::read) ?: return
+        scope.launch { runCatching { capture.onNotification(titles, texts, occurredAt) } }
     }
 
-    private fun handle(sbn: StatusBarNotification) {
+    /** 토스 알림이면 제목·본문 후보와 결제 시각을 꺼낸다. 다른 앱의 알림이면 null 이고, 내용을 읽지 않는다. */
+    private fun read(sbn: StatusBarNotification): Triple<List<CharSequence?>, List<CharSequence?>, Long>? {
         // 다른 앱의 알림은 여기서 끝난다
-        if (!PaymentCapture.isSource(sbn.packageName)) return
-        val notification = sbn.notification ?: return
+        if (!PaymentCapture.isSource(sbn.packageName)) return null
+        val notification = sbn.notification ?: return null
         // 여러 알림을 묶는 요약 알림은 결제 한 건이 아니다
-        if (notification.flags and Notification.FLAG_GROUP_SUMMARY != 0) return
+        if (notification.flags and Notification.FLAG_GROUP_SUMMARY != 0) return null
         // 알림 내용을 꺼내다 실패해도(알 수 없는 형식 등) 동계부가 죽지 않게 한다
-        val extras = notification.extras ?: return
-        val (titles, texts) =
-            runCatching {
-                listOf(extras.getCharSequence(Notification.EXTRA_TITLE), extras.getCharSequence(Notification.EXTRA_TITLE_BIG)) to
-                    listOf(extras.getCharSequence(Notification.EXTRA_TEXT), extras.getCharSequence(Notification.EXTRA_BIG_TEXT))
-            }.getOrNull() ?: return
-        val occurredAt = PaymentCapture.paymentTime(notification.`when`, sbn.postTime)
-        scope.launch { runCatching { capture.onNotification(titles, texts, occurredAt) } }
+        val extras = notification.extras ?: return null
+        return runCatching {
+            Triple(
+                listOf(extras.getCharSequence(Notification.EXTRA_TITLE), extras.getCharSequence(Notification.EXTRA_TITLE_BIG)),
+                listOf(extras.getCharSequence(Notification.EXTRA_TEXT), extras.getCharSequence(Notification.EXTRA_BIG_TEXT)),
+                PaymentCapture.paymentTime(notification.`when`, sbn.postTime),
+            )
+        }.getOrNull()
     }
 
     override fun onDestroy() {
