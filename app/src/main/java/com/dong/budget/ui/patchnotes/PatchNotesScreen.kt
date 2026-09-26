@@ -62,7 +62,7 @@ import java.util.Locale
 /**
  * 패치노트. 버전마다 메뉴별로 바뀐 점을 모아 보여준다.
  * 바뀐 점마다 종류(추가·개선·수정·오류수정)를 색 꼬리표로 붙인다.
- * 버전 카드는 제목을 눌러 접고 펼친다. 새 버전·지금 버전·준비 중인 버전만 펼친 채로 시작한다.
+ * 버전 카드는 제목을 눌러 접고 펼친다. 맨 위(가장 최근) 버전만 펼친 채로 시작한다.
  *
  * @param currentVersion 설치된 버전. 그 버전에 '지금 버전' 을 붙이고, 그보다 새 버전(개발 중)에는 '준비 중' 을 붙인다.
  * @param newer 이미 배포됐지만 아직 설치하지 않은 버전들. 맨 위에 '새 버전' 으로 보여준다.
@@ -96,12 +96,13 @@ fun PatchNotesScreen(
             ) {
                 // 업데이트 버튼은 가장 새 버전 칸에만 둔다. 업데이트하면 늘 최신 버전이 설치된다.
                 itemsIndexed(items = newerShown, key = { _, release -> "newer-${release.version}" }) { index, release ->
-                    NewerReleaseBlock(release = release, onOpenUpdate = onOpenUpdate.takeIf { index == 0 })
+                    NewerReleaseBlock(release = release, onOpenUpdate = onOpenUpdate.takeIf { index == 0 }, latest = index == 0)
                 }
-                items(items = releases, key = { it.version }) { release ->
+                itemsIndexed(items = releases, key = { _, release -> release.version }) { index, release ->
                     val version = AppVersion.parse(release.version)
                     ReleaseBlock(
                         release = release,
+                        latest = newerShown.isEmpty() && index == 0,
                         status =
                         when {
                             version == null || installed == null -> ReleaseStatus.PAST
@@ -121,13 +122,14 @@ private enum class ReleaseStatus { PAST, CURRENT, UPCOMING }
 /**
  * 배포됐지만 아직 설치하지 않은 버전. 바뀐 점은 배포 본문의 글 그대로 보여준다.
  * @param onOpenUpdate null 이면 업데이트 버튼을 두지 않는다
+ * @param latest 목록 맨 위(가장 최근) 버전인지. 그 카드만 펼친 채로 시작한다.
  */
 @Composable
-private fun NewerReleaseBlock(release: NewerRelease, onOpenUpdate: (() -> Unit)?) {
+private fun NewerReleaseBlock(release: NewerRelease, onOpenUpdate: (() -> Unit)?, latest: Boolean) {
     ReleaseCard(
         version = release.version,
         date = release.date,
-        initiallyExpanded = true,
+        initiallyExpanded = latest,
         badge = { StatusBadge("새 버전", MaterialTheme.colorScheme.onPrimaryContainer, MaterialTheme.colorScheme.primaryContainer) },
     ) {
         Text(
@@ -142,12 +144,13 @@ private fun NewerReleaseBlock(release: NewerRelease, onOpenUpdate: (() -> Unit)?
     }
 }
 
+/** @param latest 목록 맨 위(가장 최근) 버전인지. 그 카드만 펼친 채로 시작한다. */
 @Composable
-private fun ReleaseBlock(release: Release, status: ReleaseStatus) {
+private fun ReleaseBlock(release: Release, latest: Boolean, status: ReleaseStatus) {
     ReleaseCard(
         version = release.version,
         date = release.date,
-        initiallyExpanded = status != ReleaseStatus.PAST,
+        initiallyExpanded = latest,
         badge = {
             when (status) {
                 ReleaseStatus.CURRENT ->
@@ -172,6 +175,7 @@ private val dateFormatter = DateTimeFormatter.ofPattern("yyyy년 M월 d일", Loc
  * 접힌 카드는 [content] 를 아예 그리지 않으므로 버전이 많아져도 펼친 카드만큼만 그린다.
  *
  * @param initiallyExpanded 처음 열었을 때 펼쳐 둘지. 사용자가 바꾼 뒤로는 화면을 돌리거나 스크롤해도 그대로 둔다.
+ *   이 값이 바뀌면(연 채로 새 버전 소식이 와서 맨 위 카드가 바뀜) 거기에 맞춰 다시 시작한다.
  */
 @Composable
 private fun ReleaseCard(
@@ -181,7 +185,7 @@ private fun ReleaseCard(
     badge: @Composable () -> Unit,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    var expanded by rememberSaveable { mutableStateOf(initiallyExpanded) }
+    var expanded by rememberSaveable(initiallyExpanded) { mutableStateOf(initiallyExpanded) }
     val arrowRotation by animateFloatAsState(targetValue = if (expanded) 180f else 0f, label = "releaseArrow")
     // 모양은 sectionBlock 과 같다. 여백은 누르는 머리와 내용에 따로 준다(카드 끝까지 누를 수 있게).
     val shape = RoundedCornerShape(BudgetTheme.radius.block)
