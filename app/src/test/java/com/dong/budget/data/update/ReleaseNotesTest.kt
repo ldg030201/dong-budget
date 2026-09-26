@@ -59,4 +59,10 @@ class ReleaseNotesTest {
         val body = "<!-- 작성자 메모 -->\n바뀐 점\n$marker"
         assertEquals("바뀐 점", ReleaseNotes.forApp(body))
     }
+
+    @Test
+    fun `패치노트를 옮긴 태그 메시지는 메뉴 이름과 항목을 그대로 보여준다`() {
+        val body = "[거래 등록]\n- 추가: 하나\n- 오류수정: 둘\n\n[설정]\n- 개선: 셋\n$marker\n설치 안내"
+        assertEquals("[거래 등록]\n· 추가: 하나\n· 오류수정: 둘\n\n[설정]\n· 개선: 셋", ReleaseNotes.forApp(body))
+    }
 }
