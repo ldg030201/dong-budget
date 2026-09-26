@@ -22,7 +22,10 @@ jobs:
     # 올릴 때는 일부러 올리고 빌드가 통과하는지 확인한 뒤 바꾼다.
     runs-on: ubuntu-24.04
     steps:
+      # 이전 배포 태그와 versionCode 를 비교하려면 태그 기록이 필요하다(기본값은 마지막 커밋 하나만 받는다)
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
       # gradle/gradle-daemon-jvm.properties 가 데몬 JVM 을 25 로 고정한다.
       # 여기서 25 를 깔아두지 않으면 Gradle 이 빌드마다 JDK 를 새로 내려받는다(약 145MB).
@@ -50,6 +53,28 @@ jobs:
             echo "::error::gradle.properties 의 versionCode 와 versionName 을 올리고 같은 이름으로 태그를 다시 만들어라."
             exit 1
           fi
+
+      # versionCode 가 이전 배포보다 크지 않으면 기기가 설치를 거부한다(INSTALL_FAILED_VERSION_DOWNGRADE).
+      # 그런데 앱은 versionName 만 비교하므로 새 버전이 있다고 계속 알린다. 배포 전에 막는다.
+      - name: versionCode 가 이전 배포보다 큰지 확인
+        run: |
+          CODE=$(grep '^dongbudget.versionCode=' gradle.properties | cut -d= -f2)
+          PREV_TAG=$(git describe --tags --abbrev=0 --match 'v*' "${GITHUB_REF_NAME}^" 2>/dev/null || true)
+          if [ -z "$PREV_TAG" ]; then
+            echo "이전 배포 태그가 없다. 첫 배포로 본다."
+            exit 0
+          fi
+          PREV_CODE=$(git show "${PREV_TAG}:gradle.properties" | grep '^dongbudget.versionCode=' | cut -d= -f2)
+          echo "이전 배포 ${PREV_TAG}: ${PREV_CODE} / 이번: ${CODE}"
+          if [ "$CODE" -le "$PREV_CODE" ]; then
+            echo "::error::versionCode(${CODE})가 이전 배포 ${PREV_TAG} 의 ${PREV_CODE} 보다 커야 한다."
+            exit 1
+          fi
+
+      # 테스트가 깨진 채로 배포되지 않게 한다. main 의 CI 와 따로 돌기 때문에 여기서 다시 돌린다.
+      # (패치노트 기록 누락, 버전 비교, 결제 알림 읽기 같은 규칙을 테스트가 지킨다)
+      - name: 단위 테스트
+        run: ./gradlew testDebugUnitTest
 
       # 서명키는 저장소에 두지 않는다. Secrets 에 base64 로 넣어두고 여기서만 되살린다.
       # 키가 바뀌면 기존 사용자의 업데이트 설치와 자동 백업 복원이 모두 깨지므로
