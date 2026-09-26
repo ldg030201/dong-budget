@@ -50,6 +50,18 @@ fun formatDate(instant: Instant, today: LocalDate = LocalDate.now(BudgetTime.ZON
 
 fun formatTime(instant: Instant): String = timeFormatter.format(instant.atZone(BudgetTime.ZONE))
 
+/** 알림이 온 때. "오늘 오후 2:22", "어제 오전 8:40", 그 전은 "9월 23일 오후 3:00" */
+fun formatNoticeTime(instant: Instant, today: LocalDate): String {
+    val at = instant.atZone(BudgetTime.ZONE)
+    val day =
+        when (at.toLocalDate()) {
+            today -> "오늘"
+            today.minusDays(1) -> "어제"
+            else -> "${at.monthValue}월 ${at.dayOfMonth}일"
+        }
+    return "$day ${timeFormatter.format(at)}"
+}
+
 fun formatMonth(month: YearMonth): String = "${month.year}년 ${month.monthValue}월"
 
 /**

@@ -73,13 +73,20 @@ fun BudgetSmallButton(text: String, onClick: () -> Unit, modifier: Modifier = Mo
 
 /** 글자만 있는 버튼. 자주 쓰지 않는 보조 동작을 한 줄에 여러 개 늘어놓을 때 쓴다. */
 @Composable
-fun BudgetTextButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, color: Color = MaterialTheme.colorScheme.primary) {
+fun BudgetTextButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    color: Color = MaterialTheme.colorScheme.primary,
+    enabled: Boolean = true,
+) {
     val shape = RoundedCornerShape(BudgetTheme.radius.chip)
     Box(
         modifier =
         modifier
             .minimumInteractiveComponentSize()
-            .pressScaleClickable(shape = shape, onClick = onClick)
+            .alpha(if (enabled) 1f else DISABLED_ALPHA)
+            .pressScaleClickable(shape = shape, enabled = enabled, onClick = onClick)
             .padding(horizontal = BudgetTheme.spacing.tightGap),
         contentAlignment = Alignment.Center,
     ) {

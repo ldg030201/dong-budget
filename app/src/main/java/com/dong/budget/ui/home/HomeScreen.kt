@@ -83,21 +83,29 @@ import java.time.YearMonth
  * 첫 화면에 달력과 함께 최근 거래가 두세 개 보이고, 아래로 내리면 나머지 거래가 이어진다.
  * 달력이 스크롤로 사라지면 한 주 줄([WeekStrip])이 위에 붙는다.
  * 달력이나 한 주 줄에서 날짜를 누르면 목록이 그날로 스크롤된다.
+ * 오른쪽 위 종을 누르면 그동안 온 결제 등록 알림을 모아 본다([InboxDialog]).
  *
  * 상단 인셋은 이 화면이 직접 처리한다. 셸의 Scaffold 는 인셋을 비워둔다.
+ *
+ * @param inbox 알림 목록. 최근 것부터
+ * @param onOpenCaptured 알림 목록에서 누른 결제의 열쇠. 알림창의 알림을 누른 것과 똑같이 연다.
  */
 @Composable
 fun HomeScreen(
     state: HomeUiState,
     updateVersion: String?,
+    inbox: List<InboxItem>,
     onOpenUpdate: () -> Unit,
     onDismissUpdate: () -> Unit,
     onPreviousMonth: () -> Unit,
     onNextMonth: () -> Unit,
     onAddTransaction: () -> Unit,
     onEditTransaction: (Long) -> Unit,
+    onOpenCaptured: (dedupKey: String) -> Unit,
+    onMarkAllRead: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    var showInbox by rememberSaveable { mutableStateOf(false) }
     Box(
         modifier =
         modifier
@@ -106,7 +114,13 @@ fun HomeScreen(
             .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)),
     ) {
         Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
-            MonthSelector(month = state.month, onPreviousMonth = onPreviousMonth, onNextMonth = onNextMonth)
+            MonthSelector(
+                month = state.month,
+                onPreviousMonth = onPreviousMonth,
+                onNextMonth = onNextMonth,
+                hasNewNotice = inbox.any { it.isNew },
+                onOpenInbox = { showInbox = true },
+            )
             // 새 버전이 있으면 달 선택 아래에 알림 줄을 둔다. 목록 안이 아니라 고정 자리에 두어
             // 달력을 누를 때 쓰는 목록 줄 번호가 흔들리지 않게 한다.
             AnimatedVisibility(visible = updateVersion != null) {
@@ -133,6 +147,18 @@ fun HomeScreen(
         ) {
             Icon(imageVector = Icons.Filled.Add, contentDescription = "거래 등록")
         }
+    }
+    if (showInbox) {
+        InboxDialog(
+            items = inbox,
+            today = state.today,
+            onOpen = { dedupKey ->
+                showInbox = false
+                onOpenCaptured(dedupKey)
+            },
+            onMarkAllRead = onMarkAllRead,
+            onDismiss = { showInbox = false },
+        )
     }
 }
 
@@ -299,7 +325,13 @@ private fun UpdateBanner(version: String, onOpen: () -> Unit, onDismiss: () -> U
 }
 
 @Composable
-private fun MonthSelector(month: YearMonth, onPreviousMonth: () -> Unit, onNextMonth: () -> Unit) {
+private fun MonthSelector(
+    month: YearMonth,
+    onPreviousMonth: () -> Unit,
+    onNextMonth: () -> Unit,
+    hasNewNotice: Boolean,
+    onOpenInbox: () -> Unit,
+) {
     Row(
         modifier =
         Modifier
@@ -323,6 +355,8 @@ private fun MonthSelector(month: YearMonth, onPreviousMonth: () -> Unit, onNextM
             contentDescription = "다음 달",
             onClick = onNextMonth,
         )
+        Spacer(Modifier.weight(1f))
+        InboxButton(hasNew = hasNewNotice, onClick = onOpenInbox)
     }
 }
 

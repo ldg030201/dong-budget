@@ -75,6 +75,12 @@ val PATCH_NOTES: List<Release> =
             menus =
             listOf(
                 menu(
+                    PatchMenu.HOME,
+                    added("오른쪽 위 종을 누르면 그동안 온 결제 등록 알림을 모아 볼 수 있어요. 누르면 알림에서처럼 등록창이 열려요"),
+                    added("아직 안 본 알림은 색으로 표시돼요. 새 알림이 있으면 종에 빨간 점이 떠요"),
+                    added("'모두 읽음'을 누르면 표시가 사라지고, 알림창에 남은 등록 알림도 함께 치워요"),
+                ),
+                menu(
                     PatchMenu.PATCH_NOTES,
                     improved("버전을 눌러 바뀐 점을 접고 펼칠 수 있어요. 처음에는 지금 버전과 새 버전만 펼쳐져 있어요"),
                 ),

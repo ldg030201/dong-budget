@@ -90,6 +90,8 @@ data class BudgetSize(
     val fab: Dp = 56.dp,
     /** 패치노트 종류 꼬리표 너비. 가장 긴 '오류수정' 이 들어가는 폭으로 모두 맞춘다 */
     val patchTagWidth: Dp = 64.dp,
+    /** 새 알림이 있을 때 종 옆에 찍는 점 */
+    val noticeDot: Dp = 8.dp,
 )
 
 /** 화면 코드에서 참조하는 전체 토큰 묶음 */

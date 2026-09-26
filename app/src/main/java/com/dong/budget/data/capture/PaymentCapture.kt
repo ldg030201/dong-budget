@@ -2,9 +2,11 @@ package com.dong.budget.data.capture
 
 import com.dong.budget.BuildConfig
 import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -64,7 +66,7 @@ class PaymentCapture(
         if (!prompt.canAsk()) return false
         if (!store.remember(payment)) return false
         if (isRegistered(payment.dedupKey)) {
-            store.markAnswered(payment.dedupKey)
+            store.markRegistered(payment.dedupKey)
             return false
         }
         prompt.ask(payment)
@@ -82,14 +84,17 @@ class PaymentCapture(
             when {
                 // 이미 등록한 결제는 답한 것으로 적는다. 0.1.6 은 등록해도 기록에 남기지 않아서 여기서 정리한다.
                 // 적어 두지 않으면 그 거래를 나중에 지웠을 때 묻는 알림이 되살아난다.
-                isRegistered(payment.dedupKey) -> store.markAnswered(payment.dedupKey)
+                isRegistered(payment.dedupKey) -> store.markRegistered(payment.dedupKey)
 
                 payment.dedupKey !in showing -> prompt.ask(payment, quietly = true)
             }
         }
     }
 
-    /** 사용자가 묻는 알림을 지웠다. 등록하지 않겠다는 뜻이니 다시 띄우지 않는다. */
+    /**
+     * 사용자가 묻는 알림을 지웠다. 등록하지 않겠다는 뜻이니 다시 띄우지 않는다.
+     * 읽은 것으로는 적지 않는다. '모두 지우기' 로 못 보고 지웠을 수 있어 알림 목록에는 새 알림으로 남긴다.
+     */
     fun onPromptDismissed(dedupKey: String) = store.markAnswered(dedupKey)
 
     /** 우리 알림을 눌렀을 때 채울 결제. 기록이 지났으면 null */
@@ -103,8 +108,23 @@ class PaymentCapture(
      * 적어 두지 않으면 등록한 거래를 나중에 지웠을 때, 다시 연결되는 순간 묻는 알림이 되살아난다.
      */
     fun onRegistered(dedupKey: String) {
-        store.markAnswered(dedupKey)
+        store.markRegistered(dedupKey)
         prompt.dismiss(dedupKey)
+    }
+
+    /** 홈의 알림 목록. 물어본 결제들을 최근 것부터 담는다. 기록이 바뀔 때마다 다시 읽는다. */
+    val records: Flow<List<CaptureRecord>> = store.changes.map { store.records() }
+
+    /** 알림 목록이나 알림창에서 이 결제를 눌렀다. 새 알림 표시를 없앤다. */
+    fun markRead(dedupKey: String) = store.markRead(dedupKey)
+
+    /**
+     * 알림 목록의 '모두 읽음'. 남은 결제는 등록하지 않겠다는 뜻이라 알림창의 묻는 알림도 치우고 다시 띄우지 않는다.
+     * 목록에는 보관 기간 동안 남아 있어서, 마음이 바뀌면 거기서 눌러 등록할 수 있다.
+     * 되살리기([restorePrompts])와 겹치면 방금 치운 알림을 도로 띄울 수 있어 같은 자물쇠 안에서 한다.
+     */
+    suspend fun markAllRead() = mutex.withLock {
+        store.markAllRead().forEach(prompt::dismiss)
     }
 
     /**

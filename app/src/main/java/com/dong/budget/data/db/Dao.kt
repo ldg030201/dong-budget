@@ -77,6 +77,10 @@ interface TransactionDao {
     @Query("SELECT EXISTS(SELECT 1 FROM transactions WHERE dedupKey = :key)")
     suspend fun existsByDedupKey(key: String): Boolean
 
+    /** [keys] 중 이미 등록된 결제의 열쇠. 알림 목록에 '등록함' 을 붙일 때 쓴다. */
+    @Query("SELECT dedupKey FROM transactions WHERE dedupKey IN (:keys)")
+    fun observeRegisteredKeys(keys: List<String>): Flow<List<String>>
+
     @Insert
     suspend fun insert(transaction: TransactionEntity): Long
 

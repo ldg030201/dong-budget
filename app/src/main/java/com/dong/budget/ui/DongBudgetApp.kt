@@ -1,5 +1,6 @@
 package com.dong.budget.ui
 
+import android.content.Context
 import android.widget.Toast
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
@@ -25,7 +26,9 @@ import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import com.dong.budget.BuildConfig
 import com.dong.budget.data.AppContainer
+import com.dong.budget.data.capture.CaptureStore
 import com.dong.budget.data.capture.CapturedPayment
+import com.dong.budget.data.capture.PaymentCapture
 import com.dong.budget.navigation.CategoryManageKey
 import com.dong.budget.navigation.EditorPrefill
 import com.dong.budget.navigation.Navigator
@@ -65,20 +68,7 @@ fun DongBudgetApp(container: AppContainer, capturedToOpen: String? = null, onCap
     val context = LocalContext.current
     LaunchedEffect(capturedToOpen) {
         val dedupKey = capturedToOpen ?: return@LaunchedEffect
-        val capture = container.paymentCapture
-        // 기록이 지난 알림이면 채울 내용이 없다. 그때는 그냥 앱만 열린다.
-        val payment = withContext(Dispatchers.IO) { capture.find(dedupKey) }
-        when {
-            payment == null -> Unit
-
-            // 이미 등록한 결제면 등록창을 열지 않고 알림만 치운다
-            capture.alreadyRegistered(dedupKey) -> {
-                capture.onRegistered(dedupKey)
-                Toast.makeText(context, ALREADY_REGISTERED_MESSAGE, Toast.LENGTH_SHORT).show()
-            }
-
-            else -> navigator.go(TransactionEditorKey(prefill = payment.toPrefill()))
-        }
+        openCaptured(dedupKey, container.paymentCapture, navigator, context)
         // 다 연 뒤에 비운다. 먼저 비우면 값이 바뀌면서 이 작업 자체가 취소된다.
         onCapturedOpened()
     }
@@ -118,15 +108,19 @@ fun DongBudgetApp(container: AppContainer, capturedToOpen: String? = null, onCap
                 val state by viewModel.uiState.collectAsStateWithLifecycle()
 
                 val updateVersion by container.updateChecker.bannerVersion.collectAsStateWithLifecycle(initialValue = null)
+                val inbox by viewModel.inbox.collectAsStateWithLifecycle()
                 HomeShell(
                     state = state,
                     updateVersion = updateVersion,
+                    inbox = inbox,
                     onOpenUpdate = { navigator.go(SettingsKey) },
                     onDismissUpdate = container.updateChecker::dismissBanner,
                     onPreviousMonth = viewModel::showPreviousMonth,
                     onNextMonth = viewModel::showNextMonth,
                     onAddTransaction = { navigator.go(TransactionEditorKey()) },
                     onEditTransaction = { id -> navigator.go(TransactionEditorKey(id)) },
+                    onOpenCaptured = { dedupKey -> scope.launch { openCaptured(dedupKey, container.paymentCapture, navigator, context) } },
+                    onMarkAllRead = viewModel::markAllRead,
                     onOpenCategories = { navigator.go(CategoryManageKey) },
                     onOpenStatistics = { navigator.go(StatisticsKey) },
                     onOpenSettings = { navigator.go(SettingsKey) },
@@ -240,6 +234,27 @@ private fun modalTransitions(): Map<String, Any> = NavDisplay.transitionSpec {
         EnterTransition.None togetherWith slideOutVertically(targetOffsetY = { height -> height })
     }
 
+/**
+ * 결제 등록 알림을 연다. 알림창의 알림을 눌렀을 때와 홈 알림 목록에서 눌렀을 때 똑같이 동작한다.
+ * 연 결제는 읽은 것으로 적는다. 이미 등록한 결제면 등록창을 열지 않고 알려주며 묻던 알림을 치운다.
+ */
+private suspend fun openCaptured(dedupKey: String, capture: PaymentCapture, navigator: Navigator, context: Context) {
+    val payment = withContext(Dispatchers.IO) { capture.find(dedupKey)?.also { capture.markRead(dedupKey) } }
+    when {
+        // 보관 기간이 지나 채울 내용이 없다. 알림창의 알림은 그때 저절로 사라지므로 주로 오래 열어 둔 알림 목록에서 온다.
+        payment == null -> Toast.makeText(context, EXPIRED_CAPTURE_MESSAGE, Toast.LENGTH_SHORT).show()
+
+        capture.alreadyRegistered(dedupKey) -> {
+            capture.onRegistered(dedupKey)
+            Toast.makeText(context, ALREADY_REGISTERED_MESSAGE, Toast.LENGTH_SHORT).show()
+        }
+
+        else -> navigator.go(TransactionEditorKey(prefill = payment.toPrefill()))
+    }
+}
+
+private const val EXPIRED_CAPTURE_MESSAGE = "${CaptureStore.RETENTION_DAYS}일이 지난 알림이라 열 수 없어요"
+
 /** 알림에서 읽은 결제를 등록창에 채울 값으로 바꾼다. 할부는 메모로 남긴다. */
 private fun CapturedPayment.toPrefill() = EditorPrefill(
     amount = amount,
@@ -251,7 +266,7 @@ private fun CapturedPayment.toPrefill() = EditorPrefill(
 )
 
 private fun homeViewModelFactory(container: AppContainer) = viewModelFactory {
-    initializer { HomeViewModel(container.transactionRepository) }
+    initializer { HomeViewModel(container.transactionRepository, container.paymentCapture) }
 }
 
 private fun editorViewModelFactory(container: AppContainer, transactionId: Long?, prefill: EditorPrefill?) = viewModelFactory {

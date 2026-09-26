@@ -3,8 +3,10 @@ package com.dong.budget.ui.home
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dong.budget.data.TransactionRepository
+import com.dong.budget.data.capture.PaymentCapture
 import com.dong.budget.data.db.BudgetTime
 import com.dong.budget.data.db.TransactionListItem
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -15,7 +17,10 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import java.time.Clock
 import java.time.LocalDate
 import java.time.YearMonth
@@ -33,10 +38,14 @@ data class HomeUiState(
 )
 
 /**
+ * @param capture 오른쪽 위 알림 목록에 보여줄 결제 등록 알림
  * @param clock 지금 시각. 테스트에서 날짜를 고정하려고 바꿀 수 있게 둔다.
  */
-class HomeViewModel(private val repository: TransactionRepository, private val clock: Clock = Clock.system(BudgetTime.ZONE)) :
-    ViewModel() {
+class HomeViewModel(
+    private val repository: TransactionRepository,
+    private val capture: PaymentCapture,
+    private val clock: Clock = Clock.system(BudgetTime.ZONE),
+) : ViewModel() {
     /**
      * 사용자가 화살표로 고른 달. null 이면 '이번 달' 을 따라간다.
      * 그래서 이번 달을 보던 중에 달이 바뀌면 새 달로 넘어가고, 일부러 다른 달을 보고 있으면 그대로 둔다.
@@ -68,6 +77,25 @@ class HomeViewModel(private val repository: TransactionRepository, private val c
                 started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS),
                 initialValue = LocalDate.now(clock).let { buildState(YearMonth.from(it), it, emptyList(), emptyList()) },
             )
+
+    /** 오른쪽 위 알림 목록. 최근 결제부터. 등록을 마친 결제에는 '등록함' 을 붙인다. */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val inbox: StateFlow<List<InboxItem>> =
+        capture.records
+            // 기록은 SharedPreferences 에서 JSON 을 풀어 읽는다. 메인 스레드 밖에서 한다.
+            .flowOn(Dispatchers.IO)
+            .flatMapLatest { records ->
+                repository.observeRegisteredKeys(records.map { it.payment.dedupKey }).map { registered -> inboxItems(records, registered) }
+            }.stateIn(
+                scope = viewModelScope,
+                started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS),
+                initialValue = emptyList(),
+            )
+
+    /** 알림 목록의 '모두 읽음' */
+    fun markAllRead() {
+        viewModelScope.launch(Dispatchers.IO) { capture.markAllRead() }
+    }
 
     fun showPreviousMonth() = moveMonth(-1)
 
