@@ -51,6 +51,7 @@ import com.dong.budget.navigation.PatchNotesKey
 import com.dong.budget.navigation.SettingsKey
 import com.dong.budget.navigation.ShellKey
 import com.dong.budget.navigation.StatisticsKey
+import com.dong.budget.navigation.StatsDetailKey
 import com.dong.budget.navigation.TransactionEditorKey
 import com.dong.budget.ui.category.CategoryManageScreen
 import com.dong.budget.ui.category.CategoryManageViewModel
@@ -69,6 +70,8 @@ import com.dong.budget.ui.shell.HomeShell
 import com.dong.budget.ui.stats.StatsScreen
 import com.dong.budget.ui.stats.StatsTab
 import com.dong.budget.ui.stats.StatsViewModel
+import com.dong.budget.ui.stats.detail.StatsDetailScreen
+import com.dong.budget.ui.stats.detail.StatsDetailViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -220,6 +223,23 @@ fun DongBudgetApp(container: AppContainer, capturedToOpen: String? = null, onCap
                     onOpenDetail = { key -> if (settled()) navigator.go(key) },
                     onOpenTransaction = { id -> if (settled()) navigator.go(TransactionEditorKey(id)) },
                     onBack = navigator::goBack,
+                )
+            }
+
+            // 상세는 보통 서브플로우 전환이다. 떠 있는 메뉴는 통계 본 화면 것이라 여기에는 없다.
+            entry<StatsDetailKey> { key ->
+                val viewModel: StatsDetailViewModel = viewModel(factory = statsDetailViewModelFactory(container, key))
+                val state by viewModel.uiState.collectAsStateWithLifecycle()
+                // 통계 화면과 같은 이유로 자리 잡은 뒤(RESUMED)에만 거래 줄 누름을 받는다.
+                // 들어오는 중에 같은 자리를 한 번 더 누르거나, 나가는 중에 누른 줄로 등록창이 열리지 않게 한다.
+                val lifecycle = LocalLifecycleOwner.current.lifecycle
+                val settled = { lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED) }
+                StatsDetailScreen(
+                    state = state,
+                    onBack = navigator::goBack,
+                    onPreviousMonth = viewModel::showPreviousMonth,
+                    onNextMonth = viewModel::showNextMonth,
+                    onOpenTransaction = { id -> if (settled()) navigator.go(TransactionEditorKey(id)) },
                 )
             }
 
@@ -381,4 +401,15 @@ private fun categoryManageViewModelFactory(container: AppContainer) = viewModelF
 
 private fun statsViewModelFactory(container: AppContainer) = viewModelFactory {
     initializer { StatsViewModel(container.transactionRepository) }
+}
+
+private fun statsDetailViewModelFactory(container: AppContainer, key: StatsDetailKey) = viewModelFactory {
+    initializer {
+        StatsDetailViewModel(
+            transactionRepository = container.transactionRepository,
+            categoryRepository = container.categoryRepository,
+            paymentMethodRepository = container.paymentMethodRepository,
+            key = key,
+        )
+    }
 }
