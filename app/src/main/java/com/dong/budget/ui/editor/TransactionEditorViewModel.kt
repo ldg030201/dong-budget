@@ -303,6 +303,11 @@ class TransactionEditorViewModel(
         _uiState.update { it.copy(pendingJump = null) }
     }
 
+    /** 새로 추가했다는 알림을 화면이 처리했다. 한 번만 처리하도록 비운다. */
+    fun onAddHandled() {
+        _uiState.update { it.copy(lastAddedCategoryId = null, lastAddedPaymentId = null) }
+    }
+
     /**
      * 저장이나 삭제가 진행 중이거나 이미 끝났는지. 버튼을 연달아 눌러도 한 번만 처리하기 위함이다.
      * 직접 입력한 거래는 막아 줄 고유값(dedupKey)이 없어서, 이게 없으면 두 번 누를 때 같은 거래가 두 건 생긴다.
@@ -321,6 +326,8 @@ class TransactionEditorViewModel(
             return
         }
         busy = true
+        // 지난 거절 문구를 지운다. 같은 이유로 또 거절되면 문구가 새로 나타나 화면 읽기가 다시 읽어 준다.
+        _uiState.update { it.copy(saveError = null) }
         viewModelScope.launch {
             if (transactionId == null) {
                 // 이미 등록한 결제면 카드를 만들기 전에 멈춘다

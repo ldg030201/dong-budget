@@ -12,8 +12,8 @@ import java.util.UUID
 
 class PaymentMethodRepository(private val dao: PaymentMethodDao) {
     companion object {
-        /** 알림에서 읽어 새로 만드는 결제수단은 모두 카드다 */
-        private const val NEW_CARD_ICON = "credit_card"
+        /** 알림에서 읽어 새로 만드는 결제수단은 모두 카드다. 등록창의 '새로 추가돼요' 미리보기도 이 아이콘을 쓴다. */
+        const val NEW_CARD_ICON = "credit_card"
 
         /** 띄어쓰기와 대소문자를 무시하고 같은 이름인지 본다. '하나 카드' 와 '하나카드' 는 같다. */
         fun sameName(a: String, b: String): Boolean = a.replace(" ", "").equals(b.replace(" ", ""), ignoreCase = true)
@@ -60,7 +60,7 @@ class PaymentMethodRepository(private val dao: PaymentMethodDao) {
         val existing = dao.getAll()
         existing.firstOrNull { sameName(it.name, name) }?.let { return it.id }
         val used = existing.mapTo(mutableSetOf()) { it.color }
-        val color = CategoryStyle.COLORS.firstOrNull { it != CategoryStyle.FALLBACK_COLOR && it !in used } ?: CategoryStyle.FALLBACK_COLOR
+        val color = CategoryStyle.firstUnusedColor(used)
         return when (val result = add(name, NEW_CARD_ICON, color)) {
             is AddResult.Added -> result.id
 

@@ -60,11 +60,14 @@ interface TransactionDao {
     @Query("SELECT * FROM transactions WHERE id = :id")
     suspend fun findById(id: Long): TransactionEntity?
 
-    /** 이 가게로 가장 최근에 등록한 지출의 분류. 알림으로 들어온 결제의 분류를 미리 고를 때 쓴다. */
+    /**
+     * 이 가게로 가장 최근에 등록한 지출의 분류. 알림으로 들어온 결제의 분류를 미리 고를 때 쓴다.
+     * 앞뒤 공백은 무시하고 비교한다. 예전에 공백째 저장된 가게 이름('스타벅스 ')도 찾기 위함이다.
+     */
     @Query(
         """
         SELECT categoryId FROM transactions
-        WHERE merchant = :merchant AND type = 'EXPENSE' AND categoryId IS NOT NULL
+        WHERE TRIM(merchant) = TRIM(:merchant) AND type = 'EXPENSE' AND categoryId IS NOT NULL
         ORDER BY occurredAt DESC LIMIT 1
         """,
     )

@@ -13,6 +13,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.Color
 import com.dong.budget.ui.theme.BudgetTheme
 import com.dong.budget.ui.theme.pressScaleClickable
 
@@ -89,7 +90,7 @@ fun BudgetSmallButton(text: String, onClick: () -> Unit, modifier: Modifier = Mo
 
 /** 글자만 있는 버튼. 자주 쓰지 않는 보조 동작을 한 줄에 여러 개 늘어놓을 때 쓴다. */
 @Composable
-fun BudgetTextButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+fun BudgetTextButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, color: Color = MaterialTheme.colorScheme.primary) {
     val shape = RoundedCornerShape(BudgetTheme.radius.chip)
     Box(
         modifier =
@@ -102,7 +103,7 @@ fun BudgetTextButton(text: String, onClick: () -> Unit, modifier: Modifier = Mod
         Text(
             text = text,
             style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.primary,
+            color = color,
         )
     }
 }
