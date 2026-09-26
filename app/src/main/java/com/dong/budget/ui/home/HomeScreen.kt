@@ -87,14 +87,17 @@ import java.time.YearMonth
  *
  * 상단 인셋은 이 화면이 직접 처리한다. 셸의 Scaffold 는 인셋을 비워둔다.
  *
- * @param inbox 알림 목록. 최근 것부터
- * @param onOpenCaptured 알림 목록에서 누른 결제의 열쇠. 알림창의 알림을 누른 것과 똑같이 연다.
+ * @param inbox 알림 목록. 최근 것부터. 아직 불러오기 전이면 null
+ * @param showInbox 알림 목록 창을 띄울지. 알림창의 알림을 눌러 들어올 때도 닫아야 해서 바깥(DongBudgetApp)이 들고 있다.
+ * @param onOpenCaptured 알림 목록에서 누른 결제의 열쇠. 알림창의 알림을 누른 것과 똑같이 연다. 창은 부르는 쪽이 닫는다.
  */
 @Composable
 fun HomeScreen(
     state: HomeUiState,
     updateVersion: String?,
-    inbox: List<InboxItem>,
+    inbox: List<InboxItem>?,
+    showInbox: Boolean,
+    onShowInboxChange: (Boolean) -> Unit,
     onOpenUpdate: () -> Unit,
     onDismissUpdate: () -> Unit,
     onPreviousMonth: () -> Unit,
@@ -102,10 +105,9 @@ fun HomeScreen(
     onAddTransaction: () -> Unit,
     onEditTransaction: (Long) -> Unit,
     onOpenCaptured: (dedupKey: String) -> Unit,
-    onMarkAllRead: () -> Unit,
+    onMarkAllRead: (dedupKeys: List<String>) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    var showInbox by rememberSaveable { mutableStateOf(false) }
     Box(
         modifier =
         modifier
@@ -118,8 +120,8 @@ fun HomeScreen(
                 month = state.month,
                 onPreviousMonth = onPreviousMonth,
                 onNextMonth = onNextMonth,
-                hasNewNotice = inbox.any { it.isNew },
-                onOpenInbox = { showInbox = true },
+                hasNewNotice = inbox?.any { it.isNew } == true,
+                onOpenInbox = { onShowInboxChange(true) },
             )
             // 새 버전이 있으면 달 선택 아래에 알림 줄을 둔다. 목록 안이 아니라 고정 자리에 두어
             // 달력을 누를 때 쓰는 목록 줄 번호가 흔들리지 않게 한다.
@@ -148,16 +150,14 @@ fun HomeScreen(
             Icon(imageVector = Icons.Filled.Add, contentDescription = "거래 등록")
         }
     }
-    if (showInbox) {
+    // 목록을 불러오기 전에는 창을 띄우지 않는다. 앱이 다시 살아나 창이 되살아날 때 빈 목록이 잠깐 보이지 않게 한다.
+    if (showInbox && inbox != null) {
         InboxDialog(
             items = inbox,
             today = state.today,
-            onOpen = { dedupKey ->
-                showInbox = false
-                onOpenCaptured(dedupKey)
-            },
+            onOpen = onOpenCaptured,
             onMarkAllRead = onMarkAllRead,
-            onDismiss = { showInbox = false },
+            onDismiss = { onShowInboxChange(false) },
         )
     }
 }

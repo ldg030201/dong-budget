@@ -78,9 +78,12 @@ class HomeViewModel(
                 initialValue = LocalDate.now(clock).let { buildState(YearMonth.from(it), it, emptyList(), emptyList()) },
             )
 
-    /** 오른쪽 위 알림 목록. 최근 결제부터. 등록을 마친 결제에는 '등록함' 을 붙인다. */
+    /**
+     * 오른쪽 위 알림 목록. 최근 결제부터. 등록을 마친 결제에는 '등록함' 을 붙인다.
+     * 아직 불러오기 전이면 null 이다. 빈 목록과 구별해야 창이 '아직 온 알림이 없어요' 로 잠깐 깜빡이지 않는다.
+     */
     @OptIn(ExperimentalCoroutinesApi::class)
-    val inbox: StateFlow<List<InboxItem>> =
+    val inbox: StateFlow<List<InboxItem>?> =
         capture.records
             // 기록은 SharedPreferences 에서 JSON 을 풀어 읽는다. 메인 스레드 밖에서 한다.
             .flowOn(Dispatchers.IO)
@@ -89,12 +92,12 @@ class HomeViewModel(
             }.stateIn(
                 scope = viewModelScope,
                 started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS),
-                initialValue = emptyList(),
+                initialValue = null,
             )
 
-    /** 알림 목록의 '모두 읽음' */
-    fun markAllRead() {
-        viewModelScope.launch(Dispatchers.IO) { capture.markAllRead() }
+    /** 알림 목록의 '모두 읽음'. [dedupKeys] 는 목록에 보이던 결제다. */
+    fun markAllRead(dedupKeys: List<String>) {
+        viewModelScope.launch(Dispatchers.IO) { capture.markAllRead(dedupKeys) }
     }
 
     fun showPreviousMonth() = moveMonth(-1)

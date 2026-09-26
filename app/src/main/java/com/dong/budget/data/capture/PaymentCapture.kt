@@ -1,12 +1,14 @@
 package com.dong.budget.data.capture
 
 import com.dong.budget.BuildConfig
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.transformLatest
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -100,8 +102,32 @@ class PaymentCapture(
     /** 우리 알림을 눌렀을 때 채울 결제. 기록이 지났으면 null */
     fun find(dedupKey: String): CapturedPayment? = store.find(dedupKey)
 
-    /** 이미 가계부에 등록한 결제인지 */
-    suspend fun alreadyRegistered(dedupKey: String): Boolean = isRegistered(dedupKey)
+    /**
+     * 결제 등록 알림을 눌렀다. 알림창의 알림과 홈 알림 목록이 같이 쓴다.
+     * 누른 결제는 읽은 것으로 적는다. 등록창을 열었다가 그냥 닫아도 새 알림 표시가 남지 않게 하기 위함이다.
+     * 이미 등록한 결제면 묻던 알림을 치운다.
+     */
+    suspend fun open(dedupKey: String): OpenResult {
+        val payment = store.find(dedupKey) ?: return OpenResult.Expired
+        store.markRead(dedupKey)
+        if (isRegistered(dedupKey)) {
+            onRegistered(dedupKey)
+            return OpenResult.AlreadyRegistered
+        }
+        return OpenResult.Editor(payment)
+    }
+
+    /** 결제 등록 알림을 눌렀을 때 할 일([open]) */
+    sealed interface OpenResult {
+        /** 보관 기간이 지나 채울 내용이 없다 */
+        data object Expired : OpenResult
+
+        /** 이미 등록한 결제 */
+        data object AlreadyRegistered : OpenResult
+
+        /** 이 결제로 채운 등록창을 연다 */
+        data class Editor(val payment: CapturedPayment) : OpenResult
+    }
 
     /**
      * 등록을 마쳤다(또는 이미 등록돼 있었다). 묻던 알림을 치우고 답한 것으로 적어 둔다.
@@ -112,8 +138,22 @@ class PaymentCapture(
         prompt.dismiss(dedupKey)
     }
 
-    /** 홈의 알림 목록. 물어본 결제들을 최근 것부터 담는다. 기록이 바뀔 때마다 다시 읽는다. */
-    val records: Flow<List<CaptureRecord>> = store.changes.map { store.records() }
+    /**
+     * 홈의 알림 목록. 물어본 결제들을 최근 것부터 담는다.
+     * 기록이 바뀔 때마다 다시 읽고, 가장 먼저 보관 기간이 끝나는 때에도 다시 읽어 목록에서 뺀다.
+     * 그 결제의 묻는 알림이 알림창에서 저절로 사라지는 때(CaptureNotifier 의 setTimeoutAfter)와 같다.
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val records: Flow<List<CaptureRecord>> =
+        store.changes.transformLatest {
+            while (true) {
+                val records = store.records()
+                emit(records)
+                val nextExpiry = records.minOfOrNull { it.payment.occurredAtMillis + CaptureStore.RETENTION_MS } ?: break
+                // 보관 기간을 '넘어야' 지난 것으로 보므로 1ms 뒤에 읽는다
+                delay((nextExpiry - now() + 1).coerceAtLeast(1))
+            }
+        }
 
     /** 알림 목록이나 알림창에서 이 결제를 눌렀다. 새 알림 표시를 없앤다. */
     fun markRead(dedupKey: String) = store.markRead(dedupKey)
@@ -122,9 +162,11 @@ class PaymentCapture(
      * 알림 목록의 '모두 읽음'. 남은 결제는 등록하지 않겠다는 뜻이라 알림창의 묻는 알림도 치우고 다시 띄우지 않는다.
      * 목록에는 보관 기간 동안 남아 있어서, 마음이 바뀌면 거기서 눌러 등록할 수 있다.
      * 되살리기([restorePrompts])와 겹치면 방금 치운 알림을 도로 띄울 수 있어 같은 자물쇠 안에서 한다.
+     *
+     * @param dedupKeys 목록에 보이던 결제. 누르는 사이 새로 온 결제는 새 알림으로 남기고 묻는 알림도 그대로 둔다.
      */
-    suspend fun markAllRead() = mutex.withLock {
-        store.markAllRead().forEach(prompt::dismiss)
+    suspend fun markAllRead(dedupKeys: Collection<String>) = mutex.withLock {
+        store.markAllRead(dedupKeys).forEach(prompt::dismiss)
     }
 
     /**
