@@ -35,11 +35,13 @@ import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
+import com.dong.budget.ui.components.BudgetIconButton
 import com.dong.budget.ui.components.BudgetListItem
 import com.dong.budget.ui.components.BudgetPrimaryButton
 import com.dong.budget.ui.components.BudgetTopAppBar
 import com.dong.budget.ui.components.CategoryBadge
 import com.dong.budget.ui.components.ConfirmDialog
+import com.dong.budget.ui.components.HintText
 import com.dong.budget.ui.components.SegmentedToggle
 import com.dong.budget.ui.theme.BudgetTheme
 import com.dong.budget.ui.theme.pressScaleClickable
@@ -109,10 +111,8 @@ fun CategoryManageScreen(
                 onSelect = { onTabChange(ManageTab.entries[it]) },
                 modifier = Modifier.padding(horizontal = BudgetTheme.spacing.screenHorizontal),
             )
-            Text(
+            HintText(
                 text = "길게 눌러서 끌면 순서를 바꿀 수 있어요",
-                style = MaterialTheme.typography.bodySmall,
-                color = BudgetTheme.colors.textSecondary,
                 modifier =
                 Modifier.padding(
                     horizontal = BudgetTheme.spacing.screenHorizontal,
@@ -236,19 +236,12 @@ private fun ManagedRow(item: ManagedItem, onDelete: () -> Unit, modifier: Modifi
 
 @Composable
 private fun DeleteButton(name: String, onClick: () -> Unit) {
-    Box(
-        modifier =
-        Modifier
-            .size(BudgetTheme.size.minTouchTarget)
-            .pressScaleClickable(shape = CircleShape, role = Role.Button, onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            imageVector = Icons.Outlined.Delete,
-            // 목록에 삭제 버튼이 여러 개라 어느 분류의 것인지 이름을 함께 읽어준다
-            contentDescription = "$name 지우기",
-            tint = BudgetTheme.colors.textSecondary,
-            modifier = Modifier.size(BudgetTheme.size.icon),
-        )
-    }
+    BudgetIconButton(
+        icon = Icons.Outlined.Delete,
+        // 목록에 삭제 버튼이 여러 개라 어느 분류의 것인지 이름을 함께 읽어준다
+        contentDescription = "$name 지우기",
+        onClick = onClick,
+        tint = BudgetTheme.colors.textSecondary,
+        shape = CircleShape,
+    )
 }

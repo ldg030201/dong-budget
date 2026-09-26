@@ -14,10 +14,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.vectorResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.dong.budget.R
 import com.dong.budget.ui.theme.BudgetTheme
-import com.dong.budget.ui.theme.keypadClickable
+import com.dong.budget.ui.theme.pressScaleClickable
 
 private val KeyHeight = 56.dp
 
@@ -106,12 +108,8 @@ private fun KeypadKey(
         modifier =
         modifier
             .height(KeyHeight)
-            .keypadClickable(
-                shape = shape,
-                onClick = onClick,
-                onLongClick = onLongClick,
-                contentDescription = contentDescription,
-            ),
+            .then(if (contentDescription != null) Modifier.semantics { this.contentDescription = contentDescription } else Modifier)
+            .pressScaleClickable(shape = shape, onLongClick = onLongClick, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         content()

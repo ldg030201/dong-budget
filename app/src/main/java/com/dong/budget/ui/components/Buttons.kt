@@ -5,7 +5,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.minimumInteractiveComponentSize
@@ -14,6 +16,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.unit.Dp
 import com.dong.budget.ui.theme.BudgetTheme
 import com.dong.budget.ui.theme.pressScaleClickable
 
@@ -83,5 +88,30 @@ fun BudgetTextButton(text: String, onClick: () -> Unit, modifier: Modifier = Mod
             style = MaterialTheme.typography.labelLarge,
             color = color,
         )
+    }
+}
+
+/**
+ * 아이콘 하나짜리 버튼. 최소 터치 크기(48dp)를 지킨다.
+ * @param contentDescription 화면 읽기가 읽을 이름. 목록에 같은 버튼이 여럿이면 무엇의 버튼인지까지 적는다.
+ */
+@Composable
+fun BudgetIconButton(
+    icon: ImageVector,
+    contentDescription: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    tint: Color = BudgetTheme.colors.textPrimary,
+    iconSize: Dp = BudgetTheme.size.icon,
+    shape: Shape = MaterialTheme.shapes.small,
+) {
+    Box(
+        modifier =
+        modifier
+            .size(BudgetTheme.size.minTouchTarget)
+            .pressScaleClickable(shape = shape, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(imageVector = icon, contentDescription = contentDescription, tint = tint, modifier = Modifier.size(iconSize))
     }
 }

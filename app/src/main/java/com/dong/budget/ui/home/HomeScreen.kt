@@ -62,9 +62,11 @@ import androidx.compose.ui.text.withStyle
 import com.dong.budget.R
 import com.dong.budget.data.db.TransactionListItem
 import com.dong.budget.data.db.TransactionType
+import com.dong.budget.ui.components.BudgetDivider
+import com.dong.budget.ui.components.BudgetIconButton
 import com.dong.budget.ui.components.BudgetListItem
 import com.dong.budget.ui.components.CategoryBadge
-import com.dong.budget.ui.components.NavIconButton
+import com.dong.budget.ui.components.sectionBlock
 import com.dong.budget.ui.format.formatDayHeader
 import com.dong.budget.ui.format.formatMonth
 import com.dong.budget.ui.format.formatSignedAmount
@@ -286,21 +288,14 @@ private fun UpdateBanner(version: String, onOpen: () -> Unit, onDismiss: () -> U
             Text(text = "새 버전($version)이 나왔어요", style = MaterialTheme.typography.labelLarge, color = content)
             Text(text = "눌러서 업데이트하기", style = MaterialTheme.typography.bodySmall, color = content)
         }
-        Box(
-            modifier =
-            Modifier
-                .size(BudgetTheme.size.minTouchTarget)
-                .pressScaleClickable(shape = CircleShape, onClick = onDismiss)
-                .semantics { contentDescription = "새 버전 알림 닫기" },
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = Icons.Filled.Close,
-                contentDescription = null,
-                tint = content,
-                modifier = Modifier.size(BudgetTheme.size.iconSmall),
-            )
-        }
+        BudgetIconButton(
+            icon = Icons.Filled.Close,
+            contentDescription = "새 버전 알림 닫기",
+            onClick = onDismiss,
+            tint = content,
+            iconSize = BudgetTheme.size.iconSmall,
+            shape = CircleShape,
+        )
     }
 }
 
@@ -313,7 +308,7 @@ private fun MonthSelector(month: YearMonth, onPreviousMonth: () -> Unit, onNextM
             .padding(horizontal = BudgetTheme.spacing.inlineGap, vertical = BudgetTheme.spacing.tightGap),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        NavIconButton(
+        BudgetIconButton(
             icon = Icons.Filled.KeyboardArrowLeft,
             contentDescription = "이전 달",
             onClick = onPreviousMonth,
@@ -324,7 +319,7 @@ private fun MonthSelector(month: YearMonth, onPreviousMonth: () -> Unit, onNextM
             color = BudgetTheme.colors.textPrimary,
             modifier = Modifier.padding(horizontal = BudgetTheme.spacing.tightGap),
         )
-        NavIconButton(
+        BudgetIconButton(
             icon = Icons.Filled.KeyboardArrowRight,
             contentDescription = "다음 달",
             onClick = onNextMonth,
@@ -339,8 +334,7 @@ private fun SummaryBlock(totals: Totals, comparison: SpendingComparison?) {
         Modifier
             .padding(horizontal = BudgetTheme.spacing.screenHorizontal)
             .fillMaxWidth()
-            .background(BudgetTheme.colors.sectionBackground, RoundedCornerShape(BudgetTheme.radius.block))
-            .padding(BudgetTheme.spacing.sectionPadding),
+            .sectionBlock(),
     ) {
         Row {
             // 합계는 달력처럼 부호와 색을 함께 쓴다. 쓴 돈은 빨강 -, 들어온 돈은 초록 +.
@@ -360,12 +354,7 @@ private fun SummaryBlock(totals: Totals, comparison: SpendingComparison?) {
         }
         if (comparison != null) {
             Spacer(Modifier.height(BudgetTheme.spacing.itemGap))
-            Box(
-                Modifier
-                    .fillMaxWidth()
-                    .height(BudgetTheme.size.underline)
-                    .background(BudgetTheme.colors.divider),
-            )
+            BudgetDivider()
             Spacer(Modifier.height(BudgetTheme.spacing.itemGap))
             Text(
                 text = comparisonText(comparison),
@@ -376,9 +365,9 @@ private fun SummaryBlock(totals: Totals, comparison: SpendingComparison?) {
     }
 }
 
-/** 들어온 쪽(+)은 초록, 나간 쪽(-)은 빨강, 0 은 본문색 */
+/** 들어온 쪽(+)은 초록, 나간 쪽(-)은 빨강, 0 은 본문색. 요약과 달력이 같이 쓴다. */
 @Composable
-private fun totalColor(signedAmount: Long): Color = when {
+internal fun totalColor(signedAmount: Long): Color = when {
     signedAmount > 0 -> BudgetTheme.colors.income
     signedAmount < 0 -> BudgetTheme.colors.expense
     else -> BudgetTheme.colors.textPrimary
@@ -426,12 +415,7 @@ private fun DayHeader(date: LocalDate, today: LocalDate) {
             .padding(horizontal = BudgetTheme.spacing.screenHorizontal)
             .padding(top = BudgetTheme.spacing.inlineGap),
     ) {
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .height(BudgetTheme.size.underline)
-                .background(BudgetTheme.colors.divider),
-        )
+        BudgetDivider()
         Text(
             text = formatDayHeader(date, today),
             style = MaterialTheme.typography.labelMedium,

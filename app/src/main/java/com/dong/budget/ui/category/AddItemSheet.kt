@@ -43,8 +43,10 @@ import com.dong.budget.data.MAX_NAME_LENGTH
 import com.dong.budget.data.db.CategoryStyle
 import com.dong.budget.ui.components.BudgetPrimaryButton
 import com.dong.budget.ui.components.CategoryBadge
+import com.dong.budget.ui.components.ErrorText
 import com.dong.budget.ui.components.FormTextField
 import com.dong.budget.ui.components.IconBadge
+import com.dong.budget.ui.components.SectionLabel
 import com.dong.budget.ui.components.categoryIconRes
 import com.dong.budget.ui.theme.BudgetTheme
 import com.dong.budget.ui.theme.pressScaleClickable
@@ -116,18 +118,9 @@ fun AddItemSheet(
                     modifier = Modifier.weight(1f),
                 )
             }
-            if (error != null) {
-                Spacer(Modifier.height(BudgetTheme.spacing.tightGap))
-                Text(
-                    text = error,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = BudgetTheme.colors.danger,
-                    // 추가가 거절된 이유를 화면 읽기가 바로 읽어 준다
-                    modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
-                )
-            }
+            if (error != null) ErrorText(error, Modifier.padding(top = BudgetTheme.spacing.tightGap))
 
-            SheetLabel("색")
+            SectionLabel("색")
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(BudgetTheme.spacing.inlineGap),
                 verticalArrangement = Arrangement.spacedBy(BudgetTheme.spacing.inlineGap),
@@ -137,7 +130,7 @@ fun AddItemSheet(
                 }
             }
 
-            SheetLabel("아이콘")
+            SectionLabel("아이콘")
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(BudgetTheme.spacing.inlineGap),
                 verticalArrangement = Arrangement.spacedBy(BudgetTheme.spacing.inlineGap),
@@ -155,16 +148,6 @@ fun AddItemSheet(
             )
         }
     }
-}
-
-@Composable
-private fun SheetLabel(text: String) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.labelMedium,
-        color = BudgetTheme.colors.textSecondary,
-        modifier = Modifier.padding(top = BudgetTheme.spacing.sectionPadding, bottom = BudgetTheme.spacing.inlineGap),
-    )
 }
 
 @Composable
