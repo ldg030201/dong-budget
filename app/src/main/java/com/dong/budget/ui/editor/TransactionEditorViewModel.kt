@@ -303,19 +303,30 @@ class TransactionEditorViewModel(
         _uiState.update { it.copy(pendingJump = null) }
     }
 
+    /**
+     * 저장이나 삭제가 진행 중이거나 이미 끝났는지. 버튼을 연달아 눌러도 한 번만 처리하기 위함이다.
+     * 직접 입력한 거래는 막아 줄 고유값(dedupKey)이 없어서, 이게 없으면 두 번 누를 때 같은 거래가 두 건 생긴다.
+     * 화면이 닫히는 동안에도 버튼이 눌리므로, 끝난 뒤에도 풀지 않는다(실패했을 때만 푼다).
+     * save 와 delete 는 메인 스레드에서만 불리므로 따로 동기화하지 않는다.
+     */
+    private var busy = false
+
     /** 빈 필수 칸이 있으면 저장하지 않고, 그 첫 칸을 화면에 알린다. */
     fun save() {
+        if (busy) return
         val state = _uiState.value
         val missing = state.missingFields.firstOrNull()
         if (missing != null) {
             _uiState.update { it.copy(invalidField = missing, pendingJump = missing) }
             return
         }
+        busy = true
         viewModelScope.launch {
             if (transactionId == null) {
                 // 이미 등록한 결제면 카드를 만들기 전에 멈춘다
                 if (state.dedupKey != null && repository.isRegistered(state.dedupKey)) {
                     _uiState.update { it.copy(saveError = "이미 가계부에 등록한 결제예요") }
+                    busy = false
                     return@launch
                 }
                 // 알림에서 읽은 카드가 아직 결제수단에 없으면 이때 만든다. 등록을 취소하면 만들지 않는다.
@@ -335,6 +346,7 @@ class TransactionEditorViewModel(
                 } catch (e: SQLiteConstraintException) {
                     // 같은 알림으로 이미 등록했다(dedupKey 가 겹침)
                     _uiState.update { it.copy(saveError = "이미 가계부에 등록한 결제예요") }
+                    busy = false
                     return@launch
                 }
             } else {
@@ -355,6 +367,8 @@ class TransactionEditorViewModel(
 
     fun delete() {
         val id = transactionId ?: return
+        if (busy) return
+        busy = true
         viewModelScope.launch {
             repository.delete(id)
             _uiState.update { it.copy(saved = true) }
