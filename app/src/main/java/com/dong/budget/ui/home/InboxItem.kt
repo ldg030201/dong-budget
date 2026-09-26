@@ -6,7 +6,7 @@ import com.dong.budget.data.capture.CapturedPayment
 /**
  * 홈 알림 목록의 한 줄. 지금은 결제 등록 알림뿐이다.
  *
- * @property isNew 아직 눌러 보지 않은 알림. 연한 남색 바탕으로 보인다.
+ * @property isNew 아직 눌러 보지 않은 알림. 연한 남색 바탕과 오른쪽 빨간 점으로 보인다. 등록한 결제는 새 알림이 아니다.
  * @property registered 가계부에 등록을 마친 결제. '등록함' 을 붙인다.
  */
 data class InboxItem(val payment: CapturedPayment, val isNew: Boolean, val registered: Boolean)
