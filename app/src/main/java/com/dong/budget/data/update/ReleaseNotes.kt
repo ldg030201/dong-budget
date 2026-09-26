@@ -14,11 +14,7 @@ package com.dong.budget.data.update
 object ReleaseNotes {
     const val APP_NOTES_END = "<!-- dong-budget:app-notes-end -->"
 
-    /** 설치 버튼을 밀어내지 않도록 줄 수를 제한한다. */
-    private const val MAX_LINES = 6
-
-    /** @param maxLines 이보다 길면 자르고 '…' 을 붙인다. 업데이트 화면은 설치 버튼을 밀어내지 않게 짧게 쓴다. */
-    fun forApp(body: String?, maxLines: Int = MAX_LINES): String {
+    fun forApp(body: String?): String {
         if (body.isNullOrBlank()) return ""
         // 표시가 없으면 이 형식 이전의 릴리스다. 어디까지가 앱용인지 알 수 없으므로
         // 설치 안내 같은 엉뚱한 글을 보여주느니 아무것도 보여주지 않는다.
@@ -43,11 +39,7 @@ object ReleaseNotes {
         }
         while (compact.lastOrNull()?.isEmpty() == true) compact.removeAt(compact.lastIndex)
 
-        return if (compact.size <= maxLines) {
-            compact.joinToString("\n")
-        } else {
-            (compact.take(maxLines) + "…").joinToString("\n")
-        }
+        return compact.joinToString("\n")
     }
 
     private val HTML_COMMENT = Regex("<!--.*?-->", RegexOption.DOT_MATCHES_ALL)

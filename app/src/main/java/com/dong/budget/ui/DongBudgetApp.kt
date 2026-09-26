@@ -273,7 +273,6 @@ private fun settingsViewModelFactory(container: AppContainer) = viewModelFactory
     initializer {
         SettingsViewModel(
             settingsRepository = container.settingsRepository,
-            updateRepository = container.updateRepository,
             apkInstaller = container.apkInstaller,
             updateChecker = container.updateChecker,
         )
@@ -281,7 +280,7 @@ private fun settingsViewModelFactory(container: AppContainer) = viewModelFactory
 }
 
 private fun patchNotesViewModelFactory(container: AppContainer) = viewModelFactory {
-    initializer { PatchNotesViewModel(container.updateRepository, container.updateChecker) }
+    initializer { PatchNotesViewModel(container.updateChecker) }
 }
 
 private fun categoryManageViewModelFactory(container: AppContainer) = viewModelFactory {

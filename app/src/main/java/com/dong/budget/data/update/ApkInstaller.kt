@@ -38,35 +38,26 @@ class ApkInstaller(private val context: Context) {
 
     private fun fileFor(version: String) = File(directory, "$FILE_PREFIX$version$FILE_SUFFIX")
 
-    /** 받아둔 설치 파일 중 [currentVersion] 보다 새 것 가운데 가장 최신. 없으면 null */
-    fun latestDownloaded(currentVersion: String): DownloadedApk? {
-        val current = AppVersion.parse(currentVersion) ?: return null
-        return directory
-            .listFiles()
-            .orEmpty()
-            .mapNotNull { file ->
-                val version = file.name.removePrefix(FILE_PREFIX).removeSuffix(FILE_SUFFIX)
-                val parsed = AppVersion.parse(version)
-                if (file.name.startsWith(FILE_PREFIX) && file.name.endsWith(FILE_SUFFIX) && parsed != null && parsed > current) {
-                    DownloadedApk(version, file, parsed)
-                } else {
-                    null
-                }
-            }.maxByOrNull { it.parsedVersion }
-    }
+    /** 끝까지 받아둔 [version] 설치 파일. 없으면 null */
+    fun downloaded(version: String): File? = fileFor(version).takeIf { it.isFile }
+
+    private fun versionOf(file: File): AppVersion? = file.name
+        .takeIf { it.startsWith(FILE_PREFIX) && it.endsWith(FILE_SUFFIX) }
+        ?.let { AppVersion.parse(it.removePrefix(FILE_PREFIX).removeSuffix(FILE_SUFFIX)) }
 
     /** 이미 설치된 버전 이하의 파일과, 받다 만 조각을 지운다. 앱이 켜질 때 부른다. */
     fun deleteStaleDownloads(currentVersion: String) {
         val current = AppVersion.parse(currentVersion) ?: return
         directory.listFiles().orEmpty().forEach { file ->
-            val version = AppVersion.parse(file.name.removePrefix(FILE_PREFIX).removeSuffix(FILE_SUFFIX))
-            val stale = file.name.endsWith(PART_SUFFIX) || version == null || version <= current
-            if (stale) file.delete()
+            // 받다 만 조각('.part')은 이름에서 버전을 읽을 수 없어 함께 지워진다
+            val version = versionOf(file)
+            if (version == null || version <= current) file.delete()
         }
     }
 
     /**
      * 설치 파일을 받는다. 이미 받아둔 파일이 있으면 다시 받지 않는다.
+     * 다 받으면 다른 버전으로 받아둔 파일은 지운다. 더 새 버전이 나와 새로 받았으면 지난 파일은 쓸 일이 없다.
      *
      * 받는 동안은 '.part' 임시 파일에 쓰고, 끝까지 받은 뒤에만 제 이름으로 바꾼다.
      * 받다가 끊긴 조각을 완성된 파일로 오해해 설치하려 들면 설치기가 '잘못된 파일' 로 거절한다.
@@ -95,6 +86,7 @@ class ApkInstaller(private val context: Context) {
                         }
                         check(expectedSize <= 0 || part.length() == expectedSize) { "설치 파일을 끝까지 받지 못했어요" }
                         check(part.renameTo(target)) { "설치 파일을 저장하지 못했어요" }
+                        directory.listFiles().orEmpty().filter { it != target && versionOf(it) != null }.forEach(File::delete)
                         target
                     } finally {
                         watcher.cancel()
@@ -112,11 +104,9 @@ class ApkInstaller(private val context: Context) {
     suspend fun installWithSession(apk: File): Result<Unit> = withContext(Dispatchers.IO) {
         runCatching {
             val installer = context.packageManager.packageInstaller
-            // 지난 시도에서 남은 세션을 먼저 치운다. 남아 있으면 그 결과가 늦게 도착해
-            // 이번 시도의 결과처럼 보이거나, 기기에 조각 파일이 쌓인다.
-            // 치우기 전에 '어느 세션도 아님' 으로 바꿔 둔다. 치운 세션의 '중단' 결과가 새 세션 번호를
-            // 정하기 전에 도착해도 받지 않게 하기 위함이다.
-            InstallEvents.activeSessionId = InstallEvents.SESSION_PENDING
+            // 지난 시도에서 남은 세션을 먼저 치운다. 남아 있으면 기기에 조각 파일이 쌓인다.
+            // 치운 세션이 보내는 '중단' 결과는 받지 않는다. 설치를 시작할 때 InstallEvents.beginAttempt 로
+            // 어느 세션도 아닌 상태가 되어 있고, 새 세션 번호는 아래에서 정한다.
             installer.mySessions.forEach { runCatching { installer.abandonSession(it.sessionId) } }
             val params =
                 PackageInstaller.SessionParams(PackageInstaller.SessionParams.MODE_FULL_INSTALL).apply {
@@ -173,21 +163,6 @@ class ApkInstaller(private val context: Context) {
         return connection
     }
 
-    /**
-     * [version] 이 아닌 받아둔 설치 파일을 모두 지운다. null 이면 전부 지운다.
-     * 업데이트 확인 결과와 맞춘다. 배포를 내린 버전의 파일이 남아 설치를 권하는 일이 없게 한다.
-     *
-     * 받는 중인 조각('.part')은 건드리지 않는다. 받는 도중 앱에 돌아오면 자동 확인이 돌면서 여기가 불리는데,
-     * 그때 조각을 지우면 받기가 끝나도 파일이 없어 '끝까지 받지 못했어요' 로 실패한다.
-     * 멈춘 채 남은 조각은 앱을 켤 때 [deleteStaleDownloads] 가 치운다.
-     */
-    fun keepOnly(version: String?) {
-        directory.listFiles().orEmpty().forEach { file ->
-            if (file.name.endsWith(PART_SUFFIX)) return@forEach
-            if (version == null || file != fileFor(version)) file.delete()
-        }
-    }
-
     /** 취소될 때까지 기다렸다가 연결을 끊는다 */
     private suspend fun disconnectWhenCancelled(connection: HttpURLConnection) {
         try {
@@ -242,6 +217,3 @@ class ApkInstaller(private val context: Context) {
         val HTTP_OK_RANGE = 200..299
     }
 }
-
-/** 받아둔 설치 파일 */
-data class DownloadedApk(val version: String, val file: File, internal val parsedVersion: AppVersion)

@@ -17,30 +17,14 @@ import java.net.UnknownHostException
 import java.time.Instant
 import java.time.LocalDate
 
-/** 새 버전 확인 결과 */
-sealed interface UpdateStatus {
-    /** 지금이 최신이다 */
-    data object UpToDate : UpdateStatus
-
-    data class Available(val version: String, val notes: String, val downloadUrl: String, val sizeBytes: Long) : UpdateStatus
-
-    /**
-     * 확인에 실패했다.
-     *
-     * 네트워크가 없거나 아직 배포한 적이 없는 경우가 대부분이라
-     * 사용자에게 오류처럼 크게 보여주지 않는다.
-     */
-    data class Failed(val reason: String) : UpdateStatus
-}
-
 /**
- * 아직 설치하지 않은 새 버전 하나. 패치노트 맨 위에 보여준다.
+ * 아직 설치하지 않은 새 버전 하나. 업데이트 화면, 홈 배너, 패치노트 맨 위가 모두 이것을 본다.
  * @property date 배포한 날. 알 수 없으면 null
- * @property notes 릴리스 본문의 앱용 구간(태그 메시지). 줄 수를 자르지 않는다.
- * @property downloadUrl 설치 파일 주소. 가장 새 버전을 업데이트 확인 결과로 기록할 때 쓴다.
+ * @property notes 릴리스 본문의 앱용 구간(태그 메시지). 줄 수를 자르지 않는다. 짧게 보여줄 곳에서 자른다.
+ * @property downloadUrl 설치 파일 주소
  * @property sizeBytes 설치 파일 크기
  */
-data class NewerRelease(val version: String, val date: LocalDate?, val notes: String, val downloadUrl: String = "", val sizeBytes: Long = 0)
+data class NewerRelease(val version: String, val date: LocalDate?, val notes: String, val downloadUrl: String, val sizeBytes: Long)
 
 @Serializable
 private data class GithubRelease(
@@ -50,7 +34,10 @@ private data class GithubRelease(
     val prerelease: Boolean = false,
     @SerialName("published_at") val publishedAt: String? = null,
     val assets: List<GithubAsset> = emptyList(),
-)
+) {
+    /** 설치 파일. 없으면(올리는 중이거나 빠뜨림) 아직 설치할 수 없는 배포다. */
+    fun apk(): GithubAsset? = assets.firstOrNull { it.name.endsWith(".apk", ignoreCase = true) }
+}
 
 @Serializable
 private data class GithubAsset(val name: String, @SerialName("browser_download_url") val downloadUrl: String, val size: Long = 0)
@@ -67,17 +54,11 @@ class UpdateRepository(
     private val currentVersion: String = BuildConfig.VERSION_NAME,
     private val apiBase: String = BuildConfig.UPDATE_API_BASE,
 ) {
-    suspend fun check(): UpdateStatus = withContext(Dispatchers.IO) {
-        runCatching { fetchLatest() }
-            .fold(
-                onSuccess = { it },
-                onFailure = { UpdateStatus.Failed(describeNetworkError(it)) },
-            )
-    }
-
     /**
-     * 지금 버전보다 새로 배포된 버전들을 최신순으로 가져온다. 패치노트에서 아직 설치하지 않은 버전의 바뀐 점을 보여줄 때 쓴다.
-     * 여러 버전을 건너뛰었을 때도 그사이 버전의 바뀐 점까지 보이게 최근 배포 목록을 받는다.
+     * 지금 버전보다 새로 배포된 버전들을 최신순으로 가져온다. 비어 있으면 지금이 최신이다.
+     * 가장 새 버전만이 아니라 최근 배포 목록을 받는다. 여러 버전을 건너뛰었을 때 패치노트가 그사이 버전의 바뀐 점까지 보여줄 수 있게.
+     *
+     * 실패하면 사용자에게 보여줄 사유는 [describeNetworkError] 로 만든다.
      */
     suspend fun newerReleases(): Result<List<NewerRelease>> = withContext(Dispatchers.IO) {
         runCatching {
@@ -101,50 +82,8 @@ class UpdateRepository(
         setRequestProperty("User-Agent", "dong-budget")
     }
 
-    private fun fetchLatest(): UpdateStatus {
-        val connection = open("$apiBase/repos/$owner/$repo/releases/latest")
-
-        try {
-            if (connection.responseCode == HTTP_NOT_FOUND) {
-                return UpdateStatus.Failed("아직 배포된 버전이 없어요")
-            }
-            if (connection.responseCode !in HTTP_OK_RANGE) {
-                return UpdateStatus.Failed(describeHttpError(connection.responseCode))
-            }
-
-            val release =
-                connection.inputStream.bufferedReader().use { reader ->
-                    json.decodeFromString<GithubRelease>(reader.readText())
-                }
-
-            if (release.draft || release.prerelease) return UpdateStatus.UpToDate
-
-            val latest = AppVersion.parse(release.tagName)
-            val current = AppVersion.parse(currentVersion)
-            if (latest == null || current == null) {
-                return UpdateStatus.Failed("버전 형식을 알 수 없어요")
-            }
-            if (latest <= current) return UpdateStatus.UpToDate
-
-            val apk =
-                release.assets.firstOrNull { it.name.endsWith(".apk", ignoreCase = true) }
-                    ?: return UpdateStatus.Failed("설치 파일이 올라와 있지 않아요")
-
-            return UpdateStatus.Available(
-                version = latest.toString(),
-                // 본문 전체가 아니라 앱용 구간만. 웹 페이지용 설치 안내는 여기서 걸러진다.
-                notes = ReleaseNotes.forApp(release.body),
-                downloadUrl = apk.downloadUrl,
-                sizeBytes = apk.size,
-            )
-        } finally {
-            connection.disconnect()
-        }
-    }
-
     companion object {
         private const val TIMEOUT_MS = 10_000
-        private const val HTTP_NOT_FOUND = 404
         private val HTTP_OK_RANGE = 200..299
 
         /** 한 번에 받는 배포 수. 이보다 많이 건너뛴 경우는 오래된 쪽이 빠진다. */
@@ -154,7 +93,7 @@ class UpdateRepository(
 
         /**
          * 배포 목록(JSON)에서 [currentVersion] 보다 새 정식 배포만 골라 최신순으로 돌려준다.
-         * 초안·시험판과 설치 파일이 없는 배포는 뺀다. 업데이트 확인과 같은 기준이다.
+         * 초안·시험판과 설치 파일이 없는 배포는 뺀다.
          */
         internal fun parseNewerReleases(body: String, currentVersion: String): List<NewerRelease> {
             val current = AppVersion.parse(currentVersion) ?: return emptyList()
@@ -163,7 +102,7 @@ class UpdateRepository(
                 .asSequence()
                 .filter { !it.draft && !it.prerelease }
                 .mapNotNull { release ->
-                    val apk = release.assets.firstOrNull { it.name.endsWith(".apk", ignoreCase = true) } ?: return@mapNotNull null
+                    val apk = release.apk() ?: return@mapNotNull null
                     val version = AppVersion.parse(release.tagName)?.takeIf { it > current } ?: return@mapNotNull null
                     Triple(version, release, apk)
                 }.sortedByDescending { it.first }
@@ -174,9 +113,9 @@ class UpdateRepository(
                     NewerRelease(
                         version = version.toString(),
                         date = release.publishedAt?.let {
-                            runCatching { Instant.parse(it).atZone(BudgetTime.ZONE).toLocalDate() }.getOrNull()
+                            runCatching { BudgetTime.toLocalDate(Instant.parse(it)) }.getOrNull()
                         },
-                        notes = ReleaseNotes.forApp(release.body, maxLines = Int.MAX_VALUE),
+                        notes = ReleaseNotes.forApp(release.body),
                         downloadUrl = apk.downloadUrl,
                         sizeBytes = apk.size,
                     )
