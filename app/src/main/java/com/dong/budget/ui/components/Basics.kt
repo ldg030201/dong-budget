@@ -59,7 +59,7 @@ fun BudgetDivider(modifier: Modifier = Modifier) {
     )
 }
 
-/** 회색 바탕의 둥근 묶음(홈 요약, 패치노트 버전 카드) */
+/** 회색 바탕의 둥근 묶음(홈 요약). 패치노트 버전 카드도 같은 모양이지만, 머리를 누를 수 있게 여백을 따로 준다. */
 @Composable
 fun Modifier.sectionBlock(): Modifier = this
     .background(BudgetTheme.colors.sectionBackground, RoundedCornerShape(BudgetTheme.radius.block))
