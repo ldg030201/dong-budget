@@ -6,7 +6,7 @@ import com.dong.budget.data.TransactionRepository
 import com.dong.budget.data.capture.PaymentCapture
 import com.dong.budget.data.db.BudgetTime
 import com.dong.budget.data.db.TransactionListItem
-import kotlinx.coroutines.Dispatchers
+import com.dong.budget.ui.inbox.observeInbox
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -17,10 +17,8 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.launch
 import java.time.Clock
 import java.time.LocalDate
 import java.time.YearMonth
@@ -38,7 +36,7 @@ data class HomeUiState(
 )
 
 /**
- * @param capture 오른쪽 위 알림 목록에 보여줄 결제 등록 알림
+ * @param capture 오른쪽 위 종의 새 알림 표시에 쓰는 결제 등록 알림
  * @param clock 지금 시각. 테스트에서 날짜를 고정하려고 바꿀 수 있게 둔다.
  */
 class HomeViewModel(
@@ -78,27 +76,16 @@ class HomeViewModel(
                 initialValue = LocalDate.now(clock).let { buildState(YearMonth.from(it), it, emptyList(), emptyList()) },
             )
 
-    /**
-     * 오른쪽 위 알림 목록. 최근 결제부터. 등록을 마친 결제에는 '등록함' 을 붙인다.
-     * 아직 불러오기 전이면 null 이다. 빈 목록과 구별해야 창이 '아직 온 알림이 없어요' 로 잠깐 깜빡이지 않는다.
-     */
-    @OptIn(ExperimentalCoroutinesApi::class)
-    val inbox: StateFlow<List<InboxItem>?> =
-        capture.records
-            // 기록은 SharedPreferences 에서 JSON 을 풀어 읽는다. 메인 스레드 밖에서 한다.
-            .flowOn(Dispatchers.IO)
-            .flatMapLatest { records ->
-                repository.observeRegisteredKeys(records.map { it.payment.dedupKey }).map { registered -> inboxItems(records, registered) }
-            }.stateIn(
+    /** 아직 눌러 보지 않은 알림이 있는지. 오른쪽 위 종에 빨간 점을 찍는다. */
+    val hasNewNotice: StateFlow<Boolean> =
+        observeInbox(capture, repository)
+            .map { items -> items.any { it.isNew } }
+            .distinctUntilChanged()
+            .stateIn(
                 scope = viewModelScope,
                 started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS),
-                initialValue = null,
+                initialValue = false,
             )
-
-    /** 알림 목록의 '모두 읽음'. [dedupKeys] 는 목록에 보이던 결제다. */
-    fun markAllRead(dedupKeys: List<String>) {
-        viewModelScope.launch(Dispatchers.IO) { capture.markAllRead(dedupKeys) }
-    }
 
     fun showPreviousMonth() = moveMonth(-1)
 

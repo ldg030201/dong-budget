@@ -1,4 +1,4 @@
-package com.dong.budget.ui.home
+package com.dong.budget.ui.inbox
 
 import com.dong.budget.data.capture.CaptureRecord
 import com.dong.budget.data.capture.CapturedPayment

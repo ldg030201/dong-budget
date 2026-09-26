@@ -5,6 +5,8 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -64,3 +66,9 @@ fun BudgetDivider(modifier: Modifier = Modifier) {
 fun Modifier.sectionBlock(): Modifier = this
     .background(BudgetTheme.colors.sectionBackground, RoundedCornerShape(BudgetTheme.radius.block))
     .padding(BudgetTheme.spacing.sectionPadding)
+
+/** 새 알림 표시 점. 홈의 종과 알림 화면의 새 알림 줄이 같이 쓴다. 화면 읽기는 따로 알려주므로 점은 읽지 않는다. */
+@Composable
+fun NoticeDot(modifier: Modifier = Modifier) {
+    Box(modifier.size(BudgetTheme.size.noticeDot).background(BudgetTheme.colors.danger, CircleShape))
+}

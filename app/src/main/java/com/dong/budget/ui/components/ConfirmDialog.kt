@@ -113,9 +113,8 @@ fun ConfirmDialog(
     }
 }
 
-/** 대화상자 아래의 버튼. 확인·취소처럼 나란히 두거나 '닫기' 하나만 둔다. */
 @Composable
-internal fun DialogButton(label: String, container: Color, content: Color, onClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun DialogButton(label: String, container: Color, content: Color, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val shape = RoundedCornerShape(BudgetTheme.radius.control)
     Box(
         modifier =
