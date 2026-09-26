@@ -35,8 +35,6 @@ fun formatSignedTotal(amount: Long): String = when {
     else -> "0원"
 }
 
-fun formatDay(instant: Instant): String = dayFormatter.format(instant.atZone(BudgetTime.ZONE))
-
 /**
  * 날짜 하나만 따로 보여줄 때 (등록 화면의 날짜 칸 등).
  * 올해가 아니면 연도를 붙인다. 지난해 거래를 고칠 때 몇 년도인지 헷갈리지 않게.

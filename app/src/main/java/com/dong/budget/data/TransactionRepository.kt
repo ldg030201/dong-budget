@@ -106,19 +106,9 @@ class TransactionRepository(
         )
     }
 
-    /**
-     * 거래를 지운다.
-     *
-     * 지운 행을 그대로 돌려주므로 화면에서 '실행 취소'를 제공할 수 있다.
-     * uuid 를 유지한 채 다시 넣으면 백업 기준으로도 같은 거래가 된다.
-     */
-    suspend fun delete(id: Long): TransactionEntity? {
-        val existing = transactionDao.findById(id) ?: return null
+    /** 거래를 지운다. 없으면 아무것도 하지 않는다. */
+    suspend fun delete(id: Long) {
+        val existing = transactionDao.findById(id) ?: return
         transactionDao.delete(existing)
-        return existing
-    }
-
-    suspend fun restore(transaction: TransactionEntity) {
-        transactionDao.insert(transaction)
     }
 }
