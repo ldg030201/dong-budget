@@ -112,6 +112,6 @@ ok "완성: ${BOLD}${OUT}${OFF} (${SIZE})"
 echo "  서명 SHA-256: $FINGERPRINT"
 echo
 echo "배포하려면 버전을 올리고, 바뀐 점을 메시지로 단 태그(-a)를 같은 이름으로 만들어 밀어라."
-echo "태그 메시지가 앱의 업데이트 화면과 패치노트에 '바뀐 점'으로 보인다. 첫 6줄 정도만 보이니 짧게 쓴다."
+echo "태그 메시지는 앱 패치노트(PatchNotes.kt)의 이 버전 내용을 그대로 옮긴다. 형식은 docs/배포.md 참고."
 echo "메시지 없는 태그(git tag v…)로 올리면 앱에 바뀐 점이 비어 보인다."
-echo "  git tag -a v${VERSION_NAME} -m \"바뀐 점 한 줄 요약\" && git push origin main v${VERSION_NAME}"
+echo "  git tag -a v${VERSION_NAME} -F 태그메시지.txt && git push origin main v${VERSION_NAME}"
