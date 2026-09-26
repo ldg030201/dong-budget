@@ -5,15 +5,18 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.io.IOException
+import java.time.LocalDate
 
 class UpdateCheckerTest {
     private val prefs = FakePreferences()
     private var clock = 1_000_000L
     private var calls = 0
-    private var next: UpdateStatus = available("0.1.5")
+    private var next: Result<List<NewerRelease>> = Result.success(listOf(release("0.1.6"), release("0.1.5")))
 
-    private fun available(version: String) = UpdateStatus.Available(version, "바뀐 점", "https://example.com/$version.apk", 100)
+    private fun release(version: String) = NewerRelease(version, LocalDate.of(2026, 9, 25), "바뀐 점", "https://example.com/$version.apk", 100)
 
     private fun checker(current: String = "0.1.4") = UpdateChecker(
         fetch = {
@@ -38,32 +41,42 @@ class UpdateCheckerTest {
     }
 
     @Test
-    fun `찾은 새 버전은 앱을 다시 켜도 남아 있다`() = runBlocking {
+    fun `지금 확인은 간격과 상관없이 확인한다`() = runBlocking {
+        val checker = checker()
+        checker.checkIfDue()
+        checker.checkNow()
+        assertEquals(2, calls)
+    }
+
+    @Test
+    fun `찾은 새 버전들은 앱을 다시 켜도 날짜까지 그대로 남아 있다`() = runBlocking {
         checker().checkIfDue()
         // 앱을 다시 켠 것처럼 새로 만든다
         val reopened = checker()
-        assertEquals("0.1.5", reopened.available.value?.version)
-        assertEquals("0.1.5", reopened.bannerVersion.first())
+        assertEquals(listOf(release("0.1.6"), release("0.1.5")), reopened.newer.value)
+        assertEquals("0.1.6", reopened.bannerVersion.first())
     }
 
     @Test
-    fun `이미 그 버전으로 업데이트했으면 저장된 결과를 버린다`() = runBlocking {
+    fun `이미 업데이트한 버전까지는 저장된 결과에서 뺀다`() = runBlocking {
         checker(current = "0.1.4").checkIfDue()
-        assertNull(checker(current = "0.1.5").available.value)
+        assertEquals(listOf("0.1.6"), checker(current = "0.1.5").newer.value.map { it.version })
+        assertTrue(checker(current = "0.1.6").newer.value.isEmpty())
     }
 
     @Test
-    fun `최신이라는 결과가 오면 배너를 치운다`() = runBlocking {
+    fun `새 버전이 없다는 결과가 오면 배너를 치운다`() = runBlocking {
         val checker = checker()
         checker.checkIfDue()
-        checker.apply(UpdateStatus.UpToDate)
-        assertNull(checker.available.value)
-        assertNull(checker().available.value)
+        next = Result.success(emptyList())
+        checker.checkNow()
+        assertNull(checker.bannerVersion.first())
+        assertTrue(checker().newer.value.isEmpty())
     }
 
     @Test
     fun `확인에 실패하면 기록하지 않고 다음에 다시 확인한다`() = runBlocking {
-        next = UpdateStatus.Failed("네트워크 없음")
+        next = Result.failure(IOException("네트워크 없음"))
         val checker = checker()
         checker.checkIfDue()
         checker.checkIfDue()
@@ -76,34 +89,16 @@ class UpdateCheckerTest {
         checker.checkIfDue()
         checker.dismissBanner()
         assertNull(checker.bannerVersion.first())
-        assertEquals("0.1.5", checker().bannerVersion.first())
+        assertEquals("0.1.6", checker().bannerVersion.first())
     }
 
     @Test
-    fun `받아둔 파일 정리는 결과를 기록하기 전에 한다`() = runBlocking {
-        val order = mutableListOf<String>()
-        lateinit var checker: UpdateChecker
-        checker =
-            UpdateChecker(
-                fetch = { next },
-                prefs = prefs,
-                currentVersion = "0.1.4",
-                now = { clock },
-                beforeRecord = { order += "정리(기록 전 배너=${checker.available.value?.version})" },
-            )
-        checker.checkIfDue()
-        // 정리할 때는 아직 새 결과가 기록되지 않았다
-        assertEquals(listOf("정리(기록 전 배너=null)"), order)
-        assertEquals("0.1.5", checker.available.value?.version)
-    }
-
-    @Test
-    fun `마지막 확인에서 간격이 지나지 않았는지 알려준다`() = runBlocking {
+    fun `0_1_7 이 칸마다 따로 적던 옛 기록은 읽지 않고 치운다`() = runBlocking {
+        prefs.edit().putString("version", "0.1.8").putString("url", "https://example.com/old.apk").apply()
         val checker = checker()
-        assertEquals(false, checker.checkedRecently())
+        assertTrue(checker.newer.value.isEmpty())
         checker.checkIfDue()
-        assertEquals(true, checker.checkedRecently())
-        clock += UpdateChecker.INTERVAL_MS
-        assertEquals(false, checker.checkedRecently())
+        assertNull(prefs.getString("version", null))
+        assertNull(prefs.getString("url", null))
     }
 }

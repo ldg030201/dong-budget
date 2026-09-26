@@ -49,15 +49,6 @@ class ReleaseNotesTest {
     }
 
     @Test
-    fun `길면 여섯 줄에서 자르고 말줄임표를 붙인다`() {
-        val body = (1..10).joinToString("\n") { "줄 $it" } + "\n$marker"
-        assertEquals(
-            "줄 1\n줄 2\n줄 3\n줄 4\n줄 5\n줄 6\n…",
-            ReleaseNotes.forApp(body),
-        )
-    }
-
-    @Test
     fun `윈도우 줄바꿈과 겹친 빈 줄을 정리한다`() {
         val body = "첫 줄\r\n\r\n\r\n\r\n둘째 줄\r\n\r\n$marker"
         assertEquals("첫 줄\n\n둘째 줄", ReleaseNotes.forApp(body))

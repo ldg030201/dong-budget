@@ -5,24 +5,28 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 
+/**
+ * 업데이트가 안 된 이유와 그다음 길. 설치 결과와 설정 화면이 같이 쓴다.
+ *
+ * @property reason 사용자가 읽을 안내
+ * @property detail 시스템이 알려준 원래 사유(상태 코드와 메시지). 기기마다 설치기가 달라서
+ *   왜 실패했는지 알아내려면 이 원문이 필요하다. 없으면 null
+ * @property canTryOtherWays 받은 파일이나 브라우저로 설치하면 풀릴 수 있는 실패인지.
+ *   서명이 다르거나 저장 공간이 없으면 어느 길로 설치해도 똑같이 막히므로 권하지 않는다.
+ * @property suggestGalaxySecurity 갤럭시 '보안 위험 자동 차단' 설정으로 가는 버튼을 보여줄지
+ */
+data class UpdateFailure(
+    val reason: String,
+    val detail: String? = null,
+    val canTryOtherWays: Boolean = true,
+    val suggestGalaxySecurity: Boolean = false,
+)
+
 /** 설치 세션의 최종 결과 */
 sealed interface InstallEvent {
     data object Succeeded : InstallEvent
 
-    /**
-     * @property reason 사용자가 읽을 안내
-     * @property detail 시스템이 알려준 원래 사유(상태 코드와 메시지). 기기마다 설치기가 달라서
-     *   왜 실패했는지 알아내려면 이 원문이 필요하다.
-     * @property canTryOtherWays 받은 파일이나 브라우저로 설치하면 풀릴 수 있는 실패인지.
-     *   서명이 다르거나 저장 공간이 없으면 어느 길로 설치해도 똑같이 막히므로 권하지 않는다.
-     * @property suggestGalaxySecurity 갤럭시 '보안 위험 자동 차단' 설정으로 가는 버튼을 보여줄지
-     */
-    data class Failed(
-        val reason: String,
-        val detail: String? = null,
-        val canTryOtherWays: Boolean = true,
-        val suggestGalaxySecurity: Boolean = false,
-    ) : InstallEvent
+    data class Failed(val failure: UpdateFailure) : InstallEvent
 }
 
 /**
@@ -31,8 +35,9 @@ sealed interface InstallEvent {
  * 설치 결과는 앱이 아니라 시스템이 브로드캐스트로 알려주기 때문에
  * 받는 곳과 보여주는 곳이 떨어져 있다. 그 사이를 잇는다.
  *
- * replay 를 1로 둔 이유: 결과가 설치를 시작한 화면의 구독보다 먼저 도착해도 버려지지 않게 하기 위함이다.
- * 다만 지난 시도의 결과가 남아 있으므로, 받는 쪽은 자기가 시작한 설치의 결과만 반영해야 한다(SettingsViewModel).
+ * 지난 결과를 남겨 두지 않는다. 설치를 시작하는 설정 화면은 만들어질 때부터 듣고 있으므로 놓칠 일이 없고,
+ * 남겨 두면 새로 연 화면이 지난 실패를 받아 지금 상태를 덮는다.
+ * 지난 시도의 세션이 늦게 보낸 결과는 [activeSessionId] 로 거른다(InstallResultReceiver).
  */
 object InstallEvents {
     /**
@@ -46,7 +51,7 @@ object InstallEvents {
     /** 새 세션을 만드는 중. 세션 번호는 늘 1 이상이라 어떤 결과와도 맞지 않는다. */
     const val SESSION_PENDING = 0
 
-    private val _events = MutableSharedFlow<InstallEvent>(replay = 1, extraBufferCapacity = 4)
+    private val _events = MutableSharedFlow<InstallEvent>(extraBufferCapacity = 4)
     val events: SharedFlow<InstallEvent> = _events.asSharedFlow()
 
     fun publish(event: InstallEvent) {
@@ -55,10 +60,13 @@ object InstallEvents {
         _events.tryEmit(event)
     }
 
-    /** 새 설치를 시작하기 전에 지난 결과를 비운다. */
-    fun clear() {
+    /**
+     * 새 설치를 시작한다(내려받기 전에 부른다). 지난 시도의 띄우지 못한 확인창을 버리고, 새 세션 번호가 정해질 때까지
+     * 어떤 세션의 결과도 받지 않는다. 받는 동안 지난 세션이 늦게 '중단' 을 보내도 이번 시도의 실패로 보이지 않게 하기 위함이다.
+     */
+    fun beginAttempt() {
         pendingConfirm = null
-        _events.resetReplayCache()
+        activeSessionId = SESSION_PENDING
     }
 
     /**

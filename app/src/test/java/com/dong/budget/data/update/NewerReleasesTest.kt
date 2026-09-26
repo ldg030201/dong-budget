@@ -69,13 +69,6 @@ class NewerReleasesTest {
     }
 
     @Test
-    fun `업데이트 화면용 바뀐 점은 여전히 짧게 자른다`() {
-        val long = (1..10).joinToString("\n") { "- 줄 $it" } + "\n\n$marker"
-        assertEquals(7, ReleaseNotes.forApp(long).lines().size)
-        assertEquals(10, ReleaseNotes.forApp(long, maxLines = Int.MAX_VALUE).lines().size)
-    }
-
-    @Test
     fun `같은 버전으로 읽히는 배포가 둘이면 하나만 남긴다`() {
         // 둘 다 남기면 패치노트 목록의 항목 이름이 겹쳐 화면이 죽는다
         val body = "[" + release("v0.1.8", "정식\n\n$marker") + "," + release("v0.1.8-hotfix", "고침\n\n$marker") + "]"

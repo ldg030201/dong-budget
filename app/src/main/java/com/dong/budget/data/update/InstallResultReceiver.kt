@@ -53,7 +53,7 @@ class InstallResultReceiver : BroadcastReceiver() {
                 // 숨은 추가 정보인 내부 코드가 있으면 원인을 더 정확히 가를 수 있다.
                 val legacy = intent.getIntExtra(EXTRA_LEGACY_STATUS, 0)
                 Log.w(TAG, "설치가 끝나지 않았다 (상태 $status, 내부 $legacy): $message")
-                InstallEvents.publish(failureOf(status, legacy, message, autoBlocker = GalaxyAutoBlocker.isAvailable))
+                InstallEvents.publish(InstallEvent.Failed(failureOf(status, legacy, message, autoBlocker = GalaxyAutoBlocker.isAvailable)))
             }
         }
     }
@@ -72,7 +72,7 @@ class InstallResultReceiver : BroadcastReceiver() {
          * 설치 실패를 사용자 안내로 바꾼다.
          * @param autoBlocker 자동 차단 기능이 있는 갤럭시인지(One UI 6+). 중단된 설치에 '보안 위험 자동 차단' 안내와 버튼을 붙인다.
          */
-        internal fun failureOf(status: Int, legacy: Int, message: String?, autoBlocker: Boolean): InstallEvent.Failed = InstallEvent.Failed(
+        internal fun failureOf(status: Int, legacy: Int, message: String?, autoBlocker: Boolean): UpdateFailure = UpdateFailure(
             reason = describe(status, legacy, message, autoBlocker),
             detail =
             listOfNotNull(
@@ -113,16 +113,16 @@ class InstallResultReceiver : BroadcastReceiver() {
             // 안드로이드가 서명이 다를 때 주는 코드는 INSTALL_FAILED_UPDATE_INCOMPATIBLE 이라
             // 아래의 일반적인 INCOMPATIBLE 검사보다 반드시 앞에 있어야 한다.
             // 순서가 뒤바뀌면 서명 문제인데 "이 기기에서는 설치할 수 없다"고 잘못 안내하게 된다.
-            message.containsAny("UPDATE_INCOMPATIBLE", "INCONSISTENT_CERTIFICATES", "SIGNATURE") ->
+            message.containsAny(*SIGNATURE_MISMATCH) ->
                 "설치된 앱과 서명이 달라요. 기존 앱을 지우고 새로 설치해야 하는데 그러면 기록이 사라져요"
 
-            message.containsAny("VERSION_DOWNGRADE") ->
+            message.containsAny(*DOWNGRADE) ->
                 "지금 쓰는 버전이 더 최신이에요"
 
-            message.containsAny("INSUFFICIENT_STORAGE") ->
+            message.containsAny(*NO_STORAGE) ->
                 "저장 공간이 부족해요"
 
-            message.containsAny("INCOMPATIBLE", "INVALID_APK", "NO_MATCHING_ABIS") ->
+            message.containsAny(*UNINSTALLABLE) ->
                 "이 기기에서는 설치할 수 없는 파일이에요"
 
             // 갤럭시 '보안 위험 자동 차단' 이 켜져 있으면 삼성이 앱의 자기 업데이트를 이 문구로 막는다.
@@ -143,17 +143,14 @@ class InstallResultReceiver : BroadcastReceiver() {
             else -> "설치를 마치지 못했어요"
         }
 
+        // 시스템 메시지에 들어 있는 실패 코드. 안내 문구(describe)와 막다른 실패(isDeadEnd)가 같은 목록을 본다.
+        private val SIGNATURE_MISMATCH = arrayOf("UPDATE_INCOMPATIBLE", "INCONSISTENT_CERTIFICATES", "SIGNATURE")
+        private val DOWNGRADE = arrayOf("VERSION_DOWNGRADE")
+        private val NO_STORAGE = arrayOf("INSUFFICIENT_STORAGE")
+        private val UNINSTALLABLE = arrayOf("INCOMPATIBLE", "INVALID_APK", "NO_MATCHING_ABIS")
+
         /** 다른 설치 길로도 풀리지 않는 실패. 서명 불일치, 낮은 버전, 기기와 맞지 않는 파일, 저장 공간 부족 */
-        private fun isDeadEnd(message: String?): Boolean = message.containsAny(
-            "UPDATE_INCOMPATIBLE",
-            "INCONSISTENT_CERTIFICATES",
-            "SIGNATURE",
-            "VERSION_DOWNGRADE",
-            "INSUFFICIENT_STORAGE",
-            "INCOMPATIBLE",
-            "INVALID_APK",
-            "NO_MATCHING_ABIS",
-        )
+        private fun isDeadEnd(message: String?): Boolean = message.containsAny(*SIGNATURE_MISMATCH, *DOWNGRADE, *NO_STORAGE, *UNINSTALLABLE)
 
         private fun String?.containsAny(vararg needles: String): Boolean = this != null && needles.any { contains(it) }
     }

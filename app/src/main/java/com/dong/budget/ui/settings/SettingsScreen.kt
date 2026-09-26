@@ -26,6 +26,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import com.dong.budget.R
 import com.dong.budget.data.settings.ThemeMode
@@ -41,6 +42,9 @@ import com.dong.budget.ui.theme.BudgetTheme
 import java.util.Locale
 
 private const val BYTES_PER_MB = 1024.0 * 1024.0
+
+/** 업데이트 화면의 '바뀐 점' 줄 수. 설치 버튼 아래에 두지만 너무 길면 화면이 늘어진다. */
+private const val NOTES_MAX_LINES = 6
 
 @Composable
 fun SettingsScreen(
@@ -125,7 +129,7 @@ fun SettingsScreen(
                     BudgetSmallButton(
                         text = "업데이트 확인",
                         onClick = onCheckUpdate,
-                        enabled = updateState !is UpdateUiState.Checking && updateState !is UpdateUiState.Downloading,
+                        enabled = !updateState.isBusy,
                     )
                 }
 
@@ -154,12 +158,8 @@ private fun UpdateSection(
     onOpenReleasePage: () -> Unit,
 ) {
     when (state) {
-        // 확인은 버전 옆 버튼으로 한다. 받아만 두고 설치하지 못한 채 앱이 꺼졌으면 다시 받지 않고 설치할 수 있게 보여준다.
-        UpdateUiState.Idle ->
-            if (downloadedVersion != null) {
-                StatusText("$downloadedVersion 설치 파일을 받아뒀어요")
-                OtherWays(downloadedVersion, onInstallDownloaded, onOpenReleasePage, title = null)
-            }
+        // 확인은 버전 옆 버튼으로 한다
+        UpdateUiState.Idle -> Unit
 
         UpdateUiState.Checking ->
             StatusText("새 버전이 있는지 확인하고 있어요")
@@ -168,9 +168,10 @@ private fun UpdateSection(
             StatusText("최신 버전을 쓰고 있어요")
 
         is UpdateUiState.Available -> {
+            val release = state.release
             Spacer(Modifier.height(BudgetTheme.spacing.inlineGap))
             Text(
-                text = "새 버전(${state.version})이 있어요",
+                text = "새 버전(${release.version})이 있어요",
                 style = MaterialTheme.typography.titleMedium,
                 color = BudgetTheme.colors.textPrimary,
             )
@@ -180,10 +181,10 @@ private fun UpdateSection(
             BudgetPrimaryButton(
                 // 이미 받아둔 파일이 있으면 다시 받지 않는다
                 text =
-                if (downloadedVersion == state.version) {
+                if (downloadedVersion == release.version) {
                     "설치하기"
                 } else {
-                    "내려받고 설치 (${state.sizeBytes.toMegabytes()}MB)"
+                    "내려받고 설치 (${release.sizeBytes.toMegabytes()}MB)"
                 },
                 onClick = onDownloadUpdate,
             )
@@ -192,7 +193,7 @@ private fun UpdateSection(
             // 미리 알려주지 않으면 앱이 죽은 줄 안다.
             HintText("설치가 끝나면 앱이 닫혀요. 다시 열어주세요.")
             OtherWays(downloadedVersion, onInstallDownloaded, onOpenReleasePage)
-            if (state.notes.isNotEmpty()) {
+            if (release.notes.isNotEmpty()) {
                 Spacer(Modifier.height(BudgetTheme.spacing.sectionPadding))
                 Text(
                     text = "바뀐 점",
@@ -200,10 +201,13 @@ private fun UpdateSection(
                     color = BudgetTheme.colors.textSecondary,
                 )
                 Spacer(Modifier.height(BudgetTheme.spacing.tightGap))
+                // 길면 자른다. 전체는 패치노트에서 볼 수 있다.
                 Text(
-                    text = state.notes,
+                    text = release.notes,
                     style = MaterialTheme.typography.bodyMedium,
                     color = BudgetTheme.colors.textPrimary,
+                    maxLines = NOTES_MAX_LINES,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
         }
@@ -230,14 +234,15 @@ private fun UpdateSection(
         }
 
         is UpdateUiState.Failed -> {
-            StatusText(state.reason)
-            if (state.detail != null) {
+            val failure = state.failure
+            StatusText(failure.reason)
+            if (failure.detail != null) {
                 Spacer(Modifier.height(BudgetTheme.spacing.tightGap))
                 // 기기마다 설치기가 달라 실패 이유가 제각각이다. 시스템 원문을 복사해서 알려줄 수 있게 선택 가능하게 둔다.
-                SelectionContainer { HintText("시스템 메시지: ${state.detail}") }
+                SelectionContainer { HintText("시스템 메시지: ${failure.detail}") }
             }
             // 갤럭시 자동 차단이 켜져 있으면 어느 길로 설치해도 막힌다. 끄는 화면으로 가는 길을 맨 앞에 둔다.
-            if (state.suggestGalaxySecurity) {
+            if (failure.suggestGalaxySecurity) {
                 val context = LocalContext.current
                 Spacer(Modifier.height(BudgetTheme.spacing.itemGap))
                 BudgetPrimaryButton(text = "보안 위험 자동 차단 열기", onClick = { GalaxyAutoBlocker.open(context) })
@@ -248,13 +253,13 @@ private fun UpdateSection(
                 )
             }
             // 서명이 다르거나 저장 공간이 없으면 다른 길로 설치해도 똑같이 막힌다. 헛걸음을 권하지 않는다.
-            if (state.canTryOtherWays) {
+            if (failure.canTryOtherWays) {
                 // 자동 차단이 켜져 있으면 아래 길도 똑같이 막힌다. 끈 뒤에도 막힐 때 쓰는 길이라고 알려준다.
                 OtherWays(
                     downloadedVersion,
                     onInstallDownloaded,
                     onOpenReleasePage,
-                    title = if (state.suggestGalaxySecurity) "자동 차단을 끈 뒤에도 막히면" else "설치가 안 되면",
+                    title = if (failure.suggestGalaxySecurity) "자동 차단을 끈 뒤에도 막히면" else "설치가 안 되면",
                 )
             }
         }
@@ -266,17 +271,17 @@ private fun UpdateSection(
  *   1. 받은 파일로 설치: 이미 받은 파일을 시스템 설치 화면으로 연다. 파일 관리자에서 APK 를 누르는 것과 같다.
  *   2. 브라우저에서 받기: 처음 설치할 때와 같은 길이라 어느 기기에서나 된다. 기록은 그대로 남는다.
  *
- * @param title 줄 위에 붙일 설명. null 이면 붙이지 않는다.
+ * @param title 줄 위에 붙일 설명
  */
 @Composable
 private fun OtherWays(
     downloadedVersion: String?,
     onInstallDownloaded: () -> Unit,
     onOpenReleasePage: () -> Unit,
-    title: String? = "설치가 안 되면",
+    title: String = "설치가 안 되면",
 ) {
     Spacer(Modifier.height(BudgetTheme.spacing.itemGap))
-    if (title != null) HintText(title)
+    HintText(title)
     Row(verticalAlignment = Alignment.CenterVertically) {
         if (downloadedVersion != null) {
             BudgetTextButton(text = "받은 파일로 설치", onClick = onInstallDownloaded)
