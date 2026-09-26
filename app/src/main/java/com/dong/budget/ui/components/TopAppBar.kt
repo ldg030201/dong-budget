@@ -15,6 +15,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import com.dong.budget.ui.theme.BudgetTheme
 
 /** 상단바에 놓을 버튼의 모양 */
@@ -63,7 +65,8 @@ fun BudgetTopAppBar(
                 text = title,
                 style = MaterialTheme.typography.titleMedium,
                 color = BudgetTheme.colors.textPrimary,
-                modifier = Modifier.padding(start = BudgetTheme.spacing.tightGap),
+                // 화면 읽기가 제목으로 건너뛸 수 있게 한다
+                modifier = Modifier.padding(start = BudgetTheme.spacing.tightGap).semantics { heading() },
             )
         }
         Box(modifier = Modifier.weight(1f))
