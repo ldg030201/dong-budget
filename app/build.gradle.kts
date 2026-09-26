@@ -59,6 +59,8 @@ android {
         targetSdk = 36
         versionCode = requiredProperty("dongbudget.versionCode").toInt()
         versionName = requiredProperty("dongbudget.versionName")
+        // 기기 위에서 도는 테스트(DB 마이그레이션 검증)를 돌리는 러너
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         // 앱이 새 버전을 확인할 위치. 코드에 박지 않고 설정에서 읽는다.
         buildConfigField("String", "GITHUB_OWNER", "\"${requiredProperty("dongbudget.githubOwner")}\"")
@@ -141,4 +143,10 @@ dependencies {
     ksp(libs.androidx.room.compiler)
 
     testImplementation(libs.junit)
+
+    // DB 마이그레이션은 실제 SQLite 에서 검증해야 해서 기기 위에서 돈다.
+    // ./gradlew connectedDebugAndroidTest 는 끝나고 앱을 지워 기기의 가계부가 사라지니 쓰지 않는다(docs/배포.md 참고).
+    androidTestImplementation(libs.androidx.room.testing)
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.androidx.test.ext.junit)
 }
