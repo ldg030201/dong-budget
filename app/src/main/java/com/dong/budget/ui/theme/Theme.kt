@@ -161,6 +161,10 @@ object BudgetTheme {
         @Composable @ReadOnlyComposable
         get() = LocalBudgetTokens.current.size
 
+    val chart: BudgetChartDimens
+        @Composable @ReadOnlyComposable
+        get() = LocalBudgetTokens.current.chart
+
     val amount: BudgetAmountTypography
         @Composable @ReadOnlyComposable
         get() = LocalBudgetTokens.current.amount

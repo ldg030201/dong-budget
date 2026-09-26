@@ -102,6 +102,19 @@ data class BudgetColorTokens(
     /** 통계 차트용. 빨강-초록 조합은 적녹색맹에서 구분이 불가능해서 쓰지 않는다. */
     val chartExpense: Color,
     val chartIncome: Color,
+    /**
+     * 통계 차트에서 접힌 '그 외' 와 '분류 없음' 조각. 늘 맨 위나 끝에 오고 범례에 이름이 있어서
+     * 라이트의 바탕 대비(2.13:1)가 3:1 에 못 미쳐도 쓴다. 회색 분류와는 명도로 갈린다.
+     */
+    val chartOther: Color,
+    /** 차트에서 강조하지 않는 쪽(지난달 선, 가장 크지 않은 요일 막대 등). 바탕 대비 3:1 이상 */
+    val chartContext: Color,
+    /** 수입 대비 지출 미터의 빈 트랙. 채움(chartExpense)과 3:1 이상 */
+    val chartTrack: Color,
+    /** 차트에서 고른 칸 뒤에 까는 띠 */
+    val chartSelection: Color,
+    /** 통계 아래 떠 있는 둥근 메뉴의 바탕. 다크는 그림자가 잘 안 보여 바탕보다 한 단계 밝게 둔다 */
+    val floatingBar: Color,
     /** 패치노트 꼬리표. 추가·개선·수정·오류수정. 색만으로 구분하지 않고 항상 글자를 함께 쓴다. */
     val tagAdded: CategorySwatch,
     val tagImproved: CategorySwatch,
@@ -122,6 +135,11 @@ internal val LightColorTokens =
         divider = Gray200,
         chartExpense = Indigo500,
         chartIncome = IncomeLight,
+        chartOther = Gray400,
+        chartContext = Gray500,
+        chartTrack = Indigo100,
+        chartSelection = Gray100,
+        floatingBar = Color.White,
         tagAdded = CategorySwatch(TagGreenLight, TagGreenContainerLight),
         tagImproved = CategorySwatch(TagBlueLight, TagBlueContainerLight),
         tagChanged = CategorySwatch(TagAmberLight, TagAmberContainerLight),
@@ -141,6 +159,11 @@ internal val DarkColorTokens =
         divider = Dark600,
         chartExpense = Indigo550,
         chartIncome = IncomeDark,
+        chartOther = Gray700,
+        chartContext = Gray600,
+        chartTrack = Dark700,
+        chartSelection = Dark700,
+        floatingBar = Dark700,
         tagAdded = CategorySwatch(TagGreenDark, TagGreenContainerDark),
         tagImproved = CategorySwatch(TagBlueDark, TagBlueContainerDark),
         tagChanged = CategorySwatch(TagAmberDark, TagAmberContainerDark),
