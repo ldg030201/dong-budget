@@ -38,6 +38,7 @@ enum class PatchMenu(val label: String) {
     /** 0.1.3 에서 홈으로 합쳐진 옛 탭. 지난 기록을 위해 남긴다. */
     HISTORY("내역"),
     EDITOR("거래 등록"),
+    STATISTICS("통계"),
     CATEGORIES("분류 관리"),
     MORE("전체"),
     PATCH_NOTES("패치노트"),
@@ -64,19 +65,30 @@ private fun fixed(text: String) = Change(ChangeKind.FIXED, text)
 private fun menu(menu: PatchMenu, vararg changes: Change) = MenuChanges(menu, changes.toList())
 
 /**
- * 최신 버전이 맨 위. 메뉴는 앱 화면 순서(홈 → 거래 등록 → 분류 관리 → 전체 → 패치노트 → 설정 → 공통)로 적는다.
+ * 최신 버전이 맨 위. 메뉴는 앱 화면 순서(홈 → 거래 등록 → 통계 → 분류 관리 → 전체 → 패치노트 → 설정 → 공통)로 적는다.
  * 메뉴 안의 항목은 화면에서 종류 순서(추가 → 개선 → 수정 → 오류수정)로 다시 정렬되므로 적는 순서는 자유다.
  */
 val PATCH_NOTES: List<Release> =
     listOf(
         Release(
-            version = "1.1.1",
+            version = "1.2.0",
             date = null,
             menus =
             listOf(
                 menu(
                     PatchMenu.EDITOR,
                     fixed("토스뱅크 카드처럼 '결제 완료'로 오는 토스 결제 알림에는 등록할지 묻지 않던 문제를 고쳤어요"),
+                ),
+                menu(
+                    PatchMenu.STATISTICS,
+                    added("아래 메뉴에 통계가 생겼어요. 들어가면 아래에 떠 있는 메뉴에서 월별·일별·분류·결제수단으로 나눠 볼 수 있어요"),
+                    added("월별에서는 쓴 돈과 수입 대비 비율, 눈에 띄는 점, 지난달과 견준 이번 달 흐름, 최근 6개월, 큰 지출, 올해 모아 보기를 봐요"),
+                    added("일별에서는 날마다 쓴 돈을 분류별 색으로 쌓아 보여 줘요. 분류를 누르면 그 분류만 볼 수 있고, 요일별 하루 평균도 봐요"),
+                    added("분류·결제수단에서는 비율 그래프와 순위, 지난달 대비 증감, 많이 쓴 곳을 봐요. 누르면 최근 6개월 흐름과 그 달 거래를 모아 봐요"),
+                ),
+                menu(
+                    PatchMenu.MORE,
+                    changed("통계는 아래 메뉴로 옮겼어요"),
                 ),
             ),
         ),

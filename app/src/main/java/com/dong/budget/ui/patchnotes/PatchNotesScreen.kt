@@ -286,6 +286,7 @@ private fun PatchMenu.iconRes(): Int = when (this) {
     PatchMenu.HOME -> R.drawable.ic_sym_home
     PatchMenu.HISTORY -> R.drawable.ic_sym_receipt_long
     PatchMenu.EDITOR -> R.drawable.ic_sym_edit_note
+    PatchMenu.STATISTICS -> R.drawable.ic_sym_bar_chart
     PatchMenu.CATEGORIES -> R.drawable.ic_sym_category
     PatchMenu.MORE -> R.drawable.ic_sym_apps
     PatchMenu.PATCH_NOTES -> R.drawable.ic_sym_new_releases
@@ -298,6 +299,7 @@ private fun PatchMenu.color(): String = when (this) {
     PatchMenu.HOME -> "blue"
     PatchMenu.HISTORY -> "teal"
     PatchMenu.EDITOR -> "green"
+    PatchMenu.STATISTICS -> "orange"
     PatchMenu.CATEGORIES -> "indigo"
     PatchMenu.MORE -> "pink"
     PatchMenu.PATCH_NOTES -> "purple"
