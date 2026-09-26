@@ -17,7 +17,7 @@ import com.dong.budget.ui.theme.BudgetTheme
  * 1 을 넘으면(수입보다 더 씀) 가득 채우고 danger 로 칠한다. 색에만 기대지 않도록 부르는 쪽이
  * 경고 아이콘과 문장("수입보다 12만원 더 썼어요")을 함께 둔다. 뜻은 그 문장이 전하므로 화면 읽기에서는 뺀다.
  *
- * @param ratio 지출 ÷ 수입. 0 아래는 0 으로 본다. `spendRatioPercent / 100f` 를 넘기면 된다.
+ * @param ratio 지출 ÷ 수입. 0 아래는 0 으로 본다. 지출 ÷ 수입을 그대로 넘긴다. 반올림한 % 로 넘기면 수입을 조금 넘게 쓴 달(100.4%)이 100% 로 보여 문장과 어긋난다.
  */
 @Composable
 fun Meter(ratio: Float, modifier: Modifier = Modifier) {

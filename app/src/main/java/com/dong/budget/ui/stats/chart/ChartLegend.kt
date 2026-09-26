@@ -190,3 +190,10 @@ fun LegendChip(
 /** 견본과 글자 사이. 칩의 아이콘과 글자 사이(BudgetChip)와 같다. */
 @Composable
 private fun swatchTextGap(): Dp = BudgetTheme.spacing.tightGap * 1.5f
+
+/**
+ * 분류·결제수단 색 이름을 차트 색으로 푼다. 색이 없는 것('그 외', '분류 없음')은 chartOther 다.
+ * 도넛 조각, 범례 견본, 비율 막대가 모두 이것을 써서 한 항목이 어디서나 같은 색이다.
+ */
+@Composable
+fun entityColor(color: String?): Color = color?.let { BudgetTheme.categoryPalette[it].content } ?: BudgetTheme.colors.chartOther

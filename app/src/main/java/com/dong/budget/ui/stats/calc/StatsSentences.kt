@@ -139,7 +139,7 @@ private fun List<Long>.upTo(day: Int): Long = this[minOf(day, size) - 1]
 fun trendAverageText(average: TrendAverage): String =
     "앞선 ${average.months}달 평균 · 지출 ${formatCompactWon(average.expense)} · 수입 ${formatCompactWon(average.income)}"
 
-/** 큰 지출 줄의 부제. "9월 3일 (수) · 식비". 분류가 없으면 날짜만 */
+/** 큰 지출 줄의 부제. "9월 3일 (목) · 식비". 분류가 없으면 날짜만 */
 fun largestSubtitle(item: TransactionListItem): String =
     listOfNotNull(formatDayShort(item.localDate()), item.categoryName).joinToString(" · ")
 
@@ -262,4 +262,5 @@ fun nothingText(monthLabel: String, dimension: StatsDimension = StatsDimension.E
     if (dimension == StatsDimension.INCOME_CATEGORY) "${monthLabel}에는 들어온 돈이 없어요" else "${monthLabel}에는 쓴 돈이 없어요"
 
 /** 많이 쓴 곳 줄의 부제. "4번 · 한 번에 평균 1만원" */
-fun merchantSubtitle(merchant: MerchantStat): String = "${merchant.count}번 · 한 번에 평균 ${formatCompactWon(merchant.averageTicket)}"
+fun merchantSubtitle(merchant: MerchantStat): String = // 한 번뿐이면 평균이 금액과 같아서 적지 않는다
+    if (merchant.count == 1) "1번" else "${merchant.count}번 · 한 번에 평균 ${formatCompactWon(merchant.averageTicket)}"
