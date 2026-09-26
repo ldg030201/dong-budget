@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import java.time.Instant
+import java.time.LocalDate
 import java.time.YearMonth
 import java.util.UUID
 
@@ -22,6 +23,13 @@ const val MAX_AMOUNT_DIGITS = 12
  * 파일만 늘고 읽을 때 한 번 더 따라가야 한다.
  */
 class TransactionRepository(private val transactionDao: TransactionDao) {
+    /** [first] 달 1일부터 [last] 달 말일까지의 거래. 통계가 여러 달을 한 번에 읽을 때 쓴다. */
+    fun observeMonths(first: YearMonth, last: YearMonth): Flow<List<TransactionListItem>> =
+        transactionDao.observeBetween(BudgetTime.monthRange(first).first, BudgetTime.monthRange(last).second)
+
+    /** 통계의 기록 시작일(서울 기준). 이체 말고 거래가 하나도 없으면 null */
+    fun observeFirstRecordDate(): Flow<LocalDate?> = transactionDao.observeFirstOccurredAt().map { it?.let(BudgetTime::toLocalDate) }
+
     fun observeMonth(month: YearMonth): Flow<List<TransactionListItem>> {
         val (start, end) = BudgetTime.monthRange(month)
         return transactionDao.observeBetween(start, end)
