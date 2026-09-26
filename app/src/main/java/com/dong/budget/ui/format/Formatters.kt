@@ -10,6 +10,7 @@ import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
 import java.util.Locale
 import kotlin.math.abs
+import kotlin.math.roundToLong
 
 private val KOREA = Locale.KOREA
 private val dayFormatter = DateTimeFormatter.ofPattern("M월 d일 (E)", KOREA)
@@ -110,3 +111,32 @@ private val spokenDateFormatter = DateTimeFormatter.ofPattern("M월 d일 EEEE", 
 
 /** 달력 머리줄의 요일 한 글자 */
 fun formatWeekday(day: DayOfWeek): String = day.getDisplayName(TextStyle.SHORT, KOREA)
+
+/** 요일 이름. "토요일" */
+fun formatWeekdayFull(day: DayOfWeek): String = day.getDisplayName(TextStyle.FULL, KOREA)
+
+/** 짧은 날짜. "9월 3일 (수)". 연도는 붙이지 않는다(한 달 안의 날을 가리킬 때 쓴다). */
+fun formatDayShort(date: LocalDate): String = dayFormatter.format(date)
+
+/**
+ * 비율(0~1)을 정수 % 로 반올림한다. "42%"
+ * 0 보다 크지만 반올림하면 0% 가 되는 값은 "1% 미만" 이라고 쓴다. 0% 라고 적으면 없는 것처럼 보인다.
+ * 합을 100% 에 억지로 맞추지 않는다.
+ */
+fun formatShare(share: Double): String {
+    val percent = (share * 100).roundToLong()
+    return if (share > 0 && percent == 0L) "1% 미만" else "$percent%"
+}
+
+/** 몇 배인지. 소수 첫째 자리까지 반올림한다. 1.8 → "1.8배" */
+fun formatRatio(ratio: Double): String = String.format(KOREA, "%.1f배", ratio)
+
+/**
+ * 문장 안에서 달을 가리키는 이름. 이번 달이면 "이번 달", 올해면 "9월", 다른 해면 "2025년 12월".
+ * 통계 문구의 {달} 자리에 모두 이것을 쓴다.
+ */
+fun monthLabel(month: YearMonth, today: LocalDate): String = when {
+    month == YearMonth.from(today) -> "이번 달"
+    month.year == today.year -> "${month.monthValue}월"
+    else -> formatMonth(month)
+}

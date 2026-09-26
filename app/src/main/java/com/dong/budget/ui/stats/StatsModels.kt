@@ -177,7 +177,7 @@ sealed interface Insight {
  * @property startsLate counted 가 1일보다 늦게 시작하는지(기록 시작일 때문에)
  * @property average counted 안의 하루 평균 지출. counted 가 비었거나 음수면 null
  * @property spentDays counted 안에서 지출이 있었던 날 수
- * @property spentDayAverage 쓴 날 평균. 쓴 날이 없으면 null
+ * @property spentDayAverage 쓴 날 평균. 쓴 날이 없거나 환불이 더 많아 음수면 null
  * @property peak counted 안에서 가장 많이 쓴 날. 없으면 null
  * @property noSpendDays counted 안에서 지출이 없던 날 수. counted 가 비었으면 null
  * @property longestNoSpend 돈 안 쓴 날의 최장 연속 일수
@@ -237,7 +237,7 @@ data class DayPeak(val date: LocalDate, val amount: Long)
  * 요일별 하루 평균(최근 3달, 기록 시작일부터 오늘까지).
  * @property averages 일요일부터 토요일까지(WEEK_ORDER)
  * @property top 가장 많이 쓴 요일. 모두 0 이면 null
- * @property weekendRatio 주말 하루 평균 ÷ 평일 하루 평균. 평일 평균이 0 이면 null
+ * @property weekendRatio 주말 하루 평균 ÷ 평일 하루 평균. 주말이나 평일 한쪽 평균이 0 이하면 null(몇 배인지 말할 수 없다)
  */
 data class WeekdayStats(
     val from: LocalDate,
@@ -247,7 +247,10 @@ data class WeekdayStats(
     val weekendRatio: Double?,
 )
 
-/** @property days 창 안의 그 요일 날 수(0원인 날 포함) */
+/**
+ * @property average 그 요일의 하루 평균 순지출(반올림). 환불이 더 많았으면 음수일 수 있다(막대는 0 으로 그린다).
+ * @property days 창 안의 그 요일 날 수(0원인 날 포함)
+ */
 data class WeekdayAverage(val day: DayOfWeek, val average: Long, val days: Int)
 
 // ── 분류·결제수단 ───────────────────────────────────────────────────────

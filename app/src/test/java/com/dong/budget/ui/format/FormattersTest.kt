@@ -6,6 +6,7 @@ import org.junit.Test
 import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
+import java.time.YearMonth
 
 class FormattersTest {
     @Test
@@ -82,5 +83,37 @@ class FormattersTest {
         val thisYear = Instant.parse("2026-09-10T03:00:00Z")
         assertEquals("2025년 9월 10일 (수)", formatDate(lastYear, today))
         assertEquals("9월 10일 (목)", formatDate(thisYear, today))
+    }
+
+    @Test
+    fun `비율은 정수 % 로 반올림하고 반올림하면 0% 가 되는 작은 값은 1% 미만이다`() {
+        assertEquals("42%", formatShare(0.42))
+        assertEquals("43%", formatShare(0.4251))
+        assertEquals("100%", formatShare(1.0))
+        assertEquals("0%", formatShare(0.0))
+        assertEquals("1% 미만", formatShare(0.004))
+        assertEquals("1%", formatShare(0.005))
+    }
+
+    @Test
+    fun `배수는 소수 첫째 자리까지 쓴다`() {
+        assertEquals("1.8배", formatRatio(1.8))
+        assertEquals("1.3배", formatRatio(1.25))
+        assertEquals("2.0배", formatRatio(2.0))
+    }
+
+    @Test
+    fun `짧은 날짜와 요일 이름`() {
+        assertEquals("9월 3일 (목)", formatDayShort(LocalDate.of(2026, 9, 3)))
+        assertEquals("토요일", formatWeekdayFull(DayOfWeek.SATURDAY))
+    }
+
+    @Test
+    fun `달 이름은 이번 달, 올해, 다른 해를 가린다`() {
+        val today = LocalDate.of(2026, 9, 27)
+        assertEquals("이번 달", monthLabel(YearMonth.of(2026, 9), today))
+        assertEquals("8월", monthLabel(YearMonth.of(2026, 8), today))
+        assertEquals("2025년 12월", monthLabel(YearMonth.of(2025, 12), today))
+        assertEquals("2027년 1월", monthLabel(YearMonth.of(2027, 1), today))
     }
 }
