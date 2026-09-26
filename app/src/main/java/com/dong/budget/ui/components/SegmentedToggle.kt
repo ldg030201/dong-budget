@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -28,6 +29,8 @@ fun SegmentedToggle(options: List<String>, selectedIndex: Int, onSelect: (Int) -
         modifier
             .fillMaxWidth()
             .background(BudgetTheme.colors.sectionBackground, shape)
+            // 화면 읽기가 칸들을 한 묶음으로 알린다('2개 중 1번째')
+            .selectableGroup()
             .padding(BudgetTheme.spacing.tightGap),
         horizontalArrangement = Arrangement.spacedBy(BudgetTheme.spacing.tightGap),
     ) {

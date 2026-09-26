@@ -24,6 +24,7 @@ import com.dong.budget.ui.components.CategoryBadge
 import com.dong.budget.ui.stats.BreakdownEntry
 import com.dong.budget.ui.stats.calc.changeText
 import com.dong.budget.ui.stats.calc.entrySummary
+import com.dong.budget.ui.stats.chart.entityColor
 import com.dong.budget.ui.theme.BudgetTheme
 import com.dong.budget.ui.theme.pressScaleClickable
 
@@ -113,13 +114,6 @@ private fun ShareBar(share: Double, color: Color) {
             .background(color, RoundedCornerShape(BudgetTheme.radius.full)),
     )
 }
-
-/**
- * 분류·결제수단 색 이름을 차트 색으로 푼다. 색이 없는 것('그 외', '분류 없음')은 chartOther 다.
- * 도넛 조각, 범례 견본, 비율 막대가 모두 이것을 써서 한 항목이 어디서나 같은 색이다.
- */
-@Composable
-fun entityColor(color: String?): Color = color?.let { BudgetTheme.categoryPalette[it].content } ?: BudgetTheme.colors.chartOther
 
 /** 금액 글자색. 돌려받은 쪽(음수 → "+")만 income 색이고, 나머지는 본문색이다. 방향은 부호가 전한다. */
 @Composable

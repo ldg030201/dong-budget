@@ -10,6 +10,7 @@ import com.dong.budget.ui.stats.GroupKey
 import com.dong.budget.ui.stats.calc.Measure
 import com.dong.budget.ui.stats.calc.TREND_MONTHS
 import com.dong.budget.ui.stats.calc.breakdown
+import com.dong.budget.ui.stats.calc.effectiveFirstRecord
 import com.dong.budget.ui.stats.calc.entryChange
 import com.dong.budget.ui.stats.calc.groupKey
 import com.dong.budget.ui.stats.calc.grouping
@@ -118,14 +119,6 @@ private fun detailTrend(
         count = mine.size,
         beforeFirstRecord = firstRecord == null || m.isBefore(YearMonth.from(firstRecord)),
     )
-}
-
-/**
- * 기록 시작일. 거래 목록과 시작일 조회는 따로 방출되어 잠깐 어긋날 수 있어 둘 중 이른 날을 쓴다(buildStatistics 와 같은 규칙).
- */
-private fun effectiveFirstRecord(rows: List<TransactionListItem>, firstRecord: LocalDate?): LocalDate? {
-    val earliestRow = rows.filter { it.isRecord }.minOfOrNull { it.localDate() }
-    return listOfNotNull(firstRecord, earliestRow).minOrNull()
 }
 
 /** 상세의 많이 쓴 곳은 5곳까지. 한 항목 안이라 탭(10곳)보다 적게 보인다. */

@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dong.budget.data.TransactionRepository
 import com.dong.budget.data.db.BudgetTime
+import com.dong.budget.ui.stats.calc.TREND_MONTHS
 import com.dong.budget.ui.stats.calc.buildStatistics
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -43,7 +44,7 @@ class StatsViewModel(private val repository: TransactionRepository, private val 
             .distinctUntilChanged()
             .flatMapLatest { (month, today) ->
                 // 최근 6개월 추이, 최근 3달 요일별, 올해 모아 보기를 한 번에 덮는 창. 1월이면 앞 해 8월부터, 12월이면 1월부터다.
-                val from = minOf(month.minusMonths(TREND_MONTHS - 1), YearMonth.of(month.year, 1))
+                val from = minOf(month.minusMonths(TREND_MONTHS - 1L), YearMonth.of(month.year, 1))
                 combine(repository.observeMonths(from, month), repository.observeFirstRecordDate()) { rows, firstRecord ->
                     buildStatistics(month, today, rows, firstRecord)
                 }
@@ -78,8 +79,5 @@ class StatsViewModel(private val repository: TransactionRepository, private val 
 
     private companion object {
         const val STOP_TIMEOUT_MS = 5_000L
-
-        /** 월별 탭 '최근 6개월' 의 달 수 */
-        const val TREND_MONTHS = 6L
     }
 }

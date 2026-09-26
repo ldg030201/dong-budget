@@ -15,6 +15,7 @@ import com.dong.budget.ui.stats.Breakdown
 import com.dong.budget.ui.stats.chart.Donut
 import com.dong.budget.ui.stats.chart.DonutCenterLabel
 import com.dong.budget.ui.stats.chart.LegendValueRow
+import com.dong.budget.ui.stats.chart.entityColor
 import com.dong.budget.ui.theme.BudgetTheme
 
 /**

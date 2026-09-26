@@ -49,6 +49,7 @@ import com.dong.budget.ui.stats.chart.ColumnSlot
 import com.dong.budget.ui.stats.chart.LegendChip
 import com.dong.budget.ui.stats.chart.LegendSwatch
 import com.dong.budget.ui.stats.chart.dailyAxisLabels
+import com.dong.budget.ui.stats.chart.entityColor
 import com.dong.budget.ui.theme.BudgetTheme
 import java.time.LocalDate
 import java.time.YearMonth
@@ -107,11 +108,7 @@ internal fun DailySpendingSection(
 
 /** 계열 색. 분류 색의 진한 쪽(content)이고, 색 이름이 없는 '그 외'·'분류 없음' 은 chartOther 다. */
 @Composable
-private fun seriesColors(series: List<StatSeries>): List<Color> {
-    val palette = BudgetTheme.categoryPalette
-    val other = BudgetTheme.colors.chartOther
-    return remember(series, palette, other) { series.map { s -> s.color?.let { palette[it].content } ?: other } }
-}
+private fun seriesColors(series: List<StatSeries>): List<Color> = series.map { entityColor(it.color) }
 
 /**
  * 범례를 겸하는 필터 칩. [전체] [■식비] … [■그 외 3개]

@@ -224,5 +224,7 @@ class StatsSentencesTest {
     @Test
     fun `많이 쓴 곳 부제`() {
         assertEquals("4번 · 한 번에 평균 1만원", merchantSubtitle(MerchantStat("스타벅스", 40_000, 4, 10_000)))
+        // 한 번뿐이면 평균이 금액과 같아 적지 않는다
+        assertEquals("1번", merchantSubtitle(MerchantStat("가전", 213_400, 1, 213_400)))
     }
 }

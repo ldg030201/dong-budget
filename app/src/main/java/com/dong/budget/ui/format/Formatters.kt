@@ -115,7 +115,7 @@ fun formatWeekday(day: DayOfWeek): String = day.getDisplayName(TextStyle.SHORT, 
 /** 요일 이름. "토요일" */
 fun formatWeekdayFull(day: DayOfWeek): String = day.getDisplayName(TextStyle.FULL, KOREA)
 
-/** 짧은 날짜. "9월 3일 (수)". 연도는 붙이지 않는다(한 달 안의 날을 가리킬 때 쓴다). */
+/** 짧은 날짜. "9월 3일 (목)". 연도는 붙이지 않는다(한 달 안의 날을 가리킬 때 쓴다). */
 fun formatDayShort(date: LocalDate): String = dayFormatter.format(date)
 
 /**

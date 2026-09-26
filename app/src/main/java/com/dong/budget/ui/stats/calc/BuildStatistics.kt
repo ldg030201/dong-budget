@@ -54,7 +54,7 @@ fun buildStatistics(month: YearMonth, today: LocalDate, rows: List<TransactionLi
  * 기록 시작일. 거래 목록과 시작일 조회는 따로 방출되어 잠깐 어긋날 수 있다(첫 거래를 막 등록한 직후 등).
  * 보이는 거래보다 늦은 시작일은 있을 수 없으므로 둘 중 이른 날을 쓴다.
  */
-private fun effectiveFirstRecord(rows: List<TransactionListItem>, firstRecord: LocalDate?): LocalDate? {
+internal fun effectiveFirstRecord(rows: List<TransactionListItem>, firstRecord: LocalDate?): LocalDate? {
     val earliestRow = rows.filter { it.isRecord }.minOfOrNull { it.localDate() }
     return listOfNotNull(firstRecord, earliestRow).minOrNull()
 }
