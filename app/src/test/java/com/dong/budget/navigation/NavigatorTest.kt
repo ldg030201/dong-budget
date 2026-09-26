@@ -34,7 +34,7 @@ class NavigatorTest {
         // 뒤로 버튼을 빠르게 두 번 누른 경우. 두 번째가 셸까지 지우면 NavDisplay 가 앱을 종료시킨다.
         val backStack = NavBackStack<NavKey>(ShellKey)
         val navigator = Navigator(backStack)
-        navigator.go(SettingsKey())
+        navigator.go(SettingsKey)
         navigator.goBack()
         navigator.goBack()
         assertEquals(listOf(ShellKey), backStack.toList())

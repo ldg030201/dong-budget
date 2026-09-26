@@ -45,7 +45,7 @@ class AppContainer(context: Context) {
             fetch = updateRepository::check,
             prefs = context.getSharedPreferences(UpdateChecker.PREFS_NAME, Context.MODE_PRIVATE),
             // 새 버전이 바뀌었거나 없으면, 다른 버전으로 받아둔 설치 파일은 권하지 않도록 지운다
-            onChecked = { status ->
+            beforeRecord = { status ->
                 withContext(Dispatchers.IO) {
                     when (status) {
                         is UpdateStatus.Available -> apkInstaller.keepOnly(status.version)

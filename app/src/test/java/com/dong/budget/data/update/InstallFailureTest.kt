@@ -34,7 +34,7 @@ class InstallFailureTest {
         val failure = InstallResultReceiver.failureOf(aborted, 0, null, autoBlocker = false)
         assertFalse(failure.suggestGalaxySecurity)
         assertFalse(failure.reason.contains("자동 차단"))
-        assertTrue(failure.reason.contains("받은 파일로 직접 설치"))
+        assertTrue(failure.reason.contains("받은 파일로 설치"))
     }
 
     @Test

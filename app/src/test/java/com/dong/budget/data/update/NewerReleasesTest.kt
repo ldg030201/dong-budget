@@ -74,4 +74,31 @@ class NewerReleasesTest {
         assertEquals(7, ReleaseNotes.forApp(long).lines().size)
         assertEquals(10, ReleaseNotes.forApp(long, maxLines = Int.MAX_VALUE).lines().size)
     }
+
+    @Test
+    fun `같은 버전으로 읽히는 배포가 둘이면 하나만 남긴다`() {
+        // 둘 다 남기면 패치노트 목록의 항목 이름이 겹쳐 화면이 죽는다
+        val body = "[" + release("v0.1.8", "정식\n\n$marker") + "," + release("v0.1.8-hotfix", "고침\n\n$marker") + "]"
+        val newer = UpdateRepository.parseNewerReleases(body, currentVersion = "0.1.7")
+        assertEquals(listOf("0.1.8"), newer.map { it.version })
+    }
+
+    @Test
+    fun `설치 파일 주소와 크기도 함께 담는다`() {
+        val newer = UpdateRepository.parseNewerReleases("[" + release("v0.1.8", "요약\n\n$marker") + "]", currentVersion = "0.1.7")
+        assertEquals("https://example.com/a.apk", newer.single().downloadUrl)
+        assertEquals(1L, newer.single().sizeBytes)
+    }
+
+    @Test
+    fun `네트워크 오류는 영어 원문 대신 한국어로 알려준다`() {
+        assertEquals(
+            "인터넷에 연결되어 있지 않아요. 연결을 확인하고 다시 해 주세요",
+            UpdateRepository.describeNetworkError(java.net.UnknownHostException("Unable to resolve host \"api.github.com\"")),
+        )
+        assertEquals("서버 응답이 늦어요. 잠시 뒤에 다시 해 주세요", UpdateRepository.describeNetworkError(java.net.SocketTimeoutException("timeout")))
+        // 앱이 만든 한국어 사유는 그대로 둔다
+        assertEquals("설치 파일을 끝까지 받지 못했어요", UpdateRepository.describeNetworkError(IllegalStateException("설치 파일을 끝까지 받지 못했어요")))
+        assertTrue(UpdateRepository.describeHttpError(403).contains("잠시 뒤"))
+    }
 }

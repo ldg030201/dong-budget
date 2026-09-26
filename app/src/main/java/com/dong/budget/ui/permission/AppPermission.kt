@@ -31,15 +31,13 @@ import com.dong.budget.ui.components.ConfirmDialog
  * [runtimePermission] 이 있는 것은 처음 한 번은 앱 안에서 시스템 '허용' 창을 띄울 수 있다.
  * 앱을 켤 때 꺼져 있는 것이 있으면 [PermissionGate] 가 안내창을 띄운다. 안내 순서는 여기 적은 순서다.
  */
-enum class AppPermission(val title: String, val message: String) {
+enum class AppPermission(val title: String, private val baseMessage: String) {
     /** '출처를 알 수 없는 앱 설치'. 앱 안에서 새 버전을 설치할 때 필요하다. */
     INSTALL_UPDATES(
         title = "업데이트 설치를 허용해 주세요",
-        // 갤럭시의 자동 차단은 앱에서 켜짐 여부를 알 수 없고 설정 화면으로 바로 보낼 수도 없어서 글로만 안내한다
-        message =
+        baseMessage =
         "새 버전을 앱 안에서 바로 설치하려면 '출처를 알 수 없는 앱 설치'에서 동계부를 허용해야 해요.\n" +
-            "설정 화면에서 허용을 켜고 돌아와 주세요.\n\n" +
-            "갤럭시라면 '설정 > 보안 및 개인정보 보호 > 보안 위험 자동 차단'도 꺼져 있어야 업데이트가 설치돼요.",
+            "설정 화면에서 허용을 켜고 돌아와 주세요.",
     ),
 
     /**
@@ -49,7 +47,7 @@ enum class AppPermission(val title: String, val message: String) {
      */
     POST_NOTIFICATIONS(
         title = "알림을 허용해 주세요",
-        message = "토스 결제 알림을 읽으면 '가계부에 등록할까요?' 알림을 보내요. 알림을 누르면 결제 내용이 채워진 등록창이 열려요.",
+        baseMessage = "토스 결제 알림을 읽으면 '가계부에 등록할까요?' 알림을 보내요. 알림을 누르면 결제 내용이 채워진 등록창이 열려요.",
     ),
 
     /** '알림 읽기'. 토스 결제 알림을 읽는 데 필요하다. */
@@ -57,13 +55,21 @@ enum class AppPermission(val title: String, val message: String) {
         title = "알림 읽기를 허용해 주세요",
         // 플레이 스토어 밖에서 설치한 앱은 Android 13 부터 이 권한이 '제한된 설정' 으로 막혀 있다.
         // 스위치를 한 번 눌러 막힌 것을 확인해야 앱 정보에 '제한된 설정 허용' 메뉴가 생기는 기기가 있어 그 순서로 적는다.
-        message =
+        baseMessage =
         "토스 결제 알림이 오면 가계부에 등록할지 물어보려면 동계부의 '알림 읽기'를 허용해야 해요.\n" +
             "토스 결제 알림만 골라 쓰고, 다른 앱의 알림은 저장하거나 어디로 보내지 않아요.\n\n" +
             "스위치를 눌렀는데 '제한된 설정' 창이 뜨면, 아래 '앱 정보 열기'를 눌러 오른쪽 위 ⋮ 에서 " +
             "'제한된 설정 허용'을 누른 뒤 다시 켜 주세요.",
     ),
     ;
+
+    /**
+     * 안내창 본문.
+     * 갤럭시 One UI 6 이상에는 '보안 위험 자동 차단' 이 있어서, 설치 허용을 켜도 이게 켜져 있으면 업데이트가 막힌다.
+     * 켜짐 여부는 앱이 알 수 없으니 그런 기기에만 한 줄 덧붙이고, 끄는 화면으로 가는 버튼([extraLabel])을 둔다.
+     */
+    val message: String
+        get() = if (this == INSTALL_UPDATES && GalaxyAutoBlocker.isAvailable) baseMessage + GALAXY_AUTO_BLOCKER_NOTE else baseMessage
 
     fun isGranted(context: Context): Boolean = when (this) {
         INSTALL_UPDATES -> context.packageManager.canRequestPackageInstalls()
@@ -124,6 +130,10 @@ enum class AppPermission(val title: String, val message: String) {
             listOf(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName))
     }
 }
+
+/** 자동 차단이 있는 갤럭시에만 덧붙이는 안내 */
+private const val GALAXY_AUTO_BLOCKER_NOTE =
+    "\n\n'보안 위험 자동 차단'도 꺼져 있어야 업데이트가 설치돼요. 아래 버튼으로 바로 갈 수 있어요."
 
 private fun promptHistory(context: Context) =
     SystemPromptHistory(context.getSharedPreferences(SystemPromptHistory.PREFS_NAME, Context.MODE_PRIVATE))

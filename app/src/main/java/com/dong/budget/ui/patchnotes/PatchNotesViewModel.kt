@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.dong.budget.data.update.NewerRelease
 import com.dong.budget.data.update.UpdateChecker
 import com.dong.budget.data.update.UpdateRepository
+import com.dong.budget.data.update.UpdateStatus
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -26,8 +27,24 @@ class PatchNotesViewModel(updateRepository: UpdateRepository, updateChecker: Upd
     val newer: StateFlow<List<NewerRelease>> = _newer.asStateFlow()
 
     init {
-        viewModelScope.launch {
-            updateRepository.newerReleases().onSuccess { _newer.value = it }
+        // 방금 확인해서 새 버전이 없다는 걸 알고 있으면 목록을 받지 않는다.
+        // GitHub 는 로그인 없이 부를 수 있는 횟수가 시간당 60번이라 같은 정보를 거듭 받지 않는다.
+        val knownUpToDate = updateChecker.checkedRecently() && updateChecker.available.value == null
+        if (!knownUpToDate) {
+            viewModelScope.launch {
+                updateRepository.newerReleases().onSuccess { list ->
+                    _newer.value = list
+                    // 받은 목록을 새 버전 확인 결과로도 기록한다. 홈 배너와 설정 화면이 같은 최신 버전을 보게 된다.
+                    val newest = list.firstOrNull()
+                    updateChecker.apply(
+                        if (newest == null) {
+                            UpdateStatus.UpToDate
+                        } else {
+                            UpdateStatus.Available(newest.version, newest.notes, newest.downloadUrl, newest.sizeBytes)
+                        },
+                    )
+                }
+            }
         }
     }
 }
