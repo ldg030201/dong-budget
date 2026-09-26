@@ -10,8 +10,11 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.LifecycleStartEffect
@@ -64,10 +67,15 @@ fun DongBudgetApp(container: AppContainer, capturedToOpen: String? = null, onCap
     val backStack = rememberNavBackStack(ShellKey)
     val navigator = remember(backStack) { Navigator(backStack) }
 
+    // 홈의 알림 목록 창. 알림창의 알림을 눌러 들어올 때도 닫아야 해서 셸 밖에 둔다.
+    // 닫지 않으면 올라오는 등록창을 덮고, 저장해 둔 값 때문에 홈으로 돌아올 때 다시 뜬다.
+    var showInbox by rememberSaveable { mutableStateOf(false) }
+
     // 결제 등록 알림을 눌러 들어왔으면 그 결제로 채운 등록창을 연다
     val context = LocalContext.current
     LaunchedEffect(capturedToOpen) {
         val dedupKey = capturedToOpen ?: return@LaunchedEffect
+        showInbox = false
         openCaptured(dedupKey, container.paymentCapture, navigator, context)
         // 다 연 뒤에 비운다. 먼저 비우면 값이 바뀌면서 이 작업 자체가 취소된다.
         onCapturedOpened()
@@ -113,13 +121,18 @@ fun DongBudgetApp(container: AppContainer, capturedToOpen: String? = null, onCap
                     state = state,
                     updateVersion = updateVersion,
                     inbox = inbox,
+                    showInbox = showInbox,
+                    onShowInboxChange = { showInbox = it },
                     onOpenUpdate = { navigator.go(SettingsKey) },
                     onDismissUpdate = container.updateChecker::dismissBanner,
                     onPreviousMonth = viewModel::showPreviousMonth,
                     onNextMonth = viewModel::showNextMonth,
                     onAddTransaction = { navigator.go(TransactionEditorKey()) },
                     onEditTransaction = { id -> navigator.go(TransactionEditorKey(id)) },
-                    onOpenCaptured = { dedupKey -> scope.launch { openCaptured(dedupKey, container.paymentCapture, navigator, context) } },
+                    onOpenCaptured = { dedupKey ->
+                        showInbox = false
+                        scope.launch { openCaptured(dedupKey, container.paymentCapture, navigator, context) }
+                    },
                     onMarkAllRead = viewModel::markAllRead,
                     onOpenCategories = { navigator.go(CategoryManageKey) },
                     onOpenStatistics = { navigator.go(StatisticsKey) },
@@ -236,20 +249,16 @@ private fun modalTransitions(): Map<String, Any> = NavDisplay.transitionSpec {
 
 /**
  * 결제 등록 알림을 연다. 알림창의 알림을 눌렀을 때와 홈 알림 목록에서 눌렀을 때 똑같이 동작한다.
- * 연 결제는 읽은 것으로 적는다. 이미 등록한 결제면 등록창을 열지 않고 알려주며 묻던 알림을 치운다.
+ * 이미 등록한 결제면 등록창을 열지 않고 알려준다(PaymentCapture.open).
  */
 private suspend fun openCaptured(dedupKey: String, capture: PaymentCapture, navigator: Navigator, context: Context) {
-    val payment = withContext(Dispatchers.IO) { capture.find(dedupKey)?.also { capture.markRead(dedupKey) } }
-    when {
-        // 보관 기간이 지나 채울 내용이 없다. 알림창의 알림은 그때 저절로 사라지므로 주로 오래 열어 둔 알림 목록에서 온다.
-        payment == null -> Toast.makeText(context, EXPIRED_CAPTURE_MESSAGE, Toast.LENGTH_SHORT).show()
+    when (val opened = withContext(Dispatchers.IO) { capture.open(dedupKey) }) {
+        // 보관 기간이 지나 채울 내용이 없다. 알림창의 알림은 그때 저절로 사라지므로 드물다.
+        PaymentCapture.OpenResult.Expired -> Toast.makeText(context, EXPIRED_CAPTURE_MESSAGE, Toast.LENGTH_SHORT).show()
 
-        capture.alreadyRegistered(dedupKey) -> {
-            capture.onRegistered(dedupKey)
-            Toast.makeText(context, ALREADY_REGISTERED_MESSAGE, Toast.LENGTH_SHORT).show()
-        }
+        PaymentCapture.OpenResult.AlreadyRegistered -> Toast.makeText(context, ALREADY_REGISTERED_MESSAGE, Toast.LENGTH_SHORT).show()
 
-        else -> navigator.go(TransactionEditorKey(prefill = payment.toPrefill()))
+        is PaymentCapture.OpenResult.Editor -> navigator.go(TransactionEditorKey(prefill = opened.payment.toPrefill()))
     }
 }
 

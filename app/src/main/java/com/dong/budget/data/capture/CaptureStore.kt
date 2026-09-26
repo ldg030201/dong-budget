@@ -31,8 +31,8 @@ class CaptureStore(private val prefs: SharedPreferences, private val now: () -> 
     private val revision = MutableStateFlow(0)
 
     /**
-     * 기록을 바꿀 때마다 오르는 번호. 알림 목록이 이것을 보고 [records] 를 다시 읽는다.
-     * 지난 기록을 치울 때는 올리지 않는다. 지난 기록은 치우기 전에도 어디에도 보이지 않는다.
+     * 기록을 바꾸거나 지난 기록을 치울 때마다 오르는 번호. 알림 목록이 이것을 보고 [records] 를 다시 읽는다.
+     * 켜 둔 알림 목록에 남아 있던 지난 기록도 치울 때 함께 빠진다.
      */
     val changes: StateFlow<Int> = revision.asStateFlow()
 
@@ -79,11 +79,13 @@ class CaptureStore(private val prefs: SharedPreferences, private val now: () -> 
 
     /**
      * 모두 읽음. 등록하지 않겠다는 뜻이라 모두 답한 것으로도 적는다(다시 띄우지 않는다).
+     * @param dedupKeys 알림 목록에 보이던 결제. 누르는 사이 새로 들어와 아직 못 본 결제는 건드리지 않는다.
      * @return 이번에 답한 것으로 바뀐 결제의 열쇠. 그 묻는 알림은 아직 알림창에 떠 있을 수 있어 부르는 쪽이 치운다.
      */
     @Synchronized
-    fun markAllRead(): List<String> {
-        val changed = liveEntries().filterNot { it.answered && it.read }
+    fun markAllRead(dedupKeys: Collection<String>): List<String> {
+        val keys = dedupKeys.toSet()
+        val changed = liveEntries().filter { it.payment.dedupKey in keys && !(it.answered && it.read) }
         if (changed.isEmpty()) return emptyList()
         prefs.edit {
             changed.forEach { putString(KEY_PREFIX + it.payment.dedupKey, json.encodeToString(it.copy(answered = true, read = true))) }
@@ -106,7 +108,14 @@ class CaptureStore(private val prefs: SharedPreferences, private val now: () -> 
         revision.update { it + 1 }
     }
 
-    private fun entry(dedupKey: String): Entry? = prefs.getString(KEY_PREFIX + dedupKey, null)?.let(::decode)?.takeUnless(::isExpired)
+    /** 기록 하나를 찾는다. 지났으면 그 자리에서 치운다. 켜 둔 알림 목록에서도 빠지게 하기 위함이다. */
+    private fun entry(dedupKey: String): Entry? {
+        val entry = prefs.getString(KEY_PREFIX + dedupKey, null)?.let(::decode) ?: return null
+        if (!isExpired(entry)) return entry
+        prefs.edit { remove(KEY_PREFIX + dedupKey) }
+        revision.update { it + 1 }
+        return null
+    }
 
     /** 기록을 모두 한 번에 읽는다. 지난 기록과 읽을 수 없는 기록(형식이 바뀐 옛 기록 등)은 이때 지운다. */
     private fun liveEntries(): List<Entry> {
@@ -117,7 +126,10 @@ class CaptureStore(private val prefs: SharedPreferences, private val now: () -> 
             val entry = (value as? String)?.let(::decode)
             if (entry == null || isExpired(entry)) dead += key else live += entry
         }
-        if (dead.isNotEmpty()) prefs.edit { dead.forEach(::remove) }
+        if (dead.isNotEmpty()) {
+            prefs.edit { dead.forEach(::remove) }
+            revision.update { it + 1 }
+        }
         return live
     }
 

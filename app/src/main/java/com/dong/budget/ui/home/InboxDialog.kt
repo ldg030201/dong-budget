@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -22,6 +23,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -73,13 +76,14 @@ internal fun InboxButton(hasNew: Boolean, onClick: () -> Unit) {
  *
  * @param today 알림이 온 때를 '오늘'·'어제' 로 적을 기준
  * @param onOpen 누른 결제의 열쇠를 넘긴다. 창은 부르는 쪽이 닫는다.
+ * @param onMarkAllRead 목록에 보이는 결제의 열쇠를 넘긴다. 누르는 사이 새로 온 결제까지 쓸어 가지 않게 하기 위함이다.
  */
 @Composable
 internal fun InboxDialog(
     items: List<InboxItem>,
     today: LocalDate,
     onOpen: (dedupKey: String) -> Unit,
-    onMarkAllRead: () -> Unit,
+    onMarkAllRead: (dedupKeys: List<String>) -> Unit,
     onDismiss: () -> Unit,
 ) {
     Dialog(onDismissRequest = onDismiss) {
@@ -109,7 +113,13 @@ internal fun InboxDialog(
                             color = BudgetTheme.colors.textSecondary,
                         )
                     }
-                    BudgetTextButton(text = "모두 읽음", onClick = onMarkAllRead, enabled = items.any { it.isNew })
+                    BudgetTextButton(
+                        text = "모두 읽음",
+                        onClick = { onMarkAllRead(items.map { it.payment.dedupKey }) },
+                        enabled = items.any { it.isNew },
+                        // 다크의 primary 는 채움용이라 어두운 바탕 위 글자로는 대비가 모자라다
+                        color = BudgetTheme.colors.brandText,
+                    )
                 }
                 Spacer(Modifier.height(BudgetTheme.spacing.itemGap))
                 if (items.isEmpty()) {
@@ -123,8 +133,20 @@ internal fun InboxDialog(
                             .padding(vertical = BudgetTheme.spacing.sectionGap),
                     )
                 } else {
+                    val listState = rememberLazyListState()
+                    // 줄마다 열쇠를 주면 목록은 보던 줄을 따라간다. 창을 연 채 새 결제가 맨 위에 들어오면 새 줄이
+                    // 창 위쪽 밖에 숨어, 못 본 채 '모두 읽음' 에 함께 쓸려 갈 수 있다. 맨 위를 보던 중이면 맨 위에 머문다.
+                    remember(items.first().payment.dedupKey) {
+                        // 스크롤할 때마다 이 자리가 다시 그려지지 않게 위치를 읽은 것으로 치지 않는다
+                        Snapshot.withoutReadObservation {
+                            if (listState.firstVisibleItemIndex == 0 && listState.firstVisibleItemScrollOffset == 0) {
+                                listState.requestScrollToItem(0)
+                            }
+                        }
+                    }
                     // 알림이 많아 창에 다 안 들어가면 목록만 스크롤한다. 닫기 버튼은 항상 아래에 보이게 둔다.
                     LazyColumn(
+                        state = listState,
                         modifier = Modifier.weight(1f, fill = false),
                         contentPadding = PaddingValues(horizontal = BudgetTheme.spacing.inlineGap),
                         verticalArrangement = Arrangement.spacedBy(BudgetTheme.spacing.tightGap),

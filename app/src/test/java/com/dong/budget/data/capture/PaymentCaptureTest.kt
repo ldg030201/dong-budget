@@ -2,9 +2,11 @@ package com.dong.budget.data.capture
 
 import com.dong.budget.testing.FakePreferences
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
@@ -179,18 +181,94 @@ class PaymentCaptureTest {
         val (swiped, opened, untouched) = prompt.asked.map { it.dedupKey }
         capture.onPromptDismissed(swiped)
         capture.markRead(opened)
+        val shown = listOf(swiped, opened, untouched)
 
-        capture.markAllRead()
+        capture.markAllRead(shown)
 
-        assertTrue(capture.records.first().all { it.read })
+        // 목록에서 지우지 않는다. 보관 기간 동안 남아 나중에 눌러 등록할 수 있다.
+        assertEquals(listOf(true, true, true), capture.records.first().map { it.read })
+        assertEquals(prompt.asked.last(), capture.find(untouched))
         // 밀어 지운 알림은 이미 알림창에 없다. 나머지 둘만 치운다.
         assertEquals(setOf(opened, untouched), prompt.dismissed.toSet())
         capture.restorePrompts(showing = emptySet())
         assertTrue(prompt.restored.isEmpty())
         // 다시 눌러도 치울 것이 없다
         prompt.dismissed.clear()
-        capture.markAllRead()
+        capture.markAllRead(shown)
         assertTrue(prompt.dismissed.isEmpty())
+    }
+
+    @Test
+    fun `모두 읽음은 목록에 보이던 결제만 처리한다`() = runBlocking {
+        val capture = capture()
+        capture.post(text = "하나카드 | 가게1(일시불)", at = clock - 1_000)
+        val shown = prompt.asked.single().dedupKey
+        // 모두 읽음을 누르는 사이 새 결제가 들어왔다
+        capture.post(text = "하나카드 | 가게2(일시불)")
+        val arrived = prompt.asked.last().dedupKey
+
+        capture.markAllRead(listOf(shown))
+
+        assertEquals(listOf(arrived to false, shown to true), capture.records.first().map { it.payment.dedupKey to it.read })
+        assertEquals(listOf(shown), prompt.dismissed)
+    }
+
+    @Test
+    fun `알림을 누르면 읽은 것으로 적고 등록창에 채울 결제를 준다`() = runBlocking {
+        val capture = capture()
+        capture.post()
+        val payment = prompt.asked.single()
+
+        assertEquals(PaymentCapture.OpenResult.Editor(payment), capture.open(payment.dedupKey))
+
+        assertTrue(capture.records.first().single().read)
+        // 등록창을 열었다가 그냥 닫을 수 있으니 묻는 알림은 남긴다
+        assertTrue(prompt.dismissed.isEmpty())
+    }
+
+    @Test
+    fun `이미 등록한 결제를 누르면 등록창 대신 묻던 알림을 치운다`() = runBlocking {
+        val capture = capture()
+        capture.post()
+        val key = prompt.asked.single().dedupKey
+        registered += key
+
+        assertEquals(PaymentCapture.OpenResult.AlreadyRegistered, capture.open(key))
+
+        assertEquals(listOf(key), prompt.dismissed)
+        assertTrue(capture.records.first().single().read)
+    }
+
+    @Test
+    fun `보관 기간이 지난 결제를 누르면 열 수 없고 켜 둔 목록에서도 빠진다`() = runBlocking {
+        val capture = capture()
+        val sizes = Channel<Int>(Channel.UNLIMITED)
+        val job = launch(Dispatchers.Unconfined) { capture.records.collect { sizes.send(it.size) } }
+        assertEquals(0, sizes.receive())
+        capture.post()
+        assertEquals(1, sizes.receive())
+        val key = prompt.asked.single().dedupKey
+
+        clock += CaptureStore.RETENTION_MS + 1
+        assertEquals(PaymentCapture.OpenResult.Expired, capture.open(key))
+
+        assertEquals(0, withTimeout(5_000) { sizes.receive() })
+        job.cancel()
+    }
+
+    @Test
+    fun `보관 기간이 끝나면 아무것도 누르지 않아도 알림 목록에서 빠진다`() = runBlocking {
+        val capture = capture()
+        // 50ms 뒤에 보관 기간이 끝나는 결제
+        capture.post(at = clock - CaptureStore.RETENTION_MS + 50)
+        val sizes = Channel<Int>(Channel.UNLIMITED)
+        val job = launch(Dispatchers.Unconfined) { capture.records.collect { sizes.send(it.size) } }
+        assertEquals(1, sizes.receive())
+
+        // 기록은 그대로인 채 시간만 흐른다. 목록은 보관 기간이 끝나는 때에 맞춰 다시 읽는다.
+        clock += 100
+        assertEquals(0, withTimeout(5_000) { sizes.receive() })
+        job.cancel()
     }
 
     @Test
