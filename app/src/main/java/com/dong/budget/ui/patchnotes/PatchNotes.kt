@@ -71,7 +71,7 @@ val PATCH_NOTES: List<Release> =
     listOf(
         Release(
             version = "1.1.0",
-            date = null,
+            date = LocalDate.of(2026, 9, 27),
             menus =
             listOf(
                 menu(
@@ -83,6 +83,15 @@ val PATCH_NOTES: List<Release> =
                 menu(
                     PatchMenu.PATCH_NOTES,
                     improved("버전을 눌러 바뀐 점을 접고 펼칠 수 있어요. 처음에는 가장 최근 버전만 펼쳐져 있어요"),
+                ),
+                menu(
+                    PatchMenu.SETTINGS,
+                    improved("어두운 화면에서 업데이트 부분의 글자 버튼('받은 파일로 설치', '브라우저에서 받기')이 더 잘 보여요"),
+                ),
+                menu(
+                    PatchMenu.COMMON,
+                    improved("화면 읽기(TalkBack)에서 화면 제목으로 바로 건너뛸 수 있어요"),
+                    fixed("가로 화면에서 버튼과 글자가 옆의 시스템 버튼 줄이나 카메라 구멍에 가려지던 문제를 고쳤어요"),
                 ),
             ),
         ),
