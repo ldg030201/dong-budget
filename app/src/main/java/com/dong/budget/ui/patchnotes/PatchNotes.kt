@@ -70,13 +70,14 @@ private fun menu(menu: PatchMenu, vararg changes: Change) = MenuChanges(menu, ch
 val PATCH_NOTES: List<Release> =
     listOf(
         Release(
-            version = "0.1.8",
-            date = null,
+            version = "1.0.0",
+            date = LocalDate.of(2026, 9, 26),
             menus =
             listOf(
                 menu(
                     PatchMenu.EDITOR,
                     improved("삭제 버튼을 누르기 쉽게 키웠어요"),
+                    improved("이미 등록한 결제라고 알려줄 때 묻던 알림도 함께 치워요"),
                     fixed("등록하기를 빠르게 여러 번 누르면 같은 거래가 두 번 저장되던 문제를 고쳤어요"),
                     fixed("가게 이름 앞뒤에 빈칸이 들어가면 지난번에 고른 분류를 찾지 못하던 문제를 고쳤어요"),
                     fixed("분류나 결제수단을 추가한 뒤 화면을 돌리거나 테마가 바뀌면 열어 둔 선택판이 저절로 닫히던 문제를 고쳤어요"),
@@ -96,6 +97,7 @@ val PATCH_NOTES: List<Release> =
                     PatchMenu.SETTINGS,
                     improved("업데이트 부분을 간단하게 정리했어요. 큰 버튼은 설치 버튼 하나만 두고, 다른 설치 방법은 글자 버튼으로 줄였어요"),
                     improved("화면 테마 버튼에 아이콘을 달았어요"),
+                    improved("앱을 열 때 받아 둔 새 버전 정보를 패치노트도 같이 써서, 패치노트를 열 때 다시 확인하지 않아요"),
                     fixed("새 버전이 보이는 동안 더 새 버전이 나와도 다시 확인할 수 없던 문제를 고쳤어요. 버전 옆 '업데이트 확인'을 언제든 누를 수 있어요"),
                     fixed("이미 지난 업데이트 정보나 지난번 설치 실패가 계속 보이던 문제를 고쳤어요"),
                     fixed("업데이트를 받는 동안 다른 앱으로 가면 설치 확인창이 뜨지 않던 문제를 고쳤어요. 앱으로 돌아오면 이어서 떠요"),
@@ -104,6 +106,7 @@ val PATCH_NOTES: List<Release> =
                 menu(
                     PatchMenu.COMMON,
                     improved("화면 읽기(TalkBack)로도 분류 순서를 바꿀 수 있고, 저장되지 않은 이유와 지금 고른 항목을 읽어줘요"),
+                    improved("계속 떠 있는 알림(음악, 길 안내, 내려받기 진행률 등)은 읽지 않아 배터리를 덜 써요"),
                     fixed("뒤로·닫기 버튼을 빠르게 두 번 누르면 앱이 꺼지던 문제를 고쳤어요"),
                 ),
             ),
