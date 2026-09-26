@@ -18,6 +18,40 @@ class TossPaymentParserTest {
     }
 
     @Test
+    fun `토스뱅크 카드의 결제 완료 알림도 읽는다`() {
+        // 2026-09-27 에 받은 실제 알림. 둘째 줄의 혜택 안내는 읽지 않는다.
+        val payment =
+            TossPaymentParser.parse("15,000원 결제 완료", "토스뱅크 ・ 구글페이먼트코리아 유한회사\n결제한 돈 일부를 돌려받을 수 있어요.", postedAt)!!
+        assertEquals(15_000L, payment.amount)
+        assertEquals("토스뱅크", payment.paymentName)
+        assertEquals("구글페이먼트코리아 유한회사", payment.merchant)
+    }
+
+    @Test
+    fun `똑같아 보이는 가운뎃점은 모두 구분자로 읽는다`() {
+        listOf("・", "･", "·", "•", "\u00A0・\u00A0").forEach { dot ->
+            val payment = TossPaymentParser.parse("15,000원 결제 완료", "토스뱅크${if (dot.length == 1) " $dot " else dot}가게", postedAt)!!
+            assertEquals("[$dot]", "토스뱅크", payment.paymentName)
+            assertEquals("[$dot]", "가게", payment.merchant)
+        }
+    }
+
+    @Test
+    fun `가게 이름 안에 붙은 가운뎃점은 자르지 않는다`() {
+        val payment = TossPaymentParser.parse("15,000원 결제 완료", "토스뱅크 ・ 스타벅스·강남점", postedAt)!!
+        assertEquals("토스뱅크", payment.paymentName)
+        assertEquals("스타벅스·강남점", payment.merchant)
+        // 빈칸 없이 붙은 가운뎃점만 있으면 나누지 않고 가게로 본다
+        val noCard = TossPaymentParser.parse("5,000원 결제", "커피·빵", postedAt)!!
+        assertNull(noCard.paymentName)
+        assertEquals("커피·빵", noCard.merchant)
+        // '|' 가 있으면 그쪽으로 나눈다(원래 모양)
+        val pipe = TossPaymentParser.parse("5,000원 결제", "하나카드 | 빵 · 커피", postedAt)!!
+        assertEquals("하나카드", pipe.paymentName)
+        assertEquals("빵 · 커피", pipe.merchant)
+    }
+
+    @Test
     fun `할부는 개월 수를 따로 빼낸다`() {
         val payment = TossPaymentParser.parse("1,200,000원 결제", "하나카드 | 전자랜드(12개월)", postedAt)!!
         assertEquals("전자랜드", payment.merchant)
@@ -66,6 +100,8 @@ class TossPaymentParserTest {
     fun `모르는 모양의 알림은 읽지 않는다`() {
         // 결제 취소, 입금, 다른 문구가 붙은 제목은 결제로 잘못 읽으면 안 된다
         assertNull(TossPaymentParser.parse("133,500원 결제 취소", "하나카드 | 비비큐", postedAt))
+        assertNull(TossPaymentParser.parse("15,000원 결제 취소 완료", "토스뱅크 ・ 가게", postedAt))
+        assertNull(TossPaymentParser.parse("15,000원 결제 완료됨", "토스뱅크 ・ 가게", postedAt))
         assertNull(TossPaymentParser.parse("50,000원 입금", "홍길동", postedAt))
         assertNull(TossPaymentParser.parse("토스뱅크", "133,500원 결제", postedAt))
         assertNull(TossPaymentParser.parse("0원 결제", "하나카드 | 가게", postedAt))
