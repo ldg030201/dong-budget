@@ -24,7 +24,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.dong.budget.ui.home.HomeScreen
 import com.dong.budget.ui.home.HomeUiState
-import com.dong.budget.ui.home.InboxItem
 import com.dong.budget.ui.home.MoreScreen
 import com.dong.budget.ui.theme.BudgetTheme
 
@@ -48,17 +47,14 @@ enum class ShellTab(val label: String, val icon: ImageVector) {
 fun HomeShell(
     state: HomeUiState,
     updateVersion: String?,
-    inbox: List<InboxItem>?,
-    showInbox: Boolean,
-    onShowInboxChange: (Boolean) -> Unit,
+    hasNewNotice: Boolean,
     onOpenUpdate: () -> Unit,
     onDismissUpdate: () -> Unit,
     onPreviousMonth: () -> Unit,
     onNextMonth: () -> Unit,
     onAddTransaction: () -> Unit,
     onEditTransaction: (Long) -> Unit,
-    onOpenCaptured: (dedupKey: String) -> Unit,
-    onMarkAllRead: (dedupKeys: List<String>) -> Unit,
+    onOpenInbox: () -> Unit,
     onOpenCategories: () -> Unit,
     onOpenStatistics: () -> Unit,
     onOpenSettings: () -> Unit,
@@ -104,17 +100,14 @@ fun HomeShell(
                         HomeScreen(
                             state = state,
                             updateVersion = updateVersion,
-                            inbox = inbox,
-                            showInbox = showInbox,
-                            onShowInboxChange = onShowInboxChange,
+                            hasNewNotice = hasNewNotice,
                             onOpenUpdate = onOpenUpdate,
                             onDismissUpdate = onDismissUpdate,
                             onPreviousMonth = onPreviousMonth,
                             onNextMonth = onNextMonth,
                             onAddTransaction = onAddTransaction,
                             onEditTransaction = onEditTransaction,
-                            onOpenCaptured = onOpenCaptured,
-                            onMarkAllRead = onMarkAllRead,
+                            onOpenInbox = onOpenInbox,
                         )
 
                     ShellTab.MORE ->

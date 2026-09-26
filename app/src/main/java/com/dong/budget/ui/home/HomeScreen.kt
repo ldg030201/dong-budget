@@ -33,6 +33,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.filled.KeyboardArrowRight
+import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
@@ -65,6 +66,7 @@ import com.dong.budget.ui.components.BudgetDivider
 import com.dong.budget.ui.components.BudgetIconButton
 import com.dong.budget.ui.components.BudgetListItem
 import com.dong.budget.ui.components.CategoryBadge
+import com.dong.budget.ui.components.NoticeDot
 import com.dong.budget.ui.components.sectionBlock
 import com.dong.budget.ui.format.formatDayHeader
 import com.dong.budget.ui.format.formatMonth
@@ -83,29 +85,24 @@ import java.time.YearMonth
  * 첫 화면에 달력과 함께 최근 거래가 두세 개 보이고, 아래로 내리면 나머지 거래가 이어진다.
  * 달력이 스크롤로 사라지면 한 주 줄([WeekStrip])이 위에 붙는다.
  * 달력이나 한 주 줄에서 날짜를 누르면 목록이 그날로 스크롤된다.
- * 오른쪽 위 종을 누르면 그동안 온 결제 등록 알림을 모아 본다([InboxDialog]).
+ * 오른쪽 위 종을 누르면 그동안 온 결제 등록 알림을 모아 보는 알림 화면으로 간다.
  *
  * 상단 인셋은 이 화면이 직접 처리한다. 셸의 Scaffold 는 인셋을 비워둔다.
  *
- * @param inbox 알림 목록. 최근 것부터. 아직 불러오기 전이면 null
- * @param showInbox 알림 목록 창을 띄울지. 알림창의 알림을 눌러 들어올 때도 닫아야 해서 바깥(DongBudgetApp)이 들고 있다.
- * @param onOpenCaptured 알림 목록에서 누른 결제의 열쇠. 알림창의 알림을 누른 것과 똑같이 연다. 창은 부르는 쪽이 닫는다.
+ * @param hasNewNotice 아직 눌러 보지 않은 알림이 있는지. 종에 빨간 점을 찍는다.
  */
 @Composable
 fun HomeScreen(
     state: HomeUiState,
     updateVersion: String?,
-    inbox: List<InboxItem>?,
-    showInbox: Boolean,
-    onShowInboxChange: (Boolean) -> Unit,
+    hasNewNotice: Boolean,
     onOpenUpdate: () -> Unit,
     onDismissUpdate: () -> Unit,
     onPreviousMonth: () -> Unit,
     onNextMonth: () -> Unit,
     onAddTransaction: () -> Unit,
     onEditTransaction: (Long) -> Unit,
-    onOpenCaptured: (dedupKey: String) -> Unit,
-    onMarkAllRead: (dedupKeys: List<String>) -> Unit,
+    onOpenInbox: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Box(
@@ -120,8 +117,8 @@ fun HomeScreen(
                 month = state.month,
                 onPreviousMonth = onPreviousMonth,
                 onNextMonth = onNextMonth,
-                hasNewNotice = inbox?.any { it.isNew } == true,
-                onOpenInbox = { onShowInboxChange(true) },
+                hasNewNotice = hasNewNotice,
+                onOpenInbox = onOpenInbox,
             )
             // 새 버전이 있으면 달 선택 아래에 알림 줄을 둔다. 목록 안이 아니라 고정 자리에 두어
             // 달력을 누를 때 쓰는 목록 줄 번호가 흔들리지 않게 한다.
@@ -149,16 +146,6 @@ fun HomeScreen(
         ) {
             Icon(imageVector = Icons.Filled.Add, contentDescription = "거래 등록")
         }
-    }
-    // 목록을 불러오기 전에는 창을 띄우지 않는다. 앱이 다시 살아나 창이 되살아날 때 빈 목록이 잠깐 보이지 않게 한다.
-    if (showInbox && inbox != null) {
-        InboxDialog(
-            items = inbox,
-            today = state.today,
-            onOpen = onOpenCaptured,
-            onMarkAllRead = onMarkAllRead,
-            onDismiss = { onShowInboxChange(false) },
-        )
     }
 }
 
@@ -357,6 +344,23 @@ private fun MonthSelector(
         )
         Spacer(Modifier.weight(1f))
         InboxButton(hasNew = hasNewNotice, onClick = onOpenInbox)
+    }
+}
+
+/** 오른쪽 위의 종. 새 알림이 있으면 오른쪽 위에 빨간 점을 찍는다. */
+@Composable
+private fun InboxButton(hasNew: Boolean, onClick: () -> Unit) {
+    Box {
+        BudgetIconButton(
+            icon = Icons.Outlined.Notifications,
+            contentDescription = if (hasNew) "알림, 새 알림 있음" else "알림",
+            onClick = onClick,
+        )
+        if (hasNew) {
+            // 종 그림 칸의 오른쪽 위 모서리에 맞춘다
+            val inset = (BudgetTheme.size.minTouchTarget - BudgetTheme.size.icon) / 2
+            NoticeDot(Modifier.align(Alignment.TopEnd).padding(top = inset, end = inset))
+        }
     }
 }
 

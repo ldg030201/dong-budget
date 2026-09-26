@@ -55,3 +55,7 @@ data object SettingsKey : AppNavKey
 
 @Serializable
 data object PatchNotesKey : AppNavKey
+
+/** 홈 오른쪽 위 종으로 여는 알림 화면 */
+@Serializable
+data object InboxKey : AppNavKey
