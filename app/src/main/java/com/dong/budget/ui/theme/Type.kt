@@ -111,6 +111,10 @@ data class BudgetAmountTypography(
     val summary: TextStyle,
     /** 달력 칸 안의 작은 금액 */
     val calendar: TextStyle,
+    /** 차트 축 눈금 글자 */
+    val chartAxis: TextStyle,
+    /** 표와 요일 막대처럼 세로로 줄 맞춰 늘어놓는 금액 */
+    val tableCell: TextStyle,
 )
 
 private fun amount(size: Int, lineHeight: Int, weight: FontWeight) = TextStyle(
@@ -130,4 +134,6 @@ val DefaultAmountTypography =
         keypadDigit = amount(24, 30, FontWeight.SemiBold),
         summary = amount(22, 30, FontWeight.Bold),
         calendar = amount(11, 13, FontWeight.Normal),
+        chartAxis = amount(11, 14, FontWeight.Normal),
+        tableCell = amount(13, 20, FontWeight.Normal),
     )

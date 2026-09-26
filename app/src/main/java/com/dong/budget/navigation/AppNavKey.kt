@@ -47,8 +47,30 @@ data class TransactionEditorKey(val transactionId: Long? = null, val prefill: Ed
 @Serializable
 data object CategoryManageKey : AppNavKey
 
+/** 통계. 아래 메뉴의 '통계' 로 들어온다. 안에서 월별·일별·분류·결제수단으로 나뉜다. */
 @Serializable
 data object StatisticsKey : AppNavKey
+
+/** 통계 상세가 무엇을 모아 보는지 */
+@Serializable
+enum class StatsDimension {
+    /** 지출 분류 하나 */
+    EXPENSE_CATEGORY,
+
+    /** 수입 분류 하나 */
+    INCOME_CATEGORY,
+
+    /** 결제수단 하나(지출만) */
+    PAYMENT_METHOD,
+}
+
+/**
+ * 통계에서 분류나 결제수단 하나를 눌러 들어가는 상세.
+ * @property id 분류나 결제수단의 id. null 이면 '분류 없음' / '결제수단 없음'
+ * @property year 처음 보여 줄 달. 상세 안에서 달을 바꿔도 통계 본 화면의 달은 그대로다.
+ */
+@Serializable
+data class StatsDetailKey(val dimension: StatsDimension, val id: Long?, val year: Int, val month: Int) : AppNavKey
 
 @Serializable
 data object SettingsKey : AppNavKey

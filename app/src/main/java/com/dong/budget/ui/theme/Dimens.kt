@@ -44,6 +44,8 @@ data class BudgetRadius(
     val sheet: Dp = 24.dp,
     /** 칩, 작은 태그 */
     val chip: Dp = 10.dp,
+    /** 차트 범례의 작은 색 견본 */
+    val swatch: Dp = 2.dp,
     /** 완전한 원형 */
     val full: Dp = 999.dp,
 )
@@ -53,6 +55,8 @@ data class BudgetElevation(
     /** 기본값. 계층은 그림자가 아니라 배경색 차이로 표현한다 */
     val none: Dp = 0.dp,
     val fab: Dp = 6.dp,
+    /** 통계 아래 떠 있는 둥근 메뉴. fab 과 값은 같지만 뜻이 다르다 */
+    val floatingBar: Dp = 6.dp,
 )
 
 @Immutable
@@ -92,6 +96,43 @@ data class BudgetSize(
     val patchTagWidth: Dp = 64.dp,
     /** 새 알림이 있을 때 종 옆에 찍는 점 */
     val noticeDot: Dp = 8.dp,
+    /** 통계 아래 떠 있는 둥근 메뉴의 높이 */
+    val floatingBarHeight: Dp = 56.dp,
+    /** 떠 있는 메뉴의 최대 폭. 가로 화면이나 큰 화면에서 가운데에 이만큼만 선다 */
+    val floatingBarMaxWidth: Dp = 440.dp,
+)
+
+/** 통계 차트 치수. 막대는 굵어도 barMaxWidth 를 넘지 않고, 조각 사이는 gap 만큼 비운다 */
+@Immutable
+data class BudgetChartDimens(
+    /** 막대·선이 그려지는 영역의 높이. x축 글자 띠(axisBand)는 따로 더한다 */
+    val plotHeight: Dp = 160.dp,
+    /** 왼쪽 y축 글자 자리 */
+    val axisGutter: Dp = 36.dp,
+    /** 아래 x축 글자 띠 */
+    val axisBand: Dp = 20.dp,
+    val barMaxWidth: Dp = 24.dp,
+    /** 막대의 데이터 쪽 끝 둥근 정도. 바닥 쪽은 각지게 둔다 */
+    val barCorner: Dp = 4.dp,
+    /** 쌓은 조각 사이, 붙은 막대 사이의 빈틈 */
+    val gap: Dp = 2.dp,
+    val line: Dp = 2.dp,
+    /** 선 끝점 */
+    val marker: Dp = 8.dp,
+    /** 선 끝점 둘레의 바탕색 고리 */
+    val markerRing: Dp = 2.dp,
+    /** 범례 색 견본 */
+    val legendSwatch: Dp = 10.dp,
+    /** 도넛 지름과 두께 */
+    val donut: Dp = 144.dp,
+    val donutStroke: Dp = 20.dp,
+    /** 수입 대비 지출 미터 */
+    val meterHeight: Dp = 10.dp,
+    /** 목록 줄 아래 비율 막대 */
+    val shareBarHeight: Dp = 4.dp,
+    /** 요일별 가로 막대 */
+    val weekdayBarHeight: Dp = 12.dp,
+    val weekdayLabelWidth: Dp = 24.dp,
 )
 
 /** 화면 코드에서 참조하는 전체 토큰 묶음 */
@@ -102,6 +143,7 @@ data class BudgetTokens(
     val radius: BudgetRadius = BudgetRadius(),
     val elevation: BudgetElevation = BudgetElevation(),
     val size: BudgetSize = BudgetSize(),
+    val chart: BudgetChartDimens = BudgetChartDimens(),
     val amount: BudgetAmountTypography = DefaultAmountTypography,
     val categoryPalette: CategoryPalette = LightCategoryPalette,
 )
