@@ -54,7 +54,7 @@ class CaptureNotifier(private val context: Context) : CapturePrompt {
                 "${String.format(Locale.KOREA, "%,d", payment.amount)}원",
                 payment.merchant.ifBlank { null },
                 payment.paymentName,
-                payment.installmentMonths?.let { "${it}개월 할부" },
+                payment.installmentLabel,
             ).joinToString(" · ")
         val notification =
             NotificationCompat

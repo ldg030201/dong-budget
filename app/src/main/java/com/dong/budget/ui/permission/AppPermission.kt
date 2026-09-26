@@ -22,6 +22,7 @@ import androidx.core.net.toUri
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import com.dong.budget.data.capture.PaymentNotificationListener
 import com.dong.budget.data.update.GalaxyAutoBlocker
+import com.dong.budget.startFirst
 import com.dong.budget.ui.components.ConfirmDialog
 
 /**
@@ -106,7 +107,7 @@ enum class AppPermission(val title: String, private val baseMessage: String) {
     /** [extraLabel] 버튼을 눌렀을 때 */
     fun openExtra(context: Context) {
         when (this) {
-            READ_NOTIFICATIONS -> runCatching { context.startActivity(appInfoIntent(context)) }
+            READ_NOTIFICATIONS -> context.startFirst(listOf(appInfoIntent(context)))
             INSTALL_UPDATES -> GalaxyAutoBlocker.open(context)
             POST_NOTIFICATIONS -> Unit
         }
@@ -115,7 +116,7 @@ enum class AppPermission(val title: String, private val baseMessage: String) {
     /** 이 권한을 켜는 설정 화면들. 앞의 것이 안 열리면 다음 것을 연다. 동계부 항목이 바로 열리는 것을 앞에 둔다. */
     fun settingsIntents(context: Context): List<Intent> = when (this) {
         INSTALL_UPDATES ->
-            listOf(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, "package:${context.packageName}".toUri()))
+            listOf(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, packageUri(context)))
 
         READ_NOTIFICATIONS ->
             listOf(
@@ -140,11 +141,13 @@ private fun promptHistory(context: Context) =
 
 /** 설정 화면을 연다. 제조사가 해당 화면을 막아둔 기기에서는 동계부의 앱 정보 화면으로 대신 간다. */
 private fun openSettings(context: Context, permission: AppPermission) {
-    val candidates = permission.settingsIntents(context) + appInfoIntent(context)
-    candidates.firstOrNull { runCatching { context.startActivity(it) }.isSuccess }
+    context.startFirst(permission.settingsIntents(context) + appInfoIntent(context))
 }
 
-private fun appInfoIntent(context: Context) = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, "package:${context.packageName}".toUri())
+/** 동계부를 가리키는 주소. 설정 화면이 동계부 항목을 바로 열게 한다. */
+private fun packageUri(context: Context) = "package:${context.packageName}".toUri()
+
+private fun appInfoIntent(context: Context) = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, packageUri(context))
 
 /**
  * 권한 안내창.
@@ -156,12 +159,14 @@ private fun appInfoIntent(context: Context) = Intent(Settings.ACTION_APPLICATION
 fun PermissionDialog(permission: AppPermission, onGoToSettings: () -> Unit, onLater: () -> Unit, onRequest: ((String) -> Unit)? = null) {
     val context = LocalContext.current
     val activity = LocalActivity.current
+    // 다시 그릴 때마다 저장소를 찾지 않는다
+    val history = remember(context) { promptHistory(context) }
     val runtime = permission.runtimePermission
     val canPrompt =
         runtime != null &&
             onRequest != null &&
             activity != null &&
-            promptHistory(context).canPrompt(runtime, activity.shouldShowRequestPermissionRationale(runtime))
+            history.canPrompt(runtime, activity.shouldShowRequestPermissionRationale(runtime))
     ConfirmDialog(
         title = permission.title,
         message = permission.message,

@@ -22,14 +22,16 @@ import kotlinx.serialization.json.Json
 class CaptureStore(private val prefs: SharedPreferences, private val now: () -> Long = System::currentTimeMillis) {
     private val json = Json { ignoreUnknownKeys = true }
 
+    /** 이미 물어본 결제인지. 기록을 풀지 않고 열쇠만 본다. */
+    fun knows(dedupKey: String): Boolean = prefs.contains(KEY_PREFIX + dedupKey)
+
     /** 처음 보는 결제면 기록하고 true, 이미 물어본 결제면 false */
     @Synchronized
     fun remember(payment: CapturedPayment): Boolean {
-        val key = KEY_PREFIX + payment.dedupKey
         // 이미 물어본 결제는 여기서 바로 끝낸다. 정리(모든 기록을 읽어 푸는 일)는 새 기록을 넣을 때만 한다.
-        if (prefs.contains(key)) return false
-        prune()
-        prefs.edit { putString(key, json.encodeToString(Entry(payment))) }
+        if (knows(payment.dedupKey)) return false
+        liveEntries()
+        prefs.edit { putString(KEY_PREFIX + payment.dedupKey, json.encodeToString(Entry(payment))) }
         return true
     }
 
@@ -47,27 +49,21 @@ class CaptureStore(private val prefs: SharedPreferences, private val now: () -> 
 
     /** 물어봤지만 아직 답하지 않은 결제. 결제 시각 순. */
     @Synchronized
-    fun pending(): List<CapturedPayment> {
-        prune()
-        return prefs.all
-            .filterKeys { it.startsWith(KEY_PREFIX) }
-            .values
-            .mapNotNull { (it as? String)?.let(::decode) }
-            .filterNot { it.answered }
-            .map { it.payment }
-            .sortedBy { it.occurredAtMillis }
-    }
+    fun pending(): List<CapturedPayment> = liveEntries().filterNot { it.answered }.map { it.payment }.sortedBy { it.occurredAtMillis }
 
     private fun entry(dedupKey: String): Entry? = prefs.getString(KEY_PREFIX + dedupKey, null)?.let(::decode)?.takeUnless(::isExpired)
 
-    private fun prune() {
-        val expired =
-            prefs.all
-                .filter { (key, value) ->
-                    // 읽을 수 없는 기록(형식이 바뀐 옛 기록 등)도 지운다
-                    key.startsWith(KEY_PREFIX) && ((value as? String)?.let(::decode)?.let(::isExpired) ?: true)
-                }.keys
-        if (expired.isNotEmpty()) prefs.edit { expired.forEach(::remove) }
+    /** 기록을 모두 한 번에 읽는다. 지난 기록과 읽을 수 없는 기록(형식이 바뀐 옛 기록 등)은 이때 지운다. */
+    private fun liveEntries(): List<Entry> {
+        val live = mutableListOf<Entry>()
+        val dead = mutableListOf<String>()
+        prefs.all.forEach { (key, value) ->
+            if (!key.startsWith(KEY_PREFIX)) return@forEach
+            val entry = (value as? String)?.let(::decode)
+            if (entry == null || isExpired(entry)) dead += key else live += entry
+        }
+        if (dead.isNotEmpty()) prefs.edit { dead.forEach(::remove) }
+        return live
     }
 
     private fun isExpired(entry: Entry): Boolean = now() - entry.payment.occurredAtMillis > RETENTION_MS

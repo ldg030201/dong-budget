@@ -245,7 +245,7 @@ private fun CapturedPayment.toPrefill() = EditorPrefill(
     amount = amount,
     merchant = merchant,
     paymentName = paymentName,
-    memo = installmentMonths?.let { "${it}개월 할부" },
+    memo = installmentLabel,
     occurredAtMillis = occurredAtMillis,
     dedupKey = dedupKey,
 )

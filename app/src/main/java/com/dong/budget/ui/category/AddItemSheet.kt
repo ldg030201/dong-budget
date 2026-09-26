@@ -31,10 +31,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
@@ -198,7 +196,7 @@ private fun IconChoice(key: String, selected: Boolean, color: String, onClick: (
     )
 }
 
-/** 기타(회색)와 겹치지 않고 아직 안 쓴 색을 먼저 고른다 */
+/** 색 이름. 화면 읽기가 이 이름으로 읽어 준다. */
 private fun colorLabel(key: String): String = when (key) {
     "red" -> "빨강"
     "orange" -> "주황"
