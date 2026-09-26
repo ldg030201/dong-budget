@@ -8,15 +8,12 @@ import com.dong.budget.data.db.BudgetTime
 import com.dong.budget.data.db.TransactionListItem
 import com.dong.budget.ui.inbox.observeInbox
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import java.time.Clock
@@ -50,19 +47,9 @@ class HomeViewModel(
      */
     private val pickedMonth = MutableStateFlow<YearMonth?>(null)
 
-    /** 서울 기준 오늘. 구독하는 동안 자정마다 새 날짜를 내보낸다. 화면을 켜 둔 채 날이 바뀌어도 '오늘' 이 따라온다. */
-    private val today: Flow<LocalDate> =
-        flow {
-            while (true) {
-                val now = clock.instant()
-                emit(BudgetTime.toLocalDate(now))
-                delay(BudgetTime.millisUntilNextDay(now))
-            }
-        }.distinctUntilChanged()
-
     @OptIn(ExperimentalCoroutinesApi::class)
     val uiState: StateFlow<HomeUiState> =
-        combine(pickedMonth, today) { picked, now -> (picked ?: YearMonth.from(now)) to now }
+        combine(pickedMonth, BudgetTime.today(clock)) { picked, now -> (picked ?: YearMonth.from(now)) to now }
             .distinctUntilChanged()
             .flatMapLatest { (month, now) ->
                 // 지난달 비교에 지난달 거래도 필요하다

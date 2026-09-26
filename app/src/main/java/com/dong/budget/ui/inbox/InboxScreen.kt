@@ -26,7 +26,6 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import com.dong.budget.data.capture.CaptureStore
-import com.dong.budget.data.db.BudgetTime
 import com.dong.budget.ui.components.BudgetTextButton
 import com.dong.budget.ui.components.BudgetTopAppBar
 import com.dong.budget.ui.components.NoticeDot
@@ -45,18 +44,19 @@ import java.time.LocalDate
  * '모두 읽음' 은 새 알림 표시를 모두 없애고 알림창에 남은 묻는 알림도 치운다(PaymentCapture.markAllRead).
  *
  * @param items 최근 것부터. 아직 불러오기 전이면 null
+ * @param today 알림이 온 때를 '오늘'·'어제' 로 적을 기준
  * @param onOpen 누른 결제의 열쇠
  * @param onMarkAllRead 화면에 있는 결제의 열쇠를 넘긴다. 누르는 사이 새로 온 결제까지 쓸어 가지 않게 하기 위함이다.
  */
 @Composable
 fun InboxScreen(
     items: List<InboxItem>?,
+    today: LocalDate,
     onBack: () -> Unit,
     onOpen: (dedupKey: String) -> Unit,
     onMarkAllRead: (dedupKeys: List<String>) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val today = LocalDate.now(BudgetTime.ZONE)
     Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(modifier = Modifier.fillMaxSize()) {
             BudgetTopAppBar(
