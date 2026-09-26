@@ -1,5 +1,10 @@
 package com.dong.budget.data.db
 
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flow
+import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
@@ -45,4 +50,16 @@ object BudgetTime {
         val nextDay = toLocalDate(now).plusDays(1).atStartOfDay(ZONE).toInstant()
         return Duration.between(now, nextDay).toMillis().coerceAtLeast(1)
     }
+
+    /**
+     * 서울 기준 오늘. 구독하는 동안 자정마다 새 날짜를 내보낸다. 화면을 켜 둔 채 날이 바뀌어도 '오늘' 이 따라온다.
+     * 다시 구독하면 그때 날짜부터 다시 내보내므로, 밤새 뒤에 있다가 돌아와도 맞는 날짜가 된다.
+     */
+    fun today(clock: Clock): Flow<LocalDate> = flow {
+        while (true) {
+            val now = clock.instant()
+            emit(toLocalDate(now))
+            delay(millisUntilNextDay(now))
+        }
+    }.distinctUntilChanged()
 }

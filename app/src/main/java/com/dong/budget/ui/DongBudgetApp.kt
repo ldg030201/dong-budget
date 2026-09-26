@@ -13,8 +13,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.LifecycleStartEffect
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
@@ -208,11 +210,20 @@ fun DongBudgetApp(container: AppContainer, capturedToOpen: String? = null, onCap
             entry<InboxKey> {
                 val viewModel: InboxViewModel = viewModel(factory = inboxViewModelFactory(container))
                 val items by viewModel.items.collectAsStateWithLifecycle()
+                val today by viewModel.today.collectAsStateWithLifecycle()
+                // 전환 애니메이션(약 0.7초) 동안에는 거의 투명한 이 화면이 맨 위에서 터치를 받는다. 홈의 종을 연달아 누르면
+                // 두 번째 탭이 같은 자리의 '모두 읽음' 에 떨어져 알림창의 묻는 알림까지 치우므로, 자리 잡은 뒤(RESUMED)에만 받는다.
+                // 뒤로 나가는 중이나 등록창이 올라오는 중에 누른 줄도 같은 이유로 무시한다.
+                val lifecycle = LocalLifecycleOwner.current.lifecycle
+                val settled = { lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED) }
                 InboxScreen(
                     items = items,
+                    today = today,
                     onBack = navigator::goBack,
-                    onOpen = { dedupKey -> scope.launch { openCaptured(dedupKey, container.paymentCapture, navigator, context) } },
-                    onMarkAllRead = viewModel::markAllRead,
+                    onOpen = { dedupKey ->
+                        if (settled()) scope.launch { openCaptured(dedupKey, container.paymentCapture, navigator, context) }
+                    },
+                    onMarkAllRead = { dedupKeys -> if (settled()) viewModel.markAllRead(dedupKeys) },
                 )
             }
 
