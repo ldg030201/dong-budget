@@ -29,13 +29,7 @@ import com.dong.budget.ui.theme.BudgetTheme
  * 항목마다 색을 달리하되 옅은 원 안에만 칠한다. 글자와 배경은 그대로 둬서 요란하지 않게 한다.
  */
 @Composable
-fun MoreScreen(
-    onOpenCategories: () -> Unit,
-    onOpenStatistics: () -> Unit,
-    onOpenSettings: () -> Unit,
-    onOpenPatchNotes: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
+fun MoreScreen(onOpenCategories: () -> Unit, onOpenSettings: () -> Unit, onOpenPatchNotes: () -> Unit, modifier: Modifier = Modifier) {
     Column(modifier = modifier.fillMaxSize()) {
         // 설정은 목록이 아니라 제목 줄 오른쪽 위에 둔다. 메뉴가 늘어나도 자리를 찾기 쉽다.
         Row(
@@ -70,13 +64,7 @@ fun MoreScreen(
             color = "indigo",
             onClick = onOpenCategories,
         )
-        MenuItem(
-            title = "통계",
-            subtitle = "분류별로 얼마나 썼는지 봐요",
-            iconRes = R.drawable.ic_sym_bar_chart,
-            color = "teal",
-            onClick = onOpenStatistics,
-        )
+        // 통계는 여기 두지 않고 아래 메뉴에만 둔다. 같은 입구가 두 군데 있으면 어느 쪽으로 가야 하는지 헷갈린다.
         MenuItem(
             title = "패치노트",
             subtitle = "버전마다 바뀐 점을 봐요",

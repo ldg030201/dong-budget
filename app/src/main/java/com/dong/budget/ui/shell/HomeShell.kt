@@ -22,6 +22,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.vectorResource
+import com.dong.budget.R
 import com.dong.budget.ui.home.HomeScreen
 import com.dong.budget.ui.home.HomeUiState
 import com.dong.budget.ui.home.MoreScreen
@@ -42,6 +44,8 @@ enum class ShellTab(val label: String, val icon: ImageVector) {
  * 인셋 규칙: 여기서는 인셋을 비워두고 각 탭 화면이 상단 인셋을 직접 처리한다.
  * 콘텐츠가 상태바 아래까지 올라가 보이게 하려는 의도다.
  * 하단은 NavigationBar 가 자체적으로 처리한다.
+ *
+ * @param onOpenStatistics 아래 메뉴 가운데의 '통계'. 탭을 바꾸지 않고 통계 화면을 셸 위에 연다.
  */
 @Composable
 fun HomeShell(
@@ -73,21 +77,33 @@ fun HomeShell(
                 containerColor = MaterialTheme.colorScheme.background,
                 tonalElevation = BudgetTheme.elevation.none,
             ) {
+                val itemColors =
+                    NavigationBarItemDefaults.colors(
+                        selectedIconColor = MaterialTheme.colorScheme.primary,
+                        selectedTextColor = MaterialTheme.colorScheme.primary,
+                        unselectedIconColor = BudgetTheme.colors.textTertiary,
+                        unselectedTextColor = BudgetTheme.colors.textTertiary,
+                        indicatorColor = Color.Transparent,
+                    )
                 ShellTab.entries.forEach { tab ->
                     NavigationBarItem(
                         selected = tab == selectedTab,
                         onClick = { selectedTab = tab },
                         icon = { Icon(tab.icon, contentDescription = null) },
                         label = { Text(tab.label, style = MaterialTheme.typography.labelSmall) },
-                        colors =
-                        NavigationBarItemDefaults.colors(
-                            selectedIconColor = MaterialTheme.colorScheme.primary,
-                            selectedTextColor = MaterialTheme.colorScheme.primary,
-                            unselectedIconColor = BudgetTheme.colors.textTertiary,
-                            unselectedTextColor = BudgetTheme.colors.textTertiary,
-                            indicatorColor = Color.Transparent,
-                        ),
+                        colors = itemColors,
                     )
+                    // 통계는 탭이 아니라 입구다. 누르면 통계 화면이 셸 위로 올라오고, 이 칸은 고른 칸이 되지 않는다.
+                    // 그래서 ShellTab 에 넣지 않고 홈 바로 뒤에 끼운다.
+                    if (tab == ShellTab.HOME) {
+                        NavigationBarItem(
+                            selected = false,
+                            onClick = onOpenStatistics,
+                            icon = { Icon(ImageVector.vectorResource(R.drawable.ic_sym_bar_chart), contentDescription = null) },
+                            label = { Text("통계", style = MaterialTheme.typography.labelSmall) },
+                            colors = itemColors,
+                        )
+                    }
                 }
             }
         },
@@ -113,7 +129,6 @@ fun HomeShell(
                     ShellTab.MORE ->
                         MoreScreen(
                             onOpenCategories = onOpenCategories,
-                            onOpenStatistics = onOpenStatistics,
                             onOpenSettings = onOpenSettings,
                             onOpenPatchNotes = onOpenPatchNotes,
                         )
