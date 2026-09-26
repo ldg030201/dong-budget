@@ -53,7 +53,6 @@ data class BudgetElevation(
     /** 기본값. 계층은 그림자가 아니라 배경색 차이로 표현한다 */
     val none: Dp = 0.dp,
     val fab: Dp = 6.dp,
-    val sheet: Dp = 16.dp,
 )
 
 @Immutable

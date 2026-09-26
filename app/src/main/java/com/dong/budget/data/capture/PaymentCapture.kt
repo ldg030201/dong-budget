@@ -57,6 +57,9 @@ class PaymentCapture(
             titles.firstNotNullOfOrNull { title ->
                 texts.firstNotNullOfOrNull { text -> TossPaymentParser.parse(title, text, occurredAtMillis) }
             } ?: return false
+        // 이미 물어본 결제는 더 볼 것이 없다. 앱으로 돌아올 때마다 알림창에 남은 토스 알림을 다시 살피므로,
+        // 알림 권한·채널을 묻는 일(시스템 호출)보다 먼저 본다.
+        if (store.knows(payment.dedupKey)) return false
         // 알림을 보낼 수 없으면 기록하지 않는다. 나중에 알림을 허용한 뒤 다시 연결될 때 물을 수 있게 둔다.
         if (!prompt.canAsk()) return false
         if (!store.remember(payment)) return false

@@ -102,13 +102,9 @@ val BudgetTypography =
 @Immutable
 data class BudgetAmountTypography(
     /** 등록 화면 상단의 큰 금액 */
-    val hero: TextStyle,
-    /** 카드/요약의 강조 금액 */
     val large: TextStyle,
     /** 리스트 항목의 금액 */
     val medium: TextStyle,
-    /** 보조 금액 */
-    val small: TextStyle,
     /** 숫자 키패드의 숫자 */
     val keypadDigit: TextStyle,
     /** 홈 요약 칸의 이번 달 수입·지출 */
@@ -129,10 +125,8 @@ private fun amount(size: Int, lineHeight: Int, weight: FontWeight) = TextStyle(
 
 val DefaultAmountTypography =
     BudgetAmountTypography(
-        hero = amount(44, 52, FontWeight.Bold),
         large = amount(32, 40, FontWeight.Bold),
         medium = amount(17, 24, FontWeight.SemiBold),
-        small = amount(15, 22, FontWeight.SemiBold),
         keypadDigit = amount(24, 30, FontWeight.SemiBold),
         summary = amount(22, 30, FontWeight.Bold),
         calendar = amount(11, 13, FontWeight.Normal),

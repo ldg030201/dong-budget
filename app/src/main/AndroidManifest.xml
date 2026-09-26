@@ -65,6 +65,11 @@
             <intent-filter>
                 <action android:name="android.service.notification.NotificationListenerService" />
             </intent-filter>
+            <!-- 계속 떠 있는 알림(음악, 길 안내, 내려받기 진행률 등)은 받지 않는다. 결제 알림은 이런 알림이 아닌데,
+                 이런 알림은 갱신될 때마다 들어와서 버리는 것만으로도 일이 된다. -->
+            <meta-data
+                android:name="android.service.notification.default_filter_types"
+                android:value="conversations|alerting|silent" />
         </service>
 
         <!-- 설치 세션의 진행 상황을 받는다. 앱 내부에서만 쓰므로 외부에 열지 않는다. -->

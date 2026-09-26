@@ -21,7 +21,10 @@ data class CapturedPayment(
     val installmentMonths: Int?,
     val occurredAtMillis: Long,
     val dedupKey: String,
-)
+) {
+    /** 할부면 '3개월 할부'. 묻는 알림과 등록창 메모가 같은 말을 쓴다. */
+    val installmentLabel: String? get() = installmentMonths?.let { "${it}개월 할부" }
+}
 
 /**
  * 토스 결제 알림을 읽는다.

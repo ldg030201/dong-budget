@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.provider.Settings
+import com.dong.budget.startFirst
 
 /**
  * 갤럭시의 '보안 위험 자동 차단'(Auto Blocker) 설정.
@@ -27,10 +28,10 @@ object GalaxyAutoBlocker {
      * 1. One UI 7 이후: 자동 차단이 설정 앱에서 떨어져 나온 별도 앱의 설정 화면(스위치가 바로 보인다)
      * 2. 그 전 One UI: 설정 앱 안의 자동 차단 화면
      * 3. 그래도 안 되면 보안 설정 화면. 여기서 '보안 위험 자동 차단' 을 찾아 들어가면 된다.
-     *
-     * @return 어느 화면이든 열었는지
      */
-    fun open(context: Context): Boolean = candidates().any { runCatching { context.startActivity(it) }.isSuccess }
+    fun open(context: Context) {
+        context.startFirst(candidates())
+    }
 
     private fun candidates(): List<Intent> = listOf(
         Intent().setComponent(ComponentName("com.samsung.android.rampart", "com.samsung.android.rampart.ui.MainSettingActivity")),

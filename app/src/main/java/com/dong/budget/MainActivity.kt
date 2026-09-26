@@ -16,12 +16,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.toArgb
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dong.budget.data.capture.CaptureNotifier
-import com.dong.budget.data.settings.SettingsRepository
 import com.dong.budget.data.settings.ThemeMode
 import com.dong.budget.data.update.InstallEvents
 import com.dong.budget.ui.DongBudgetApp
@@ -37,8 +35,9 @@ class MainActivity : ComponentActivity() {
         // 화면 회전 등으로 다시 만들어질 때는 같은 Intent 가 또 들어온다. 등록창은 백스택에 이미 복원돼 있다.
         if (savedInstanceState == null) receiveCaptured(intent)
 
+        val container = (application as BudgetApplication).container
         setContent {
-            val settings = remember { SettingsRepository(applicationContext) }
+            val settings = container.settingsRepository
             // 저장값이 아직 도착하지 않은 동안에는 시스템 설정을 따른다.
             // XML 창 배경도 시스템 다크 모드를 따르므로 그동안 색이 어긋나지 않는다.
             val themeMode by settings.themeMode.collectAsStateWithLifecycle(initialValue = null)
@@ -60,20 +59,9 @@ class MainActivity : ComponentActivity() {
             // 명시적으로 넘기면 3버튼 내비게이션의 반투명 스크림도 함께 꺼지므로
             // window.isNavigationBarContrastEnforced 를 따로 건드릴 필요가 없다.
             LaunchedEffect(dark) {
-                enableEdgeToEdge(
-                    statusBarStyle =
-                    if (dark) {
-                        SystemBarStyle.dark(Color.TRANSPARENT)
-                    } else {
-                        SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT)
-                    },
-                    navigationBarStyle =
-                    if (dark) {
-                        SystemBarStyle.dark(Color.TRANSPARENT)
-                    } else {
-                        SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT)
-                    },
-                )
+                val style =
+                    if (dark) SystemBarStyle.dark(Color.TRANSPARENT) else SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT)
+                enableEdgeToEdge(statusBarStyle = style, navigationBarStyle = style)
             }
 
             BudgetTheme(darkTheme = dark) {
@@ -85,7 +73,7 @@ class MainActivity : ComponentActivity() {
                 Box(modifier = Modifier.fillMaxSize().background(background)) {
                     val captured by capturedToOpen.collectAsStateWithLifecycle()
                     DongBudgetApp(
-                        container = (application as BudgetApplication).container,
+                        container = container,
                         capturedToOpen = captured,
                         onCapturedOpened = { capturedToOpen.value = null },
                     )
