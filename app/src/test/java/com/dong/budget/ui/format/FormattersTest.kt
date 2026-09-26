@@ -9,6 +9,15 @@ import java.time.LocalDate
 
 class FormattersTest {
     @Test
+    fun `알림이 온 때는 오늘과 어제를 말로 적는다`() {
+        val today = LocalDate.of(2026, 9, 25)
+        fun at(text: String) = java.time.LocalDateTime.parse(text).atZone(com.dong.budget.data.db.BudgetTime.ZONE).toInstant()
+        assertEquals("오늘 오후 2:22", formatNoticeTime(at("2026-09-25T14:22"), today))
+        assertEquals("어제 오전 8:40", formatNoticeTime(at("2026-09-24T08:40"), today))
+        assertEquals("9월 23일 오후 3:00", formatNoticeTime(at("2026-09-23T15:00"), today))
+    }
+
+    @Test
     fun `만 원 아래는 그대로 쓴다`() {
         assertEquals("0원", formatCompactWon(0))
         assertEquals("8,500원", formatCompactWon(8_500))

@@ -1,7 +1,12 @@
 package com.dong.budget.data.capture
 
 import com.dong.budget.testing.FakePreferences
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -134,6 +139,82 @@ class PaymentCaptureTest {
     }
 
     @Test
+    fun `알림 목록은 최근 결제부터 보여주고, 누른 결제는 읽은 것으로 남는다`() = runBlocking {
+        val capture = capture()
+        capture.post(text = "하나카드 | 가게1(일시불)", at = clock - 2_000)
+        capture.post(text = "하나카드 | 가게2(일시불)", at = clock - 1_000)
+        val (older, newer) = prompt.asked.map { it.dedupKey }
+
+        assertEquals(listOf(newer, older), capture.records.first().map { it.payment.dedupKey })
+        assertTrue(capture.records.first().none { it.read })
+
+        capture.markRead(older)
+        assertEquals(listOf(false, true), capture.records.first().map { it.read })
+        // 앱이 다시 켜져도 기억한다
+        assertEquals(listOf(false, true), capture().records.first().map { it.read })
+    }
+
+    @Test
+    fun `알림창에서 밀어 지운 결제는 목록에 새 알림으로 남는다`() = runBlocking {
+        val capture = capture()
+        capture.post()
+        capture.onPromptDismissed(prompt.asked.single().dedupKey)
+        assertFalse(capture.records.first().single().read)
+    }
+
+    @Test
+    fun `등록을 마친 결제는 읽은 것이 된다`() = runBlocking {
+        val capture = capture()
+        capture.post()
+        capture.onRegistered(prompt.asked.single().dedupKey)
+        assertTrue(capture.records.first().single().read)
+    }
+
+    @Test
+    fun `모두 읽음은 알림창에 남은 묻는 알림을 치우고 다시 띄우지 않는다`() = runBlocking {
+        val capture = capture()
+        capture.post(text = "하나카드 | 가게1(일시불)")
+        capture.post(text = "하나카드 | 가게2(일시불)")
+        capture.post(text = "하나카드 | 가게3(일시불)")
+        val (swiped, opened, untouched) = prompt.asked.map { it.dedupKey }
+        capture.onPromptDismissed(swiped)
+        capture.markRead(opened)
+
+        capture.markAllRead()
+
+        assertTrue(capture.records.first().all { it.read })
+        // 밀어 지운 알림은 이미 알림창에 없다. 나머지 둘만 치운다.
+        assertEquals(setOf(opened, untouched), prompt.dismissed.toSet())
+        capture.restorePrompts(showing = emptySet())
+        assertTrue(prompt.restored.isEmpty())
+        // 다시 눌러도 치울 것이 없다
+        prompt.dismissed.clear()
+        capture.markAllRead()
+        assertTrue(prompt.dismissed.isEmpty())
+    }
+
+    @Test
+    fun `읽음 표시가 없던 옛 기록은 새 알림으로 읽힌다`() = runBlocking {
+        val payment = TossPaymentParser.parse("133,500원 결제", "하나카드 | 비비큐 강동밀레니얼점(일시불)", clock)!!
+        // 1.0.0 이 남긴 기록 모양
+        prefs.edit().putString("prompted:${payment.dedupKey}", Json.encodeToString(OldEntry(payment, dismissed = true))).apply()
+        val record = capture().records.first().single()
+        assertEquals(payment, record.payment)
+        assertFalse(record.read)
+    }
+
+    @Test
+    fun `기록이 바뀌면 알림 목록을 다시 읽는다`() = runBlocking {
+        val capture = capture()
+        val seen = mutableListOf<Int>()
+        val job = launch(Dispatchers.Unconfined) { capture.records.collect { seen += it.size } }
+        capture.post()
+        capture.markRead(prompt.asked.single().dedupKey)
+        job.cancel()
+        assertEquals(listOf(0, 1, 1), seen)
+    }
+
+    @Test
     fun `결제 시각은 알림에 적힌 시각을 쓰고, 어긋나면 올라온 시각을 쓴다`() {
         val posted = clock
         assertEquals(posted - 5_000, PaymentCapture.paymentTime(posted - 5_000, posted))
@@ -149,6 +230,10 @@ class PaymentCaptureTest {
         assertFalse(PaymentCapture.isSource("com.kakao.talk"))
         assertFalse(PaymentCapture.isSource(null))
     }
+
+    /** 1.0.0 의 기록. 읽음 표시(read)가 없다. */
+    @Serializable
+    private data class OldEntry(val payment: CapturedPayment, val dismissed: Boolean)
 
     private class FakePrompt : CapturePrompt {
         var allowed = true

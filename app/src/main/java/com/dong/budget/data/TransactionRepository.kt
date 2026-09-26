@@ -6,6 +6,8 @@ import com.dong.budget.data.db.TransactionEntity
 import com.dong.budget.data.db.TransactionListItem
 import com.dong.budget.data.db.TransactionType
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 import java.time.Instant
 import java.time.YearMonth
 import java.util.UUID
@@ -32,6 +34,10 @@ class TransactionRepository(private val transactionDao: TransactionDao) {
 
     /** 알림에서 읽은 결제가 이미 등록됐는지 */
     suspend fun isRegistered(dedupKey: String): Boolean = transactionDao.existsByDedupKey(dedupKey)
+
+    /** [keys] 중 이미 등록된 결제의 열쇠. 등록하거나 지우면 새로 내보낸다. */
+    fun observeRegisteredKeys(keys: List<String>): Flow<Set<String>> =
+        if (keys.isEmpty()) flowOf(emptySet()) else transactionDao.observeRegisteredKeys(keys).map { it.toSet() }
 
     /**
      * 거래를 저장한다.
