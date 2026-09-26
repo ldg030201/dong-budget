@@ -104,6 +104,7 @@ fun BudgetTextButton(
 /**
  * 아이콘 하나짜리 버튼. 최소 터치 크기(48dp)를 지킨다.
  * @param contentDescription 화면 읽기가 읽을 이름. 목록에 같은 버튼이 여럿이면 무엇의 버튼인지까지 적는다.
+ * @param enabled false 면 흐리게 그리고 누를 수 없다(예: 첫날에서 '이전 날'). 화면 읽기는 '사용 중지됨' 으로 읽는다.
  */
 @Composable
 fun BudgetIconButton(
@@ -114,12 +115,14 @@ fun BudgetIconButton(
     tint: Color = BudgetTheme.colors.textPrimary,
     iconSize: Dp = BudgetTheme.size.icon,
     shape: Shape = MaterialTheme.shapes.small,
+    enabled: Boolean = true,
 ) {
     Box(
         modifier =
         modifier
             .size(BudgetTheme.size.minTouchTarget)
-            .pressScaleClickable(shape = shape, onClick = onClick),
+            .alpha(if (enabled) 1f else DISABLED_ALPHA)
+            .pressScaleClickable(shape = shape, enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Icon(imageVector = icon, contentDescription = contentDescription, tint = tint, modifier = Modifier.size(iconSize))
