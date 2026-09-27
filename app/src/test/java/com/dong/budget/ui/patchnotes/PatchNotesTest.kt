@@ -34,6 +34,17 @@ class PatchNotesTest {
     }
 
     @Test
+    fun `신규 메뉴는 그 메뉴가 처음 나오는 버전에만 붙는다`() {
+        // 목록은 최신이 위라서 뒤쪽이 더 오래된 버전이다
+        PATCH_NOTES.forEachIndexed { index, release ->
+            release.menus.filter { it.isNew }.forEach { menu ->
+                val older = PATCH_NOTES.drop(index + 1).filter { old -> old.menus.any { it.menu == menu.menu } }
+                assertTrue("${release.version} ${menu.menu} 는 ${older.map { it.version }} 에 이미 있다", older.isEmpty())
+            }
+        }
+    }
+
+    @Test
     fun `빈 버전이나 빈 메뉴가 없다`() {
         PATCH_NOTES.forEach { release ->
             assertTrue("${release.version} 에 메뉴가 없다", release.menus.isNotEmpty())
