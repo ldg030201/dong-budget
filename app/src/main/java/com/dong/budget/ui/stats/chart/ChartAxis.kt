@@ -9,6 +9,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -180,6 +181,36 @@ internal fun DrawScope.drawGrid(ys: List<Float>, left: Float, right: Float, colo
 }
 
 /**
+ * x축 글자만 그리는 층. 고른 칸이 바뀌면 글자 굵기가 바뀌는데, 이 글자를 막대·선과 같은 그리기 캐시에 두면
+ * 칸을 바꿀 때마다(끄는 동안 칸마다) 막대·선과 y축 글자까지 다시 잰다. 따로 두면 글자만 다시 잰다.
+ * 칸 자리는 막대·선 층과 같게 [plotLeft] 부터 오른쪽 끝까지 [count] 칸으로 나눈다.
+ */
+internal fun Modifier.xAxisLabels(
+    labels: List<AxisLabel?>,
+    count: Int,
+    measurer: TextMeasurer,
+    ink: ChartInk,
+    plotLeft: Dp,
+    plotBottom: Dp,
+    bandHeight: Dp,
+    minGap: Dp,
+): Modifier = drawWithCache {
+    val plot = Plot(left = plotLeft.toPx(), top = 0f, right = size.width, bottom = plotBottom.toPx(), scale = null, count = count)
+    val placed =
+        measureXLabels(
+            measurer = measurer,
+            ink = ink,
+            labels = labels,
+            plot = plot,
+            bandTop = plot.bottom,
+            bandHeight = bandHeight.toPx(),
+            canvasWidth = size.width,
+            minGap = minGap.toPx(),
+        )
+    onDrawBehind { drawPlaced(placed) }
+}
+
+/**
  * x축 글자를 잰다. 칸 가운데 아래, [bandTop] 부터 [bandHeight] 띠 안 세로 가운데에 둔다.
  * 캔버스 밖으로 나가지 않게 좌우를 당기고, 이웃 글자와 [minGap] 보다 가까우면 약한 쪽을 뺀다(BRAND > STRONG > NORMAL, 같으면 앞 칸).
  */
@@ -202,7 +233,7 @@ internal fun measureXLabels(
         .forEach { (index, label) ->
             val layout = measurer.measure(label!!.text, ink.xLabelStyle(label.style))
             val width = layout.size.width.toFloat()
-            val left = (plot.slotCenter(index) - width / 2f).coerceIn(0f, maxOf(0f, canvasWidth - width))
+            val left = centeredLeft(plot.slotCenter(index), width, canvasWidth)
             val span = left..(left + width)
             val crowded = taken.any { span.start < it.endInclusive + minGap && it.start < span.endInclusive + minGap }
             if (!crowded) {
@@ -280,3 +311,6 @@ private fun slotAt(x: Float, left: Float, width: Float, count: Int): Int {
     if (slot <= 0f) return 0
     return ((x - left) / slot).toInt().coerceIn(0, count - 1)
 }
+
+/** 차트 하나가 한 번 그릴 때 재는 글자 수보다 넉넉한 글자 측정 캐시 크기 */
+internal const val TEXT_CACHE_SIZE = 32

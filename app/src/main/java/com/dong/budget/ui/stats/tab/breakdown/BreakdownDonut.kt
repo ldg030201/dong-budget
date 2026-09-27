@@ -16,6 +16,7 @@ import com.dong.budget.ui.stats.chart.Donut
 import com.dong.budget.ui.stats.chart.DonutCenterLabel
 import com.dong.budget.ui.stats.chart.LegendValueRow
 import com.dong.budget.ui.stats.chart.entityColor
+import com.dong.budget.ui.stats.chart.rememberEntityColors
 import com.dong.budget.ui.theme.BudgetTheme
 
 /**
@@ -30,7 +31,7 @@ import com.dong.budget.ui.theme.BudgetTheme
 @Composable
 fun BreakdownDonut(breakdown: Breakdown, caption: String, modifier: Modifier = Modifier) {
     val series = breakdown.series
-    val colors = series.map { entityColor(it.color) }
+    val colors = rememberEntityColors(series.map { it.color })
     Row(modifier = modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Donut(values = series.map { it.amount }, colors = colors) {
             DonutCenterLabel(caption = caption, value = formatCompactWon(breakdown.positiveTotal))

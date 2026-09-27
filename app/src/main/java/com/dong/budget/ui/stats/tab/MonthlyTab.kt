@@ -23,6 +23,7 @@ import com.dong.budget.ui.stats.StatsTab
 import com.dong.budget.ui.stats.StatsUiState
 import com.dong.budget.ui.stats.calc.emptyMonthText
 import com.dong.budget.ui.stats.calc.largestSubtitle
+import com.dong.budget.ui.stats.rememberScopedSaveable
 import com.dong.budget.ui.stats.tab.monthly.FlowSection
 import com.dong.budget.ui.stats.tab.monthly.IncomeExpenseSection
 import com.dong.budget.ui.stats.tab.monthly.InsightsSection
@@ -62,10 +63,8 @@ fun MonthlyTab(
     modifier: Modifier = Modifier,
 ) {
     val monthly = state.monthly
-    // 흐름 차트에서 고른 날. 달을 바꾸면 고르기 전(이번 달 선의 마지막 날을 읽음)으로 돌아간다.
-    // 흐름 차트에서 고른 날. 날짜(달 포함)로 들고 있다가 다른 달 값이 복원되면 버린다(일별 탭과 같은 이유)
-    var flowDate by rememberSaveable(state.month) { mutableStateOf<LocalDate?>(null) }
-    val flowDay = flowDate?.takeIf { YearMonth.from(it) == state.month }?.dayOfMonth
+    // 흐름 차트에서 고른 날(일). 달을 바꾸면 고르기 전(이번 달 선의 마지막 날을 읽음)으로 돌아간다.
+    var flowDay by rememberScopedSaveable<Int>(state.month)
 
     LazyColumn(
         modifier = modifier.fillMaxSize(),
@@ -107,7 +106,7 @@ fun MonthlyTab(
                         pace = monthly.pace,
                         today = state.today,
                         selectedDay = flowDay,
-                        onSelectDay = { flowDate = state.month.atDay(it) },
+                        onSelectDay = { flowDay = it },
                     )
                 }
             }
@@ -124,7 +123,7 @@ fun MonthlyTab(
                 )
             }
         }
-        if (!state.monthIsEmpty && monthly.largest.isNotEmpty()) {
+        if (monthly.largest.isNotEmpty()) {
             item(key = LARGEST_KEY) {
                 LargestSection(
                     title = largestTitle(state.month, state.today),

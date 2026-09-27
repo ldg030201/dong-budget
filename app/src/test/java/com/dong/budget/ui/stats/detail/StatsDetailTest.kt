@@ -92,7 +92,6 @@ class StatsDetailTest {
         val state = detail(StatsDimension.EXPENSE_CATEGORY, 1)
         // 이번 달은 오늘까지(미리 적은 7,000 빼고), 지난달은 같은 날까지
         assertEquals(EntryChange(ComparisonScope.SAME_DAY, previous = 15_000, current = 25_000), state.change)
-        assertEquals(state.change, state.entry!!.change)
     }
 
     @Test

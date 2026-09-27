@@ -85,7 +85,6 @@ class BuildStatisticsTest {
         val state = buildStatistics(september, day("2026-09-27"), rows, day("2026-09-03"))
         assertEquals(state.expenseByCategory.series, state.daily.series)
         // 계열 순서: 분류2(20,000), 분류1(15,000)
-        assertEquals(listOf(20_000L, 10_000L), state.daily.seriesMax)
         assertEquals(25_000L, state.daily.stackMax)
     }
 
@@ -95,11 +94,10 @@ class BuildStatisticsTest {
         // 거래는 들어왔는데 시작일 조회가 아직 안 따라온 순간
         val state = buildStatistics(september, day("2026-09-27"), rows, firstRecord = null)
         assertTrue(state.hasAnyRecord)
-        assertEquals(day("2026-09-03"), state.firstRecord)
+        assertEquals(day("2026-09-03"), effectiveFirstRecord(rows, firstRecord = null))
         assertEquals(3..27, state.daily.counted)
-        assertTrue(state.daily.startsLate)
         // 창 밖에 더 이른 기록이 있으면 조회한 시작일을 쓴다
-        assertEquals(day("2025-01-10"), buildStatistics(september, day("2026-09-27"), rows, day("2025-01-10")).firstRecord)
+        assertEquals(day("2025-01-10"), effectiveFirstRecord(rows, day("2025-01-10")))
     }
 
     @Test
@@ -116,8 +114,6 @@ class BuildStatisticsTest {
         assertEquals(Period.PAST, state.period)
         assertEquals(20, state.daily.defaultDay)
         assertEquals(1..31, state.daily.counted)
-        assertEquals(5, spendRatioPercent(state.monthly.totals))
-        assertEquals(5, state.monthly.spendRatioPercent)
         assertNotNull(state.monthly.comparison)
         assertNull(state.monthly.pace)
         assertEquals(31, state.monthly.flow!!.thisMonth.size)

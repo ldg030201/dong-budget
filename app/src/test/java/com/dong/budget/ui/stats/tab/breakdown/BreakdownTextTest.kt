@@ -1,6 +1,7 @@
 package com.dong.budget.ui.stats.tab.breakdown
 
 import com.dong.budget.navigation.StatsDimension
+import com.dong.budget.ui.format.formatNetExpense
 import com.dong.budget.ui.home.ComparisonScope
 import com.dong.budget.ui.stats.BreakdownEntry
 import com.dong.budget.ui.stats.EntryChange
@@ -62,7 +63,7 @@ class BreakdownTextTest {
 
     @Test
     fun `환불이 더 많은 줄은 + 금액과 비율 대신 사정을 읽는다`() {
-        assertEquals("+12,000원", entryAmountText(-12_000))
+        assertEquals("+12,000원", formatNetExpense(-12_000))
         assertEquals(
             "식비, +12,000원, 환불받은 돈이 더 많아요",
             entryDescription(entry(amount = -12_000, share = null, count = 2), StatsDimension.EXPENSE_CATEGORY),
@@ -86,7 +87,7 @@ class BreakdownTextTest {
 
     @Test
     fun `머리 부제, 범례, 많이 쓴 곳 문장`() {
-        assertEquals("523,000원", entryAmountText(523_000))
+        assertEquals("523,000원", formatNetExpense(523_000))
         assertEquals("분류 5개", entryCountText(5, StatsDimension.EXPENSE_CATEGORY))
         assertEquals("분류 2개", entryCountText(2, StatsDimension.INCOME_CATEGORY))
         assertEquals("결제수단 3개", entryCountText(3, StatsDimension.PAYMENT_METHOD))

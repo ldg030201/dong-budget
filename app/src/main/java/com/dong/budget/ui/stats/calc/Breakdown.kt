@@ -3,6 +3,7 @@ package com.dong.budget.ui.stats.calc
 import com.dong.budget.data.db.TransactionListItem
 import com.dong.budget.data.db.TransactionType
 import com.dong.budget.navigation.StatsDimension
+import com.dong.budget.ui.home.ComparisonScope
 import com.dong.budget.ui.home.ComparisonWindow
 import com.dong.budget.ui.home.totals
 import com.dong.budget.ui.stats.Breakdown
@@ -77,8 +78,9 @@ fun breakdown(rows: List<TransactionListItem>, measure: Measure, grouping: Group
     val included = rows.filter(measure::includes)
     val groups = included.groupBy { it.groupKey(grouping) }
     val positiveTotal = groups.values.sumOf { measure.amountOf(it).coerceAtLeast(0) }
+    val changes = changesByKey(window, measure, grouping)
     val entries = groups
-        .map { (key, items) -> entryOf(key, items, measure, grouping, positiveTotal, window) }
+        .map { (key, items) -> entryOf(key, items, measure, grouping, positiveTotal, changes(key)) }
         .filter { it.amount != 0L }
         .sortedWith(ENTRY_ORDER)
     return Breakdown(
@@ -96,7 +98,7 @@ private fun entryOf(
     measure: Measure,
     grouping: Grouping,
     positiveTotal: Long,
-    window: ComparisonWindow?,
+    change: EntryChange?,
 ): BreakdownEntry {
     val amount = measure.amountOf(items)
     val sample = items.first()
@@ -109,7 +111,7 @@ private fun entryOf(
         count = items.size,
         share = if (amount > 0) amount.toDouble() / positiveTotal else null,
         averageTicket = if (measure == Measure.EXPENSE) averageTicket(items) else null,
-        change = entryChange(key, window, measure, grouping),
+        change = change,
     )
 }
 
@@ -126,12 +128,29 @@ internal fun averageTicket(items: List<TransactionListItem>): Long? {
  */
 fun entryChange(key: GroupKey, window: ComparisonWindow?, measure: Measure, grouping: Grouping): EntryChange? {
     window ?: return null
-    val inGroup = { item: TransactionListItem -> measure.includes(item) && item.groupKey(grouping) == key }
-    val previous = measure.amountOf(window.previous.filter(inGroup))
-    val current = measure.amountOf(window.current.filter(inGroup))
-    if (previous == 0L && current == 0L) return null
-    return EntryChange(window.scope, previous, current)
+    val inGroup = inGroup(key, measure, grouping)
+    return changeOf(window.scope, measure.amountOf(window.previous.filter(inGroup)), measure.amountOf(window.current.filter(inGroup)))
 }
+
+/** [key] 묶음에 들고 [measure] 로 재는 거래인지. 상세가 자기 거래를 거를 때도 쓴다. */
+fun inGroup(key: GroupKey, measure: Measure, grouping: Grouping): (TransactionListItem) -> Boolean =
+    { item -> measure.includes(item) && item.groupKey(grouping) == key }
+
+/** 두 쪽 모두 0 이면 말할 거리가 없어 null */
+private fun changeOf(scope: ComparisonScope, previous: Long, current: Long): EntryChange? =
+    if (previous == 0L && current == 0L) null else EntryChange(scope, previous, current)
+
+/** 묶음별 증감을 찾는 함수. 비교 창을 묶음마다 다시 훑지 않게 두 쪽을 한 번씩만 묶어 둔다. [window] 가 null 이면 늘 null */
+private fun changesByKey(window: ComparisonWindow?, measure: Measure, grouping: Grouping): (GroupKey) -> EntryChange? {
+    window ?: return { null }
+    val previous = amountsByKey(window.previous, measure, grouping)
+    val current = amountsByKey(window.current, measure, grouping)
+    return { key -> changeOf(window.scope, previous[key] ?: 0L, current[key] ?: 0L) }
+}
+
+/** 묶음마다 [measure] 로 잰 금액 */
+private fun amountsByKey(rows: List<TransactionListItem>, measure: Measure, grouping: Grouping): Map<GroupKey, Long> =
+    rows.filter(measure::includes).groupBy { it.groupKey(grouping) }.mapValues { (_, items) -> measure.amountOf(items) }
 
 /**
  * 목록 순서: 금액 내림차순 → 이름 없는 묶음(None)은 뒤 → 이름 → id.

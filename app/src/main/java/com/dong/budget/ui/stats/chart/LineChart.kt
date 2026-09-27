@@ -62,7 +62,7 @@ fun LineChart(
     val spacing = BudgetTheme.spacing
     val underline = BudgetTheme.size.underline
     val ink = rememberChartInk()
-    val measurer = rememberTextMeasurer()
+    val measurer = rememberTextMeasurer(cacheSize = TEXT_CACHE_SIZE)
     val topInset = with(LocalDensity.current) { BudgetTheme.amount.chartAxis.lineHeight.toDp() } / 2
     val scale =
         remember(lines, slotCount) {
@@ -128,17 +128,6 @@ fun LineChart(
                     }
                 val grid = gridLines(plot)
                 val yLabels = measureYLabels(measurer, ink, plot, spacing.tightGap.toPx())
-                val axisLabels =
-                    measureXLabels(
-                        measurer = measurer,
-                        ink = ink,
-                        labels = xLabels,
-                        plot = plot,
-                        bandTop = plot.bottom,
-                        bandHeight = chart.axisBand.toPx(),
-                        canvasWidth = size.width,
-                        minGap = spacing.tightGap.toPx(),
-                    )
                 val thin = underline.toPx()
 
                 onDrawBehind {
@@ -157,10 +146,20 @@ fun LineChart(
                         }
                     }
                     drawPlaced(yLabels)
-                    drawPlaced(axisLabels)
                     endLabel?.let { drawPlaced(listOf(it)) }
                 }
-            },
+            }
+            // 고른 날을 따라 굵기가 바뀌는 x축 글자는 따로 그린다. 끄는 동안 선과 y축 글자를 다시 재지 않는다.
+            .xAxisLabels(
+                labels = xLabels,
+                count = slotCount,
+                measurer = measurer,
+                ink = ink,
+                plotLeft = chart.axisGutter,
+                plotBottom = topInset + chart.plotHeight,
+                bandHeight = chart.axisBand,
+                minGap = spacing.tightGap,
+            ),
     )
 }
 

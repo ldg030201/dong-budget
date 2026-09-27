@@ -4,6 +4,7 @@ import com.dong.budget.navigation.StatsDetailKey
 import com.dong.budget.navigation.StatsDimension
 import com.dong.budget.ui.format.formatAmount
 import com.dong.budget.ui.format.formatMonth
+import com.dong.budget.ui.format.formatNetExpense
 import com.dong.budget.ui.format.formatSignedTotal
 import com.dong.budget.ui.format.monthLabel
 import com.dong.budget.ui.home.Totals
@@ -13,6 +14,8 @@ import com.dong.budget.ui.stats.MonthPoint
 import com.dong.budget.ui.stats.Period
 import com.dong.budget.ui.stats.calc.SpendRatioSentence
 import com.dong.budget.ui.stats.calc.spendRatioSentence
+import com.dong.budget.ui.stats.categoryEntry
+import com.dong.budget.ui.stats.detailKey
 import java.time.LocalDate
 import java.time.YearMonth
 
@@ -20,12 +23,6 @@ import java.time.YearMonth
 // 월별 탭의 줄·표·제목 글자와 고르기. 화면과 떼어 두어 단위 테스트로 확인한다.
 // 문장은 calc 의 StatsSentences 가 만들고, 여기에는 월별 탭의 배치에만 묶인 것을 둔다.
 // ─────────────────────────────────────────────────────────────────────
-
-/**
- * 쓴 돈 금액. 0 이상이면 부호 없이 "1,234,560원" 이다. 라벨이 '쓴 돈' 이라고 방향을 말한다.
- * 환불이 더 많아 음수면 돌아온 돈이라 홈 요약처럼 "+12,000원" 으로 적는다.
- */
-internal fun expenseText(expense: Long): String = if (expense < 0) formatSignedTotal(-expense) else "${formatAmount(expense)}원"
 
 /** 요약 머리에서 지출이 음수일 때 금액 아래 붙는 부제 */
 internal const val REFUND_OVER_TEXT = "돌려받은 돈이 쓴 돈보다 많아요"
@@ -41,15 +38,7 @@ internal fun largestTitle(month: YearMonth, today: LocalDate): String = "${month
  * '분류 없음' 이면 id 가 null 인 상세다.
  * @return 요일·돈 안 쓴 날(c·d)이면 null. 이 둘은 일별 탭에서 자세히 본다.
  */
-internal fun Insight.detailKey(month: YearMonth): StatsDetailKey? {
-    val entry =
-        when (this) {
-            is Insight.TopShare -> entry
-            is Insight.CategoryChange -> entry
-            is Insight.WeekPattern, is Insight.NoSpendDays -> return null
-        }
-    return StatsDetailKey(StatsDimension.EXPENSE_CATEGORY, (entry.key as? GroupKey.Id)?.id, month.year, month.monthValue)
-}
+internal fun Insight.detailKey(month: YearMonth): StatsDetailKey? = categoryEntry?.key?.detailKey(StatsDimension.EXPENSE_CATEGORY, month)
 
 // ── 최근 6개월 ─────────────────────────────────────────────────────────
 
@@ -88,7 +77,7 @@ internal fun trendCells(point: MonthPoint): List<String> {
     val (expense, income) = point.totals
     return listOf(
         "${point.month.monthValue}월",
-        if (expense < 0) formatSignedTotal(-expense, unit = "") else formatAmount(expense),
+        formatNetExpense(expense, unit = ""),
         formatAmount(income),
         formatSignedTotal(income - expense, unit = ""),
     )
@@ -102,7 +91,7 @@ internal fun trendRowDescription(point: MonthPoint, isShownMonth: Boolean): Stri
     val (expense, income) = point.totals
     return listOfNotNull(
         formatMonth(point.month),
-        "지출 ${expenseText(expense)}",
+        "지출 ${formatNetExpense(expense)}",
         "수입 ${formatAmount(income)}원",
         "남은 돈 ${formatSignedTotal(income - expense)}",
         "지금 보는 달".takeIf { isShownMonth },

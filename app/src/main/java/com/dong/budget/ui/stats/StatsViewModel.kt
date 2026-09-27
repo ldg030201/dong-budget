@@ -65,17 +65,12 @@ class StatsViewModel(private val repository: TransactionRepository, private val 
         pickedMonth.value = null
     }
 
-    /** 월별 탭의 6개월 표에서 다른 달 줄을 눌렀을 때. 네 탭 모두 그 달로 바뀐다. */
+    /** 월별 탭의 6개월 표에서 다른 달 줄을 눌렀을 때. 네 탭 모두 그 달로 바뀐다. 이번 달이면 다시 '이번 달 따라가기' 로 둔다. */
     fun showMonth(month: YearMonth) {
         pickedMonth.value = month.takeIf { it != YearMonth.now(clock) }
     }
 
-    private fun moveMonth(offset: Long) {
-        val thisMonth = YearMonth.now(clock)
-        val target = (pickedMonth.value ?: thisMonth).plusMonths(offset)
-        // 이번 달로 돌아오면 다시 '이번 달 따라가기' 로 둔다
-        pickedMonth.value = target.takeIf { it != thisMonth }
-    }
+    private fun moveMonth(offset: Long) = showMonth((pickedMonth.value ?: YearMonth.now(clock)).plusMonths(offset))
 
     private companion object {
         const val STOP_TIMEOUT_MS = 5_000L

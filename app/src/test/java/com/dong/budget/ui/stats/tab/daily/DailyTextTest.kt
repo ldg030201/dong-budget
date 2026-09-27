@@ -4,6 +4,7 @@ import com.dong.budget.data.db.TransactionType.INCOME
 import com.dong.budget.data.db.TransactionType.REFUND
 import com.dong.budget.testing.day
 import com.dong.budget.testing.tx
+import com.dong.budget.ui.format.formatNetExpense
 import com.dong.budget.ui.stats.GroupKey
 import com.dong.budget.ui.stats.StatSeries
 import com.dong.budget.ui.stats.WeekdayAverage
@@ -59,8 +60,8 @@ class DailyTextTest {
         assertEquals("—", averageValue(null))
         assertEquals("27일 기준", countedCaption(1..27))
         assertEquals("돈을 쓴 12일 기준", spentDaysCaption(12))
-        assertEquals("+2,000원", spentAmount(-2_000))
-        assertEquals("0원", spentAmount(0))
+        assertEquals("+2,000원", formatNetExpense(-2_000))
+        assertEquals("0원", formatNetExpense(0))
     }
 
     @Test

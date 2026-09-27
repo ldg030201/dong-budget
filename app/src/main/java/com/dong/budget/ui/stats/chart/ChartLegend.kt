@@ -17,6 +17,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -94,19 +95,12 @@ fun ChartLegend(entries: List<LegendEntry>, modifier: Modifier = Modifier) {
 /**
  * 도넛 옆 범례 한 줄: 견본 + 이름(길면 말줄임) + 값("42%"). 이름이 남은 폭을 다 쓰고 값은 오른쪽 끝에 붙는다.
  *
- * @param contentDescription 줄 전체를 읽을 문장(예: "식비 42퍼센트"). null 이면 이름과 값을 이어 읽는다.
+ * @param contentDescription 줄 전체를 읽을 문장(예: "식비 42퍼센트")
  */
 @Composable
-fun LegendValueRow(color: Color, label: String, value: String, modifier: Modifier = Modifier, contentDescription: String? = null) {
+fun LegendValueRow(color: Color, label: String, value: String, contentDescription: String, modifier: Modifier = Modifier) {
     Row(
-        modifier =
-        modifier.then(
-            if (contentDescription != null) {
-                Modifier.clearAndSetSemantics { this.contentDescription = contentDescription }
-            } else {
-                Modifier.semantics(mergeDescendants = true) {}
-            },
-        ),
+        modifier = modifier.clearAndSetSemantics { this.contentDescription = contentDescription },
         verticalAlignment = Alignment.CenterVertically,
     ) {
         LegendSwatch(color)
@@ -197,3 +191,14 @@ private fun swatchTextGap(): Dp = BudgetTheme.spacing.tightGap * 1.5f
  */
 @Composable
 fun entityColor(color: String?): Color = color?.let { BudgetTheme.categoryPalette[it].content } ?: BudgetTheme.colors.chartOther
+
+/**
+ * 색 이름 목록을 차트 색 목록으로 푼다([entityColor] 와 같은 규칙). 같은 목록이면 같은 List 를 돌려줘서,
+ * 이걸 받는 차트가 다시 그릴 때마다 막대를 다시 재지 않는다.
+ */
+@Composable
+fun rememberEntityColors(colors: List<String?>): List<Color> {
+    val palette = BudgetTheme.categoryPalette
+    val other = BudgetTheme.colors.chartOther
+    return remember(colors, palette, other) { colors.map { name -> name?.let { palette[it].content } ?: other } }
+}

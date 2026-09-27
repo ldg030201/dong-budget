@@ -14,6 +14,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.dong.budget.ui.stats.Period
 import com.dong.budget.ui.stats.StatsUiState
+import com.dong.budget.ui.stats.rememberScopedSaveable
 import com.dong.budget.ui.stats.tab.daily.DailySpendingSection
 import com.dong.budget.ui.stats.tab.daily.DayRecordsSection
 import com.dong.budget.ui.stats.tab.daily.WeekdaySection
@@ -40,20 +41,15 @@ fun DailyTab(state: StatsUiState, contentPadding: PaddingValues, onOpenTransacti
     val lastDay = daily.days.size
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
-    // 사용자가 고른 날. null 이면 기본 날을 따라간다.
-    // 날짜(달 포함)로 들고 있는다. rememberSaveable 은 복원할 때 inputs 를 보지 않아서, 다른 탭에 있는 동안 달이 바뀌었거나
-    // 프로세스가 다시 뜬 뒤 옛 달 값이 돌아올 수 있다. 그때는 버린다.
-    var pickedDate by rememberSaveable(state.month) { mutableStateOf<LocalDate?>(null) }
-    val pickedDay = pickedDate?.takeIf { YearMonth.from(it) == state.month }?.dayOfMonth
-    // '하나만 보기' 로 고른 계열. 번호가 아니라 분류를 들고 있어서 거래를 고쳐 순위가 바뀌어도 같은 분류를 따라간다. 달도 함께 들고 있는다(위와 같은 이유).
-    var focusPick by rememberSaveable(state.month) { mutableStateOf<Pair<YearMonth, String>?>(null) }
-    val focusKey = focusPick?.takeIf { it.first == state.month }?.second
+    // 사용자가 고른 날(일). null 이면 기본 날을 따라간다. 달이 바뀌면 처음으로 돌아간다.
+    var pickedDay by rememberScopedSaveable<Int>(state.month)
+    // '하나만 보기' 로 고른 계열. 번호가 아니라 분류를 들고 있어서 거래를 고쳐 순위가 바뀌어도 같은 분류를 따라간다.
+    var focusKey by rememberScopedSaveable<String>(state.month)
     val selectedDay = (pickedDay ?: daily.defaultDay).coerceIn(1, maxOf(lastDay, 1))
     val focused = focusKey?.let { key -> daily.series.indexOfFirst { it.focusKey() == key }.takeIf { it >= 0 } }
     // 기록을 시작하기 전의 지나간 달은 셀 날이 없다. '아직 지나간 날이 없어요' 나 '2주 넘게 기록하면' 은 맞지 않아서
     // 하루 기록과 요일별 하루 평균을 빼고 보여준다.
     val showRecords = !(daily.counted.isEmpty() && state.period == Period.PAST)
-    val spendingIndex = if (showRecords) 1 else 0
 
     LazyColumn(
         state = listState,
@@ -70,8 +66,9 @@ fun DailyTab(state: StatsUiState, contentPadding: PaddingValues, onOpenTransacti
                     onShowPeak =
                     if (daily.stackMax > 0) {
                         { day ->
-                            pickedDate = state.month.atDay(day)
-                            scope.launch { listState.animateScrollToItem(spendingIndex) }
+                            pickedDay = day
+                            // 하루 기록(0번) 바로 아래가 날마다 쓴 돈이다
+                            scope.launch { listState.animateScrollToItem(SPENDING_INDEX) }
                         }
                     } else {
                         null
@@ -83,9 +80,9 @@ fun DailyTab(state: StatsUiState, contentPadding: PaddingValues, onOpenTransacti
             DailySpendingSection(
                 state = state,
                 selectedDay = selectedDay,
-                onSelectDay = { day -> pickedDate = state.month.atDay(day.coerceIn(1, maxOf(lastDay, 1))) },
+                onSelectDay = { day -> pickedDay = day.coerceIn(1, maxOf(lastDay, 1)) },
                 focused = focused,
-                onFocus = { index -> focusPick = index?.let { daily.series.getOrNull(it)?.focusKey() }?.let { state.month to it } },
+                onFocus = { index -> focusKey = index?.let { daily.series.getOrNull(it)?.focusKey() } },
                 onOpenTransaction = onOpenTransaction,
             )
         }
@@ -101,3 +98,4 @@ fun DailyTab(state: StatsUiState, contentPadding: PaddingValues, onOpenTransacti
 private const val RECORDS_KEY = "records"
 private const val SPENDING_KEY = "spending"
 private const val WEEKDAY_KEY = "weekday"
+private const val SPENDING_INDEX = 1

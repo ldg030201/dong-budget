@@ -210,8 +210,7 @@ fun DongBudgetApp(container: AppContainer, capturedToOpen: String? = null, onCap
                 var tab by rememberSaveable { mutableStateOf(StatsTab.MONTHLY) }
                 // 들어오는 전환 동안 홈의 '통계' 를 연달아 누르면 두 번째 탭이 같은 높이의 떠 있는 메뉴('일별' 자리)에 떨어진다.
                 // 알림 화면처럼 자리 잡은 뒤(RESUMED)에만 탭 선택과 줄 누름을 받는다. 나가는 중이나 등록창이 올라오는 중에 누른 것도 무시한다.
-                val lifecycle = LocalLifecycleOwner.current.lifecycle
-                val settled = { lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED) }
+                val settled = rememberSettled()
                 StatsScreen(
                     state = state,
                     selectedTab = tab,
@@ -232,8 +231,7 @@ fun DongBudgetApp(container: AppContainer, capturedToOpen: String? = null, onCap
                 val state by viewModel.uiState.collectAsStateWithLifecycle()
                 // 통계 화면과 같은 이유로 자리 잡은 뒤(RESUMED)에만 거래 줄 누름을 받는다.
                 // 들어오는 중에 같은 자리를 한 번 더 누르거나, 나가는 중에 누른 줄로 등록창이 열리지 않게 한다.
-                val lifecycle = LocalLifecycleOwner.current.lifecycle
-                val settled = { lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED) }
+                val settled = rememberSettled()
                 StatsDetailScreen(
                     state = state,
                     // 나가는 동안(약 0.7초) 이 화면이 위에 남아 ← 를 한 번 더 받는다. 맨 위일 때만 닫아서 통계까지 닫지 않게 한다.
@@ -272,8 +270,7 @@ fun DongBudgetApp(container: AppContainer, capturedToOpen: String? = null, onCap
                 // 전환 애니메이션(약 0.7초) 동안에는 거의 투명한 이 화면이 맨 위에서 터치를 받는다. 홈의 종을 연달아 누르면
                 // 두 번째 탭이 같은 자리의 '모두 읽음' 에 떨어져 알림창의 묻는 알림까지 치우므로, 자리 잡은 뒤(RESUMED)에만 받는다.
                 // 뒤로 나가는 중이나 등록창이 올라오는 중에 누른 줄도 같은 이유로 무시한다.
-                val lifecycle = LocalLifecycleOwner.current.lifecycle
-                val settled = { lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED) }
+                val settled = rememberSettled()
                 InboxScreen(
                     items = items,
                     today = today,
@@ -333,6 +330,16 @@ private fun statsTransitions(): Map<String, Any> = NavDisplay.transitionSpec {
     }
 
 private const val STATS_FADE_MS = 200
+
+/**
+ * 이 화면이 전환을 마치고 자리 잡았는지(RESUMED). NavDisplay 는 전환 동안(약 0.7초) 거의 투명한 화면에도 터치를 넘겨서,
+ * 연달아 누른 두 번째 탭이 막 뜨는(또는 나가는) 화면의 같은 자리에 떨어질 수 있다. 그런 누름은 이게 true 일 때만 받는다.
+ */
+@Composable
+private fun rememberSettled(): () -> Boolean {
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    return remember(lifecycle) { { lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED) } }
+}
 
 /**
  * 결제 등록 알림을 연다. 알림창의 알림을 눌렀을 때와 알림 화면에서 눌렀을 때 똑같이 동작한다.

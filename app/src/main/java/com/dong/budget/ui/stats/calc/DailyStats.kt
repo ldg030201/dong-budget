@@ -65,7 +65,7 @@ private fun dayStack(
 /** 그날 금액이 0 이 아닌 지출 분류 전부. 계열에서 접힌 분류도 제 이름으로 남긴다. 목록 순서는 분류 탭과 같다. */
 private fun dayDetails(items: List<TransactionListItem>, seriesIndex: Map<GroupKey, Int>): List<DayDetail> =
     breakdown(items, Measure.EXPENSE, Grouping.CATEGORY, window = null).entries.map { entry ->
-        DayDetail(key = entry.key, name = entry.name, color = entry.color, seriesIndex = seriesIndex[entry.key], amount = entry.amount)
+        DayDetail(name = entry.name, seriesIndex = seriesIndex[entry.key], amount = entry.amount)
     }
 
 /**
@@ -140,7 +140,8 @@ fun weekdayStats(month: YearMonth, today: LocalDate, firstRecord: LocalDate?, ro
     val to = minOf(today, month.atEndOfMonth())
     if (ChronoUnit.DAYS.between(from, to) + 1 < MIN_WEEKDAY_WINDOW_DAYS) return null
 
-    val daily = dailyTotals(rows)
+    // 조회 창(최대 1년)이 아니라 요일 창 안의 거래만 날짜별로 묶는다
+    val daily = dailyTotals(rows.filter { it.localDate() in from..to })
     val dates = generateSequence(from) { it.plusDays(1) }.takeWhile { !it.isAfter(to) }.toList()
     val spentByDay = dates.groupBy({ it.dayOfWeek }, { daily[it]?.expense ?: 0L })
     val averages = WEEK_ORDER.map { day ->

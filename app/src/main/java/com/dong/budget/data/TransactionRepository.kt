@@ -6,6 +6,7 @@ import com.dong.budget.data.db.TransactionEntity
 import com.dong.budget.data.db.TransactionListItem
 import com.dong.budget.data.db.TransactionType
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import java.time.Instant
@@ -28,7 +29,10 @@ class TransactionRepository(private val transactionDao: TransactionDao) {
         transactionDao.observeBetween(BudgetTime.monthRange(first).first, BudgetTime.monthRange(last).second)
 
     /** 통계의 기록 시작일(서울 기준). 이체 말고 거래가 하나도 없으면 null */
-    fun observeFirstRecordDate(): Flow<LocalDate?> = transactionDao.observeFirstOccurredAt().map { it?.let(BudgetTime::toLocalDate) }
+    fun observeFirstRecordDate(): Flow<LocalDate?> = transactionDao.observeFirstOccurredAt()
+        .map { it?.let(BudgetTime::toLocalDate) }
+        // 거래를 쓸 때마다 Room 이 다시 내보내지만 시작일은 거의 그대로다. 같은 값이면 통계를 다시 계산하지 않게 거른다.
+        .distinctUntilChanged()
 
     fun observeMonth(month: YearMonth): Flow<List<TransactionListItem>> {
         val (start, end) = BudgetTime.monthRange(month)

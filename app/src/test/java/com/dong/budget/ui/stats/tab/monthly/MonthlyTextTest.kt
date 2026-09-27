@@ -3,6 +3,7 @@ package com.dong.budget.ui.stats.tab.monthly
 import com.dong.budget.navigation.StatsDetailKey
 import com.dong.budget.navigation.StatsDimension
 import com.dong.budget.testing.day
+import com.dong.budget.ui.format.formatNetExpense
 import com.dong.budget.ui.home.ComparisonScope
 import com.dong.budget.ui.home.Totals
 import com.dong.budget.ui.stats.BreakdownEntry
@@ -29,9 +30,9 @@ class MonthlyTextTest {
 
     @Test
     fun `쓴 돈은 부호 없이, 환불이 더 많으면 돌아온 돈으로 적는다`() {
-        assertEquals("1,234,560원", expenseText(1_234_560))
-        assertEquals("0원", expenseText(0))
-        assertEquals("+12,000원", expenseText(-12_000))
+        assertEquals("1,234,560원", formatNetExpense(1_234_560))
+        assertEquals("0원", formatNetExpense(0))
+        assertEquals("+12,000원", formatNetExpense(-12_000))
     }
 
     @Test

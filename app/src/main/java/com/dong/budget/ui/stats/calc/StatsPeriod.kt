@@ -55,14 +55,4 @@ fun divRound(dividend: Long, divisor: Long): Long {
 
 fun divRound(dividend: Long, divisor: Int): Long = divRound(dividend, divisor.toLong())
 
-/**
- * 수입 대비 지출 %(반올림). 100 을 넘을 수 있다.
- * 환불이 더 많아 지출이 음수면 0% 로 본다.
- * @return 수입이 없으면 null. 나눌 기준이 없다.
- */
-fun spendRatioPercent(totals: Totals): Int? {
-    if (totals.income <= 0) return null
-    return divRound(maxOf(totals.expense, 0) * PERCENT, totals.income).toInt()
-}
-
 internal const val PERCENT = 100L

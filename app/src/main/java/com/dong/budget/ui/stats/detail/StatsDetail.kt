@@ -7,16 +7,18 @@ import com.dong.budget.ui.home.groupByDay
 import com.dong.budget.ui.home.localDate
 import com.dong.budget.ui.stats.GroupKey
 import com.dong.budget.ui.stats.calc.Measure
-import com.dong.budget.ui.stats.calc.TREND_MONTHS
 import com.dong.budget.ui.stats.calc.breakdown
 import com.dong.budget.ui.stats.calc.breakdownWindow
 import com.dong.budget.ui.stats.calc.effectiveFirstRecord
 import com.dong.budget.ui.stats.calc.entryChange
 import com.dong.budget.ui.stats.calc.groupKey
 import com.dong.budget.ui.stats.calc.grouping
+import com.dong.budget.ui.stats.calc.inGroup
+import com.dong.budget.ui.stats.calc.isBeforeFirstRecord
 import com.dong.budget.ui.stats.calc.isRecord
 import com.dong.budget.ui.stats.calc.measure
 import com.dong.budget.ui.stats.calc.topMerchants
+import com.dong.budget.ui.stats.calc.trendMonths
 import java.time.LocalDate
 import java.time.YearMonth
 
@@ -50,7 +52,7 @@ fun buildDetail(
     val measure = dimension.measure
     val grouping = dimension.grouping
     val key = groupKeyOf(id)
-    val inGroup = { item: TransactionListItem -> measure.includes(item) && item.groupKey(grouping) == key }
+    val inGroup = inGroup(key, measure, grouping)
     val byMonth = rows.groupBy { YearMonth.from(it.localDate()) }
     val current = byMonth[month].orEmpty()
     val first = effectiveFirstRecord(rows, firstRecord)
@@ -66,7 +68,8 @@ fun buildDetail(
         today = today,
         entity = entity,
         amount = measure.amountOf(mine),
-        entry = breakdown(current, measure, grouping, window).entries.firstOrNull { it.key == key },
+        // 이 항목의 증감은 아래 change 로 따로 잰다. 다른 묶음의 증감까지 잴 필요가 없다.
+        entry = breakdown(current, measure, grouping, window = null).entries.firstOrNull { it.key == key },
         change = entryChange(key, window, measure, grouping),
         trend = detailTrend(month, byMonth, inGroup, measure, first),
         cross = dimension.crossDimension?.let { breakdown(mine, Measure.EXPENSE, it.grouping, window = null) },
@@ -103,22 +106,16 @@ val StatsDimension.crossDimension: StatsDimension?
         StatsDimension.INCOME_CATEGORY -> null
     }
 
-/** 고른 달까지 최근 [TREND_MONTHS] 달의 이 항목 금액. 오래된 달이 앞이다. 해를 넘어도 그대로 이어진다. */
+/** 고른 달까지 최근 6개월([trendMonths])의 이 항목 금액. 오래된 달이 앞이다. */
 private fun detailTrend(
     month: YearMonth,
     byMonth: Map<YearMonth, List<TransactionListItem>>,
     inGroup: (TransactionListItem) -> Boolean,
     measure: Measure,
     firstRecord: LocalDate?,
-): List<DetailMonth> = (TREND_MONTHS - 1 downTo 0).map { back ->
-    val m = month.minusMonths(back.toLong())
+): List<DetailMonth> = trendMonths(month).map { m ->
     val mine = byMonth[m].orEmpty().filter(inGroup)
-    DetailMonth(
-        month = m,
-        amount = measure.amountOf(mine),
-        count = mine.size,
-        beforeFirstRecord = firstRecord == null || m.isBefore(YearMonth.from(firstRecord)),
-    )
+    DetailMonth(month = m, amount = measure.amountOf(mine), count = mine.size, beforeFirstRecord = isBeforeFirstRecord(m, firstRecord))
 }
 
 /** 상세의 많이 쓴 곳은 5곳까지. 한 항목 안이라 탭(10곳)보다 적게 보인다. */

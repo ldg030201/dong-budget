@@ -22,7 +22,7 @@ import java.time.YearMonth
  * @property key 이 상세가 보는 묶음. '분류 없음' / '결제수단 없음' 이면 [GroupKey.None]
  * @property month 이 화면만의 달. 통계 본 화면의 달과 따로 움직인다.
  * @property amount 이 달 이 항목의 금액(지출이면 지출 − 환불, 음수 가능)
- * @property entry 이 달 이 항목(비율·건수·한 번에 평균). 이 달 금액이 0 이면 null
+ * @property entry 이 달 이 항목(비율·건수·한 번에 평균). 이 달 금액이 0 이면 null. 증감은 여기 말고 [change] 에 있다.
  * @property change 지난달 대비. 이 달 금액이 0 이어도 지난달에 있었으면 있다. 비교할 수 없으면 null
  * @property trend 고른 달까지 최근 6개월. 오래된 달이 앞이고 마지막 칸이 고른 달이다.
  * @property cross 교차 비중(분류 상세는 결제수단별, 결제수단 상세는 분류별). 수입 분류는 null

@@ -2,6 +2,7 @@ package com.dong.budget.ui.stats.tab.daily
 
 import com.dong.budget.ui.format.formatAmount
 import com.dong.budget.ui.format.formatDateSpoken
+import com.dong.budget.ui.format.formatNetExpense
 import com.dong.budget.ui.format.formatSignedTotal
 import com.dong.budget.ui.format.formatWeekday
 import com.dong.budget.ui.format.formatWeekdayFull
@@ -22,12 +23,6 @@ internal fun dayTitle(date: LocalDate, today: LocalDate): String {
     val base = formatDateSpoken(date)
     return if (date == today) "$base · 오늘" else base
 }
-
-/**
- * 쓴 돈 한 칸. "32,000원"
- * 환불이 더 많아 음수면 돈이 들어온 것이라 분류 탭 목록처럼 "+2,000원" 으로 적는다.
- */
-internal fun spentAmount(amount: Long): String = if (amount < 0) formatSignedTotal(-amount) else "${formatAmount(amount)}원"
 
 /** 하루 평균·쓴 날 평균 값. 낼 수 없으면(센 날이 없거나 환불이 더 많음) "—" */
 internal fun averageValue(amount: Long?): String = amount?.let { "${formatAmount(it)}원" } ?: "—"
@@ -57,7 +52,7 @@ internal fun daySlotDescription(day: DayStack, today: LocalDate): String = build
 
         else -> add("지출 없음")
     }
-    day.details.forEach { add("${it.name} ${spentAmount(it.amount)}") }
+    day.details.forEach { add("${it.name} ${formatNetExpense(it.amount)}") }
 }.joinToString(", ")
 
 /** 필터 칩의 화면 읽기 문장. '전체' 칩은 "모든 분류 보기", 계열 칩은 "식비만 보기" */
@@ -81,7 +76,7 @@ internal fun StatSeries.focusKey(): String = when (val group = key) {
  * @param top 가장 많이 쓴 요일인지
  */
 internal fun weekdayBar(average: WeekdayAverage, top: Boolean): WeekdayBar {
-    val value = spentAmount(average.average)
+    val value = formatNetExpense(average.average)
     val description = listOfNotNull(formatWeekdayFull(average.day), "하루 평균 $value", "가장 많음".takeIf { top }).joinToString(", ")
     return WeekdayBar(label = formatWeekday(average.day), value = average.average, valueText = value, description = description)
 }

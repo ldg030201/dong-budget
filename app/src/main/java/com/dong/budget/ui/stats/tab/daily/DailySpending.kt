@@ -35,9 +35,11 @@ import com.dong.budget.ui.components.BudgetIconButton
 import com.dong.budget.ui.components.BudgetTextButton
 import com.dong.budget.ui.components.HintText
 import com.dong.budget.ui.components.TransactionRow
+import com.dong.budget.ui.format.formatNetExpense
 import com.dong.budget.ui.format.monthLabel
 import com.dong.budget.ui.stats.DailyStats
 import com.dong.budget.ui.stats.DayStack
+import com.dong.budget.ui.stats.SectionNote
 import com.dong.budget.ui.stats.StatSeries
 import com.dong.budget.ui.stats.StatsSection
 import com.dong.budget.ui.stats.StatsUiState
@@ -50,6 +52,9 @@ import com.dong.budget.ui.stats.chart.LegendChip
 import com.dong.budget.ui.stats.chart.LegendSwatch
 import com.dong.budget.ui.stats.chart.dailyAxisLabels
 import com.dong.budget.ui.stats.chart.entityColor
+import com.dong.budget.ui.stats.chart.rememberEntityColors
+import com.dong.budget.ui.stats.netExpenseColor
+import com.dong.budget.ui.stats.rememberScopedSaveable
 import com.dong.budget.ui.theme.BudgetTheme
 import java.time.LocalDate
 import java.time.YearMonth
@@ -108,7 +113,7 @@ internal fun DailySpendingSection(
 
 /** 계열 색. 분류 색의 진한 쪽(content)이고, 색 이름이 없는 '그 외'·'분류 없음' 은 chartOther 다. */
 @Composable
-private fun seriesColors(series: List<StatSeries>): List<Color> = series.map { entityColor(it.color) }
+private fun seriesColors(series: List<StatSeries>): List<Color> = rememberEntityColors(series.map { it.color })
 
 /**
  * 범례를 겸하는 필터 칩. [전체] [■식비] … [■그 외 3개]
@@ -155,17 +160,18 @@ private fun DailyChart(
 ) {
     // 오늘은 이 달에 있을 때만 적는다
     val todayDay = today.takeIf { YearMonth.from(it) == month }?.dayOfMonth
-    // 칸 설명은 날을 골라도 바뀌지 않는다. x축 글자만 고른 날을 따라 다시 만든다.
-    val descriptions = remember(daily.days, today) { daily.days.map { daySlotDescription(it, today) } }
+    // 막대와 칸 설명은 날을 골라도 바뀌지 않는다. x축 글자만 고른 날을 따라 다시 만든다(차트도 글자만 다시 잰다).
     val slots =
-        remember(daily.days, descriptions, todayDay, selectedDay) {
-            val labels = dailyAxisLabels(lastDay = daily.days.size, today = todayDay, selected = selectedDay)
-            daily.days.mapIndexed { index, day ->
-                ColumnSlot(values = day.segments, label = labels[index], description = descriptions[index])
-            }
+        remember(daily.days, today) {
+            daily.days.map { day -> ColumnSlot(values = day.segments, description = daySlotDescription(day, today)) }
+        }
+    val xLabels =
+        remember(daily.days.size, todayDay, selectedDay) {
+            dailyAxisLabels(lastDay = daily.days.size, today = todayDay, selected = selectedDay)
         }
     ColumnChart(
         slots = slots,
+        xLabels = xLabels,
         seriesColors = colors,
         focusedSeries = focused,
         selectedIndex = selectedDay - 1,
@@ -242,9 +248,9 @@ private fun DetailRow(color: Color, name: String, amount: Long) {
         )
         Spacer(Modifier.width(BudgetTheme.spacing.inlineGap))
         Text(
-            text = spentAmount(amount),
+            text = formatNetExpense(amount),
             style = BudgetTheme.amount.tableCell,
-            color = if (amount < 0) BudgetTheme.colors.income else BudgetTheme.colors.textPrimary,
+            color = netExpenseColor(amount),
             maxLines = 1,
         )
     }
@@ -257,10 +263,8 @@ private fun DetailRow(color: Color, name: String, amount: Long) {
 @Composable
 private fun DayTransactions(day: DayStack, onOpenTransaction: (Long) -> Unit) {
     if (day.items.isEmpty()) return
-    // 펼친 날짜를 들고 있는다. 복원된 옛 값(다른 날)이면 접힌 것으로 본다
-    var expandedDate by rememberSaveable(day.date) { mutableStateOf<LocalDate?>(null) }
-    val expanded = expandedDate == day.date
-    val shown = if (expanded) day.items else day.items.take(PREVIEW_ITEMS)
+    var expanded by rememberScopedSaveable<Boolean>(day.date)
+    val shown = if (expanded == true) day.items else day.items.take(PREVIEW_ITEMS)
     val hidden = day.items.size - shown.size
     Column(modifier = Modifier.fillMaxWidth().padding(top = BudgetTheme.spacing.itemGap)) {
         BudgetDivider(Modifier.padding(horizontal = BudgetTheme.spacing.screenHorizontal))
@@ -270,7 +274,7 @@ private fun DayTransactions(day: DayStack, onOpenTransaction: (Long) -> Unit) {
         if (hidden > 0) {
             BudgetTextButton(
                 text = moreItemsText(hidden),
-                onClick = { expandedDate = day.date },
+                onClick = { expanded = true },
                 // 버튼 안쪽 여백만큼 당겨서 글자가 거래 줄의 뱃지와 줄을 맞춘다
                 modifier = Modifier.padding(horizontal = BudgetTheme.spacing.screenHorizontal - BudgetTheme.spacing.tightGap),
             )

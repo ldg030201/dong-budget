@@ -22,6 +22,7 @@ import androidx.compose.ui.text.style.TextAlign
 import com.dong.budget.ui.components.BudgetDivider
 import com.dong.budget.ui.components.HintText
 import com.dong.budget.ui.stats.MonthPoint
+import com.dong.budget.ui.stats.SectionNote
 import com.dong.budget.ui.stats.StatsSection
 import com.dong.budget.ui.stats.TrendAverage
 import com.dong.budget.ui.stats.calc.trendAverageText
@@ -84,13 +85,7 @@ internal fun TrendSection(
             )
             TrendTable(rows = trendTableRows(trend), month = month, onShowMonth = onShowMonth)
             if (trend.any { it.month == YearMonth.from(today) }) HintText(text = TREND_CURRENT_HINT)
-            average?.let {
-                Text(
-                    text = trendAverageText(it),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = BudgetTheme.colors.textSecondary,
-                )
-            }
+            average?.let { SectionNote(trendAverageText(it)) }
         }
     }
 }
