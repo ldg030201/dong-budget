@@ -132,6 +132,7 @@ fun HomeShell(
                         MoreScreen(
                             devModeOn = devModeOn,
                             onOpenCategories = onOpenCategories,
+                            onOpenStatistics = onOpenStatistics,
                             onOpenSettings = onOpenSettings,
                             onOpenPatchNotes = onOpenPatchNotes,
                             onOpenDeveloper = onOpenDeveloper,
