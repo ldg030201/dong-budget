@@ -112,6 +112,7 @@ private fun entryOf(
         share = if (amount > 0) amount.toDouble() / positiveTotal else null,
         averageTicket = if (measure == Measure.EXPENSE) averageTicket(items) else null,
         change = change,
+        sortOrder = if (grouping == Grouping.CATEGORY) sample.categorySortOrder else null,
     )
 }
 
@@ -163,20 +164,32 @@ internal val ENTRY_ORDER: Comparator<BreakdownEntry> =
         .thenBy { (it.key as? GroupKey.Id)?.id ?: Long.MAX_VALUE }
 
 /**
+ * 분류 순서: 설정의 분류 목록과 같은 정렬값 → 이름 → id. 정렬값이 없는 지운 분류와 분류 없음(None)은 뒤로 간다.
+ * 날마다 쓴 돈의 칩·쌓는 순서·읽기 판이 이 순서다. 금액이 바뀌어도 자리가 그대로라 날끼리 견주기 쉽다.
+ */
+internal val CATEGORY_ORDER: Comparator<BreakdownEntry> =
+    compareBy<BreakdownEntry> { it.key == GroupKey.None }
+        .thenBy(nullsLast()) { it.sortOrder }
+        .thenBy { it.name }
+        .thenBy { (it.key as? GroupKey.Id)?.id ?: Long.MAX_VALUE }
+
+/**
  * 차트 계열: 상위 몇 개 + '그 외'. 도넛과 일별 쌓은 막대가 같은 결과를 쓴다. 최대 [MAX_SERIES] 개다.
  *
  * 양수이고 이름 있는 항목(named)만 제 조각을 가진다. '분류 없음' 은 늘 접는다(색이 없어 다른 조각과 갈리지 않는다).
  * 접을 것이 있으면(분류 없음이 양수이거나 named 가 넘치면) named 는 5개까지, 없으면 6개까지 보인다.
  * 접힌 것이 하나뿐이면 그 이름을 그대로 쓰고, 여럿이면 '그 외 k개' 다.
  *
- * @param entries [ENTRY_ORDER] 로 정렬된 항목
+ * @param entries [ENTRY_ORDER] 로 정렬된 항목. 제 조각을 가질 항목은 늘 금액 순으로 고른다.
+ * @param order 고른 계열을 늘어놓을 순서. null 이면 금액 순이다. 어느 쪽이든 '그 외' 는 맨 뒤다.
  */
-fun seriesOf(entries: List<BreakdownEntry>, positiveTotal: Long): List<StatSeries> {
+fun seriesOf(entries: List<BreakdownEntry>, positiveTotal: Long, order: Comparator<BreakdownEntry>? = null): List<StatSeries> {
     val positive = entries.filter { it.amount > 0 }
     val named = positive.filter { it.key is GroupKey.Id }
     val none = positive.filter { it.key == GroupKey.None }
     val limit = if (none.isNotEmpty() || named.size > MAX_SERIES) MAX_SERIES - 1 else MAX_SERIES
-    val shown = named.take(limit).map { it.toSeries(positiveTotal) }
+    val picked = named.take(limit)
+    val shown = (if (order == null) picked else picked.sortedWith(order)).map { it.toSeries(positiveTotal) }
     return shown + listOfNotNull(otherSeries(named.drop(limit) + none, positiveTotal))
 }
 

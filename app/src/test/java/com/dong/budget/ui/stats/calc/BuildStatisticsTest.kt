@@ -75,7 +75,7 @@ class BuildStatisticsTest {
     }
 
     @Test
-    fun `일별 계열은 분류 탭 도넛과 같은 계열이다`() {
+    fun `일별 계열은 분류 탭 도넛과 같은 계열을 분류 순서로 늘어놓는다`() {
         val rows =
             listOf(
                 tx("2026-09-03", 10_000, categoryId = 1),
@@ -83,8 +83,10 @@ class BuildStatisticsTest {
                 tx("2026-09-04", 5_000, categoryId = 1),
             )
         val state = buildStatistics(september, day("2026-09-27"), rows, day("2026-09-03"))
-        assertEquals(state.expenseByCategory.series, state.daily.series)
-        // 계열 순서: 분류2(20,000), 분류1(15,000)
+        assertEquals(state.expenseByCategory.series.toSet(), state.daily.series.toSet())
+        // 도넛은 금액 순서(분류2 20,000 → 분류1 15,000), 일별은 분류 순서
+        assertEquals(listOf("분류2", "분류1"), state.expenseByCategory.series.map { it.name })
+        assertEquals(listOf("분류1", "분류2"), state.daily.series.map { it.name })
         assertEquals(25_000L, state.daily.stackMax)
     }
 

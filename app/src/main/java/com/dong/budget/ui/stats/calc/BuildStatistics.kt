@@ -132,7 +132,8 @@ private fun dailyStats(
     firstRecord: LocalDate?,
     expenseByCategory: Breakdown,
 ): DailyStats {
-    val series = expenseByCategory.series
+    // 분류 탭 도넛과 같은 계열을 분류 순서로 쌓는다
+    val series = seriesOf(expenseByCategory.entries, expenseByCategory.positiveTotal, CATEGORY_ORDER)
     val days = dayStacks(month, today, current, series)
     val counted = countedDays(month, today, firstRecord)
     val records = dayRecords(counted, days)
