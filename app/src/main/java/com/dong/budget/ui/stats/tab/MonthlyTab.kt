@@ -149,7 +149,7 @@ private fun LargestSection(title: String, items: List<TransactionListItem>, onOp
         SectionTitle(text = title, modifier = Modifier.padding(horizontal = BudgetTheme.spacing.screenHorizontal))
         items.forEach { item ->
             key(item.id) {
-                TransactionRow(item = item, onClick = { onOpenTransaction(item.id) }, subtitle = largestSubtitle(item))
+                TransactionRow(item = item, onClick = { onOpenTransaction(item.id) }, subtitle = largestSubtitle(item), colorExpense = true)
             }
         }
     }

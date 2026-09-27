@@ -27,14 +27,20 @@ import com.dong.budget.ui.theme.BudgetTheme
  *   환불이 더 많은 항목이 있으면 머리의 합계보다 크고, 머리 아래 안내가 그 까닭을 알린다.
  *
  * @param caption 가운데 위 작은 글자. "지출" / "수입"
+ * @param income 수입 분류인지. 가운데 합계의 부호와 색이 정해진다.
  */
 @Composable
-fun BreakdownDonut(breakdown: Breakdown, caption: String, modifier: Modifier = Modifier) {
+fun BreakdownDonut(breakdown: Breakdown, caption: String, income: Boolean, modifier: Modifier = Modifier) {
     val series = breakdown.series
     val colors = rememberEntityColors(series.map { it.color })
     Row(modifier = modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         Donut(values = series.map { it.amount }, colors = colors) {
-            DonutCenterLabel(caption = caption, value = formatCompactWon(breakdown.positiveTotal))
+            // 조각의 합이라 늘 0 보다 크다. 수입은 "+", 지출은 "-" 를 붙이고 같은 방향 색으로 쓴다.
+            DonutCenterLabel(
+                caption = caption,
+                value = (if (income) "+" else "-") + formatCompactWon(breakdown.positiveTotal),
+                valueColor = if (income) BudgetTheme.colors.income else BudgetTheme.colors.expense,
+            )
         }
         Spacer(Modifier.width(BudgetTheme.spacing.sectionPadding))
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(BudgetTheme.spacing.inlineGap)) {

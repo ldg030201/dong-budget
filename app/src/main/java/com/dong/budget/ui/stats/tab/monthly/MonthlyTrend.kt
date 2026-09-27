@@ -21,6 +21,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import com.dong.budget.ui.components.BudgetDivider
 import com.dong.budget.ui.components.HintText
+import com.dong.budget.ui.home.totalColor
 import com.dong.budget.ui.stats.MonthPoint
 import com.dong.budget.ui.stats.SectionNote
 import com.dong.budget.ui.stats.StatsSection
@@ -33,6 +34,7 @@ import com.dong.budget.ui.stats.chart.ColumnChart
 import com.dong.budget.ui.stats.chart.ColumnLayout
 import com.dong.budget.ui.stats.chart.ColumnSlot
 import com.dong.budget.ui.stats.chart.LegendEntry
+import com.dong.budget.ui.stats.netExpenseColor
 import com.dong.budget.ui.theme.BudgetTheme
 import com.dong.budget.ui.theme.pressScaleClickable
 import java.time.LocalDate
@@ -101,7 +103,7 @@ private fun TrendTable(rows: List<MonthPoint>, month: YearMonth, onShowMonth: (Y
         TableRow(
             cells = TREND_COLUMNS,
             style = MaterialTheme.typography.labelMedium,
-            color = BudgetTheme.colors.textSecondary,
+            colors = TREND_COLUMNS.map { BudgetTheme.colors.textSecondary },
             // 줄마다 읽는 문장에 열 이름이 들어 있다
             modifier = Modifier.clearAndSetSemantics {}.padding(bottom = BudgetTheme.spacing.tightGap),
         )
@@ -109,10 +111,18 @@ private fun TrendTable(rows: List<MonthPoint>, month: YearMonth, onShowMonth: (Y
         rows.forEach { point ->
             key(point.month) {
                 val isShown = point.month == month
+                val (expense, income) = point.totals
                 TableRow(
                     cells = trendCells(point),
                     style = if (isShown) cellStyle.copy(fontWeight = FontWeight.Bold) else cellStyle,
-                    color = BudgetTheme.colors.textPrimary,
+                    // 달은 본문색, 지출은 빨강, 수입은 초록, 남은 돈은 부호 따라
+                    colors =
+                    listOf(
+                        BudgetTheme.colors.textPrimary,
+                        netExpenseColor(expense),
+                        totalColor(income),
+                        totalColor(income - expense),
+                    ),
                     modifier =
                     Modifier
                         .then(
@@ -135,9 +145,9 @@ private fun TrendTable(rows: List<MonthPoint>, month: YearMonth, onShowMonth: (Y
     }
 }
 
-/** 표 한 줄. 달 칸은 좁게 왼쪽 정렬, 금액 칸 셋은 같은 폭에 오른쪽 정렬 */
+/** 표 한 줄. 달 칸은 좁게 왼쪽 정렬, 금액 칸 셋은 같은 폭에 오른쪽 정렬. [colors] 는 칸마다 글자색 */
 @Composable
-private fun TableRow(cells: List<String>, style: TextStyle, color: Color, modifier: Modifier = Modifier) {
+private fun TableRow(cells: List<String>, style: TextStyle, colors: List<Color>, modifier: Modifier = Modifier) {
     Row(
         modifier = modifier.fillMaxWidth().padding(horizontal = BudgetTheme.spacing.tightGap),
         verticalAlignment = Alignment.CenterVertically,
@@ -147,7 +157,7 @@ private fun TableRow(cells: List<String>, style: TextStyle, color: Color, modifi
             Text(
                 text = text,
                 style = style,
-                color = color,
+                color = colors[index],
                 textAlign = if (isMonth) TextAlign.Start else TextAlign.End,
                 maxLines = 1,
                 // 칸보다 긴 금액을 글자 단위로 끊으면 "+1,500,00" 처럼 다른 금액으로 읽힌다. 줄여서 한 줄에 맞춘다.

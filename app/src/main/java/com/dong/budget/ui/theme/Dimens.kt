@@ -96,8 +96,8 @@ data class BudgetSize(
     val patchTagWidth: Dp = 64.dp,
     /** 새 알림이 있을 때 종 옆에 찍는 점 */
     val noticeDot: Dp = 8.dp,
-    /** 통계 아래 떠 있는 둥근 메뉴의 높이 */
-    val floatingBarHeight: Dp = 56.dp,
+    /** 통계 아래 떠 있는 둥근 메뉴의 높이. 칸마다 아이콘과 글자 두 줄이 들어간다 */
+    val floatingBarHeight: Dp = 64.dp,
     /** 떠 있는 메뉴의 최대 폭. 가로 화면이나 큰 화면에서 가운데에 이만큼만 선다 */
     val floatingBarMaxWidth: Dp = 440.dp,
 )

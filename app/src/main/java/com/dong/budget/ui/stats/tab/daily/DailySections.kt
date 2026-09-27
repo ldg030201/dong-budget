@@ -19,6 +19,7 @@ import com.dong.budget.ui.stats.calc.weekdayHeadline
 import com.dong.budget.ui.stats.calc.weekdayPatternSentence
 import com.dong.budget.ui.stats.calc.weekdayRange
 import com.dong.budget.ui.stats.chart.WeekdayBars
+import com.dong.budget.ui.stats.netExpenseColor
 import com.dong.budget.ui.theme.BudgetTheme
 import java.time.YearMonth
 
@@ -36,16 +37,23 @@ internal fun DayRecordsSection(month: YearMonth, daily: DailyStats, onShowPeak: 
             SectionNote("아직 지나간 날이 없어요")
         } else {
             val peak = daily.peak
-            StatRow(label = "하루 평균", value = averageValue(daily.average), caption = countedCaption(daily.counted))
+            StatRow(
+                label = "하루 평균",
+                value = averageValue(daily.average),
+                valueColor = daily.average?.let { netExpenseColor(it) } ?: BudgetTheme.colors.textPrimary,
+                caption = countedCaption(daily.counted),
+            )
             StatRow(
                 label = "쓴 날 평균",
                 value = averageValue(daily.spentDayAverage),
+                valueColor = daily.spentDayAverage?.let { netExpenseColor(it) } ?: BudgetTheme.colors.textPrimary,
                 // 쓴 날이 없으면 '돈을 쓴 0일 기준' 이 어색해서 뺀다
                 caption = daily.spentDays.takeIf { it > 0 }?.let(::spentDaysCaption),
             )
             StatRow(
                 label = "가장 많이 쓴 날",
                 value = peak?.let { formatNetExpense(it.amount) } ?: "없어요",
+                valueColor = peak?.let { netExpenseColor(it.amount) } ?: BudgetTheme.colors.textPrimary,
                 caption = peak?.let { formatDayShort(it.date) },
                 onClick = if (peak != null && onShowPeak != null) ({ onShowPeak(peak.date.dayOfMonth) }) else null,
             )

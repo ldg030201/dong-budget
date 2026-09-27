@@ -1,6 +1,8 @@
 package com.dong.budget.ui.stats
 
+import androidx.annotation.DrawableRes
 import androidx.compose.runtime.Immutable
+import com.dong.budget.R
 import com.dong.budget.data.db.TransactionListItem
 import com.dong.budget.navigation.StatsDetailKey
 import com.dong.budget.navigation.StatsDimension
@@ -17,11 +19,11 @@ import java.time.YearMonth
 // ─────────────────────────────────────────────────────────────────────
 
 /** 통계 안의 하위 메뉴. 아래 떠 있는 메뉴에 이 순서로 선다. */
-enum class StatsTab(val label: String) {
-    MONTHLY("월별"),
-    DAILY("일별"),
-    CATEGORY("분류"),
-    PAYMENT("결제수단"),
+enum class StatsTab(val label: String, @DrawableRes val icon: Int) {
+    MONTHLY("월별", R.drawable.ic_sym_calendar_month),
+    DAILY("일별", R.drawable.ic_sym_today),
+    CATEGORY("분류", R.drawable.ic_sym_category),
+    PAYMENT("결제수단", R.drawable.ic_sym_credit_card),
 }
 
 /** 고른 달이 오늘에 견줘 지나간 달인지, 이번 달인지, 아직 오지 않은 달인지 */

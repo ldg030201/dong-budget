@@ -269,7 +269,7 @@ private fun DayTransactions(day: DayStack, onOpenTransaction: (Long) -> Unit) {
     Column(modifier = Modifier.fillMaxWidth().padding(top = BudgetTheme.spacing.itemGap)) {
         BudgetDivider(Modifier.padding(horizontal = BudgetTheme.spacing.screenHorizontal))
         shown.forEach { item ->
-            key(item.id) { TransactionRow(item = item, onClick = { onOpenTransaction(item.id) }) }
+            key(item.id) { TransactionRow(item = item, onClick = { onOpenTransaction(item.id) }, colorExpense = true) }
         }
         if (hidden > 0) {
             BudgetTextButton(

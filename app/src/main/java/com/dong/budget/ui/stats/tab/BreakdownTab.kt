@@ -20,6 +20,7 @@ import com.dong.budget.navigation.StatsDetailKey
 import com.dong.budget.navigation.StatsDimension
 import com.dong.budget.ui.components.HintText
 import com.dong.budget.ui.components.SegmentedToggle
+import com.dong.budget.ui.format.formatDirected
 import com.dong.budget.ui.format.formatNetExpense
 import com.dong.budget.ui.format.monthLabel
 import com.dong.budget.ui.stats.Breakdown
@@ -34,6 +35,7 @@ import com.dong.budget.ui.stats.calc.negativeHint
 import com.dong.budget.ui.stats.calc.nothingText
 import com.dong.budget.ui.stats.calc.singleSeriesSentence
 import com.dong.budget.ui.stats.detailKey
+import com.dong.budget.ui.stats.directedColor
 import com.dong.budget.ui.stats.netExpenseColor
 import com.dong.budget.ui.stats.tab.breakdown.BreakdownDonut
 import com.dong.budget.ui.stats.tab.breakdown.BreakdownRow
@@ -154,9 +156,9 @@ private fun BreakdownHeader(breakdown: Breakdown, dimension: StatsDimension, mon
                 color = BudgetTheme.colors.textSecondary,
             )
             Text(
-                text = formatNetExpense(breakdown.total),
+                text = formatDirected(breakdown.total, income = dimension == StatsDimension.INCOME_CATEGORY),
                 style = BudgetTheme.amount.summary,
-                color = netExpenseColor(breakdown.total),
+                color = directedColor(breakdown.total, income = dimension == StatsDimension.INCOME_CATEGORY),
             )
             Text(
                 text = entryCountText(breakdown.entries.size, dimension),
@@ -185,6 +187,7 @@ private fun BreakdownChart(breakdown: Breakdown, dimension: StatsDimension, mont
             BreakdownDonut(
                 breakdown = breakdown,
                 caption = dimension.wholeName(),
+                income = dimension == StatsDimension.INCOME_CATEGORY,
             )
         }
     }

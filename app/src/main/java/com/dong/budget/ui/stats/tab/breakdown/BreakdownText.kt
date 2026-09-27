@@ -5,6 +5,7 @@ import com.dong.budget.ui.format.formatAmount
 import com.dong.budget.ui.format.formatNetExpense
 import com.dong.budget.ui.format.formatShare
 import com.dong.budget.ui.format.formatSignedTotal
+import com.dong.budget.ui.format.formatSpentAmount
 import com.dong.budget.ui.stats.BreakdownEntry
 import com.dong.budget.ui.stats.GroupKey
 import com.dong.budget.ui.stats.MerchantStat
@@ -35,7 +36,7 @@ fun groupNote(key: GroupKey, dimension: StatsDimension): String? =
  */
 fun entryDescription(entry: BreakdownEntry, dimension: StatsDimension): String = buildList {
     add(entry.name)
-    add(formatNetExpense(entry.amount))
+    add(formatSpentAmount(entry.amount))
     val share = entry.share
     if (share == null) {
         add(entrySummary(entry, dimension))

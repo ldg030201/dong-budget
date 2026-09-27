@@ -27,6 +27,7 @@ import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import com.dong.budget.ui.components.sectionBlock
+import com.dong.budget.ui.home.totalColor
 import com.dong.budget.ui.theme.BudgetTheme
 import com.dong.budget.ui.theme.pressScaleClickable
 import kotlin.reflect.KProperty
@@ -93,12 +94,20 @@ fun SectionTitle(text: String, modifier: Modifier = Modifier, subtitle: String? 
  * 숫자 한 줄. 왼쪽에 라벨(과 그 아래 캡션), 오른쪽에 값.
  * 360dp 에서도 넘치지 않게 가로 칸을 나누지 않고 줄로 쌓는다. 화면 읽기는 한 줄을 한 번에 읽는다.
  *
- * @param value 줄에 보이는 그대로의 값(예: '32,000원', '+12,000원', '—')
+ * @param value 줄에 보이는 그대로의 값(예: '-32,000원', '+12,000원', '13일', '—')
+ * @param valueColor 값 글자색. 돈이면 방향 색(지출 빨강, 수입 초록)을 넘긴다.
  * @param caption 라벨 아래 흐린 설명(예: '27일 기준')
  * @param onClick 누를 수 있는 줄이면 끝에 꺾쇠를 붙인다. null 이면 누를 수 없다.
  */
 @Composable
-fun StatRow(label: String, value: String, modifier: Modifier = Modifier, caption: String? = null, onClick: (() -> Unit)? = null) {
+fun StatRow(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier,
+    valueColor: Color = BudgetTheme.colors.textPrimary,
+    caption: String? = null,
+    onClick: (() -> Unit)? = null,
+) {
     Row(
         modifier =
         modifier
@@ -133,7 +142,7 @@ fun StatRow(label: String, value: String, modifier: Modifier = Modifier, caption
         Text(
             text = value,
             style = BudgetTheme.amount.medium,
-            color = BudgetTheme.colors.textPrimary,
+            color = valueColor,
             textAlign = TextAlign.End,
             modifier = Modifier.padding(start = BudgetTheme.spacing.inlineGap),
         )
@@ -178,9 +187,13 @@ fun StatsEmpty(title: String, body: String, modifier: Modifier = Modifier) {
     }
 }
 
-/** 순지출 글자색(formatNetExpense 와 짝). 돌려받은 쪽(음수 → "+")만 income 색이고, 나머지는 본문색이다. 방향은 부호가 전한다. */
+/** 순지출 글자색(formatNetExpense 와 짝). 쓴 돈은 지출색(빨강), 돌려받은 돈이 더 많으면 수입색(초록), 0 은 본문색 */
 @Composable
-internal fun netExpenseColor(amount: Long): Color = if (amount < 0) BudgetTheme.colors.income else BudgetTheme.colors.textPrimary
+internal fun netExpenseColor(amount: Long): Color = totalColor(-amount)
+
+/** 수입이면 수입 쪽, 지출이면 지출 쪽 색(formatDirected 와 짝) */
+@Composable
+internal fun directedColor(amount: Long, income: Boolean): Color = if (income) totalColor(amount) else netExpenseColor(amount)
 
 /**
  * [scope](달·날짜)에 묶인 저장 상태. 화면을 돌리거나 프로세스가 다시 떠도 남고, [scope] 가 바뀌면 처음(null)으로 돌아간다.

@@ -40,11 +40,26 @@ fun formatSignedTotal(amount: Long, unit: String = "원"): String = when {
 }
 
 /**
- * 순지출(쓴 돈 − 돌려받은 돈). 쓴 쪽은 부호 없이 적고, 돌려받은 돈이 더 많아 음수면 돌아온 돈이라 "+12,000원" 으로 적는다.
- * 통계의 달·날·분류·결제수단 금액이 모두 이 규칙을 따른다(색은 netExpenseColor).
+ * 순지출(쓴 돈 − 돌려받은 돈)을 방향 부호와 함께 적는다. 쓴 돈은 "-12,000원", 돌려받은 돈이 더 많아 음수면 "+12,000원", 0 은 "0원".
+ * 통계 화면의 지출 금액이 모두 이 규칙을 따른다(색은 netExpenseColor). 홈 요약·달력과 같은 부호다.
  */
-fun formatNetExpense(amount: Long, unit: String = "원"): String =
-    if (amount < 0) formatSignedTotal(-amount, unit) else "${formatAmount(amount)}$unit"
+fun formatNetExpense(amount: Long, unit: String = "원"): String = formatSignedTotal(-amount, unit)
+
+/**
+ * 지출 금액을 부호 없이. '지출', '썼어요' 처럼 말이 방향을 이미 전하는 화면 읽기 문장에 쓴다("지출 -2만원" 으로 읽히지 않게).
+ * 돌려받은 돈이 더 많아 음수면 "+12,000원" 이다.
+ */
+fun formatSpentAmount(amount: Long, unit: String = "원"): String = if (amount <
+    0
+) {
+    formatSignedTotal(-amount, unit)
+} else {
+    "${formatAmount(amount)}$unit"
+}
+
+/** 수입이면 "+", 지출이면 "-" 로 방향을 붙인다. 분류·결제수단처럼 한 화면이 수입과 지출을 오가는 곳에 쓴다. */
+fun formatDirected(amount: Long, income: Boolean, unit: String = "원"): String =
+    if (income) formatSignedTotal(amount, unit) else formatNetExpense(amount, unit)
 
 /**
  * 날짜 하나만 따로 보여줄 때 (등록 화면의 날짜 칸 등).

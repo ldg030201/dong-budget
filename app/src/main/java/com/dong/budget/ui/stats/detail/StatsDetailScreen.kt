@@ -28,6 +28,7 @@ import com.dong.budget.ui.components.DayHeader
 import com.dong.budget.ui.components.HintText
 import com.dong.budget.ui.components.MonthStepper
 import com.dong.budget.ui.components.TransactionRow
+import com.dong.budget.ui.format.formatDirected
 import com.dong.budget.ui.format.formatNetExpense
 import com.dong.budget.ui.format.monthLabel
 import com.dong.budget.ui.stats.SectionNote
@@ -39,6 +40,7 @@ import com.dong.budget.ui.stats.chart.AxisLabelStyle
 import com.dong.budget.ui.stats.chart.ColumnChart
 import com.dong.budget.ui.stats.chart.ColumnSlot
 import com.dong.budget.ui.stats.chart.formatAxisWon
+import com.dong.budget.ui.stats.directedColor
 import com.dong.budget.ui.stats.netExpenseColor
 import com.dong.budget.ui.stats.tab.breakdown.BreakdownRow
 import com.dong.budget.ui.stats.tab.breakdown.MerchantRow
@@ -121,7 +123,7 @@ private fun DetailContent(state: StatsDetailUiState, onOpenTransaction: (Long) -
         state.days.forEach { group ->
             item(key = "day-${group.date}") { DayHeader(date = group.date, today = state.today) }
             items(items = group.items, key = { "tx-${it.id}" }) { item ->
-                TransactionRow(item = item, onClick = { onOpenTransaction(item.id) })
+                TransactionRow(item = item, onClick = { onOpenTransaction(item.id) }, colorExpense = true)
             }
         }
     }
@@ -149,9 +151,9 @@ private fun DetailHeader(state: StatsDetailUiState, monthLabel: String) {
                         color = BudgetTheme.colors.textSecondary,
                     )
                     Text(
-                        text = formatNetExpense(state.amount),
+                        text = formatDirected(state.amount, income = state.dimension == StatsDimension.INCOME_CATEGORY),
                         style = BudgetTheme.amount.large,
-                        color = netExpenseColor(state.amount),
+                        color = directedColor(state.amount, income = state.dimension == StatsDimension.INCOME_CATEGORY),
                     )
                 }
             }

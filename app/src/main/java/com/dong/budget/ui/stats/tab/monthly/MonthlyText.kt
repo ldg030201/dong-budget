@@ -6,6 +6,7 @@ import com.dong.budget.ui.format.formatAmount
 import com.dong.budget.ui.format.formatMonth
 import com.dong.budget.ui.format.formatNetExpense
 import com.dong.budget.ui.format.formatSignedTotal
+import com.dong.budget.ui.format.formatSpentAmount
 import com.dong.budget.ui.format.monthLabel
 import com.dong.budget.ui.home.Totals
 import com.dong.budget.ui.stats.GroupKey
@@ -78,7 +79,7 @@ internal fun trendCells(point: MonthPoint): List<String> {
     return listOf(
         "${point.month.monthValue}월",
         formatNetExpense(expense, unit = ""),
-        formatAmount(income),
+        formatSignedTotal(income, unit = ""),
         formatSignedTotal(income - expense, unit = ""),
     )
 }
@@ -91,7 +92,7 @@ internal fun trendRowDescription(point: MonthPoint, isShownMonth: Boolean): Stri
     val (expense, income) = point.totals
     return listOfNotNull(
         formatMonth(point.month),
-        "지출 ${formatNetExpense(expense)}",
+        "지출 ${formatSpentAmount(expense)}",
         "수입 ${formatAmount(income)}원",
         "남은 돈 ${formatSignedTotal(income - expense)}",
         "지금 보는 달".takeIf { isShownMonth },
