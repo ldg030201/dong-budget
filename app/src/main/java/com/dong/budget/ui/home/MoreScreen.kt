@@ -32,6 +32,7 @@ import com.dong.budget.ui.theme.BudgetTheme
 fun MoreScreen(
     devModeOn: Boolean,
     onOpenCategories: () -> Unit,
+    onOpenStatistics: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenPatchNotes: () -> Unit,
     onOpenDeveloper: () -> Unit,
@@ -71,7 +72,14 @@ fun MoreScreen(
             color = "indigo",
             onClick = onOpenCategories,
         )
-        // 통계는 여기 두지 않고 아래 메뉴에만 둔다. 같은 입구가 두 군데 있으면 어느 쪽으로 가야 하는지 헷갈린다.
+        // 전체는 앱의 모든 메뉴를 늘어놓는 곳이라 아래 메뉴에 있는 통계도 여기 둔다
+        MenuItem(
+            title = "통계",
+            subtitle = "월별·일별·분류·결제수단으로 나눠 봐요",
+            iconRes = R.drawable.ic_sym_bar_chart,
+            color = "orange",
+            onClick = onOpenStatistics,
+        )
         MenuItem(
             title = "패치노트",
             subtitle = "버전마다 바뀐 점을 봐요",
