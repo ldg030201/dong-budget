@@ -179,7 +179,8 @@ fun GroupKey.detailKey(dimension: StatsDimension, month: YearMonth): StatsDetail
 // ── 일별 ─────────────────────────────────────────────────────────────
 
 /**
- * @property series 쌓는 계열(상위 지출 분류 + '그 외'). 분류 탭 도넛과 같은 계열·순서다.
+ * @property series 쌓는 계열(상위 지출 분류 + '그 외'). 분류 탭 도넛과 같은 계열을 분류 순서로 늘어놓고 '그 외' 는 맨 뒤다.
+ *   첫 계열이 막대 맨 아래에 쌓인다.
  * @property days 1일부터 말일까지 하루씩
  * @property stackMax 하루 쌓은 높이(양수 조각의 합)의 최댓값
  * @property defaultDay 처음 고를 날(일). 이번 달은 오늘, 지나간 달은 가장 많이 쓴 날, 오지 않은 달은 기록이 있는 첫날
@@ -216,7 +217,7 @@ data class DailyStats(
  * 하루치.
  * @property expense 그날 순지출(홈 달력 칸과 같다. 환불이 더 많으면 음수)
  * @property segments [DailyStats.series] 순서의 조각. 계열마다 max(0, 순지출)
- * @property details 그날 금액이 0 이 아닌 지출 분류 전부(접힌 분류도 제 이름으로). 금액 내림차순
+ * @property details 그날 금액이 0 이 아닌 지출 분류 전부(접힌 분류도 제 이름으로). 분류 순서
  * @property items 그날 거래(이체 빼고). 늦은 시각이 먼저
  * @property isFuture 오늘 뒤의 날인지
  */
@@ -291,6 +292,7 @@ data class Breakdown(
  * @property share 비율(0~1). 음수 항목은 null
  * @property averageTicket 한 번에 평균 = 지출 합(환불 전) ÷ 지출 건수. 수입 쪽이나 지출이 없으면 null
  * @property change 지난달 대비. 비교할 수 없으면 null
+ * @property sortOrder 설정의 분류 목록 순서. 분류로 묶을 때만 있고, None·지운 분류·결제수단은 null
  */
 data class BreakdownEntry(
     val key: GroupKey,
@@ -302,6 +304,7 @@ data class BreakdownEntry(
     val share: Double?,
     val averageTicket: Long?,
     val change: EntryChange?,
+    val sortOrder: Int? = null,
 )
 
 /** 지난달 대비 증감. [previous] 는 비교 범위(ComparisonWindow) 안의 지난 값, [current] 는 이번 값 */

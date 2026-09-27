@@ -23,7 +23,11 @@ class DailyStatsTest {
     private val september = YearMonth.of(2026, 9)
 
     private fun stacks(today: String, vararg rows: TransactionListItem) =
-        dayStacks(september, day(today), rows.toList(), breakdown(rows.toList(), Measure.EXPENSE, Grouping.CATEGORY, null).series)
+        dayStacks(september, day(today), rows.toList(), dailySeries(rows.toList()))
+
+    /** 통계 화면과 같이 분류 순서로 늘어놓은 계열 */
+    private fun dailySeries(rows: List<TransactionListItem>) =
+        breakdown(rows, Measure.EXPENSE, Grouping.CATEGORY, null).let { seriesOf(it.entries, it.positiveTotal, CATEGORY_ORDER) }
 
     // ── 쌓은 막대 ───────────────────────────────────────────────────────
 
@@ -49,17 +53,51 @@ class DailyStatsTest {
             tx("2026-09-03", 7_000),
             tx("2026-09-03", 2_000, REFUND, categoryId = 1),
         )
-        val series = breakdown(rows, Measure.EXPENSE, Grouping.CATEGORY, null).series
-        val days = dayStacks(september, day("2026-09-27"), rows, series)
+        val days = dayStacks(september, day("2026-09-27"), rows, dailySeries(rows))
         assertEquals(listOf(60_000L, 50_000L, 40_000L, 30_000L, 20_000L, 0L), days[0].segments)
         // 3일: 식비는 환불뿐이라 0, 그 외 = 통신 10,000 + 분류 없음 7,000
         assertEquals(listOf(0L, 0L, 0L, 0L, 0L, 17_000L), days[2].segments)
         assertEquals(15_000L, days[2].expense)
         assertEquals(2_000L, days[2].refund)
-        // 접힌 분류도 제 이름으로 남고 계열 번호는 그 외(5)다
-        assertEquals(listOf("분류6", "분류 없음", "분류1"), days[2].details.map { it.name })
-        assertEquals(listOf(5, 5, 0), days[2].details.map { it.seriesIndex })
-        assertEquals(listOf(10_000L, 7_000L, -2_000L), days[2].details.map { it.amount })
+        // 접힌 분류도 제 이름으로 남고 계열 번호는 그 외(5)다. 줄은 금액이 아니라 분류 순서이고 분류 없음은 맨 뒤다.
+        assertEquals(listOf("분류1", "분류6", "분류 없음"), days[2].details.map { it.name })
+        assertEquals(listOf(0, 5, 5), days[2].details.map { it.seriesIndex })
+        assertEquals(listOf(-2_000L, 10_000L, 7_000L), days[2].details.map { it.amount })
+    }
+
+    @Test
+    fun `계열과 조각과 읽기 판은 금액이 아니라 분류 순서이고 그 외는 맨 뒤다`() {
+        // 금액은 분류7이 가장 크고 분류1·2 가 가장 작아 그 외로 접힌다. 분류 순서는 id 순서
+        val rows = listOf(
+            tx("2026-09-01", 1_000, categoryId = 1),
+            tx("2026-09-01", 2_000, categoryId = 2),
+            tx("2026-09-02", 30_000, categoryId = 3),
+            tx("2026-09-02", 40_000, categoryId = 4),
+            tx("2026-09-02", 50_000, categoryId = 5),
+            tx("2026-09-02", 60_000, categoryId = 6),
+            tx("2026-09-02", 70_000, categoryId = 7),
+        )
+        val series = dailySeries(rows)
+        assertEquals(listOf("분류3", "분류4", "분류5", "분류6", "분류7", "그 외 2개"), series.map { it.name })
+        val days = dayStacks(september, day("2026-09-27"), rows, series)
+        assertEquals(listOf(30_000L, 40_000L, 50_000L, 60_000L, 70_000L, 0L), days[1].segments)
+        assertEquals(listOf(0L, 0L, 0L, 0L, 0L, 3_000L), days[0].segments)
+        assertEquals(listOf("분류3", "분류4", "분류5", "분류6", "분류7"), days[1].details.map { it.name })
+        assertEquals(listOf("분류1", "분류2"), days[0].details.map { it.name })
+    }
+
+    @Test
+    fun `분류 순서는 설정에서 바꾼 정렬값을 따른다`() {
+        val rows = listOf(
+            tx("2026-09-01", 10_000, categoryId = 1, categorySortOrder = 2),
+            tx("2026-09-01", 20_000, categoryId = 2, categorySortOrder = 0),
+            tx("2026-09-01", 30_000, categoryId = 3, categorySortOrder = 1),
+            // 지운 분류는 정렬값이 없어 분류 없음 바로 앞이다
+            tx("2026-09-01", 4_000, categoryId = 9, categoryName = null, categorySortOrder = null),
+            tx("2026-09-01", 5_000),
+        )
+        val days = stacks("2026-09-27", *rows.toTypedArray())
+        assertEquals(listOf("분류2", "분류3", "분류1", "지운 분류", "분류 없음"), days[0].details.map { it.name })
     }
 
     @Test

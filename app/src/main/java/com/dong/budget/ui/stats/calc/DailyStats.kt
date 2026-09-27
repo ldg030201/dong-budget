@@ -27,7 +27,7 @@ import java.time.temporal.ChronoUnit
 
 /**
  * 1일부터 말일까지 하루씩 쌓는다.
- * @param series 쌓을 계열(지출 분류의 상위 + '그 외'). 조각은 이 순서다.
+ * @param series 쌓을 계열(지출 분류의 상위 + '그 외'). 조각은 이 순서이고 첫 계열이 맨 아래다.
  */
 fun dayStacks(month: YearMonth, today: LocalDate, rows: List<TransactionListItem>, series: List<StatSeries>): List<DayStack> {
     val byDay = rows.filter { it.isRecord }.groupBy { it.localDate() }
@@ -62,9 +62,9 @@ private fun dayStack(
     )
 }
 
-/** 그날 금액이 0 이 아닌 지출 분류 전부. 계열에서 접힌 분류도 제 이름으로 남긴다. 목록 순서는 분류 탭과 같다. */
+/** 그날 금액이 0 이 아닌 지출 분류 전부. 계열에서 접힌 분류도 제 이름으로 남긴다. 칩·쌓는 순서와 같은 분류 순서다. */
 private fun dayDetails(items: List<TransactionListItem>, seriesIndex: Map<GroupKey, Int>): List<DayDetail> =
-    breakdown(items, Measure.EXPENSE, Grouping.CATEGORY, window = null).entries.map { entry ->
+    breakdown(items, Measure.EXPENSE, Grouping.CATEGORY, window = null).entries.sortedWith(CATEGORY_ORDER).map { entry ->
         DayDetail(name = entry.name, seriesIndex = seriesIndex[entry.key], amount = entry.amount)
     }
 

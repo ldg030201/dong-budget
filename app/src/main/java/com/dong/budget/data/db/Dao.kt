@@ -29,6 +29,8 @@ data class TransactionListItem(
     /** 결제수단별 통계의 뱃지와 차트 색 */
     val paymentMethodIcon: String? = null,
     val paymentMethodColor: String? = null,
+    /** 설정의 분류 목록 순서. 날마다 쓴 돈이 이 순서로 쌓는다. 비웠거나 지웠으면 null */
+    val categorySortOrder: Int? = null,
 )
 
 /** 결제수단 목록에 거래 건수를 붙인 것 */
@@ -56,7 +58,8 @@ interface TransactionDao {
                p.name AS paymentMethodName,
                t.categoryId, t.paymentMethodId,
                p.icon AS paymentMethodIcon,
-               p.color AS paymentMethodColor
+               p.color AS paymentMethodColor,
+               c.sortOrder AS categorySortOrder
         FROM transactions t
         LEFT JOIN categories c ON c.id = t.categoryId
         LEFT JOIN payment_methods p ON p.id = t.paymentMethodId
