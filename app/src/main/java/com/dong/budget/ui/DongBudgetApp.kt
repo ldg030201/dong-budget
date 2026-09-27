@@ -323,13 +323,16 @@ private fun statsTransitions(): Map<String, Any> = NavDisplay.transitionSpec {
     fadeIn(tween(STATS_FADE_MS)) togetherWith ExitTransition.KeepUntilTransitionsFinished
 } +
     NavDisplay.popTransitionSpec {
-        EnterTransition.None togetherWith fadeOut(tween(STATS_FADE_MS))
+        EnterTransition.None togetherWith fadeOut(tween(STATS_FADE_MS, delayMillis = STATS_EXIT_DELAY_MS))
     } +
     NavDisplay.predictivePopTransitionSpec { _: Int ->
-        EnterTransition.None togetherWith fadeOut(tween(STATS_FADE_MS))
+        EnterTransition.None togetherWith fadeOut(tween(STATS_FADE_MS, delayMillis = STATS_EXIT_DELAY_MS))
     }
 
 private const val STATS_FADE_MS = 200
+
+// 나갈 때는 떠 있는 메뉴가 먼저 내려가고(BAR_SINK_MS) 그 뒤에 화면이 흐려진다. 같이 흐려지면 내려가는 게 안 보인다.
+private const val STATS_EXIT_DELAY_MS = 140
 
 /**
  * 이 화면이 전환을 마치고 자리 잡았는지(RESUMED). NavDisplay 는 전환 동안(약 0.7초) 거의 투명한 화면에도 터치를 넘겨서,

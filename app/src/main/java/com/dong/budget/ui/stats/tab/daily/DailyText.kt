@@ -4,6 +4,7 @@ import com.dong.budget.ui.format.formatAmount
 import com.dong.budget.ui.format.formatDateSpoken
 import com.dong.budget.ui.format.formatNetExpense
 import com.dong.budget.ui.format.formatSignedTotal
+import com.dong.budget.ui.format.formatSpentAmount
 import com.dong.budget.ui.format.formatWeekday
 import com.dong.budget.ui.format.formatWeekdayFull
 import com.dong.budget.ui.stats.DayStack
@@ -25,7 +26,7 @@ internal fun dayTitle(date: LocalDate, today: LocalDate): String {
 }
 
 /** 하루 평균·쓴 날 평균 값. 낼 수 없으면(센 날이 없거나 환불이 더 많음) "—" */
-internal fun averageValue(amount: Long?): String = amount?.let { "${formatAmount(it)}원" } ?: "—"
+internal fun averageValue(amount: Long?): String = amount?.let { formatNetExpense(it) } ?: "—"
 
 /** 하루 평균 줄의 캡션. "27일 기준" */
 internal fun countedCaption(counted: IntRange): String = "${counted.count()}일 기준"
@@ -52,7 +53,7 @@ internal fun daySlotDescription(day: DayStack, today: LocalDate): String = build
 
         else -> add("지출 없음")
     }
-    day.details.forEach { add("${it.name} ${formatNetExpense(it.amount)}") }
+    day.details.forEach { add("${it.name} ${formatSpentAmount(it.amount)}") }
 }.joinToString(", ")
 
 /** 필터 칩의 화면 읽기 문장. '전체' 칩은 "모든 분류 보기", 계열 칩은 "식비만 보기" */
@@ -76,7 +77,13 @@ internal fun StatSeries.focusKey(): String = when (val group = key) {
  * @param top 가장 많이 쓴 요일인지
  */
 internal fun weekdayBar(average: WeekdayAverage, top: Boolean): WeekdayBar {
-    val value = formatNetExpense(average.average)
-    val description = listOfNotNull(formatWeekdayFull(average.day), "하루 평균 $value", "가장 많음".takeIf { top }).joinToString(", ")
-    return WeekdayBar(label = formatWeekday(average.day), value = average.average, valueText = value, description = description)
+    // 화면에는 지출 부호를 붙이고, 화면 읽기는 '하루 평균 32,000원' 으로 읽는다(말이 방향을 전한다)
+    val spoken = formatSpentAmount(average.average)
+    val description = listOfNotNull(formatWeekdayFull(average.day), "하루 평균 $spoken", "가장 많음".takeIf { top }).joinToString(", ")
+    return WeekdayBar(
+        label = formatWeekday(average.day),
+        value = average.average,
+        valueText = formatNetExpense(average.average),
+        description = description,
+    )
 }

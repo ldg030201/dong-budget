@@ -118,7 +118,9 @@ internal fun YearToDateSection(ytd: YearToDate, modifier: Modifier = Modifier) {
     StatsSection(modifier = modifier, title = yearToDateTitle(ytd), subtitle = yearToDateRange(ytd), block = true) {
         yearToDateStartHint(ytd)?.let { HintText(text = it) }
         TotalsRows(totals = ytd.totals) {
-            ytd.monthlyAverageExpense?.let { StatRow(label = "한 달 평균 지출", value = formatNetExpense(it)) }
+            ytd.monthlyAverageExpense?.let {
+                StatRow(label = "한 달 평균 지출", value = formatNetExpense(it), valueColor = netExpenseColor(it))
+            }
         }
         yearRatioSentence(ytd.totals)?.let { RatioSentence(sentence = it) }
     }
@@ -131,9 +133,10 @@ internal fun YearToDateSection(ytd: YearToDate, modifier: Modifier = Modifier) {
 @Composable
 private fun TotalsRows(totals: Totals, extra: @Composable () -> Unit = {}) {
     Column {
-        StatRow(label = "수입", value = "${formatAmount(totals.income)}원")
-        StatRow(label = "지출", value = formatNetExpense(totals.expense))
-        StatRow(label = "남은 돈", value = formatSignedTotal(totals.income - totals.expense))
+        StatRow(label = "수입", value = formatSignedTotal(totals.income), valueColor = totalColor(totals.income))
+        StatRow(label = "지출", value = formatNetExpense(totals.expense), valueColor = netExpenseColor(totals.expense))
+        val left = totals.income - totals.expense
+        StatRow(label = "남은 돈", value = formatSignedTotal(left), valueColor = totalColor(left))
         extra()
     }
 }

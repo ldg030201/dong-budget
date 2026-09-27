@@ -17,9 +17,11 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import com.dong.budget.ui.format.formatAmount
+import com.dong.budget.ui.format.formatNetExpense
 import com.dong.budget.ui.stats.MerchantStat
 import com.dong.budget.ui.stats.StatsSection
 import com.dong.budget.ui.stats.calc.merchantSubtitle
+import com.dong.budget.ui.stats.netExpenseColor
 import com.dong.budget.ui.theme.BudgetTheme
 
 /**
@@ -64,9 +66,9 @@ fun MerchantRow(rank: Int, merchant: MerchantStat, modifier: Modifier = Modifier
             )
         }
         Text(
-            text = "${formatAmount(merchant.amount)}원",
+            text = formatNetExpense(merchant.amount),
             style = BudgetTheme.amount.medium,
-            color = BudgetTheme.colors.textPrimary,
+            color = netExpenseColor(merchant.amount),
             modifier = Modifier.padding(start = BudgetTheme.spacing.inlineGap),
         )
     }

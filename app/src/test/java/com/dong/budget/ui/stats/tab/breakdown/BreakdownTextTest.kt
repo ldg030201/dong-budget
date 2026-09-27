@@ -87,7 +87,7 @@ class BreakdownTextTest {
 
     @Test
     fun `머리 부제, 범례, 많이 쓴 곳 문장`() {
-        assertEquals("523,000원", formatNetExpense(523_000))
+        assertEquals("-523,000원", formatNetExpense(523_000))
         assertEquals("분류 5개", entryCountText(5, StatsDimension.EXPENSE_CATEGORY))
         assertEquals("분류 2개", entryCountText(2, StatsDimension.INCOME_CATEGORY))
         assertEquals("결제수단 3개", entryCountText(3, StatsDimension.PAYMENT_METHOD))

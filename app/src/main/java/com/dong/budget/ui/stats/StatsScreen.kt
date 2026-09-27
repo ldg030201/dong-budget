@@ -1,9 +1,9 @@
 package com.dong.budget.ui.stats
 
+import androidx.compose.animation.core.FastOutLinearInEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.layout.Box
@@ -25,6 +25,7 @@ import com.dong.budget.ui.components.BudgetTextButton
 import com.dong.budget.ui.components.FloatingSubBar
 import com.dong.budget.ui.components.FloatingSubBarScrim
 import com.dong.budget.ui.components.MonthStepper
+import com.dong.budget.ui.components.SubBarTab
 import com.dong.budget.ui.components.floatingBarClearance
 import com.dong.budget.ui.stats.tab.BreakdownKind
 import com.dong.budget.ui.stats.tab.BreakdownTab
@@ -111,7 +112,7 @@ fun StatsScreen(
             }
             FloatingSubBarScrim(modifier = Modifier.align(Alignment.BottomCenter))
             FloatingSubBar(
-                tabs = TAB_LABELS,
+                tabs = TABS,
                 selectedIndex = selectedTab.ordinal,
                 onSelect = { index -> onSelectTab(StatsTab.entries[index]) },
                 onBack = onBack,
@@ -121,7 +122,7 @@ fun StatsScreen(
     }
 }
 
-private val TAB_LABELS = StatsTab.entries.map { it.label }
+private val TABS = StatsTab.entries.map { SubBarTab(label = it.label, icon = it.icon) }
 
 @Composable
 private fun TabContent(
@@ -166,12 +167,14 @@ private fun Modifier.floatingBarMotion(): Modifier {
             enter =
             slideInVertically(tween(BAR_RISE_MS, easing = FastOutSlowInEasing)) { height -> height } +
                 fadeIn(tween(BAR_FADE_IN_MS)),
-            exit = slideOutVertically(tween(BAR_SINK_MS)) { height -> height } + fadeOut(tween(BAR_SINK_MS)),
+            // 뒤로 갈 때는 흐려지지 않고 끝까지 내려간다. 화면은 메뉴가 거의 내려간 뒤에 흐려진다(statsTransitions).
+            exit = slideOutVertically(tween(BAR_SINK_MS, easing = FastOutLinearInEasing)) { height -> height },
         )
     }
 }
 
-// 떠오를 때는 화면이 나타나는 것(200ms)보다 조금 늦게 자리 잡아 아래에서 올라오는 게 보이게 하고, 가라앉을 때는 짧게 끝낸다.
+// 떠오를 때는 화면이 나타나는 것(200ms)보다 조금 늦게 자리 잡아 아래에서 올라오는 게 보이게 한다.
+// 가라앉을 때는 화면이 흐려지기 시작하기(STATS_EXIT_DELAY_MS) 전부터 내려가서, 내려가는 게 보인다.
 private const val BAR_RISE_MS = 260
 private const val BAR_FADE_IN_MS = 200
-private const val BAR_SINK_MS = 150
+internal const val BAR_SINK_MS = 240

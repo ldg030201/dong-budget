@@ -83,7 +83,7 @@ fun Donut(values: List<Long>, colors: List<Color>, modifier: Modifier = Modifier
  * 구멍보다 긴 금액은 글자를 줄여 한 줄에 맞춘다. 잘려 보이면 금액을 잘못 읽는다.
  */
 @Composable
-fun DonutCenterLabel(caption: String, value: String, modifier: Modifier = Modifier) {
+fun DonutCenterLabel(caption: String, value: String, modifier: Modifier = Modifier, valueColor: Color = BudgetTheme.colors.textPrimary) {
     val amount = BudgetTheme.amount.medium
     Column(
         modifier = modifier.padding(horizontal = BudgetTheme.chart.donutStroke + BudgetTheme.spacing.tightGap),
@@ -92,7 +92,7 @@ fun DonutCenterLabel(caption: String, value: String, modifier: Modifier = Modifi
         Text(text = caption, style = MaterialTheme.typography.bodySmall, color = BudgetTheme.colors.textSecondary, maxLines = 1)
         BasicText(
             text = value,
-            style = amount.copy(color = BudgetTheme.colors.textPrimary, textAlign = TextAlign.Center),
+            style = amount.copy(color = valueColor, textAlign = TextAlign.Center),
             maxLines = 1,
             autoSize = TextAutoSize.StepBased(minFontSize = BudgetTheme.amount.chartAxis.fontSize, maxFontSize = amount.fontSize),
         )

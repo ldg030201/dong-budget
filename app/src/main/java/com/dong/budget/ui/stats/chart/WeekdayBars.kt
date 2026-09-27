@@ -23,6 +23,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
+import com.dong.budget.ui.home.totalColor
 import com.dong.budget.ui.theme.BudgetTheme
 
 /**
@@ -96,7 +97,8 @@ fun WeekdayBars(bars: List<WeekdayBar>, topIndex: Int?, modifier: Modifier = Mod
                 Text(
                     text = bar.valueText,
                     style = valueStyle,
-                    color = colors.textPrimary,
+                    // 요일별 하루 평균 지출이다. 쓴 돈은 지출색, 돌려받은 돈이 더 많은 요일은 수입색
+                    color = totalColor(-bar.value),
                     fontWeight = if (top) FontWeight.Bold else null,
                     textAlign = TextAlign.End,
                     maxLines = 1,

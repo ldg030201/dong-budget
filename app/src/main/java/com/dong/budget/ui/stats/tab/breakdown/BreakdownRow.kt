@@ -21,11 +21,13 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.style.TextOverflow
 import com.dong.budget.navigation.StatsDimension
 import com.dong.budget.ui.components.CategoryBadge
+import com.dong.budget.ui.format.formatDirected
 import com.dong.budget.ui.format.formatNetExpense
 import com.dong.budget.ui.stats.BreakdownEntry
 import com.dong.budget.ui.stats.calc.changeText
 import com.dong.budget.ui.stats.calc.entrySummary
 import com.dong.budget.ui.stats.chart.entityColor
+import com.dong.budget.ui.stats.directedColor
 import com.dong.budget.ui.stats.netExpenseColor
 import com.dong.budget.ui.theme.BudgetTheme
 import com.dong.budget.ui.theme.pressScaleClickable
@@ -80,10 +82,11 @@ fun BreakdownRow(entry: BreakdownEntry, dimension: StatsDimension, onClick: (() 
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
                 )
+                val income = dimension == StatsDimension.INCOME_CATEGORY
                 Text(
-                    text = formatNetExpense(entry.amount),
+                    text = formatDirected(entry.amount, income),
                     style = BudgetTheme.amount.medium,
-                    color = netExpenseColor(entry.amount),
+                    color = directedColor(entry.amount, income),
                     modifier = Modifier.padding(start = BudgetTheme.spacing.inlineGap),
                 )
             }

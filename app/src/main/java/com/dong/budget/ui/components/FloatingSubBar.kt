@@ -1,5 +1,6 @@
 package com.dong.budget.ui.components
 
+import androidx.annotation.DrawableRes
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.spring
@@ -7,6 +8,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
@@ -18,6 +20,7 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.selection.selectableGroup
@@ -27,12 +30,14 @@ import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
@@ -60,11 +65,11 @@ import com.dong.budget.ui.theme.pressScaleClickable
  * 알약 바탕(Surface)은 터치를 받아서, 알약 칸 사이의 빈 곳을 눌러도 밑에 가려진 목록 줄이 눌리지 않는다.
  * 알약 옆 여백은 그대로 밑으로 통과한다.
  *
- * @param tabs 칸 글자. 360dp 폭에서 4개가 상한이다(칸 하나 약 64dp).
+ * @param tabs 칸마다 아이콘과 글자. 360dp 폭에서 4개가 상한이다(칸 하나 약 64dp).
  * @param onBack 맨 왼쪽 ← 버튼
  */
 @Composable
-fun FloatingSubBar(tabs: List<String>, selectedIndex: Int, onSelect: (Int) -> Unit, onBack: () -> Unit, modifier: Modifier = Modifier) {
+fun FloatingSubBar(tabs: List<SubBarTab>, selectedIndex: Int, onSelect: (Int) -> Unit, onBack: () -> Unit, modifier: Modifier = Modifier) {
     Box(
         modifier =
         modifier
@@ -119,12 +124,17 @@ fun FloatingSubBar(tabs: List<String>, selectedIndex: Int, onSelect: (Int) -> Un
     }
 }
 
+/** 떠 있는 메뉴의 칸 하나. 아이콘 아래에 글자를 둔다(셸의 아래 메뉴와 같은 모양) */
+data class SubBarTab(val label: String, @DrawableRes val icon: Int)
+
 /** 알약 안의 칸들. 칸 폭이 모두 같아서 고른 칸 표시는 '칸 번호 × 칸 폭' 만큼 옮기면 된다. */
 @Composable
-private fun SubBarTabs(tabs: List<String>, selectedIndex: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier) {
+private fun SubBarTabs(tabs: List<SubBarTab>, selectedIndex: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier) {
     val shape = RoundedCornerShape(BudgetTheme.radius.full)
     BoxWithConstraints(modifier = modifier, contentAlignment = Alignment.CenterStart) {
         val cellWidth = maxWidth / tabs.size.coerceAtLeast(1)
+        // 알약 안쪽 위아래로 조금 띄운 높이. 아이콘과 글자 두 줄이 들어가고 최소 터치 크기보다 크다.
+        val cellHeight = BudgetTheme.size.floatingBarHeight - BudgetTheme.spacing.inlineGap
         val indicatorOffset =
             animateDpAsState(
                 targetValue = cellWidth * selectedIndex,
@@ -137,44 +147,54 @@ private fun SubBarTabs(tabs: List<String>, selectedIndex: Int, onSelect: (Int) -
             Modifier
                 .offset { IntOffset(indicatorOffset.value.roundToPx(), 0) }
                 .width(cellWidth)
-                .height(BudgetTheme.size.minTouchTarget)
+                .height(cellHeight)
                 .background(MaterialTheme.colorScheme.primaryContainer, shape),
         )
         Row(modifier = Modifier.fillMaxWidth().selectableGroup(), verticalAlignment = Alignment.CenterVertically) {
-            tabs.forEachIndexed { index, label ->
+            tabs.forEachIndexed { index, tab ->
                 val selected = index == selectedIndex
                 Box(
                     modifier =
                     Modifier
                         .weight(1f)
-                        .height(BudgetTheme.size.minTouchTarget)
+                        .height(cellHeight)
                         .pressScaleClickable(shape = shape, role = Role.Tab, onClick = { onSelect(index) })
                         // 화면 읽기가 지금 고른 칸을 알려준다(예: '월별, 선택됨, 탭')
                         .semantics { this.selected = selected }
                         .padding(horizontal = BudgetTheme.spacing.tightGap),
                     contentAlignment = Alignment.Center,
                 ) {
-                    TabLabel(text = label, selected = selected)
+                    TabContent(tab = tab, selected = selected)
                 }
             }
         }
     }
 }
 
+/** 칸 안의 아이콘과 글자. 아이콘은 꾸밈이라 화면 읽기는 글자만 읽는다. */
 @Composable
-private fun TabLabel(text: String, selected: Boolean) {
-    val style = MaterialTheme.typography.labelMedium
-    BasicText(
-        text = text,
-        style =
-        style.copy(
-            color = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else BudgetTheme.colors.textSecondary,
-            fontWeight = if (selected) FontWeight.Bold else FontWeight.SemiBold,
-            textAlign = TextAlign.Center,
-        ),
-        maxLines = 1,
-        autoSize = TextAutoSize.StepBased(minFontSize = MIN_TAB_LABEL_SIZE, maxFontSize = style.fontSize),
-    )
+private fun TabContent(tab: SubBarTab, selected: Boolean) {
+    val color = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else BudgetTheme.colors.textSecondary
+    val style = MaterialTheme.typography.labelSmall
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Icon(
+            painter = painterResource(tab.icon),
+            contentDescription = null,
+            tint = color,
+            modifier = Modifier.size(BudgetTheme.size.iconSmall),
+        )
+        BasicText(
+            text = tab.label,
+            style =
+            style.copy(
+                color = color,
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.SemiBold,
+                textAlign = TextAlign.Center,
+            ),
+            maxLines = 1,
+            autoSize = TextAutoSize.StepBased(minFontSize = MIN_TAB_LABEL_SIZE, maxFontSize = style.fontSize),
+        )
+    }
 }
 
 /**

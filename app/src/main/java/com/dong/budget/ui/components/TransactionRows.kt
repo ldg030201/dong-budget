@@ -40,9 +40,16 @@ fun DayHeader(date: LocalDate, today: LocalDate) {
 /**
  * 거래 한 줄. 분류 뱃지, 가게(없으면 분류) 이름, 부제, 부호 붙은 금액.
  * @param subtitle 이름 아래 한 줄. 기본은 '오후 2:22 · 식비 · 하나카드'. 날짜가 섞인 목록은 날짜를 넣어 넘긴다.
+ * @param colorExpense 지출 금액도 지출색(빨강)으로 칠할지. 홈 목록은 지출이 줄줄이 이어져 화면이 빨개지지 않게 본문색으로 두고,
+ *   통계처럼 금액마다 방향 색을 쓰는 화면은 켠다.
  */
 @Composable
-fun TransactionRow(item: TransactionListItem, onClick: () -> Unit, subtitle: String = defaultSubtitle(item)) {
+fun TransactionRow(
+    item: TransactionListItem,
+    onClick: () -> Unit,
+    subtitle: String = defaultSubtitle(item),
+    colorExpense: Boolean = false,
+) {
     BudgetListItem(
         title = item.merchant ?: item.categoryName ?: "이름 없는 거래",
         leading = { CategoryBadge(icon = item.categoryIcon, color = item.categoryColor) },
@@ -54,7 +61,8 @@ fun TransactionRow(item: TransactionListItem, onClick: () -> Unit, subtitle: Str
                 color =
                 when (item.type) {
                     TransactionType.INCOME, TransactionType.REFUND -> BudgetTheme.colors.income
-                    else -> BudgetTheme.colors.textPrimary
+                    TransactionType.EXPENSE -> if (colorExpense) BudgetTheme.colors.expense else BudgetTheme.colors.textPrimary
+                    TransactionType.TRANSFER -> BudgetTheme.colors.textPrimary
                 },
             )
         },

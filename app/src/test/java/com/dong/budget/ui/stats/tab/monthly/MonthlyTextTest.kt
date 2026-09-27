@@ -29,8 +29,8 @@ class MonthlyTextTest {
     private fun entry(key: GroupKey) = BreakdownEntry(key, "식비", null, null, 523_000, 12, 0.42, 20_000, change = null)
 
     @Test
-    fun `쓴 돈은 부호 없이, 환불이 더 많으면 돌아온 돈으로 적는다`() {
-        assertEquals("1,234,560원", formatNetExpense(1_234_560))
+    fun `쓴 돈은 - 를 붙이고, 환불이 더 많으면 돌아온 돈으로 적는다`() {
+        assertEquals("-1,234,560원", formatNetExpense(1_234_560))
         assertEquals("0원", formatNetExpense(0))
         assertEquals("+12,000원", formatNetExpense(-12_000))
     }
@@ -83,10 +83,10 @@ class MonthlyTextTest {
     }
 
     @Test
-    fun `표 칸은 단위 없이 적고 음수 지출은 돌아온 돈으로 적는다`() {
-        assertEquals(listOf("8월", "1,234,000", "2,000,000", "+766,000"), trendCells(point(YearMonth.of(2026, 8), 1_234_000, 2_000_000)))
+    fun `표 칸은 단위 없이 지출은 -, 수입은 + 를 붙이고 음수 지출은 돌아온 돈으로 적는다`() {
+        assertEquals(listOf("8월", "-1,234,000", "+2,000,000", "+766,000"), trendCells(point(YearMonth.of(2026, 8), 1_234_000, 2_000_000)))
         assertEquals(listOf("9월", "+12,000", "0", "+12,000"), trendCells(point(september, -12_000)))
-        assertEquals(listOf("9월", "50,000", "0", "-50,000"), trendCells(point(september, 50_000)))
+        assertEquals(listOf("9월", "-50,000", "0", "-50,000"), trendCells(point(september, 50_000)))
     }
 
     @Test

@@ -19,6 +19,17 @@ class FormattersTest {
     }
 
     @Test
+    fun `지출은 -, 수입은 + 를 붙이고, 화면 읽기용 지출은 부호 없이 적는다`() {
+        assertEquals("-12,000원", formatNetExpense(12_000))
+        assertEquals("+12,000원", formatNetExpense(-12_000))
+        assertEquals("0원", formatNetExpense(0))
+        assertEquals("12,000원", formatSpentAmount(12_000))
+        assertEquals("+12,000원", formatSpentAmount(-12_000))
+        assertEquals("+30,000원", formatDirected(30_000, income = true))
+        assertEquals("-30,000원", formatDirected(30_000, income = false))
+    }
+
+    @Test
     fun `만 원 아래는 그대로 쓴다`() {
         assertEquals("0원", formatCompactWon(0))
         assertEquals("8,500원", formatCompactWon(8_500))

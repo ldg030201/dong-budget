@@ -56,7 +56,7 @@ class DailyTextTest {
 
     @Test
     fun `하루 기록 값과 캡션`() {
-        assertEquals("12,345원", averageValue(12_345))
+        assertEquals("-12,345원", averageValue(12_345))
         assertEquals("—", averageValue(null))
         assertEquals("27일 기준", countedCaption(1..27))
         assertEquals("돈을 쓴 12일 기준", spentDaysCaption(12))
@@ -86,7 +86,8 @@ class DailyTextTest {
     fun `요일 막대 한 줄`() {
         val saturday = weekdayBar(WeekdayAverage(DayOfWeek.SATURDAY, 32_000, 12), top = true)
         assertEquals("토", saturday.label)
-        assertEquals("32,000원", saturday.valueText)
+        // 화면에는 지출 부호를 붙이고, 화면 읽기는 '하루 평균' 이 방향을 말해 부호 없이 읽는다
+        assertEquals("-32,000원", saturday.valueText)
         assertEquals("토요일, 하루 평균 32,000원, 가장 많음", saturday.description)
         val monday = weekdayBar(WeekdayAverage(DayOfWeek.MONDAY, -1_000, 13), top = false)
         assertEquals("+1,000원", monday.valueText)
