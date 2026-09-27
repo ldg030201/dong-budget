@@ -4,12 +4,12 @@ import com.dong.budget.navigation.StatsDimension
 import com.dong.budget.ui.format.formatAmount
 import com.dong.budget.ui.format.formatCompactWon
 import com.dong.budget.ui.format.formatMonth
+import com.dong.budget.ui.format.formatNetExpense
 import com.dong.budget.ui.format.formatShare
 import com.dong.budget.ui.stats.BreakdownEntry
 import com.dong.budget.ui.stats.calc.breakdownLabel
 import com.dong.budget.ui.stats.calc.changeText
 import com.dong.budget.ui.stats.calc.entrySummary
-import com.dong.budget.ui.stats.tab.breakdown.entryAmountText
 import com.dong.budget.ui.stats.tab.breakdown.spokenShare
 import com.dong.budget.ui.stats.tab.breakdown.wholeName
 
@@ -40,7 +40,7 @@ fun detailSummary(entry: BreakdownEntry, dimension: StatsDimension): String = li
  */
 fun detailDescription(state: StatsDetailUiState, monthLabel: String): String = buildList {
     add(detailLabel(monthLabel, state.dimension))
-    add(entryAmountText(state.amount))
+    add(formatNetExpense(state.amount))
     state.entry?.let { entry ->
         add(entry.share?.let { "${state.dimension.wholeName()}의 ${spokenShare(it)}" } ?: entrySummary(entry, state.dimension))
         add("${entry.count}건")
@@ -76,5 +76,5 @@ fun noTransactionsText(monthLabel: String, dimension: StatsDimension): String {
 fun trendSlotDescription(point: DetailMonth): String = if (point.beforeFirstRecord) {
     "${formatMonth(point.month)}, 기록을 시작하기 전"
 } else {
-    "${formatMonth(point.month)}, ${entryAmountText(point.amount)}, ${point.count}건"
+    "${formatMonth(point.month)}, ${formatNetExpense(point.amount)}, ${point.count}건"
 }

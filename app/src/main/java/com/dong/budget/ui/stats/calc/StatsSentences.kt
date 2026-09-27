@@ -12,6 +12,7 @@ import com.dong.budget.ui.format.formatWeekdayFull
 import com.dong.budget.ui.format.monthLabel
 import com.dong.budget.ui.home.ComparisonScope
 import com.dong.budget.ui.home.Totals
+import com.dong.budget.ui.home.baseText
 import com.dong.budget.ui.home.localDate
 import com.dong.budget.ui.stats.BreakdownEntry
 import com.dong.budget.ui.stats.CumulativeFlow
@@ -78,12 +79,6 @@ fun spendRatioSentence(totals: Totals, period: Period): SpendRatioSentence {
     }
 }
 
-/** 지난달 비교의 기준이 되는 말 */
-private fun ComparisonScope.base(): String = when (this) {
-    ComparisonScope.SAME_DAY -> "지난달 이맘때"
-    ComparisonScope.WHOLE_MONTH -> "지난달"
-}
-
 /** '눈에 띄는 점' 한 줄 */
 fun insightSentence(insight: Insight): String = when (insight) {
     is Insight.TopShare -> "지출의 ${insight.percent}%를 ${insight.entry.name}에 썼어요"
@@ -91,7 +86,7 @@ fun insightSentence(insight: Insight): String = when (insight) {
     is Insight.CategoryChange -> {
         val difference = insight.change.current - insight.change.previous
         val direction = if (difference > 0) "더" else "덜"
-        "${insight.change.scope.base()}보다 ${insight.entry.name}에 ${formatCompactWon(difference)} $direction 썼어요"
+        "${insight.change.scope.baseText}보다 ${insight.entry.name}에 ${formatCompactWon(difference)} $direction 썼어요"
     }
 
     is Insight.WeekPattern ->
@@ -109,10 +104,9 @@ fun paceSentence(pace: Pace): String {
     // 미리 적은 지출을 빼기 전, 오늘까지 실제로 쓴 돈으로 본 남은 돈(T₀ − S)
     val beforeScheduled = pace.remaining + pace.scheduled
     return when {
-        pace.remaining > 0 -> {
-            val allowance = pace.dailyAllowance ?: divRound(pace.remaining, pace.daysLeft)
-            "지난달만큼 쓰려면 남은 ${pace.daysLeft}일 동안 하루 ${formatAmount(allowance)}원까지 쓸 수 있어요"
-        }
+        // 남은 돈이 있을 때만 하루 허용액이 있다
+        pace.dailyAllowance != null ->
+            "지난달만큼 쓰려면 남은 ${pace.daysLeft}일 동안 하루 ${formatAmount(pace.dailyAllowance)}원까지 쓸 수 있어요"
 
         // 아직은 덜 썼는데 미리 적은 지출까지 치면 지난달만큼(또는 넘게) 쓰게 된다
         beforeScheduled > 0 && pace.remaining == 0L -> "미리 적은 지출까지 치면 지난달 전체만큼 써요"
@@ -227,7 +221,7 @@ fun weekdayPatternSentence(stats: WeekdayStats): String? {
  * @param spoken 화면 읽기용이면 전체 금액("30,000원")으로 쓴다.
  */
 fun changeText(change: EntryChange, spoken: Boolean = false): String {
-    val base = change.scope.base()
+    val base = change.scope.baseText
     val difference = change.current - change.previous
     val amount = if (spoken) "${formatAmount(abs(difference))}원" else formatCompactWon(difference)
     return when {

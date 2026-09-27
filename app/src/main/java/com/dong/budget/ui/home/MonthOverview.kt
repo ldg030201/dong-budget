@@ -129,12 +129,15 @@ fun compareSpending(
 /** 지난달 비교 문장. 금액 부분에만 색을 입힐 수 있게 셋으로 나눈다. [amount] 가 null 이면 금액이 없는 문장이다. */
 data class ComparisonSentence(val prefix: String, val amount: String?, val suffix: String)
 
+/** 지난달 비교의 기준이 되는 말. 홈 요약과 통계의 분류별 증감이 같이 쓴다. */
+val ComparisonScope.baseText: String
+    get() = when (this) {
+        ComparisonScope.SAME_DAY -> "지난달 이맘때"
+        ComparisonScope.WHOLE_MONTH -> "지난달"
+    }
+
 fun SpendingComparison.sentence(): ComparisonSentence {
-    val base =
-        when (scope) {
-            ComparisonScope.SAME_DAY -> "지난달 이맘때"
-            ComparisonScope.WHOLE_MONTH -> "지난달"
-        }
+    val base = scope.baseText
     return when {
         difference == 0L -> ComparisonSentence("${base}만큼 썼어요", null, "")
         difference < 0 -> ComparisonSentence("${base}보다 ", formatCompactWon(difference), " 덜 썼어요")

@@ -129,7 +129,7 @@ class StatsSentencesTest {
 
     @Test
     fun `올해 모아 보기 문구`() {
-        val ytd = YearToDate(2026, YearMonth.of(2026, 9), YearMonth.of(2026, 11), Totals(), null, null, startsLate = true)
+        val ytd = YearToDate(2026, YearMonth.of(2026, 9), YearMonth.of(2026, 11), Totals(), null, startsLate = true)
         assertEquals("2026년 모아 보기", yearToDateTitle(ytd))
         assertEquals("9월~11월", yearToDateRange(ytd))
         assertEquals("기록을 시작한 9월부터 모았어요", yearToDateStartHint(ytd))

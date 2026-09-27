@@ -25,6 +25,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.dp
 import com.dong.budget.ui.theme.BudgetTheme
 
 /** 한 칸 안 여러 값을 놓는 방법 */
@@ -77,7 +78,9 @@ data class ColumnSlot(
  * @param seriesColors 계열 색. [ColumnSlot.values] 와 같은 순서다. 분류 색은 `BudgetTheme.categoryPalette[이름].content`,
  *   '그 외'(색 이름 null)는 `BudgetTheme.colors.chartOther` 로 풀어서 넘긴다.
  * @param focusedSeries 이 계열만 바닥부터 제 색으로 그리고 y축을 그 계열의 최댓값으로 다시 맞춘다('하나만 보기'). null 이면 모두 그린다.
- * @param selectedIndex 고른 칸. 그 칸 뒤에 chartSelection 띠를 깐다. 글자 굵기는 [ColumnSlot.label] 로 따로 준다.
+ * @param selectedIndex 고른 칸. 그 칸 뒤에 chartSelection 띠를 깐다. 글자 굵기는 [xLabels] 로 따로 준다.
+ * @param xLabels 칸 아래 글자. 기본은 칸마다의 [ColumnSlot.label]. 고른 칸을 따라 굵기가 바뀌는 차트는 이쪽으로 넘기고
+ *   [slots] 는 고른 칸과 상관없이 두어야, 칸을 바꿀 때 막대를 다시 재지 않는다.
  * @param onSelect 누르거나 가로로 끌어서 칸을 고를 때. null 이면 누를 수 없는 정적 차트다.
  * @param contentDescription 정적 차트의 요약 설명. null 이면 칸별 노드를 둔다.
  */
@@ -91,13 +94,15 @@ fun ColumnChart(
     selectedIndex: Int? = null,
     onSelect: ((Int) -> Unit)? = null,
     contentDescription: String? = null,
+    xLabels: List<AxisLabel?> = remember(slots) { slots.map { it.label } },
 ) {
     val chart = BudgetTheme.chart
     val spacing = BudgetTheme.spacing
     val underline = BudgetTheme.size.underline
     val selectionCorner = BudgetTheme.radius.chip
     val ink = rememberChartInk()
-    val measurer = rememberTextMeasurer()
+    // 한 번 그릴 때 재는 글자(y 눈금 + x 글자 + 값)가 기본 캐시(8개)보다 많아 매번 다 놓치지 않게 넉넉히 둔다
+    val measurer = rememberTextMeasurer(cacheSize = TEXT_CACHE_SIZE)
     val axisLine = with(LocalDensity.current) { BudgetTheme.amount.chartAxis.lineHeight.toDp() }
 
     val showAxis = slots.none { it.valueLabel != null }
@@ -149,17 +154,6 @@ fun ColumnChart(
                         )
                     val grid = if (showAxis) gridLines(plot) else listOf(plot.bottom)
                     val yLabels = if (showAxis) measureYLabels(measurer, ink, plot, spacing.tightGap.toPx()) else emptyList()
-                    val xLabels =
-                        measureXLabels(
-                            measurer = measurer,
-                            ink = ink,
-                            labels = slots.map { it.label },
-                            plot = plot,
-                            bandTop = plot.bottom,
-                            bandHeight = chart.axisBand.toPx(),
-                            canvasWidth = size.width,
-                            minGap = spacing.tightGap.toPx(),
-                        )
                     val valueLabels =
                         slots.mapIndexedNotNull { index, slot ->
                             val text = slot.valueLabel ?: return@mapIndexedNotNull null
@@ -189,10 +183,24 @@ fun ColumnChart(
                         drawGrid(grid, plot.left, plot.right, ink.grid, gridThickness)
                         bars.forEach { (color, path) -> drawPath(path, color) }
                         drawPlaced(yLabels)
-                        drawPlaced(xLabels)
                         drawPlaced(valueLabels)
                     }
                 },
+        )
+        Spacer(
+            Modifier
+                .matchParentSize()
+                .clearAndSetSemantics {}
+                .xAxisLabels(
+                    labels = xLabels,
+                    count = slots.size,
+                    measurer = measurer,
+                    ink = ink,
+                    plotLeft = gutter ?: 0.dp,
+                    plotBottom = topInset + chart.plotHeight,
+                    bandHeight = chart.axisBand,
+                    minGap = spacing.tightGap,
+                ),
         )
         if (contentDescription == null) {
             SlotNodes(

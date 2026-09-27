@@ -61,18 +61,4 @@ class StatsPeriodTest {
         assertEquals(-3L, divRound(-5, 2))
         assertEquals(-2L, divRound(-7, 3))
     }
-
-    @Test
-    fun `수입 대비 지출은 수입이 있을 때만 내고 100 을 넘을 수 있다`() {
-        assertEquals(56, spendRatioPercent(Totals(expense = 560_000, income = 1_000_000)))
-        assertEquals(150, spendRatioPercent(Totals(expense = 1_500_000, income = 1_000_000)))
-        assertEquals(33, spendRatioPercent(Totals(expense = 1, income = 3)))
-        assertEquals(67, spendRatioPercent(Totals(expense = 2, income = 3)))
-        assertNull(spendRatioPercent(Totals(expense = 10_000, income = 0)))
-    }
-
-    @Test
-    fun `환불이 더 많아 지출이 음수면 수입 대비 0% 다`() {
-        assertEquals(0, spendRatioPercent(Totals(expense = -12_000, income = 100_000)))
-    }
 }

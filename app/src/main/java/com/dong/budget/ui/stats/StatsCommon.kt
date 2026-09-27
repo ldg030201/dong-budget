@@ -15,6 +15,11 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.Stable
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -24,6 +29,7 @@ import androidx.compose.ui.text.style.TextAlign
 import com.dong.budget.ui.components.sectionBlock
 import com.dong.budget.ui.theme.BudgetTheme
 import com.dong.budget.ui.theme.pressScaleClickable
+import kotlin.reflect.KProperty
 
 // ─────────────────────────────────────────────────────────────────────
 // 통계 탭들이 같이 쓰는 부품. 섹션 틀, 섹션 제목, 숫자 한 줄, 빈 상태.
@@ -89,18 +95,10 @@ fun SectionTitle(text: String, modifier: Modifier = Modifier, subtitle: String? 
  *
  * @param value 줄에 보이는 그대로의 값(예: '32,000원', '+12,000원', '—')
  * @param caption 라벨 아래 흐린 설명(예: '27일 기준')
- * @param valueColor 값 글자색. 방향은 부호로 전하므로 보통은 본문색 그대로 둔다.
  * @param onClick 누를 수 있는 줄이면 끝에 꺾쇠를 붙인다. null 이면 누를 수 없다.
  */
 @Composable
-fun StatRow(
-    label: String,
-    value: String,
-    modifier: Modifier = Modifier,
-    caption: String? = null,
-    valueColor: Color = BudgetTheme.colors.textPrimary,
-    onClick: (() -> Unit)? = null,
-) {
+fun StatRow(label: String, value: String, modifier: Modifier = Modifier, caption: String? = null, onClick: (() -> Unit)? = null) {
     Row(
         modifier =
         modifier
@@ -135,7 +133,7 @@ fun StatRow(
         Text(
             text = value,
             style = BudgetTheme.amount.medium,
-            color = valueColor,
+            color = BudgetTheme.colors.textPrimary,
             textAlign = TextAlign.End,
             modifier = Modifier.padding(start = BudgetTheme.spacing.inlineGap),
         )
@@ -178,4 +176,35 @@ fun StatsEmpty(title: String, body: String, modifier: Modifier = Modifier) {
             textAlign = TextAlign.Center,
         )
     }
+}
+
+/** 순지출 글자색(formatNetExpense 와 짝). 돌려받은 쪽(음수 → "+")만 income 색이고, 나머지는 본문색이다. 방향은 부호가 전한다. */
+@Composable
+internal fun netExpenseColor(amount: Long): Color = if (amount < 0) BudgetTheme.colors.income else BudgetTheme.colors.textPrimary
+
+/**
+ * [scope](달·날짜)에 묶인 저장 상태. 화면을 돌리거나 프로세스가 다시 떠도 남고, [scope] 가 바뀌면 처음(null)으로 돌아간다.
+ * rememberSaveable(scope) 만으로는 모자라다. 복원할 때는 inputs 를 보지 않아서, 다른 탭에 있는 동안 달이 바뀌었거나
+ * 프로세스가 다시 뜬 뒤에는 옛 달의 값이 돌아온다. 그래서 값을 [scope] 와 함께 저장하고, 다른 [scope] 의 값이면 버린다.
+ */
+@Stable
+internal class ScopedSaveable<T : Any>(private val holder: MutableState<Pair<Any, T>?>, private val scope: Any) {
+    operator fun getValue(thisRef: Any?, property: KProperty<*>): T? = holder.value?.takeIf { it.first == scope }?.second
+
+    operator fun setValue(thisRef: Any?, property: KProperty<*>, value: T?) {
+        holder.value = value?.let { scope to it }
+    }
+}
+
+/** [ScopedSaveable] 을 만든다. [scope] 와 값은 Bundle 에 들어가는 것(YearMonth, LocalDate, Int, String, Boolean 등)이어야 한다. */
+@Composable
+internal fun <T : Any> rememberScopedSaveable(scope: Any): ScopedSaveable<T> {
+    val holder = rememberSaveable(scope) { mutableStateOf<Pair<Any, T>?>(null) }
+    return remember(holder, scope) { ScopedSaveable(holder, scope) }
+}
+
+/** 섹션 안의 보조 한 줄(보여 줄 것이 없을 때의 안내, 평균 같은 곁들이는 말). 안내 글(HintText)보다 한 단계 크다. */
+@Composable
+internal fun SectionNote(text: String, modifier: Modifier = Modifier) {
+    Text(text = text, style = MaterialTheme.typography.bodyMedium, color = BudgetTheme.colors.textSecondary, modifier = modifier)
 }

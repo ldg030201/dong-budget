@@ -42,7 +42,6 @@ fun buildStatistics(month: YearMonth, today: LocalDate, rows: List<TransactionLi
         period = period,
         hasAnyRecord = first != null,
         monthIsEmpty = monthIsEmpty,
-        firstRecord = first,
         monthly = monthlyStats(
             month,
             today,
@@ -113,7 +112,6 @@ private fun monthlyStats(
         totals = totals,
         comparison = compareSpending(month, today, current, previous),
         futureCount = futureCount,
-        spendRatioPercent = spendRatioPercent(totals),
         insights =
         if (monthIsEmpty) emptyList() else insights(expenseByCategory, daily.weekday, daily.counted, daily.noSpendDays, goneCategories),
         flow = cumulativeFlow(month, today, current, previous),
@@ -141,11 +139,9 @@ private fun dailyStats(
     return DailyStats(
         series = series,
         days = days,
-        seriesMax = series.indices.map { index -> days.maxOf { it.segments[index] } },
         stackMax = days.maxOfOrNull { it.segments.sum() } ?: 0L,
         defaultDay = defaultDay(period, today, records.peak, days),
         counted = counted,
-        startsLate = !counted.isEmpty() && counted.first > 1,
         average = records.average,
         spentDays = records.spentDays,
         spentDayAverage = records.spentDayAverage,

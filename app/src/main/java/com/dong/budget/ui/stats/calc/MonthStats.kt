@@ -82,15 +82,23 @@ fun pace(
 }
 
 /** 고른 달까지 최근 [TREND_MONTHS] 달. 오래된 달이 앞이다. 해를 넘어도 그대로 이어진다(2027년 3월이면 2026년 10월부터). */
+fun trendMonths(month: YearMonth): List<YearMonth> = (TREND_MONTHS - 1 downTo 0).map { back -> month.minusMonths(back.toLong()) }
+
+/** 기록을 시작하기 전 달인지. 기록이 하나도 없으면 모든 달이 그렇다. 표와 막대에서 빈칸으로 둔다. */
+fun isBeforeFirstRecord(month: YearMonth, firstRecord: LocalDate?): Boolean =
+    firstRecord == null || month.isBefore(YearMonth.from(firstRecord))
+
+/** 월별 탭의 최근 6개월([trendMonths]) 합계 */
 fun monthTrend(month: YearMonth, rowsByMonth: Map<YearMonth, List<TransactionListItem>>, firstRecord: LocalDate?): List<MonthPoint> =
-    (TREND_MONTHS - 1 downTo 0).map { back ->
-        val m = month.minusMonths(back.toLong())
+    trendMonths(month).map { m ->
         val rows = rowsByMonth[m].orEmpty()
         MonthPoint(
             month = m,
             totals = rows.totals(),
-            hasRecord = rows.any { it.isRecord },
-            beforeFirstRecord = firstRecord == null || m.isBefore(YearMonth.from(firstRecord)),
+            hasRecord = rows.any {
+                it.isRecord
+            },
+            beforeFirstRecord = isBeforeFirstRecord(m, firstRecord),
         )
     }
 
@@ -116,11 +124,11 @@ fun trendAverage(trend: List<MonthPoint>, month: YearMonth, today: LocalDate, fi
 private fun startsMidMonth(month: YearMonth, firstRecord: LocalDate?): Boolean =
     firstRecord != null && YearMonth.from(firstRecord) == month && firstRecord.dayOfMonth != 1
 
-/** 이 달 지출 중 큰 것 [limit] 건. 금액이 같으면 늦게 쓴 것 → 나중에 적은 것(큰 id)이 먼저다. */
-fun largestExpenses(rows: List<TransactionListItem>, limit: Int = LARGEST_COUNT): List<TransactionListItem> = rows
+/** 이 달 지출 중 큰 것 [LARGEST_COUNT] 건. 금액이 같으면 늦게 쓴 것 → 나중에 적은 것(큰 id)이 먼저다. */
+fun largestExpenses(rows: List<TransactionListItem>): List<TransactionListItem> = rows
     .filter { it.type == TransactionType.EXPENSE }
     .sortedWith(compareByDescending<TransactionListItem> { it.amount }.thenByDescending { it.occurredAt }.thenByDescending { it.id })
-    .take(limit)
+    .take(LARGEST_COUNT)
 
 /**
  * 올해 모아 보기. 1월(올해 기록을 시작했으면 그 달)부터 고른 달까지 모은다.
@@ -152,7 +160,6 @@ fun yearToDate(
         startMonth = start,
         endMonth = month,
         totals = totals,
-        spendRatioPercent = spendRatioPercent(totals),
         monthlyAverageExpense = averaged.takeIf { it.isNotEmpty() }?.let { used ->
             divRound(used.sumOf { rowsByMonth[it].orEmpty().totals().expense }, used.size)
         },

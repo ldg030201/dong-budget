@@ -21,10 +21,12 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.style.TextOverflow
 import com.dong.budget.navigation.StatsDimension
 import com.dong.budget.ui.components.CategoryBadge
+import com.dong.budget.ui.format.formatNetExpense
 import com.dong.budget.ui.stats.BreakdownEntry
 import com.dong.budget.ui.stats.calc.changeText
 import com.dong.budget.ui.stats.calc.entrySummary
 import com.dong.budget.ui.stats.chart.entityColor
+import com.dong.budget.ui.stats.netExpenseColor
 import com.dong.budget.ui.theme.BudgetTheme
 import com.dong.budget.ui.theme.pressScaleClickable
 
@@ -79,9 +81,9 @@ fun BreakdownRow(entry: BreakdownEntry, dimension: StatsDimension, onClick: (() 
                     modifier = Modifier.weight(1f),
                 )
                 Text(
-                    text = entryAmountText(entry.amount),
+                    text = formatNetExpense(entry.amount),
                     style = BudgetTheme.amount.medium,
-                    color = entryAmountColor(entry.amount),
+                    color = netExpenseColor(entry.amount),
                     modifier = Modifier.padding(start = BudgetTheme.spacing.inlineGap),
                 )
             }
@@ -114,10 +116,6 @@ private fun ShareBar(share: Double, color: Color) {
             .background(color, RoundedCornerShape(BudgetTheme.radius.full)),
     )
 }
-
-/** 금액 글자색. 돌려받은 쪽(음수 → "+")만 income 색이고, 나머지는 본문색이다. 방향은 부호가 전한다. */
-@Composable
-fun entryAmountColor(amount: Long): Color = if (amount < 0) BudgetTheme.colors.income else BudgetTheme.colors.textPrimary
 
 /** 증감 문구는 길어도 두 줄까지. 더 길면 말줄임한다(화면 읽기는 다 읽는다). */
 private const val CHANGE_MAX_LINES = 2

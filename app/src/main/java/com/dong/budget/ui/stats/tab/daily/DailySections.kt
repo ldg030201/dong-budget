@@ -7,7 +7,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import com.dong.budget.ui.components.HintText
 import com.dong.budget.ui.format.formatDayShort
+import com.dong.budget.ui.format.formatNetExpense
 import com.dong.budget.ui.stats.DailyStats
+import com.dong.budget.ui.stats.SectionNote
 import com.dong.budget.ui.stats.StatRow
 import com.dong.budget.ui.stats.StatsSection
 import com.dong.budget.ui.stats.WeekdayStats
@@ -43,7 +45,7 @@ internal fun DayRecordsSection(month: YearMonth, daily: DailyStats, onShowPeak: 
             )
             StatRow(
                 label = "가장 많이 쓴 날",
-                value = peak?.let { spentAmount(it.amount) } ?: "없어요",
+                value = peak?.let { formatNetExpense(it.amount) } ?: "없어요",
                 caption = peak?.let { formatDayShort(it.date) },
                 onClick = if (peak != null && onShowPeak != null) ({ onShowPeak(peak.date.dayOfMonth) }) else null,
             )
@@ -83,10 +85,4 @@ internal fun WeekdaySection(weekday: WeekdayStats?, noPastDays: Boolean, modifie
             }
         }
     }
-}
-
-/** 섹션 내용 대신 두는 한 줄(보여 줄 것이 없을 때) */
-@Composable
-internal fun SectionNote(text: String, modifier: Modifier = Modifier) {
-    Text(text = text, style = MaterialTheme.typography.bodyMedium, color = BudgetTheme.colors.textSecondary, modifier = modifier)
 }

@@ -20,6 +20,7 @@ import com.dong.budget.navigation.StatsDetailKey
 import com.dong.budget.navigation.StatsDimension
 import com.dong.budget.ui.components.HintText
 import com.dong.budget.ui.components.SegmentedToggle
+import com.dong.budget.ui.format.formatNetExpense
 import com.dong.budget.ui.format.monthLabel
 import com.dong.budget.ui.stats.Breakdown
 import com.dong.budget.ui.stats.BreakdownEntry
@@ -32,12 +33,14 @@ import com.dong.budget.ui.stats.calc.emptyMonthText
 import com.dong.budget.ui.stats.calc.negativeHint
 import com.dong.budget.ui.stats.calc.nothingText
 import com.dong.budget.ui.stats.calc.singleSeriesSentence
+import com.dong.budget.ui.stats.detailKey
+import com.dong.budget.ui.stats.netExpenseColor
 import com.dong.budget.ui.stats.tab.breakdown.BreakdownDonut
 import com.dong.budget.ui.stats.tab.breakdown.BreakdownRow
 import com.dong.budget.ui.stats.tab.breakdown.MerchantRow
-import com.dong.budget.ui.stats.tab.breakdown.entryAmountColor
-import com.dong.budget.ui.stats.tab.breakdown.entryAmountText
+import com.dong.budget.ui.stats.tab.breakdown.MerchantsSection
 import com.dong.budget.ui.stats.tab.breakdown.entryCountText
+import com.dong.budget.ui.stats.tab.breakdown.wholeName
 import com.dong.budget.ui.theme.BudgetTheme
 
 /** 분류 탭과 결제수단 탭은 같은 틀을 쓴다. 무엇으로 나눠 보는지 */
@@ -83,7 +86,7 @@ fun BreakdownTab(
     val breakdown = state.breakdownOf(dimension)
     val label = monthLabel(state.month, state.today)
     val openEntry = { entry: BreakdownEntry ->
-        onOpenDetail(StatsDetailKey(dimension, (entry.key as? GroupKey.Id)?.id, state.month.year, state.month.monthValue))
+        onOpenDetail(entry.key.detailKey(dimension, state.month))
     }
 
     LazyColumn(modifier = modifier.fillMaxSize(), contentPadding = contentPadding) {
@@ -121,11 +124,7 @@ fun BreakdownTab(
             }
             if (dimension == StatsDimension.EXPENSE_CATEGORY && state.merchants.isNotEmpty()) {
                 item(key = MERCHANTS_KEY) {
-                    StatsSection(modifier = Modifier.padding(top = BudgetTheme.spacing.sectionGap), title = "많이 쓴 곳") {
-                        Column {
-                            state.merchants.forEachIndexed { index, merchant -> MerchantRow(rank = index + 1, merchant = merchant) }
-                        }
-                    }
+                    MerchantsSection(merchants = state.merchants)
                 }
             }
         }
@@ -155,9 +154,9 @@ private fun BreakdownHeader(breakdown: Breakdown, dimension: StatsDimension, mon
                 color = BudgetTheme.colors.textSecondary,
             )
             Text(
-                text = entryAmountText(breakdown.total),
+                text = formatNetExpense(breakdown.total),
                 style = BudgetTheme.amount.summary,
-                color = entryAmountColor(breakdown.total),
+                color = netExpenseColor(breakdown.total),
             )
             Text(
                 text = entryCountText(breakdown.entries.size, dimension),
@@ -185,13 +184,7 @@ private fun BreakdownChart(breakdown: Breakdown, dimension: StatsDimension, mont
         } else {
             BreakdownDonut(
                 breakdown = breakdown,
-                caption = if (dimension ==
-                    StatsDimension.INCOME_CATEGORY
-                ) {
-                    INCOME_LABEL
-                } else {
-                    EXPENSE_LABEL
-                },
+                caption = dimension.wholeName(),
             )
         }
     }

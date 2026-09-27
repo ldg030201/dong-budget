@@ -2,6 +2,7 @@ package com.dong.budget.ui.stats.tab.breakdown
 
 import com.dong.budget.navigation.StatsDimension
 import com.dong.budget.ui.format.formatAmount
+import com.dong.budget.ui.format.formatNetExpense
 import com.dong.budget.ui.format.formatShare
 import com.dong.budget.ui.format.formatSignedTotal
 import com.dong.budget.ui.stats.BreakdownEntry
@@ -16,12 +17,6 @@ import com.dong.budget.ui.stats.calc.entrySummary
 // 여기에는 금액 표기, 줄 아래 덧붙임, 화면 읽기가 한 번에 읽을 문장만 둔다.
 // 화면 읽기 문장은 금액을 줄이지 않고 다 읽는다.
 // ─────────────────────────────────────────────────────────────────────
-
-/**
- * 줄 오른쪽 금액. "523,000원"
- * 환불이 더 많은 항목(음수)은 돌려받은 쪽이라 "+12,000원" 으로 적는다(income 색). 부호가 방향을 전한다.
- */
-fun entryAmountText(amount: Long): String = if (amount < 0) formatSignedTotal(-amount) else "${formatAmount(amount)}원"
 
 /** 머리의 부제. "분류 5개" / "결제수단 3개". 목록 줄 수와 같다. */
 fun entryCountText(count: Int, dimension: StatsDimension): String = "${dimension.noun()} ${count}개"
@@ -40,7 +35,7 @@ fun groupNote(key: GroupKey, dimension: StatsDimension): String? =
  */
 fun entryDescription(entry: BreakdownEntry, dimension: StatsDimension): String = buildList {
     add(entry.name)
-    add(entryAmountText(entry.amount))
+    add(formatNetExpense(entry.amount))
     val share = entry.share
     if (share == null) {
         add(entrySummary(entry, dimension))

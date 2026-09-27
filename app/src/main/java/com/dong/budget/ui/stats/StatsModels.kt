@@ -2,6 +2,8 @@ package com.dong.budget.ui.stats
 
 import androidx.compose.runtime.Immutable
 import com.dong.budget.data.db.TransactionListItem
+import com.dong.budget.navigation.StatsDetailKey
+import com.dong.budget.navigation.StatsDimension
 import com.dong.budget.ui.home.ComparisonScope
 import com.dong.budget.ui.home.SpendingComparison
 import com.dong.budget.ui.home.Totals
@@ -37,7 +39,6 @@ sealed interface GroupKey {
  * @property loaded 첫 계산이 끝났는지. 끝나기 전에는 달 줄과 아래 메뉴만 그린다.
  * @property hasAnyRecord 이체 말고 거래가 하나라도 있는지(모든 달 통틀어)
  * @property monthIsEmpty 고른 달에 이체 말고 거래가 없는지
- * @property firstRecord 기록 시작일(이체 말고 가장 이른 거래의 날). 거래가 없으면 null
  */
 @Immutable
 data class StatsUiState(
@@ -47,7 +48,6 @@ data class StatsUiState(
     val period: Period,
     val hasAnyRecord: Boolean,
     val monthIsEmpty: Boolean,
-    val firstRecord: LocalDate?,
     val monthly: MonthlyStats,
     val daily: DailyStats,
     val expenseByCategory: Breakdown,
@@ -65,7 +65,6 @@ data class StatsUiState(
             period = Period.CURRENT,
             hasAnyRecord = false,
             monthIsEmpty = true,
-            firstRecord = null,
             monthly = MonthlyStats.EMPTY,
             daily = DailyStats.EMPTY,
             expenseByCategory = Breakdown.EMPTY,
@@ -82,7 +81,6 @@ data class StatsUiState(
  * @property totals 고른 달의 수입·지출(오늘 뒤 날짜로 미리 적은 거래 포함, 홈 요약과 같다)
  * @property comparison 홈과 같은 지난달 비교. 비교할 수 없으면 null
  * @property futureCount 이번 달에서 오늘 뒤 날짜로 미리 적은 거래 수. 이번 달이 아니면 0
- * @property spendRatioPercent 수입 대비 지출 %(반올림). 수입이 0 이면 null. 100 을 넘을 수 있다.
  * @property flow 누적 흐름. 아직 오지 않은 달이면 null
  * @property pace '지난달만큼 쓰려면 하루 얼마' (이번 달만). 지난달 기록이 없거나 지난달 지출이 0 이하이면 null
  * @property trend 고른 달까지 최근 6개월. 오래된 달이 앞이다.
@@ -95,7 +93,6 @@ data class MonthlyStats(
     val totals: Totals,
     val comparison: SpendingComparison?,
     val futureCount: Int,
-    val spendRatioPercent: Int?,
     val insights: List<Insight>,
     val flow: CumulativeFlow?,
     val pace: Pace?,
@@ -105,7 +102,7 @@ data class MonthlyStats(
     val yearToDate: YearToDate?,
 ) {
     companion object {
-        val EMPTY = MonthlyStats(Totals(), null, 0, null, emptyList(), null, null, emptyList(), null, emptyList(), null)
+        val EMPTY = MonthlyStats(Totals(), null, 0, emptyList(), null, null, emptyList(), null, emptyList(), null)
     }
 }
 
@@ -130,7 +127,6 @@ data class YearToDate(
     val startMonth: YearMonth,
     val endMonth: YearMonth,
     val totals: Totals,
-    val spendRatioPercent: Int?,
     val monthlyAverageExpense: Long?,
     val startsLate: Boolean,
 )
@@ -166,16 +162,26 @@ sealed interface Insight {
     data class NoSpendDays(val days: Int) : Insight
 }
 
+/** 분류 이야기(1위 비율, 증감)의 분류. 요일·돈 안 쓴 날 이야기면 null */
+val Insight.categoryEntry: BreakdownEntry?
+    get() = when (this) {
+        is Insight.TopShare -> entry
+        is Insight.CategoryChange -> entry
+        is Insight.WeekPattern, is Insight.NoSpendDays -> null
+    }
+
+/** 이 분류·결제수단의 상세 주소. [GroupKey.None] 이면 id 가 null 인 상세('분류 없음' / '결제수단 없음')다. */
+fun GroupKey.detailKey(dimension: StatsDimension, month: YearMonth): StatsDetailKey =
+    StatsDetailKey(dimension, (this as? GroupKey.Id)?.id, month.year, month.monthValue)
+
 // ── 일별 ─────────────────────────────────────────────────────────────
 
 /**
  * @property series 쌓는 계열(상위 지출 분류 + '그 외'). 분류 탭 도넛과 같은 계열·순서다.
  * @property days 1일부터 말일까지 하루씩
- * @property seriesMax 계열마다 하루 조각의 최댓값. '하나만 보기' 에서 y축을 다시 맞출 때 쓴다.
  * @property stackMax 하루 쌓은 높이(양수 조각의 합)의 최댓값
  * @property defaultDay 처음 고를 날(일). 이번 달은 오늘, 지나간 달은 가장 많이 쓴 날, 오지 않은 달은 기록이 있는 첫날
  * @property counted 평균 등에 넣는 날(일 범위). 기록 시작일부터 오늘까지로 자른다. 없으면 비어 있다.
- * @property startsLate counted 가 1일보다 늦게 시작하는지(기록 시작일 때문에)
  * @property average counted 안의 하루 평균 지출. counted 가 비었거나 음수면 null
  * @property spentDays counted 안에서 지출이 있었던 날 수
  * @property spentDayAverage 쓴 날 평균. 쓴 날이 없거나 환불이 더 많아 음수면 null
@@ -188,11 +194,9 @@ sealed interface Insight {
 data class DailyStats(
     val series: List<StatSeries>,
     val days: List<DayStack>,
-    val seriesMax: List<Long>,
     val stackMax: Long,
     val defaultDay: Int,
     val counted: IntRange,
-    val startsLate: Boolean,
     val average: Long?,
     val spentDays: Int,
     val spentDayAverage: Long?,
@@ -202,7 +206,7 @@ data class DailyStats(
     val weekday: WeekdayStats?,
 ) {
     companion object {
-        val EMPTY = DailyStats(emptyList(), emptyList(), emptyList(), 0, 1, IntRange.EMPTY, false, null, 0, null, null, null, 0, null)
+        val EMPTY = DailyStats(emptyList(), emptyList(), 0, 1, IntRange.EMPTY, null, 0, null, null, null, 0, null)
     }
 }
 
@@ -226,11 +230,10 @@ data class DayStack(
 )
 
 /**
- * 하루 안 분류 하나.
- * @property color 분류 색 이름. 견본은 [seriesIndex] 의 계열 색을 쓴다(접힌 분류면 '그 외' 색)
+ * 하루 안 분류 하나. 견본은 [seriesIndex] 의 계열 색을 쓴다(접힌 분류면 '그 외' 색).
  * @property seriesIndex 이 분류가 속한 계열 번호. 계열이 없으면 null
  */
-data class DayDetail(val key: GroupKey, val name: String, val color: String?, val seriesIndex: Int?, val amount: Long)
+data class DayDetail(val name: String, val seriesIndex: Int?, val amount: Long)
 
 data class DayPeak(val date: LocalDate, val amount: Long)
 

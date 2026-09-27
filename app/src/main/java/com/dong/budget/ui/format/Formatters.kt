@@ -40,6 +40,13 @@ fun formatSignedTotal(amount: Long, unit: String = "원"): String = when {
 }
 
 /**
+ * 순지출(쓴 돈 − 돌려받은 돈). 쓴 쪽은 부호 없이 적고, 돌려받은 돈이 더 많아 음수면 돌아온 돈이라 "+12,000원" 으로 적는다.
+ * 통계의 달·날·분류·결제수단 금액이 모두 이 규칙을 따른다(색은 netExpenseColor).
+ */
+fun formatNetExpense(amount: Long, unit: String = "원"): String =
+    if (amount < 0) formatSignedTotal(-amount, unit) else "${formatAmount(amount)}$unit"
+
+/**
  * 날짜 하나만 따로 보여줄 때 (등록 화면의 날짜 칸 등).
  * 올해가 아니면 연도를 붙인다. 지난해 거래를 고칠 때 몇 년도인지 헷갈리지 않게.
  */

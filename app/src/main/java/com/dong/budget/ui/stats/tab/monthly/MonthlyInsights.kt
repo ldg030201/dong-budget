@@ -25,6 +25,7 @@ import com.dong.budget.ui.components.IconBadge
 import com.dong.budget.ui.stats.Insight
 import com.dong.budget.ui.stats.StatsSection
 import com.dong.budget.ui.stats.calc.insightSentence
+import com.dong.budget.ui.stats.categoryEntry
 import com.dong.budget.ui.theme.BudgetTheme
 import com.dong.budget.ui.theme.pressScaleClickable
 import java.time.YearMonth
@@ -93,12 +94,11 @@ private fun InsightRow(insight: Insight, onClick: () -> Unit) {
 @Composable
 private fun InsightBadge(insight: Insight) {
     val size = BudgetTheme.size.badgeSmall
-    when (insight) {
-        is Insight.TopShare -> CategoryBadge(icon = insight.entry.icon, color = insight.entry.color, size = size)
+    val entry = insight.categoryEntry
+    when {
+        entry != null -> CategoryBadge(icon = entry.icon, color = entry.color, size = size)
 
-        is Insight.CategoryChange -> CategoryBadge(icon = insight.entry.icon, color = insight.entry.color, size = size)
-
-        is Insight.WeekPattern, is Insight.NoSpendDays ->
+        else ->
             IconBadge(
                 iconRes = R.drawable.ic_sym_bar_chart,
                 swatch = BudgetTheme.categoryPalette[CategoryStyle.FALLBACK_COLOR],

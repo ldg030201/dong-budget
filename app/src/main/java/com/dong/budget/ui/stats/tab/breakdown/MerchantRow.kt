@@ -18,6 +18,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import com.dong.budget.ui.format.formatAmount
 import com.dong.budget.ui.stats.MerchantStat
+import com.dong.budget.ui.stats.StatsSection
 import com.dong.budget.ui.stats.calc.merchantSubtitle
 import com.dong.budget.ui.theme.BudgetTheme
 
@@ -68,5 +69,15 @@ fun MerchantRow(rank: Int, merchant: MerchantStat, modifier: Modifier = Modifier
             color = BudgetTheme.colors.textPrimary,
             modifier = Modifier.padding(start = BudgetTheme.spacing.inlineGap),
         )
+    }
+}
+
+/** 많이 쓴 곳 섹션. 분류 탭과 상세가 같이 쓴다. 앞 섹션과는 sectionGap 만큼 띄운다. */
+@Composable
+internal fun MerchantsSection(merchants: List<MerchantStat>, modifier: Modifier = Modifier) {
+    StatsSection(modifier = modifier.padding(top = BudgetTheme.spacing.sectionGap), title = "많이 쓴 곳") {
+        Column {
+            merchants.forEachIndexed { index, merchant -> MerchantRow(rank = index + 1, merchant = merchant) }
+        }
     }
 }

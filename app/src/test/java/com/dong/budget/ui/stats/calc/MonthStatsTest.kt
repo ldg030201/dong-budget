@@ -227,7 +227,6 @@ class MonthStatsTest {
         assertEquals(YearMonth.of(2026, 11), ytd.endMonth)
         assertTrue(ytd.startsLate)
         assertEquals(Totals(expense = 700_000, income = 1_000_000), ytd.totals)
-        assertEquals(70, ytd.spendRatioPercent)
         // 9월은 3일에 시작해서 빼고, 10월과 11월의 평균
         assertEquals(300_000L, ytd.monthlyAverageExpense)
     }

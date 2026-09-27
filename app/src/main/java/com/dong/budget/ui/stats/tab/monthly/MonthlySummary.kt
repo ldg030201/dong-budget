@@ -17,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.semantics
 import com.dong.budget.ui.components.HintText
 import com.dong.budget.ui.format.formatAmount
+import com.dong.budget.ui.format.formatNetExpense
 import com.dong.budget.ui.format.formatSignedTotal
 import com.dong.budget.ui.home.Totals
 import com.dong.budget.ui.home.comparisonText
@@ -34,6 +35,7 @@ import com.dong.budget.ui.stats.calc.yearToDateRange
 import com.dong.budget.ui.stats.calc.yearToDateStartHint
 import com.dong.budget.ui.stats.calc.yearToDateTitle
 import com.dong.budget.ui.stats.chart.Meter
+import com.dong.budget.ui.stats.netExpenseColor
 import com.dong.budget.ui.theme.BudgetTheme
 import java.time.LocalDate
 import java.time.YearMonth
@@ -65,9 +67,9 @@ internal fun SummaryHead(monthly: MonthlyStats, month: YearMonth, today: LocalDa
                 color = BudgetTheme.colors.textSecondary,
             )
             Text(
-                text = expenseText(expense),
+                text = formatNetExpense(expense),
                 style = BudgetTheme.amount.large,
-                color = if (expense < 0) totalColor(-expense) else BudgetTheme.colors.textPrimary,
+                color = netExpenseColor(expense),
             )
             if (expense < 0) {
                 Text(
@@ -116,7 +118,7 @@ internal fun YearToDateSection(ytd: YearToDate, modifier: Modifier = Modifier) {
     StatsSection(modifier = modifier, title = yearToDateTitle(ytd), subtitle = yearToDateRange(ytd), block = true) {
         yearToDateStartHint(ytd)?.let { HintText(text = it) }
         TotalsRows(totals = ytd.totals) {
-            ytd.monthlyAverageExpense?.let { StatRow(label = "한 달 평균 지출", value = expenseText(it)) }
+            ytd.monthlyAverageExpense?.let { StatRow(label = "한 달 평균 지출", value = formatNetExpense(it)) }
         }
         yearRatioSentence(ytd.totals)?.let { RatioSentence(sentence = it) }
     }
@@ -130,7 +132,7 @@ internal fun YearToDateSection(ytd: YearToDate, modifier: Modifier = Modifier) {
 private fun TotalsRows(totals: Totals, extra: @Composable () -> Unit = {}) {
     Column {
         StatRow(label = "수입", value = "${formatAmount(totals.income)}원")
-        StatRow(label = "지출", value = expenseText(totals.expense))
+        StatRow(label = "지출", value = formatNetExpense(totals.expense))
         StatRow(label = "남은 돈", value = formatSignedTotal(totals.income - totals.expense))
         extra()
     }

@@ -28,7 +28,9 @@ import com.dong.budget.ui.components.DayHeader
 import com.dong.budget.ui.components.HintText
 import com.dong.budget.ui.components.MonthStepper
 import com.dong.budget.ui.components.TransactionRow
+import com.dong.budget.ui.format.formatNetExpense
 import com.dong.budget.ui.format.monthLabel
+import com.dong.budget.ui.stats.SectionNote
 import com.dong.budget.ui.stats.SectionTitle
 import com.dong.budget.ui.stats.StatsSection
 import com.dong.budget.ui.stats.calc.changeText
@@ -37,11 +39,12 @@ import com.dong.budget.ui.stats.chart.AxisLabelStyle
 import com.dong.budget.ui.stats.chart.ColumnChart
 import com.dong.budget.ui.stats.chart.ColumnSlot
 import com.dong.budget.ui.stats.chart.formatAxisWon
+import com.dong.budget.ui.stats.netExpenseColor
 import com.dong.budget.ui.stats.tab.breakdown.BreakdownRow
 import com.dong.budget.ui.stats.tab.breakdown.MerchantRow
-import com.dong.budget.ui.stats.tab.breakdown.entryAmountColor
-import com.dong.budget.ui.stats.tab.breakdown.entryAmountText
+import com.dong.budget.ui.stats.tab.breakdown.MerchantsSection
 import com.dong.budget.ui.stats.tab.breakdown.groupNote
+import com.dong.budget.ui.stats.tab.monthly.TREND_TITLE
 import com.dong.budget.ui.theme.BudgetTheme
 
 /**
@@ -103,11 +106,7 @@ private fun DetailContent(state: StatsDetailUiState, onOpenTransaction: (Long) -
 
         if (state.merchants.isNotEmpty()) {
             item(key = MERCHANTS_KEY) {
-                StatsSection(modifier = Modifier.padding(top = BudgetTheme.spacing.sectionGap), title = "많이 쓴 곳") {
-                    Column {
-                        state.merchants.forEachIndexed { index, merchant -> MerchantRow(rank = index + 1, merchant = merchant) }
-                    }
-                }
+                MerchantsSection(merchants = state.merchants)
             }
         }
 
@@ -116,13 +115,7 @@ private fun DetailContent(state: StatsDetailUiState, onOpenTransaction: (Long) -
                 modifier = Modifier.padding(top = BudgetTheme.spacing.sectionGap),
                 title = transactionsTitle(state.count).takeIf { state.days.isNotEmpty() },
             ) {
-                if (state.days.isEmpty()) {
-                    Text(
-                        text = noTransactionsText(label, state.dimension),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = BudgetTheme.colors.textSecondary,
-                    )
-                }
+                if (state.days.isEmpty()) SectionNote(noTransactionsText(label, state.dimension))
             }
         }
         state.days.forEach { group ->
@@ -156,9 +149,9 @@ private fun DetailHeader(state: StatsDetailUiState, monthLabel: String) {
                         color = BudgetTheme.colors.textSecondary,
                     )
                     Text(
-                        text = entryAmountText(state.amount),
+                        text = formatNetExpense(state.amount),
                         style = BudgetTheme.amount.large,
-                        color = entryAmountColor(state.amount),
+                        color = netExpenseColor(state.amount),
                     )
                 }
             }
@@ -213,8 +206,6 @@ private fun highlightColor(state: StatsDetailUiState): Color {
     }
     return BudgetTheme.categoryPalette[color].content
 }
-
-private const val TREND_TITLE = "최근 6개월"
 
 private const val HEADER_KEY = "header"
 private const val TREND_KEY = "trend"
