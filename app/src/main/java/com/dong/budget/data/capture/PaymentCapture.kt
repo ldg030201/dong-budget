@@ -71,6 +71,11 @@ class PaymentCapture(
         // 이미 물어본 결제는 더 볼 것이 없다. 앱으로 돌아올 때마다 알림창에 남은 토스 알림을 다시 살피므로,
         // 알림 권한·채널을 묻는 일(시스템 호출)보다 먼저 본다.
         if (store.knows(payment.dedupKey)) return false
+        // 토스가 같은 결제를 모양이 다른 알림으로 한 번 더 보내기도 한다. 먼저 온 알림으로 물었으면 그것만 남긴다.
+        store.findSamePayment(payment)?.let { first ->
+            logSkipped("같은 결제의 알림이 또 와서 넘겼어요 · ${describe(payment)} · 먼저 온 알림 ${first.dedupKey}")
+            return false
+        }
         // 알림을 보낼 수 없으면 기록하지 않는다. 나중에 알림을 허용한 뒤 다시 연결될 때 물을 수 있게 둔다.
         if (!prompt.canAsk()) {
             logSkipped("알림이 꺼져 있어 묻지 못했어요 · ${describe(payment)}")

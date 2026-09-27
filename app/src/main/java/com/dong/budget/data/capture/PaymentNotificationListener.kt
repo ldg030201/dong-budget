@@ -52,7 +52,8 @@ class PaymentNotificationListener : NotificationListenerService() {
             runCatching { activeNotifications }.onFailure { DevLog.warn(LogTag.CAPTURE, "알림창을 읽지 못했어요", it) }.getOrNull().orEmpty()
         val showing = active.filter(::isOurPrompt).mapNotNull { it.tag }.toSet()
         runCatching { capture.restorePrompts(showing) }.onFailure { DevLog.error(LogTag.CAPTURE, "묻는 알림을 되살리다 오류가 났어요", it) }
-        active.mapNotNull(::read).forEach { (titles, texts, occurredAt) -> handle(titles, texts, occurredAt) }
+        // 알림창의 순서는 온 순서가 아닐 수 있다. 같은 결제가 알림 두 개로 왔으면 먼저 온 쪽을 묻도록 시각 순으로 본다.
+        active.mapNotNull(::read).sortedBy { it.third }.forEach { (titles, texts, occurredAt) -> handle(titles, texts, occurredAt) }
     }
 
     override fun onListenerDisconnected() {

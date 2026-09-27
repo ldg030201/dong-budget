@@ -79,6 +79,17 @@ private fun newMenu(menu: PatchMenu, vararg changes: Change) = MenuChanges(menu,
 val PATCH_NOTES: List<Release> =
     listOf(
         Release(
+            version = "1.2.1",
+            date = null,
+            menus =
+            listOf(
+                menu(
+                    PatchMenu.EDITOR,
+                    fixed("토스가 결제 한 건을 알림 두 개로 보내면 등록할지 두 번 묻던 문제를 고쳤어요"),
+                ),
+            ),
+        ),
+        Release(
             version = "1.2.0",
             date = LocalDate.of(2026, 9, 27),
             menus =

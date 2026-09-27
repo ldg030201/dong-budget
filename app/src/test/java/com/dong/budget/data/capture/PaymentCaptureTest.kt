@@ -59,6 +59,37 @@ class PaymentCaptureTest {
     }
 
     @Test
+    fun `같은 결제가 모양이 다른 알림 두 개로 오면 먼저 온 것만 묻는다`() = runBlocking {
+        val capture = capture()
+        assertTrue(capture.post("46,500원 결제 완료", "원더카드2.0 Life ・ 주식회사 우아한형제들(일시불)"))
+        assertFalse(capture.post("46,500원 결제", "하나카드 | 주식회사 우아한형제들(일시불)", at = clock + 1_500))
+        // 앱으로 돌아와 알림창을 다시 살펴도 뒤의 알림은 묻지 않는다
+        assertFalse(capture().post("46,500원 결제", "하나카드 | 주식회사 우아한형제들(일시불)", at = clock + 1_500))
+        assertEquals(listOf("원더카드2.0 Life"), prompt.asked.map { it.paymentName })
+        assertEquals(1, capture.records.first().size)
+    }
+
+    @Test
+    fun `먼저 물은 결제에 답한 뒤에 온 같은 결제의 알림도 묻지 않는다`() = runBlocking {
+        val capture = capture()
+        capture.post()
+        capture.onPromptDismissed(prompt.asked.single().dedupKey)
+        assertFalse(capture.post(text = "하나카드 | 비비큐 강동밀레니얼점", at = clock - 2_000))
+        assertEquals(1, prompt.asked.size)
+    }
+
+    @Test
+    fun `금액이나 가게가 다르거나 3초 넘게 떨어진 알림은 다른 결제다`() = runBlocking {
+        val capture = capture()
+        assertTrue(capture.post())
+        assertFalse(capture.post(at = clock + CapturedPayment.SAME_PAYMENT_WINDOW_MS))
+        assertTrue(capture.post(at = clock + CapturedPayment.SAME_PAYMENT_WINDOW_MS + 1))
+        assertTrue(capture.post(title = "133,000원 결제", at = clock + 1))
+        assertTrue(capture.post(text = "하나카드 | 스타벅스(일시불)", at = clock + 1))
+        assertEquals(4, prompt.asked.size)
+    }
+
+    @Test
     fun `모르는 알림이나 오래된 결제는 묻지 않는다`() = runBlocking {
         val capture = capture()
         assertFalse(capture.post(title = "133,500원 결제 취소"))
