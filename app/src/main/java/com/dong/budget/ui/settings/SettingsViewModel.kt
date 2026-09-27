@@ -3,6 +3,8 @@ package com.dong.budget.ui.settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dong.budget.BuildConfig
+import com.dong.budget.data.devlog.DevLog
+import com.dong.budget.data.devlog.LogTag
 import com.dong.budget.data.settings.SettingsRepository
 import com.dong.budget.data.settings.ThemeMode
 import com.dong.budget.data.update.ApkInstaller
@@ -149,6 +151,7 @@ class SettingsViewModel(
                             if (current is UpdateUiState.Downloading) current.copy(progress = fraction.coerceIn(0f, 1f)) else current
                         }
                     }.getOrElse {
+                        DevLog.warn(LogTag.UPDATE, "${update.version} 설치 파일을 받지 못했어요", it)
                         _updateState.value = UpdateUiState.Failed(UpdateFailure(UpdateRepository.describeNetworkError(it), it.message))
                         return@launch
                     }
@@ -156,7 +159,10 @@ class SettingsViewModel(
             apkInstaller.installWithSession(apk).fold(
                 // 결과가 설치 함수가 돌아오기 전에 먼저 와서 반영됐으면 덮지 않는다
                 onSuccess = { _updateState.update { if (it is UpdateUiState.Downloading) UpdateUiState.AwaitingInstall else it } },
-                onFailure = { _updateState.value = UpdateUiState.Failed(UpdateFailure("설치를 시작하지 못했어요", it.message)) },
+                onFailure = {
+                    DevLog.warn(LogTag.UPDATE, "${update.version} 설치를 시작하지 못했어요", it)
+                    _updateState.value = UpdateUiState.Failed(UpdateFailure("설치를 시작하지 못했어요", it.message))
+                },
             )
         }
     }
@@ -175,6 +181,7 @@ class SettingsViewModel(
                 return@launch
             }
             apkInstaller.openWithSystemInstaller(apk).onFailure {
+                DevLog.warn(LogTag.UPDATE, "시스템 설치 화면을 열지 못했어요", it)
                 _updateState.value = UpdateUiState.Failed(UpdateFailure("설치 화면을 열지 못했어요", it.message))
             }
         }

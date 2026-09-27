@@ -29,7 +29,14 @@ import com.dong.budget.ui.theme.BudgetTheme
  * 항목마다 색을 달리하되 옅은 원 안에만 칠한다. 글자와 배경은 그대로 둬서 요란하지 않게 한다.
  */
 @Composable
-fun MoreScreen(onOpenCategories: () -> Unit, onOpenSettings: () -> Unit, onOpenPatchNotes: () -> Unit, modifier: Modifier = Modifier) {
+fun MoreScreen(
+    devModeOn: Boolean,
+    onOpenCategories: () -> Unit,
+    onOpenSettings: () -> Unit,
+    onOpenPatchNotes: () -> Unit,
+    onOpenDeveloper: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Column(modifier = modifier.fillMaxSize()) {
         // 설정은 목록이 아니라 제목 줄 오른쪽 위에 둔다. 메뉴가 늘어나도 자리를 찾기 쉽다.
         Row(
@@ -71,6 +78,14 @@ fun MoreScreen(onOpenCategories: () -> Unit, onOpenSettings: () -> Unit, onOpenP
             iconRes = R.drawable.ic_sym_new_releases,
             color = "purple",
             onClick = onOpenPatchNotes,
+        )
+        MenuItem(
+            title = "개발자 모드",
+            // 켜 둔 동안에는 로그가 쌓인다는 것을 여기서도 알 수 있게 한다
+            subtitle = if (devModeOn) "켜져 있어요 · 로그를 쌓고 있어요" else "오류가 났을 때 기록을 모아 보내요",
+            iconRes = R.drawable.ic_sym_bug_report,
+            color = "gray",
+            onClick = onOpenDeveloper,
         )
     }
 }

@@ -4,6 +4,8 @@ import android.app.Notification
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import com.dong.budget.BudgetApplication
+import com.dong.budget.data.devlog.DevLog
+import com.dong.budget.data.devlog.LogTag
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -33,6 +35,7 @@ class PaymentNotificationListener : NotificationListenerService() {
      *    이미 물어본 결제는 다시 묻지 않는다.
      */
     override fun onListenerConnected() {
+        DevLog.info(LogTag.CAPTURE, "알림 읽기가 연결됐어요")
         // 알림창을 읽는 일은 모든 앱의 알림을 받아 오는 무거운 호출이라 메인 스레드 밖에서 한다
         scope.launch { reconcile() }
         // 연결돼 있는 동안 앱이 다시 살펴 달라고 하면(앱으로 돌아옴, 알림을 막 허용함) 같은 일을 한 번 더 한다
@@ -45,15 +48,15 @@ class PaymentNotificationListener : NotificationListenerService() {
      * 되살리기가 먼저여야 새로 들어온 결제를 '되살린 알림' 처럼 소리 없이 띄우지 않는다.
      */
     private suspend fun reconcile() {
-        val active = runCatching { activeNotifications }.getOrNull().orEmpty()
+        val active =
+            runCatching { activeNotifications }.onFailure { DevLog.warn(LogTag.CAPTURE, "알림창을 읽지 못했어요", it) }.getOrNull().orEmpty()
         val showing = active.filter(::isOurPrompt).mapNotNull { it.tag }.toSet()
-        runCatching { capture.restorePrompts(showing) }
-        active.mapNotNull(::read).forEach { (titles, texts, occurredAt) ->
-            runCatching { capture.onNotification(titles, texts, occurredAt) }
-        }
+        runCatching { capture.restorePrompts(showing) }.onFailure { DevLog.error(LogTag.CAPTURE, "묻는 알림을 되살리다 오류가 났어요", it) }
+        active.mapNotNull(::read).forEach { (titles, texts, occurredAt) -> handle(titles, texts, occurredAt) }
     }
 
     override fun onListenerDisconnected() {
+        DevLog.info(LogTag.CAPTURE, "알림 읽기 연결이 끊겼어요")
         // 연결이 끊긴 뒤에는 알림창을 읽을 수 없다
         rescanJob?.cancel()
         rescanJob = null
@@ -64,7 +67,9 @@ class PaymentNotificationListener : NotificationListenerService() {
         if (sbn == null || !isOurPrompt(sbn)) return
         if (reason !in USER_DISMISS_REASONS) return
         val dedupKey = sbn.tag ?: return
-        scope.launch { runCatching { capture.onPromptDismissed(dedupKey) } }
+        scope.launch {
+            runCatching { capture.onPromptDismissed(dedupKey) }.onFailure { DevLog.error(LogTag.CAPTURE, "지운 알림을 적다 오류가 났어요", it) }
+        }
     }
 
     private fun isOurPrompt(sbn: StatusBarNotification) =
@@ -72,7 +77,12 @@ class PaymentNotificationListener : NotificationListenerService() {
 
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
         val (titles, texts, occurredAt) = sbn?.let(::read) ?: return
-        scope.launch { runCatching { capture.onNotification(titles, texts, occurredAt) } }
+        scope.launch { handle(titles, texts, occurredAt) }
+    }
+
+    private suspend fun handle(titles: List<CharSequence?>, texts: List<CharSequence?>, occurredAt: Long) {
+        runCatching { capture.onNotification(titles, texts, occurredAt) }
+            .onFailure { DevLog.error(LogTag.CAPTURE, "토스 알림을 처리하다 오류가 났어요", it) }
     }
 
     /** 토스 알림이면 제목·본문 후보와 결제 시각을 꺼낸다. 다른 앱의 알림이면 null 이고, 내용을 읽지 않는다. */
@@ -90,7 +100,7 @@ class PaymentNotificationListener : NotificationListenerService() {
                 listOf(extras.getCharSequence(Notification.EXTRA_TEXT), extras.getCharSequence(Notification.EXTRA_BIG_TEXT)),
                 PaymentCapture.paymentTime(notification.`when`, sbn.postTime),
             )
-        }.getOrNull()
+        }.onFailure { DevLog.warn(LogTag.CAPTURE, "토스 알림 내용을 꺼내지 못했어요", it) }.getOrNull()
     }
 
     override fun onDestroy() {

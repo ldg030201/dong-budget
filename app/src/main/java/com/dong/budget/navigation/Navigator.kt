@@ -3,6 +3,8 @@ package com.dong.budget.navigation
 import androidx.compose.runtime.Stable
 import androidx.navigation3.runtime.NavBackStack
 import androidx.navigation3.runtime.NavKey
+import com.dong.budget.data.devlog.DevLog
+import com.dong.budget.data.devlog.LogTag
 
 /**
  * 백스택 조작 창구.
@@ -23,6 +25,7 @@ class Navigator(private val backStack: NavBackStack<NavKey>) {
         if (backStack.lastOrNull() == key) return
         backStack.remove(key)
         backStack.add(key)
+        DevLog.info(LogTag.SCREEN, "열기 ${key.logName()}")
     }
 
     /**
@@ -33,11 +36,30 @@ class Navigator(private val backStack: NavBackStack<NavKey>) {
      * 두 번째 탭이 셸까지 지워 백스택이 비고 NavDisplay 가 앱을 종료시킨다.
      */
     fun goBack() {
-        if (backStack.size > 1) backStack.removeLastOrNull()
+        if (backStack.size >
+            1
+        ) {
+            backStack.removeLastOrNull()?.let { DevLog.info(LogTag.SCREEN, "닫기 ${(it as? AppNavKey)?.logName() ?: it}") }
+        }
     }
 
     /** 화면이 스스로 닫을 때 쓴다. 이미 다른 화면이 위에 쌓였다면 아무것도 하지 않는다. */
     fun closeIfTop(key: AppNavKey) {
-        if (backStack.size > 1 && backStack.lastOrNull() == key) backStack.removeLastOrNull()
+        if (backStack.size > 1 && backStack.lastOrNull() == key) {
+            backStack.removeLastOrNull()
+            DevLog.info(LogTag.SCREEN, "닫기 ${key.logName()}")
+        }
     }
+}
+
+/** 개발자 모드 로그에 적는 화면 이름. 등록창은 채운 내용(금액·가게) 대신 어디서 열었는지만 적는다. */
+private fun AppNavKey.logName(): String = when (this) {
+    is TransactionEditorKey ->
+        when {
+            transactionId != null -> "등록창(거래 #$transactionId)"
+            prefill != null -> "등록창(알림에서)"
+            else -> "등록창(새 거래)"
+        }
+
+    else -> toString()
 }

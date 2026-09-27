@@ -3,6 +3,8 @@ package com.dong.budget.data.update
 import android.content.SharedPreferences
 import androidx.core.content.edit
 import com.dong.budget.BuildConfig
+import com.dong.budget.data.devlog.DevLog
+import com.dong.budget.data.devlog.LogTag
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -54,7 +56,10 @@ class UpdateChecker(
     }
 
     /** 간격과 상관없이 지금 확인한다. 실패는 남기지 않는다. 다음에 앱을 열 때 다시 확인하게 하기 위함이다. */
-    suspend fun checkNow(): Result<List<NewerRelease>> = fetch().onSuccess(::record)
+    suspend fun checkNow(): Result<List<NewerRelease>> = fetch()
+        .onSuccess(::record)
+        .onSuccess { releases -> DevLog.info(LogTag.UPDATE, "새 버전 확인: ${releases.firstOrNull()?.version ?: "최신"}") }
+        .onFailure { DevLog.warn(LogTag.UPDATE, "새 버전을 확인하지 못했어요", it) }
 
     fun dismissBanner() {
         dismissed.value = releases.value.firstOrNull()?.version

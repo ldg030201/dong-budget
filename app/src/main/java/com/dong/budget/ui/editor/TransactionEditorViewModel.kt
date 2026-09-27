@@ -14,6 +14,8 @@ import com.dong.budget.data.db.CategoryScope
 import com.dong.budget.data.db.PaymentMethodEntity
 import com.dong.budget.data.db.TransactionType
 import com.dong.budget.data.db.colors
+import com.dong.budget.data.devlog.DevLog
+import com.dong.budget.data.devlog.LogTag
 import com.dong.budget.navigation.EditorPrefill
 import com.dong.budget.ui.category.AddTarget
 import com.dong.budget.ui.category.message
@@ -350,6 +352,7 @@ class TransactionEditorViewModel(
                     )
                 } catch (e: SQLiteConstraintException) {
                     // 확인한 사이 같은 알림으로 이미 등록됐다(dedupKey 가 겹침)
+                    DevLog.warn(LogTag.TRANSACTION, "같은 결제가 이미 등록돼 있어 저장하지 않았어요 (${state.dedupKey})", e)
                     rejectAlreadyRegistered(state.dedupKey ?: throw e)
                     return@launch
                 }

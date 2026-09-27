@@ -6,6 +6,8 @@ import android.content.Intent
 import android.content.pm.PackageInstaller
 import android.util.Log
 import androidx.core.content.IntentCompat
+import com.dong.budget.data.devlog.DevLog
+import com.dong.budget.data.devlog.LogTag
 
 /**
  * 설치 세션의 진행 상황을 받는다.
@@ -21,6 +23,7 @@ class InstallResultReceiver : BroadcastReceiver() {
         val active = InstallEvents.activeSessionId
         if (active != InstallEvents.NO_SESSION && sessionId != InstallEvents.NO_SESSION && sessionId != active) {
             Log.i(TAG, "지난 세션($sessionId)의 결과라 무시한다. 지금 세션은 $active")
+            DevLog.info(LogTag.UPDATE, "지난 설치 세션($sessionId)의 결과라 넘겼어요. 지금 세션은 $active")
             return
         }
         when (val status = intent.getIntExtra(PackageInstaller.EXTRA_STATUS, Int.MIN_VALUE)) {
@@ -29,10 +32,12 @@ class InstallResultReceiver : BroadcastReceiver() {
                     IntentCompat.getParcelableExtra(intent, Intent.EXTRA_INTENT, Intent::class.java)
                 if (confirmIntent == null) {
                     Log.w(TAG, "설치 확인 인텐트가 없다")
+                    DevLog.warn(LogTag.UPDATE, "설치 확인창을 띄울 인텐트가 없어요")
                     return
                 }
                 // 브로드캐스트에서 화면을 띄우려면 새 작업으로 시작해야 한다.
                 confirmIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                DevLog.info(LogTag.UPDATE, "설치 확인이 필요해요 (화면 ${if (InstallEvents.appVisible) "보임" else "안 보여 맡겨 둠"})")
                 // 동계부 화면이 안 보이면(받는 동안 다른 앱으로 나감) 안드로이드가 확인창을 조용히 막는다.
                 // 그때는 맡겨 두었다가 동계부로 돌아올 때 띄운다(MainActivity.onResume).
                 if (InstallEvents.appVisible) {
@@ -44,6 +49,7 @@ class InstallResultReceiver : BroadcastReceiver() {
 
             PackageInstaller.STATUS_SUCCESS -> {
                 Log.i(TAG, "설치 완료")
+                DevLog.info(LogTag.UPDATE, "설치 완료")
                 InstallEvents.publish(InstallEvent.Succeeded)
             }
 
@@ -53,6 +59,7 @@ class InstallResultReceiver : BroadcastReceiver() {
                 // 숨은 추가 정보인 내부 코드가 있으면 원인을 더 정확히 가를 수 있다.
                 val legacy = intent.getIntExtra(EXTRA_LEGACY_STATUS, 0)
                 Log.w(TAG, "설치가 끝나지 않았다 (상태 $status, 내부 $legacy): $message")
+                DevLog.warn(LogTag.UPDATE, "설치가 끝나지 않았어요 (상태 $status, 내부 $legacy): $message")
                 InstallEvents.publish(InstallEvent.Failed(failureOf(status, legacy, message, autoBlocker = GalaxyAutoBlocker.isAvailable)))
             }
         }
