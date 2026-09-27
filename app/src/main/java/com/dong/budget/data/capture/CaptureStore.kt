@@ -49,6 +49,11 @@ class CaptureStore(private val prefs: SharedPreferences, private val now: () -> 
         return true
     }
 
+    /** 다른 알림으로 이미 물어본 같은 결제([CapturedPayment.isSamePaymentAs]). 없으면 null */
+    @Synchronized
+    fun findSamePayment(payment: CapturedPayment): CapturedPayment? =
+        liveEntries().firstOrNull { it.payment.isSamePaymentAs(payment) }?.payment
+
     /** 물어본 결제를 찾는다. 기록이 없거나 지났으면 null */
     @Synchronized
     fun find(dedupKey: String): CapturedPayment? = entry(dedupKey)?.payment

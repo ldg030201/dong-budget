@@ -3,6 +3,7 @@ package com.dong.budget.data.capture
 import com.dong.budget.data.MAX_AMOUNT_DIGITS
 import kotlinx.serialization.Serializable
 import java.text.Normalizer
+import kotlin.math.abs
 
 /**
  * 결제 알림에서 읽어낸 한 건. 아무것도 저장하지 않은 '제안' 이다.
@@ -24,6 +25,20 @@ data class CapturedPayment(
 ) {
     /** 할부면 '3개월 할부'. 묻는 알림과 등록창 메모가 같은 말을 쓴다. */
     val installmentLabel: String? get() = installmentMonths?.let { "${it}개월 할부" }
+
+    /**
+     * 다른 알림으로 온 같은 결제인지. 토스는 결제 하나를 모양이 다른 알림 두 개로 보내기도 한다.
+     *   '46,500원 결제' + '하나카드 | 가게(일시불)', '46,500원 결제 완료' + '원더카드2.0 Life ・ 가게(일시불)'
+     * 카드 이름은 알림마다 달라서 보지 않는다. 금액과 가게가 같고 시각이 [SAME_PAYMENT_WINDOW_MS] 안이면 같은 결제다.
+     */
+    fun isSamePaymentAs(other: CapturedPayment): Boolean = amount == other.amount &&
+        merchant == other.merchant &&
+        abs(occurredAtMillis - other.occurredAtMillis) <= SAME_PAYMENT_WINDOW_MS
+
+    companion object {
+        /** 같은 결제의 알림 두 개가 이만큼 안에 온다. 같은 가게에서 같은 금액을 이 안에 두 번 결제하면 하나로 본다. */
+        const val SAME_PAYMENT_WINDOW_MS = 3_000L
+    }
 }
 
 /**
