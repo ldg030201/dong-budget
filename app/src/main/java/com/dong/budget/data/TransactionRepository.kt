@@ -5,6 +5,8 @@ import com.dong.budget.data.db.TransactionDao
 import com.dong.budget.data.db.TransactionEntity
 import com.dong.budget.data.db.TransactionListItem
 import com.dong.budget.data.db.TransactionType
+import com.dong.budget.data.devlog.DevLog
+import com.dong.budget.data.devlog.LogTag
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOf
@@ -69,7 +71,7 @@ class TransactionRepository(private val transactionDao: TransactionDao) {
     ): Long {
         require(amount > 0) { "금액은 0보다 커야 한다. 부호는 type 이 결정한다." }
         val now = Instant.now()
-        return transactionDao.insert(
+        val id = transactionDao.insert(
             TransactionEntity(
                 uuid = UUID.randomUUID().toString(),
                 type = type,
@@ -85,6 +87,8 @@ class TransactionRepository(private val transactionDao: TransactionDao) {
                 updatedAt = now,
             ),
         )
+        DevLog.info(LogTag.TRANSACTION, "#$id 등록 · ${type.name}" + if (dedupKey != null) " · 알림에서 ($dedupKey)" else "")
+        return id
     }
 
     suspend fun update(
@@ -98,7 +102,11 @@ class TransactionRepository(private val transactionDao: TransactionDao) {
         memo: String?,
     ) {
         require(amount > 0) { "금액은 0보다 커야 한다." }
-        val existing = transactionDao.findById(id) ?: return
+        val existing = transactionDao.findById(id)
+        if (existing == null) {
+            DevLog.warn(LogTag.TRANSACTION, "#$id 가 이미 없어 고치지 못했어요")
+            return
+        }
         transactionDao.update(
             existing.copy(
                 type = type,
@@ -112,12 +120,14 @@ class TransactionRepository(private val transactionDao: TransactionDao) {
                 updatedAt = Instant.now(),
             ),
         )
+        DevLog.info(LogTag.TRANSACTION, "#$id 수정 · ${type.name}")
     }
 
     /** 거래를 지운다. 없으면 아무것도 하지 않는다. */
     suspend fun delete(id: Long) {
         val existing = transactionDao.findById(id) ?: return
         transactionDao.delete(existing)
+        DevLog.info(LogTag.TRANSACTION, "#$id 삭제")
     }
 }
 

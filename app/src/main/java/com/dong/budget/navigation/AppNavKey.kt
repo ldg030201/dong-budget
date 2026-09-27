@@ -81,3 +81,7 @@ data object PatchNotesKey : AppNavKey
 /** 홈 오른쪽 위 종으로 여는 알림 화면 */
 @Serializable
 data object InboxKey : AppNavKey
+
+/** 전체에서 여는 개발자 모드(로그 쌓기·복사) */
+@Serializable
+data object DeveloperKey : AppNavKey

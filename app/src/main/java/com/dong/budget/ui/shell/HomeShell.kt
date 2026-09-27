@@ -63,6 +63,8 @@ fun HomeShell(
     onOpenStatistics: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenPatchNotes: () -> Unit,
+    devModeOn: Boolean,
+    onOpenDeveloper: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var selectedTab by rememberSaveable { mutableStateOf(ShellTab.HOME) }
@@ -128,9 +130,11 @@ fun HomeShell(
 
                     ShellTab.MORE ->
                         MoreScreen(
+                            devModeOn = devModeOn,
                             onOpenCategories = onOpenCategories,
                             onOpenSettings = onOpenSettings,
                             onOpenPatchNotes = onOpenPatchNotes,
+                            onOpenDeveloper = onOpenDeveloper,
                         )
                 }
             }

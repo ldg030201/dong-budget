@@ -43,7 +43,9 @@ import com.dong.budget.data.AppContainer
 import com.dong.budget.data.capture.CaptureStore
 import com.dong.budget.data.capture.CapturedPayment
 import com.dong.budget.data.capture.PaymentCapture
+import com.dong.budget.data.devlog.DevLog
 import com.dong.budget.navigation.CategoryManageKey
+import com.dong.budget.navigation.DeveloperKey
 import com.dong.budget.navigation.EditorPrefill
 import com.dong.budget.navigation.InboxKey
 import com.dong.budget.navigation.Navigator
@@ -55,6 +57,8 @@ import com.dong.budget.navigation.StatsDetailKey
 import com.dong.budget.navigation.TransactionEditorKey
 import com.dong.budget.ui.category.CategoryManageScreen
 import com.dong.budget.ui.category.CategoryManageViewModel
+import com.dong.budget.ui.devmode.DeveloperScreen
+import com.dong.budget.ui.devmode.copyLog
 import com.dong.budget.ui.editor.ALREADY_REGISTERED_MESSAGE
 import com.dong.budget.ui.editor.TransactionEditorScreen
 import com.dong.budget.ui.editor.TransactionEditorViewModel
@@ -135,6 +139,7 @@ fun DongBudgetApp(container: AppContainer, capturedToOpen: String? = null, onCap
 
                 val updateVersion by container.updateChecker.bannerVersion.collectAsStateWithLifecycle(initialValue = null)
                 val hasNewNotice by viewModel.hasNewNotice.collectAsStateWithLifecycle()
+                val devModeOn by DevLog.enabled.collectAsStateWithLifecycle()
                 HomeShell(
                     state = state,
                     updateVersion = updateVersion,
@@ -150,6 +155,8 @@ fun DongBudgetApp(container: AppContainer, capturedToOpen: String? = null, onCap
                     onOpenStatistics = { navigator.go(StatisticsKey) },
                     onOpenSettings = { navigator.go(SettingsKey) },
                     onOpenPatchNotes = { navigator.go(PatchNotesKey) },
+                    devModeOn = devModeOn,
+                    onOpenDeveloper = { navigator.go(DeveloperKey) },
                 )
             }
 
@@ -290,6 +297,19 @@ fun DongBudgetApp(container: AppContainer, capturedToOpen: String? = null, onCap
                     onBack = navigator::goBack,
                     newer = newer,
                     onOpenUpdate = { navigator.go(SettingsKey) },
+                )
+            }
+
+            entry<DeveloperKey> {
+                val enabled by DevLog.enabled.collectAsStateWithLifecycle()
+                val entries by DevLog.entries.collectAsStateWithLifecycle()
+                DeveloperScreen(
+                    enabled = enabled,
+                    entries = entries,
+                    onEnabledChange = DevLog::setEnabled,
+                    onCopy = { copyLog(context, DevLog.export()) },
+                    onClear = DevLog::clear,
+                    onBack = navigator::goBack,
                 )
             }
         },

@@ -2,6 +2,7 @@ package com.dong.budget
 
 import android.app.Application
 import com.dong.budget.data.AppContainer
+import com.dong.budget.data.devlog.DevLog
 import kotlin.concurrent.thread
 
 class BudgetApplication : Application() {
@@ -10,6 +11,8 @@ class BudgetApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        // 가장 먼저 둔다. 개발자 모드를 켜 두었다면 이 뒤에 앱이 죽어도 오류가 남는다.
+        DevLog.init(this)
         container = AppContainer(this)
         thread(name = "update-startup") {
             // 설치가 끝나 이 버전이 켜졌다면 받아둔 설치 파일은 더 필요 없다. 캐시에 남기지 않는다.

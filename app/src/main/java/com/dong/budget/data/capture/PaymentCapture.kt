@@ -1,6 +1,8 @@
 package com.dong.budget.data.capture
 
 import com.dong.budget.BuildConfig
+import com.dong.budget.data.devlog.DevLog
+import com.dong.budget.data.devlog.LogTag
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.delay
@@ -60,20 +62,42 @@ class PaymentCapture(
         val payment =
             titles.firstNotNullOfOrNull { title ->
                 texts.firstNotNullOfOrNull { text -> TossPaymentParser.parse(title, text, occurredAtMillis) }
-            } ?: return false
+            }
+        if (payment == null) {
+            // 새 모양의 결제 알림을 고칠 때 실제 문구가 필요하다(개발자 모드 로그)
+            logSkipped("결제 알림 모양이 아니라 넘겼어요 · 제목 ${quoted(titles)} · 본문 ${quoted(texts)}")
+            return false
+        }
         // 이미 물어본 결제는 더 볼 것이 없다. 앱으로 돌아올 때마다 알림창에 남은 토스 알림을 다시 살피므로,
         // 알림 권한·채널을 묻는 일(시스템 호출)보다 먼저 본다.
         if (store.knows(payment.dedupKey)) return false
         // 알림을 보낼 수 없으면 기록하지 않는다. 나중에 알림을 허용한 뒤 다시 연결될 때 물을 수 있게 둔다.
-        if (!prompt.canAsk()) return false
+        if (!prompt.canAsk()) {
+            logSkipped("알림이 꺼져 있어 묻지 못했어요 · ${describe(payment)}")
+            return false
+        }
         if (!store.remember(payment)) return false
         if (isRegistered(payment.dedupKey)) {
             store.markRegistered(payment.dedupKey)
+            DevLog.info(LogTag.CAPTURE, "이미 등록된 결제라 묻지 않았어요 · ${describe(payment)}")
             return false
         }
         prompt.ask(payment)
+        DevLog.info(LogTag.CAPTURE, "등록할지 물었어요 · ${describe(payment)}")
         return true
     }
+
+    /**
+     * 넘긴 알림을 로그에 적는다. 앱으로 돌아올 때마다 알림창에 남은 토스 알림을 다시 살피므로 같은 글은 한 번만 적는다.
+     * [mutex] 안에서만 부른다.
+     */
+    private fun logSkipped(message: String) {
+        if (skipsLogged.size >= MAX_SKIPS_REMEMBERED) skipsLogged.clear()
+        if (skipsLogged.add(message)) DevLog.info(LogTag.CAPTURE, message)
+    }
+
+    /** 로그에 이미 적은 '넘긴 알림' */
+    private val skipsLogged = HashSet<String>()
 
     /**
      * 지워졌거나 띄우지 못한 묻는 알림을 다시 띄운다. 알림 읽기가 연결될 때(앱 업데이트·재시작 뒤)와
@@ -82,22 +106,30 @@ class PaymentCapture(
      */
     suspend fun restorePrompts(showing: Set<String>) = mutex.withLock {
         if (!prompt.canAsk()) return@withLock
+        var restored = 0
         store.pending().forEach { payment ->
             when {
                 // 이미 등록한 결제는 답한 것으로 적는다. 0.1.6 은 등록해도 기록에 남기지 않아서 여기서 정리한다.
                 // 적어 두지 않으면 그 거래를 나중에 지웠을 때 묻는 알림이 되살아난다.
                 isRegistered(payment.dedupKey) -> store.markRegistered(payment.dedupKey)
 
-                payment.dedupKey !in showing -> prompt.ask(payment, quietly = true)
+                payment.dedupKey !in showing -> {
+                    prompt.ask(payment, quietly = true)
+                    restored++
+                }
             }
         }
+        if (restored > 0) DevLog.info(LogTag.CAPTURE, "사라진 묻는 알림 ${restored}건을 다시 띄웠어요")
     }
 
     /**
      * 사용자가 묻는 알림을 지웠다. 등록하지 않겠다는 뜻이니 다시 띄우지 않는다.
      * 읽은 것으로는 적지 않는다. '모두 지우기' 로 못 보고 지웠을 수 있어 알림 목록에는 새 알림으로 남긴다.
      */
-    fun onPromptDismissed(dedupKey: String) = store.markAnswered(dedupKey)
+    fun onPromptDismissed(dedupKey: String) {
+        store.markAnswered(dedupKey)
+        DevLog.info(LogTag.CAPTURE, "묻는 알림을 지워서 다시 묻지 않아요 · $dedupKey")
+    }
 
     /** 우리 알림을 눌렀을 때 채울 결제. 기록이 지났으면 null */
     fun find(dedupKey: String): CapturedPayment? = store.find(dedupKey)
@@ -108,7 +140,11 @@ class PaymentCapture(
      * 이미 등록한 결제면 묻던 알림을 치운다.
      */
     suspend fun open(dedupKey: String): OpenResult {
-        val payment = store.find(dedupKey) ?: return OpenResult.Expired
+        val payment = store.find(dedupKey)
+        if (payment == null) {
+            DevLog.info(LogTag.CAPTURE, "보관 기간이 지난 결제를 눌렀어요 · $dedupKey")
+            return OpenResult.Expired
+        }
         store.markRead(dedupKey)
         if (isRegistered(dedupKey)) {
             onRegistered(dedupKey)
@@ -166,7 +202,9 @@ class PaymentCapture(
      * @param dedupKeys 목록에 보이던 결제. 누르는 사이 새로 온 결제는 새 알림으로 남기고 묻는 알림도 그대로 둔다.
      */
     suspend fun markAllRead(dedupKeys: Collection<String>) = mutex.withLock {
-        store.markAllRead(dedupKeys).forEach(prompt::dismiss)
+        val cleared = store.markAllRead(dedupKeys)
+        cleared.forEach(prompt::dismiss)
+        DevLog.info(LogTag.CAPTURE, "모두 읽음 · ${dedupKeys.size}건, 알림창에서 ${cleared.size}건 치움")
     }
 
     /**
@@ -192,6 +230,18 @@ class PaymentCapture(
 
         private const val CLOCK_SKEW_MS = 60 * 1000L
         private const val MAX_DELAY_MS = 24 * 60 * 60 * 1000L
+
+        /** 로그에 적는 결제 한 줄. "15,000원 · 토스뱅크 · 구글페이먼트코리아 (toss:…)" */
+        private fun describe(payment: CapturedPayment): String =
+            listOfNotNull("${payment.amount}원", payment.paymentName, payment.merchant, payment.installmentLabel).joinToString(" · ") +
+                " (${payment.dedupKey})"
+
+        /** 알림 칸 후보들을 로그에 적는 모양. 비었거나 같은 글은 한 번만 적는다. */
+        private fun quoted(candidates: List<CharSequence?>): String =
+            candidates.mapNotNull { it?.toString() }.distinct().joinToString(" / ") { "'$it'" }.ifEmpty { "없음" }
+
+        /** 넘긴 알림을 이만큼 기억하면 비우고 다시 센다. 오래 켜 둔 앱에서 기억이 끝없이 늘지 않게 한다. */
+        private const val MAX_SKIPS_REMEMBERED = 200
 
         fun isSource(packageName: String?): Boolean = packageName == TOSS_PACKAGE || (BuildConfig.DEBUG && packageName == SHELL_PACKAGE)
 
