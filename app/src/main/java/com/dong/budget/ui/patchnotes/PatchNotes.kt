@@ -42,14 +42,18 @@ enum class PatchMenu(val label: String) {
     CATEGORIES("분류 관리"),
     MORE("전체"),
     PATCH_NOTES("패치노트"),
+    DEVELOPER("개발자 모드"),
     SETTINGS("설정"),
 
     /** 특정 메뉴가 아니라 앱 전체에 걸친 변화 */
     COMMON("공통"),
 }
 
-/** 한 메뉴에서 바뀐 것들 */
-data class MenuChanges(val menu: PatchMenu, val changes: List<Change>)
+/**
+ * 한 메뉴에서 바뀐 것들.
+ * @property isNew 이 버전에서 처음 생긴 메뉴인지. 메뉴 이름 옆에 '신규' 를 붙인다.
+ */
+data class MenuChanges(val menu: PatchMenu, val changes: List<Change>, val isNew: Boolean = false)
 
 /** @property date 낸 날. 아직 내지 않은 버전은 null */
 data class Release(val version: String, val date: LocalDate?, val menus: List<MenuChanges>)
@@ -64,9 +68,13 @@ private fun fixed(text: String) = Change(ChangeKind.FIXED, text)
 
 private fun menu(menu: PatchMenu, vararg changes: Change) = MenuChanges(menu, changes.toList())
 
+/** 이 버전에서 처음 생긴 메뉴 */
+private fun newMenu(menu: PatchMenu, vararg changes: Change) = MenuChanges(menu, changes.toList(), isNew = true)
+
 /**
- * 최신 버전이 맨 위. 메뉴는 앱 화면 순서(홈 → 거래 등록 → 통계 → 분류 관리 → 전체 → 패치노트 → 설정 → 공통)로 적는다.
+ * 최신 버전이 맨 위. 메뉴는 앱 화면 순서(홈 → 거래 등록 → 통계 → 분류 관리 → 전체 → 패치노트 → 개발자 모드 → 설정 → 공통)로 적는다.
  * 메뉴 안의 항목은 화면에서 종류 순서(추가 → 개선 → 수정 → 오류수정)로 다시 정렬되므로 적는 순서는 자유다.
+ * 그 버전에서 처음 생긴 메뉴는 [newMenu] 로 적는다(메뉴 이름 옆 '신규'). 첫 버전(0.1.0)은 모두 처음이라 붙이지 않는다.
  */
 val PATCH_NOTES: List<Release> =
     listOf(
@@ -79,19 +87,18 @@ val PATCH_NOTES: List<Release> =
                     PatchMenu.EDITOR,
                     fixed("토스뱅크 카드처럼 '결제 완료'로 오는 토스 결제 알림에는 등록할지 묻지 않던 문제를 고쳤어요"),
                 ),
-                menu(
+                newMenu(
                     PatchMenu.STATISTICS,
-                    added("아래 메뉴에 통계가 생겼어요. 들어가면 아래에 떠 있는 메뉴에서 월별·일별·분류·결제수단으로 나눠 볼 수 있어요"),
+                    added("아래 메뉴와 전체에서 들어가요. 들어가면 아래에 떠 있는 메뉴에서 월별·일별·분류·결제수단으로 나눠 볼 수 있어요"),
                     added("월별에서는 쓴 돈과 수입 대비 비율, 눈에 띄는 점, 지난달과 견준 이번 달 흐름, 최근 6개월, 큰 지출, 올해 모아 보기를 봐요"),
                     added("일별에서는 날마다 쓴 돈을 분류 순서대로 분류별 색을 쌓아 보여 줘요. 날을 고르면 그날 분류별 금액과 거래를 보고, 분류를 누르면 그 분류만 볼 수 있어요. 요일별 하루 평균도 봐요"),
                     added("분류·결제수단에서는 비율 그래프와 순위, 지난달 대비 증감, 많이 쓴 곳을 봐요. 누르면 최근 6개월 흐름과 그 달 거래를 모아 봐요"),
                     added("통계의 금액은 지출은 -(빨간색), 수입은 +(초록색)으로 적어서 한눈에 구분돼요"),
                 ),
-                menu(
-                    PatchMenu.MORE,
-                    added("개발자 모드가 생겼어요. 켜 두면 오류와 결제 알림 처리 기록이 쌓이고, 복사해서 보낼 수 있어요"),
-                    added("개발자 모드는 처음에 꺼져 있어요. 켤 때 무엇이 쌓이는지 먼저 알려 주고, 끄면 쌓인 기록을 모두 지워요"),
-                    changed("통계는 아래 메뉴로 옮겼어요"),
+                newMenu(
+                    PatchMenu.DEVELOPER,
+                    added("전체에서 들어가요. 켜 두면 오류와 결제 알림 처리 기록이 쌓이고, 복사해서 보낼 수 있어요"),
+                    added("처음에는 꺼져 있어요. 켤 때 무엇이 쌓이는지 먼저 알려 주고, 끄면 쌓인 기록을 모두 지워요"),
                 ),
             ),
         ),
@@ -290,9 +297,9 @@ val PATCH_NOTES: List<Release> =
                     added("날짜와 시간을 바꿀 수 있어요"),
                     changed("메모를 뺀 모든 칸을 채워야 저장돼요. 빈 칸이 있으면 그 칸으로 옮겨 알려줘요"),
                 ),
-                menu(
+                newMenu(
                     PatchMenu.CATEGORIES,
-                    added("새 메뉴예요. 분류와 결제수단을 추가하고 지울 수 있어요"),
+                    added("분류와 결제수단을 추가하고 지울 수 있어요"),
                     added("분류와 결제수단마다 아이콘과 색이 생겼어요"),
                     added("분류를 지우면 그 분류의 거래는 '기타' 로 옮겨져요"),
                     changed("기본 분류를 식비, 교통/차량, 편의점, 패션/미용, 고정지출, 기타와 급여, 용돈, 기타로 바꿨어요. 쓰던 분류와 거래는 그대로 남아요"),
@@ -301,9 +308,9 @@ val PATCH_NOTES: List<Release> =
                     PatchMenu.MORE,
                     improved("메뉴마다 아이콘을 달았어요"),
                 ),
-                menu(
+                newMenu(
                     PatchMenu.PATCH_NOTES,
-                    added("새 메뉴예요. 전체 메뉴에서 버전별로 바뀐 점을 볼 수 있어요"),
+                    added("전체 메뉴에서 버전별로 바뀐 점을 볼 수 있어요"),
                 ),
                 menu(
                     PatchMenu.COMMON,

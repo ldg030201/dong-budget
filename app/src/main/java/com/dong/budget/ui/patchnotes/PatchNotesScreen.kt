@@ -250,15 +250,22 @@ private fun MenuSection(menu: MenuChanges) {
     val badgeSize = BudgetTheme.size.badgeSmall
     // 카드가 메뉴 사이를 띄우므로, 메뉴 이름과 항목은 한 덩어리로 묶어 그 간격이 끼지 않게 한다
     Column {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        // 메뉴 이름과 '신규' 를 한 제목으로 읽는다
+        Row(
+            modifier = Modifier.semantics(mergeDescendants = true) { heading() },
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             IconBadge(iconRes = menu.menu.iconRes(), swatch = BudgetTheme.categoryPalette[menu.menu.color()], size = badgeSize)
             Spacer(Modifier.width(BudgetTheme.spacing.inlineGap))
             Text(
                 text = menu.menu.label,
                 style = MaterialTheme.typography.labelLarge,
                 color = BudgetTheme.colors.textPrimary,
-                modifier = Modifier.semantics { heading() },
             )
+            if (menu.isNew) {
+                // 버전의 '지금 버전' 과 같은 모양이다. 새로 생긴 메뉴를 한눈에 찾게 한다.
+                StatusBadge("신규", MaterialTheme.colorScheme.onPrimaryContainer, MaterialTheme.colorScheme.primaryContainer)
+            }
         }
         // 세로줄이 항목들 높이만큼만 내려오게 한다
         Row(modifier = Modifier.height(IntrinsicSize.Min).padding(top = BudgetTheme.spacing.tightGap)) {
@@ -290,6 +297,7 @@ private fun PatchMenu.iconRes(): Int = when (this) {
     PatchMenu.CATEGORIES -> R.drawable.ic_sym_category
     PatchMenu.MORE -> R.drawable.ic_sym_apps
     PatchMenu.PATCH_NOTES -> R.drawable.ic_sym_new_releases
+    PatchMenu.DEVELOPER -> R.drawable.ic_sym_bug_report
     PatchMenu.SETTINGS -> R.drawable.ic_sym_settings
     PatchMenu.COMMON -> R.drawable.ic_sym_devices
 }
@@ -303,6 +311,7 @@ private fun PatchMenu.color(): String = when (this) {
     PatchMenu.CATEGORIES -> "indigo"
     PatchMenu.MORE -> "pink"
     PatchMenu.PATCH_NOTES -> "purple"
+    PatchMenu.DEVELOPER -> "gray"
     PatchMenu.SETTINGS -> "gray"
     PatchMenu.COMMON -> "amber"
 }
