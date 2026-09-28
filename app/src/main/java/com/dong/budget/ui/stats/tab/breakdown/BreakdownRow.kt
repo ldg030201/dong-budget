@@ -13,6 +13,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -27,6 +28,7 @@ import com.dong.budget.ui.stats.BreakdownEntry
 import com.dong.budget.ui.stats.calc.changeText
 import com.dong.budget.ui.stats.calc.entrySummary
 import com.dong.budget.ui.stats.chart.entityColor
+import com.dong.budget.ui.stats.chart.rememberGrowingFraction
 import com.dong.budget.ui.stats.directedColor
 import com.dong.budget.ui.stats.netExpenseColor
 import com.dong.budget.ui.theme.BudgetTheme
@@ -112,9 +114,11 @@ private fun SmallLine(text: String, maxLines: Int = Int.MAX_VALUE) {
 /** 비율 막대. 폭이 곧 비율이고 트랙은 깔지 않는다. 값은 둘째 줄 글자가 전한다. */
 @Composable
 private fun ShareBar(share: Double, color: Color) {
+    // 처음에는 0 에서 자라고, 달을 넘기면 지금 길이에서 새 비율로 늘거나 준다
+    val fraction by rememberGrowingFraction(share.toFloat().coerceIn(0f, 1f))
     Spacer(
         Modifier
-            .fillMaxWidth(share.toFloat().coerceIn(0f, 1f))
+            .fillMaxWidth(fraction)
             .height(BudgetTheme.chart.shareBarHeight)
             .background(color, RoundedCornerShape(BudgetTheme.radius.full)),
     )

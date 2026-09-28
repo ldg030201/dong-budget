@@ -11,6 +11,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -120,8 +121,9 @@ fun BreakdownTab(
             animatedItem(key = CHART_KEY) { BreakdownChart(breakdown = breakdown, dimension = dimension, monthLabel = label) }
             animatedItem(key = ENTRIES_KEY) {
                 Column(modifier = Modifier.padding(top = BudgetTheme.spacing.itemGap)) {
+                    // 줄을 분류로 구분해 둔다. 순위가 바뀌어도 비율 막대가 제 분류를 따라 늘고 준다.
                     breakdown.entries.forEach { entry ->
-                        BreakdownRow(entry = entry, dimension = dimension, onClick = { openEntry(entry) })
+                        key(entry.key) { BreakdownRow(entry = entry, dimension = dimension, onClick = { openEntry(entry) }) }
                     }
                 }
             }

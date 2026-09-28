@@ -157,8 +157,10 @@ internal class Plot(val left: Float, val top: Float, val right: Float, val botto
 /** 미리 재 둔 글자와 그 왼쪽 위 자리. drawWithCache 안에서 만들고 그리기마다 [drawPlaced] 로 찍는다. */
 internal class PlacedText(val layout: TextLayoutResult, val topLeft: Offset)
 
-internal fun DrawScope.drawPlaced(texts: List<PlacedText>) {
-    texts.forEach { drawText(it.layout, topLeft = it.topLeft) }
+/** @param alpha 차트가 차오르는 동안 글자를 흐리게 둘 때(ChartMotion) */
+internal fun DrawScope.drawPlaced(texts: List<PlacedText>, alpha: Float = 1f) {
+    if (alpha <= 0f) return
+    texts.forEach { drawText(it.layout, topLeft = it.topLeft, alpha = alpha) }
 }
 
 /**
