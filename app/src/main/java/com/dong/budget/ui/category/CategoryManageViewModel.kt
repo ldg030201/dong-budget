@@ -59,6 +59,11 @@ fun List<ManagedItem>.moved(fromId: Long, toId: Long): List<ManagedItem>? {
 data class CategoryManageUiState(
     val tab: ManageTab = ManageTab.EXPENSE,
     val items: List<ManagedItem> = emptyList(),
+    /**
+     * [items] 가 어느 탭의 목록인지. 탭을 누르면 [tab] 은 바로 바뀌지만 목록은 DB 에서 읽어 온 뒤에 바뀐다.
+     * 그 사이 옛 목록을 새 탭의 것으로 그리면 줄들이 사라졌다 다시 나타난다.
+     */
+    val itemsTab: ManageTab = ManageTab.EXPENSE,
     val showAdd: Boolean = false,
     val addError: String? = null,
     /** 지우기 전 확인을 받는 중인 항목 */
@@ -85,8 +90,8 @@ class CategoryManageViewModel(
             _uiState
                 .map { it.tab }
                 .distinctUntilChanged()
-                .flatMapLatest(::itemsFor)
-                .collect { list -> _uiState.update { it.copy(items = list) } }
+                .flatMapLatest { tab -> itemsFor(tab).map { list -> tab to list } }
+                .collect { (tab, list) -> _uiState.update { it.copy(items = list, itemsTab = tab) } }
         }
     }
 
