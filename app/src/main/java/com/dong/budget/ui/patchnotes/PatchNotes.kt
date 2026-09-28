@@ -82,6 +82,21 @@ private fun newMenu(menu: PatchMenu, vararg changes: Change) = MenuChanges(menu,
 val PATCH_NOTES: List<Release> =
     listOf(
         Release(
+            version = "1.4.1",
+            date = null,
+            menus =
+            listOf(
+                menu(
+                    PatchMenu.SETTINGS,
+                    added("앱이 알아서 골라 주거나 채워 주던 기능을 하나씩 켜고 끌 수 있어요. 처음에는 모두 켜져 있어요"),
+                    added("결제 알림: 등록할지 묻기, 같은 결제 알림은 한 번만 묻기, 앱을 열 때 놓친 알림 다시 살피기"),
+                    added("알림으로 등록할 때: 같은 가게면 지난 분류 고르기, 카드 이름으로 결제수단 고르기, 없는 카드는 새로 추가하기, 할부는 메모에 적기"),
+                    added("거래 등록: 금액 키패드 바로 열기, 새로 만든 분류·결제수단 바로 고르기, 새 분류·결제수단은 안 쓴 색으로"),
+                    added("통계: 일별에서 볼 날 자동으로 고르기. 앱 정보: 앱을 열 때 새 버전 확인하기"),
+                ),
+            ),
+        ),
+        Release(
             version = "1.4.0",
             date = LocalDate.of(2026, 9, 28),
             menus =
