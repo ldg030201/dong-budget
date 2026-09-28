@@ -1,15 +1,18 @@
 package com.dong.budget.ui.stats.chart
 
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import com.dong.budget.ui.theme.BudgetTheme
+import com.dong.budget.ui.theme.Motion
 
 /**
  * 수입 대비 지출 미터. 높이 chart.meterHeight 의 알약 모양 트랙(chartTrack) 위에 채움(chartExpense)을 [ratio] 만큼 그린다.
@@ -24,8 +27,9 @@ fun Meter(ratio: Float, modifier: Modifier = Modifier) {
     val colors = BudgetTheme.colors
     val corner = BudgetTheme.radius.full
     val over = ratio > 1f
-    val fill = if (over) colors.danger else colors.chartExpense
-    val fraction = ratio.coerceIn(0f, 1f)
+    // 처음에는 0 에서 차오르고, 값이 바뀌면 지금 자리에서 늘거나 준다. 수입을 넘기면 색이 번지듯 경고색으로 바뀐다.
+    val fill by animateColorAsState(if (over) colors.danger else colors.chartExpense, Motion.standard(), label = "meterFill")
+    val fraction by rememberGrowingFraction(ratio.coerceIn(0f, 1f))
     Spacer(
         modifier =
         modifier

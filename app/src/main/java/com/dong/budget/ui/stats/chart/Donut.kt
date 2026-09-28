@@ -37,6 +37,8 @@ import com.dong.budget.ui.theme.BudgetTheme
 @Composable
 fun Donut(values: List<Long>, colors: List<Color>, modifier: Modifier = Modifier, center: @Composable BoxScope.() -> Unit = {}) {
     val chart = BudgetTheme.chart
+    // 처음 그릴 때와 조각이 바뀔 때(달을 넘김, 지출/수입 바꿈) 12시에서 시계 방향으로 돌며 채워진다
+    val reveal = rememberChartReveal(values to colors)
     Box(
         modifier =
         modifier
@@ -68,8 +70,15 @@ fun Donut(values: List<Long>, colors: List<Color>, modifier: Modifier = Modifier
                 val arcSize = Size(diameter - thickness, diameter - thickness)
                 val stroke = Stroke(width = thickness, cap = StrokeCap.Butt)
                 onDrawBehind {
+                    // 지금까지 채울 수 있는 끝 각도. 조각은 그 각도까지만 그린다.
+                    val limit = START_DEGREES + FULL_DEGREES * reveal.value
                     arcs.forEach { arc ->
-                        drawArc(arc.color, arc.start, arc.sweep, useCenter = false, topLeft = topLeft, size = arcSize, style = stroke)
+                        val sweep = minOf(arc.sweep, limit - arc.start)
+                        if (sweep >
+                            0f
+                        ) {
+                            drawArc(arc.color, arc.start, sweep, useCenter = false, topLeft = topLeft, size = arcSize, style = stroke)
+                        }
                     }
                 }
             },

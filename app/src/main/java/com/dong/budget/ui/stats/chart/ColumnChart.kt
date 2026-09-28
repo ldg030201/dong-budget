@@ -19,6 +19,7 @@ import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -111,8 +112,10 @@ fun ColumnChart(
     // 맨 위 눈금 글자는 격자선에 가운데를 맞추므로 반 줄이 그림 영역 위로 나간다. 값 글자는 가장 높은 막대 위에 한 줄이 선다.
     val topInset = if (showAxis) axisLine / 2 else axisLine + spacing.tightGap
     val scale = remember(slots, layout, focusedSeries) { niceAxis(slots.maxOfOrNull { it.extent(layout, focusedSeries) } ?: 0) }
-    // 고른 칸의 띠는 그리기 단계에서만 읽는다. 칸을 바꿔도 막대와 글자를 다시 재지 않는다.
-    val selected = rememberUpdatedState(selectedIndex)
+    // 고른 칸의 띠는 그리기 단계에서만 읽는다. 칸을 바꿔도 막대와 글자를 다시 재지 않는다. 다른 칸을 고르면 띠가 미끄러진다.
+    val band = rememberSlidingIndex(selectedIndex)
+    // 처음 그릴 때와 그리는 값이 바뀔 때(달을 넘김, '하나만 보기') 막대가 바닥에서 자란다
+    val reveal = rememberChartReveal(Triple(slots, layout, focusedSeries))
 
     Box(
         modifier =
@@ -172,18 +175,23 @@ fun ColumnChart(
                     val gridThickness = underline.toPx()
 
                     onDrawBehind {
-                        selected.value?.takeIf { it in slots.indices }?.let { index ->
+                        band.value?.takeIf { slots.isNotEmpty() }?.let { position ->
                             drawRoundRect(
                                 color = ink.selection,
-                                topLeft = Offset(plot.slotLeft(index), plot.top),
+                                topLeft = Offset(lerpSlots(position, slots.size, plot::slotLeft), plot.top),
                                 size = Size(plot.slotWidth, plot.height),
                                 cornerRadius = bandCorner,
                             )
                         }
                         drawGrid(grid, plot.left, plot.right, ink.grid, gridThickness)
-                        bars.forEach { (color, path) -> drawPath(path, color) }
+                        val progress = reveal.value
+                        // 격자와 축 글자는 그대로 두고 막대만 기준선에서 위로 편다
+                        scale(scaleX = 1f, scaleY = progress, pivot = Offset(0f, plot.bottom)) {
+                            bars.forEach { (color, path) -> drawPath(path, color) }
+                        }
                         drawPlaced(yLabels)
-                        drawPlaced(valueLabels)
+                        // 막대 위의 값은 막대가 거의 다 자랐을 때 나타난다
+                        drawPlaced(valueLabels, alpha = tailAlpha(progress))
                     }
                 },
         )

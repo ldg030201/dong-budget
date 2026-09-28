@@ -16,6 +16,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -69,8 +70,10 @@ fun LineChart(
             val shown = lines.flatMap { it.values.take(slotCount) }
             niceAxis(max = shown.maxOrNull() ?: 0, min = shown.minOrNull() ?: 0)
         }
-    // 고른 칸은 그리기 단계에서만 읽는다. 끄는 동안 선과 글자를 다시 재지 않는다.
-    val selected = rememberUpdatedState(selectedIndex)
+    // 고른 칸은 그리기 단계에서만 읽는다. 끄는 동안 선과 글자를 다시 재지 않는다. 다른 날을 고르면 세로줄이 미끄러진다.
+    val crosshair = rememberSlidingIndex(selectedIndex)
+    // 처음 그릴 때와 그리는 값이 바뀔 때(달을 넘김) 선이 왼쪽에서부터 그어진다
+    val reveal = rememberChartReveal(lines to slotCount)
 
     Spacer(
         modifier =
@@ -132,21 +135,30 @@ fun LineChart(
 
                 onDrawBehind {
                     drawGrid(grid, plot.left, plot.right, ink.grid, thin)
-                    val picked = selected.value?.takeIf { it in 0 until slotCount }
+                    val picked = crosshair.value?.takeIf { slotCount > 0 }
                     if (picked != null) {
-                        val x = plot.slotCenter(picked)
+                        val x = lerpSlots(picked, slotCount, plot::slotCenter)
                         drawLine(ink.crosshair, Offset(x, plot.top), Offset(x, plot.bottom), strokeWidth = thin)
                     }
-                    paths.forEach { (color, path) -> drawPath(path, color, style = stroke) }
-                    ends.forEach { (color, point) -> drawMarker(point, color, ink.surface, markerRadius, ringRadius) }
+                    val progress = reveal.value
+                    // 선은 왼쪽에서부터 그어지고, 끝점과 끝 글자는 선이 거의 다 그어졌을 때 나타난다
+                    clipRect(right = plot.left + (size.width - plot.left) * progress) {
+                        paths.forEach { (color, path) -> drawPath(path, color, style = stroke) }
+                    }
+                    val tail = tailAlpha(progress)
+                    ends.forEach { (color, point) -> drawMarker(point, color, ink.surface, markerRadius, ringRadius, tail) }
                     if (picked != null) {
                         lines.forEach { line ->
-                            val value = line.values.getOrNull(picked) ?: return@forEach
-                            drawMarker(Offset(plot.slotCenter(picked), plot.y(value)), line.color, ink.surface, markerRadius, ringRadius)
+                            val count = minOf(line.values.size, slotCount)
+                            // 고른 날까지 선이 없는 계열(지난달보다 짧은 이번 달)은 점을 찍지 않는다
+                            if (count == 0 || picked > count - 1) return@forEach
+                            val center =
+                                Offset(lerpSlots(picked, count, plot::slotCenter), lerpSlots(picked, count) { plot.y(line.values[it]) })
+                            drawMarker(center, line.color, ink.surface, markerRadius, ringRadius)
                         }
                     }
                     drawPlaced(yLabels)
-                    endLabel?.let { drawPlaced(listOf(it)) }
+                    endLabel?.let { drawPlaced(listOf(it), alpha = tail) }
                 }
             }
             // 고른 날을 따라 굵기가 바뀌는 x축 글자는 따로 그린다. 끄는 동안 선과 y축 글자를 다시 재지 않는다.
@@ -164,7 +176,8 @@ fun LineChart(
 }
 
 /** 점과 바탕색 고리. 고리가 선과 겹친 곳을 끊어 점이 또렷하게 보인다. */
-private fun DrawScope.drawMarker(center: Offset, color: Color, surface: Color, radius: Float, ringRadius: Float) {
-    drawCircle(surface, ringRadius, center)
-    drawCircle(color, radius, center)
+private fun DrawScope.drawMarker(center: Offset, color: Color, surface: Color, radius: Float, ringRadius: Float, alpha: Float = 1f) {
+    if (alpha <= 0f) return
+    drawCircle(surface, ringRadius, center, alpha = alpha)
+    drawCircle(color, radius, center, alpha = alpha)
 }

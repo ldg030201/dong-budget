@@ -1,5 +1,6 @@
 package com.dong.budget.ui.stats.chart
 
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -14,6 +15,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -25,6 +27,7 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import com.dong.budget.ui.home.totalColor
 import com.dong.budget.ui.theme.BudgetTheme
+import com.dong.budget.ui.theme.Motion
 
 /**
  * 요일 가로 막대 한 줄.
@@ -73,6 +76,13 @@ fun WeekdayBars(bars: List<WeekdayBar>, topIndex: Int?, modifier: Modifier = Mod
     Column(modifier = modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(BudgetTheme.spacing.inlineGap)) {
         bars.forEachIndexed { index, bar ->
             val top = index == topIndex
+            // 막대는 처음에 0 에서 자라고, 달을 넘기면 새 길이로 늘거나 준다. 가장 많이 쓴 요일이 바뀌면 색도 번지듯 바뀐다.
+            val fraction by rememberGrowingFraction(if (max > 0) (bar.value.toFloat() / max).coerceIn(0f, 1f) else 0f)
+            val barColor by animateColorAsState(
+                if (top) colors.chartExpense else colors.chartContext,
+                Motion.standard(),
+                label = "weekdayBar",
+            )
             Row(
                 modifier = Modifier.fillMaxWidth().clearAndSetSemantics { contentDescription = bar.description },
                 verticalAlignment = Alignment.CenterVertically,
@@ -89,9 +99,9 @@ fun WeekdayBars(bars: List<WeekdayBar>, topIndex: Int?, modifier: Modifier = Mod
                     Box(
                         modifier =
                         Modifier
-                            .fillMaxWidth(if (max > 0) (bar.value.toFloat() / max).coerceIn(0f, 1f) else 0f)
+                            .fillMaxWidth(fraction)
                             .height(chart.weekdayBarHeight)
-                            .background(if (top) colors.chartExpense else colors.chartContext, barShape),
+                            .background(barColor, barShape),
                     )
                 }
                 Text(

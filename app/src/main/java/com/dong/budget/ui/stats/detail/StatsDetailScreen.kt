@@ -16,6 +16,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -103,7 +104,9 @@ private fun DetailContent(state: StatsDetailUiState, onOpenTransaction: (Long) -
                 Column(modifier = Modifier.padding(top = BudgetTheme.spacing.sectionGap)) {
                     // 줄은 스스로 좌우 여백을 가진다(누를 수 있는 탭의 줄과 같은 부품)
                     SectionTitle(text = crossTitle, modifier = Modifier.padding(horizontal = BudgetTheme.spacing.screenHorizontal))
-                    cross.entries.forEach { entry -> BreakdownRow(entry = entry, dimension = crossDimension, onClick = null) }
+                    cross.entries.forEach { entry ->
+                        key(entry.key) { BreakdownRow(entry = entry, dimension = crossDimension, onClick = null) }
+                    }
                 }
             }
         }
