@@ -2,12 +2,15 @@ package com.dong.budget.ui
 
 import android.content.Context
 import android.widget.Toast
+import androidx.compose.animation.ContentTransform
 import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.WindowInsets
@@ -76,6 +79,7 @@ import com.dong.budget.ui.stats.StatsTab
 import com.dong.budget.ui.stats.StatsViewModel
 import com.dong.budget.ui.stats.detail.StatsDetailScreen
 import com.dong.budget.ui.stats.detail.StatsDetailViewModel
+import com.dong.budget.ui.theme.Motion
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -123,6 +127,11 @@ fun DongBudgetApp(container: AppContainer, capturedToOpen: String? = null, onCap
         // 바탕은 바깥(MainActivity)이 화면 끝까지 칠한다.
         modifier = Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)),
         onBack = navigator::goBack,
+        // 따로 정하지 않은 화면(설정·분류 관리·알림 등)의 이동. 라이브러리 기본값은 0.7초 동안 두 화면이 함께 흐려져 느리고 겹쳐 보인다.
+        transitionSpec = { pushTransform() },
+        popTransitionSpec = { popTransform() },
+        // 뒤로 가기 몸짓을 하는 동안에도 손가락을 따라 뒤로 갈 때와 같은 모양으로 움직인다
+        predictivePopTransitionSpec = { _ -> popTransform() },
         entryDecorators =
         listOf(
             // 탭 스크롤 위치 같은 화면 상태를 엔트리별로 보관한다
@@ -317,6 +326,17 @@ fun DongBudgetApp(container: AppContainer, capturedToOpen: String? = null, onCap
     )
 }
 
+/** 새 화면이 오른쪽에서 밀려 들어오고, 뒤 화면은 왼쪽으로 조금 비켜난다 */
+private fun pushTransform(): ContentTransform = slideInHorizontally(Motion.screen()) { width -> width } togetherWith
+    slideOutHorizontally(Motion.screen()) { width -> -width / BEHIND_SHIFT_DIVISOR }
+
+/** [pushTransform] 을 거꾸로. 위 화면이 오른쪽으로 빠지고 뒤 화면이 제자리로 돌아온다. */
+private fun popTransform(): ContentTransform = slideInHorizontally(Motion.screen()) { width -> -width / BEHIND_SHIFT_DIVISOR } togetherWith
+    slideOutHorizontally(Motion.screen()) { width -> width }
+
+/** 새 화면이 덮는 동안 뒤 화면이 비켜나는 거리. 화면 너비의 1/4 */
+private const val BEHIND_SHIFT_DIVISOR = 4
+
 /**
  * 등록창은 아래에서 위로 올라오는 모달로 띄운다.
  *
@@ -324,14 +344,14 @@ fun DongBudgetApp(container: AppContainer, capturedToOpen: String? = null, onCap
  * 배경이 잠깐 비어 보인다.
  */
 private fun modalTransitions(): Map<String, Any> = NavDisplay.transitionSpec {
-    slideInVertically(initialOffsetY = { height -> height }) togetherWith
+    slideInVertically(Motion.screen()) { height -> height } togetherWith
         ExitTransition.KeepUntilTransitionsFinished
 } +
     NavDisplay.popTransitionSpec {
-        EnterTransition.None togetherWith slideOutVertically(targetOffsetY = { height -> height })
+        EnterTransition.None togetherWith slideOutVertically(Motion.screen()) { height -> height }
     } +
     NavDisplay.predictivePopTransitionSpec { _: Int ->
-        EnterTransition.None togetherWith slideOutVertically(targetOffsetY = { height -> height })
+        EnterTransition.None togetherWith slideOutVertically(Motion.screen()) { height -> height }
     }
 
 /**
@@ -356,7 +376,7 @@ private const val STATS_FADE_MS = 200
 private const val STATS_EXIT_DELAY_MS = 140
 
 /**
- * 이 화면이 전환을 마치고 자리 잡았는지(RESUMED). NavDisplay 는 전환 동안(약 0.7초) 거의 투명한 화면에도 터치를 넘겨서,
+ * 이 화면이 전환을 마치고 자리 잡았는지(RESUMED). NavDisplay 는 전환 동안(약 0.3초) 거의 투명하거나 밀려 나가는 화면에도 터치를 넘겨서,
  * 연달아 누른 두 번째 탭이 막 뜨는(또는 나가는) 화면의 같은 자리에 떨어질 수 있다. 그런 누름은 이게 true 일 때만 받는다.
  */
 @Composable
