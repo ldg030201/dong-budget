@@ -5,10 +5,18 @@ import com.dong.budget.data.capture.CaptureNotifier
 import com.dong.budget.data.capture.CaptureStore
 import com.dong.budget.data.capture.PaymentCapture
 import com.dong.budget.data.db.BudgetDatabase
+import com.dong.budget.data.settings.AutoSettings
 import com.dong.budget.data.settings.SettingsRepository
 import com.dong.budget.data.update.ApkInstaller
 import com.dong.budget.data.update.UpdateChecker
 import com.dong.budget.data.update.UpdateRepository
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.stateIn
 
 /**
  * 수동 의존성 컨테이너.
@@ -26,6 +34,17 @@ class AppContainer(context: Context) {
     val paymentMethodRepository by lazy { PaymentMethodRepository(database.paymentMethodDao()) }
 
     val settingsRepository by lazy { SettingsRepository(context) }
+
+    /** 앱이 살아 있는 동안 도는 일(설정 따라가기 등). 화면이나 서비스보다 오래 산다. */
+    private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+    /**
+     * 자동 기능 스위치의 지금 값. 화면이 처음 그려질 때(등록창의 키패드 등) 기다리지 않고 바로 읽으려고 앱이 켜질 때부터 따라간다.
+     * 저장소를 다 읽기 전에는 모두 켜진 값이다(처음 설치와 같다). 기다려도 되는 곳은 [SettingsRepository.autoSettings] 를 읽는다.
+     */
+    val autoSettings: StateFlow<AutoSettings> by lazy {
+        settingsRepository.autoSettings.stateIn(appScope, SharingStarted.Eagerly, AutoSettings())
+    }
 
     val updateRepository by lazy { UpdateRepository() }
 
@@ -46,6 +65,8 @@ class AppContainer(context: Context) {
             store = CaptureStore(context.getSharedPreferences(CaptureStore.PREFS_NAME, Context.MODE_PRIVATE)),
             prompt = captureNotifier,
             isRegistered = transactionRepository::isRegistered,
+            // 알림 읽기는 앱 화면 없이 켜지기도 해서, 저장소를 다 읽을 때까지 기다린 값으로 판단한다
+            settings = { settingsRepository.autoSettings.first() },
         )
     }
 }

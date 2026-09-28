@@ -48,9 +48,9 @@ import androidx.navigation3.ui.NavDisplay
 import com.dong.budget.BuildConfig
 import com.dong.budget.data.AppContainer
 import com.dong.budget.data.capture.CaptureStore
-import com.dong.budget.data.capture.CapturedPayment
 import com.dong.budget.data.capture.PaymentCapture
 import com.dong.budget.data.devlog.DevLog
+import com.dong.budget.data.settings.AutoOption
 import com.dong.budget.navigation.CategoryManageKey
 import com.dong.budget.navigation.DeveloperKey
 import com.dong.budget.navigation.EditorPrefill
@@ -75,6 +75,7 @@ import com.dong.budget.ui.devmode.copyLog
 import com.dong.budget.ui.editor.ALREADY_REGISTERED_MESSAGE
 import com.dong.budget.ui.editor.TransactionEditorScreen
 import com.dong.budget.ui.editor.TransactionEditorViewModel
+import com.dong.budget.ui.editor.toPrefill
 import com.dong.budget.ui.home.HomeViewModel
 import com.dong.budget.ui.inbox.InboxScreen
 import com.dong.budget.ui.inbox.InboxViewModel
@@ -91,6 +92,7 @@ import com.dong.budget.ui.stats.detail.StatsDetailScreen
 import com.dong.budget.ui.stats.detail.StatsDetailViewModel
 import com.dong.budget.ui.theme.Motion
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -109,7 +111,7 @@ fun DongBudgetApp(container: AppContainer, capturedToOpen: String? = null, onCap
     val context = LocalContext.current
     LaunchedEffect(capturedToOpen) {
         val dedupKey = capturedToOpen ?: return@LaunchedEffect
-        openCaptured(dedupKey, container.paymentCapture, navigator, context)
+        openCaptured(dedupKey, container, navigator, context)
         // 다 연 뒤에 비운다. 먼저 비우면 값이 바뀌면서 이 작업 자체가 취소된다.
         onCapturedOpened()
     }
@@ -125,11 +127,17 @@ fun DongBudgetApp(container: AppContainer, capturedToOpen: String? = null, onCap
     }
 
     // 앱이 화면에 나올 때마다 새 버전을 확인한다. 10분 안에 다시 열면 건너뛴다(UpdateChecker).
+    // '앱을 열 때 새 버전 확인하기' 를 껐으면 확인하지 않는다(설정에서 직접 확인은 된다). 저장소를 다 읽은 값으로 본다.
     val scope = rememberCoroutineScope()
     LifecycleStartEffect(container) {
-        scope.launch { container.updateChecker.checkIfDue() }
+        scope.launch {
+            if (container.settingsRepository.autoSettings.first()[AutoOption.UPDATE_CHECK]) container.updateChecker.checkIfDue()
+        }
         onStopOrDispose {}
     }
+
+    // 자동 기능 스위치의 지금 값. 화면마다 쓰는 스위치만 골라 넘긴다.
+    val autoSettings by container.autoSettings.collectAsStateWithLifecycle()
 
     Box(modifier = Modifier.fillMaxSize()) {
         // 화면을 오갈 때 두 화면의 같은 요소를 이어 주는 범위(아래 메뉴의 '통계' 가 통계 하위 메뉴 첫 칸으로 옮겨 가는 연출).
@@ -161,7 +169,9 @@ fun DongBudgetApp(container: AppContainer, capturedToOpen: String? = null, onCap
                                 viewModel(factory = homeViewModelFactory(container))
                             val state by viewModel.uiState.collectAsStateWithLifecycle()
 
-                            val updateVersion by container.updateChecker.bannerVersion.collectAsStateWithLifecycle(initialValue = null)
+                            val bannerVersion by container.updateChecker.bannerVersion.collectAsStateWithLifecycle(initialValue = null)
+                            // 새 버전 자동 확인을 껐으면 홈에 알림 줄도 띄우지 않는다(설정에서 직접 확인한 결과는 설정에만 보인다)
+                            val updateVersion = bannerVersion.takeIf { autoSettings[AutoOption.UPDATE_CHECK] }
                             val hasNewNotice by viewModel.hasNewNotice.collectAsStateWithLifecycle()
                             val devModeOn by DevLog.enabled.collectAsStateWithLifecycle()
                             HomeShell(
@@ -239,6 +249,7 @@ fun DongBudgetApp(container: AppContainer, capturedToOpen: String? = null, onCap
                                 onConfirmDelete = viewModel::confirmDelete,
                                 onReorder = viewModel::reorder,
                                 onBack = navigator::goBack,
+                                pickUnusedColor = autoSettings[AutoOption.NEW_ITEM_COLOR],
                             )
                         }
 
@@ -261,6 +272,7 @@ fun DongBudgetApp(container: AppContainer, capturedToOpen: String? = null, onCap
                                 onOpenDetail = { key -> if (settled()) navigator.go(key) },
                                 onOpenTransaction = { id -> if (settled()) navigator.go(TransactionDetailKey(id)) },
                                 onBack = navigator::goBack,
+                                autoPickDay = autoSettings[AutoOption.STATS_DAY],
                             )
                         }
 
@@ -324,6 +336,8 @@ fun DongBudgetApp(container: AppContainer, capturedToOpen: String? = null, onCap
                                 onInstallDownloaded = viewModel::installDownloadedManually,
                                 releasePageUrl = viewModel.releasePageUrl,
                                 onBack = navigator::goBack,
+                                autoSettings = autoSettings,
+                                onAutoChange = viewModel::setAuto,
                             )
                         }
 
@@ -340,7 +354,7 @@ fun DongBudgetApp(container: AppContainer, capturedToOpen: String? = null, onCap
                                 today = today,
                                 onBack = navigator::goBack,
                                 onOpen = { dedupKey ->
-                                    if (settled()) scope.launch { openCaptured(dedupKey, container.paymentCapture, navigator, context) }
+                                    if (settled()) scope.launch { openCaptured(dedupKey, container, navigator, context) }
                                 },
                                 onMarkAllRead = { dedupKeys -> if (settled()) viewModel.markAllRead(dedupKeys) },
                             )
@@ -442,28 +456,20 @@ private fun rememberSettled(): () -> Boolean {
  * 결제 등록 알림을 연다. 알림창의 알림을 눌렀을 때와 알림 화면에서 눌렀을 때 똑같이 동작한다.
  * 이미 등록한 결제면 등록창을 열지 않고 알려준다(PaymentCapture.open).
  */
-private suspend fun openCaptured(dedupKey: String, capture: PaymentCapture, navigator: Navigator, context: Context) {
-    when (val opened = withContext(Dispatchers.IO) { capture.open(dedupKey) }) {
+private suspend fun openCaptured(dedupKey: String, container: AppContainer, navigator: Navigator, context: Context) {
+    when (val opened = withContext(Dispatchers.IO) { container.paymentCapture.open(dedupKey) }) {
         // 보관 기간이 지나 채울 내용이 없다. 알림창의 알림은 그때 저절로 사라지므로 드물다.
         PaymentCapture.OpenResult.Expired -> Toast.makeText(context, EXPIRED_CAPTURE_MESSAGE, Toast.LENGTH_SHORT).show()
 
         PaymentCapture.OpenResult.AlreadyRegistered -> Toast.makeText(context, ALREADY_REGISTERED_MESSAGE, Toast.LENGTH_SHORT).show()
 
-        is PaymentCapture.OpenResult.Editor -> navigator.go(TransactionEditorKey(prefill = opened.payment.toPrefill()))
+        // 채우기 스위치는 저장소를 다 읽은 값으로 본다. 알림을 눌러 앱을 막 켠 때에도 끈 스위치가 켜진 것처럼 동작하지 않게 한다.
+        is PaymentCapture.OpenResult.Editor ->
+            navigator.go(TransactionEditorKey(prefill = opened.payment.toPrefill(container.settingsRepository.autoSettings.first())))
     }
 }
 
 private const val EXPIRED_CAPTURE_MESSAGE = "${CaptureStore.RETENTION_DAYS}일이 지난 알림이라 열 수 없어요"
-
-/** 알림에서 읽은 결제를 등록창에 채울 값으로 바꾼다. 할부는 메모로 남긴다. */
-private fun CapturedPayment.toPrefill() = EditorPrefill(
-    amount = amount,
-    merchant = merchant,
-    paymentName = paymentName,
-    memo = installmentLabel,
-    occurredAtMillis = occurredAtMillis,
-    dedupKey = dedupKey,
-)
 
 private fun homeViewModelFactory(container: AppContainer) = viewModelFactory {
     initializer { HomeViewModel(container.transactionRepository, container.paymentCapture) }
@@ -478,6 +484,7 @@ private fun editorViewModelFactory(container: AppContainer, transactionId: Long?
             transactionId = transactionId,
             prefill = prefill,
             onCaptureRegistered = container.paymentCapture::onRegistered,
+            autoSettings = { container.autoSettings.value },
         )
     }
 }
@@ -501,7 +508,9 @@ private fun inboxViewModelFactory(container: AppContainer) = viewModelFactory {
 }
 
 private fun patchNotesViewModelFactory(container: AppContainer) = viewModelFactory {
-    initializer { PatchNotesViewModel(container.updateChecker) }
+    initializer {
+        PatchNotesViewModel(container.updateChecker) { container.settingsRepository.autoSettings.first()[AutoOption.UPDATE_CHECK] }
+    }
 }
 
 private fun categoryManageViewModelFactory(container: AppContainer) = viewModelFactory {

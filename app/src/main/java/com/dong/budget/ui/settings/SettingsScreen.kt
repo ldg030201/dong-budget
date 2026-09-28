@@ -36,6 +36,8 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import com.dong.budget.R
+import com.dong.budget.data.settings.AutoOption
+import com.dong.budget.data.settings.AutoSettings
 import com.dong.budget.data.settings.ThemeMode
 import com.dong.budget.data.update.GalaxyAutoBlocker
 import com.dong.budget.ui.components.BudgetChip
@@ -45,6 +47,7 @@ import com.dong.budget.ui.components.BudgetTextButton
 import com.dong.budget.ui.components.BudgetTopAppBar
 import com.dong.budget.ui.components.HintText
 import com.dong.budget.ui.components.SectionLabel
+import com.dong.budget.ui.components.SwitchRow
 import com.dong.budget.ui.permission.AppPermission
 import com.dong.budget.ui.permission.PermissionDialog
 import com.dong.budget.ui.theme.BudgetTheme
@@ -56,6 +59,12 @@ private const val BYTES_PER_MB = 1024.0 * 1024.0
 /** 업데이트 화면의 '바뀐 점' 줄 수. 설치 버튼 아래에 두지만 너무 길면 화면이 늘어진다. */
 private const val NOTES_MAX_LINES = 6
 
+/**
+ * 설정. 위에서부터 화면 테마, 자동 기능 스위치 묶음([AutoGroup]), 앱 정보(버전·업데이트·새 버전 자동 확인)다.
+ *
+ * @param autoSettings 자동 기능 스위치. 처음에는 모두 켜져 있다.
+ * @param onAutoChange 스위치를 켜거나 껐을 때
+ */
 @Composable
 fun SettingsScreen(
     themeMode: ThemeMode,
@@ -69,6 +78,8 @@ fun SettingsScreen(
     releasePageUrl: String,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    autoSettings: AutoSettings = AutoSettings(),
+    onAutoChange: (AutoOption, Boolean) -> Unit = { _, _ -> },
 ) {
     val context = LocalContext.current
     // 설치에는 '출처를 알 수 없는 앱 설치' 권한이 필요하다. 꺼진 채로 설치를 시작하면 시스템이 막고
@@ -123,6 +134,12 @@ fun SettingsScreen(
                     }
                 }
 
+                AutoGroup.entries.forEach { group ->
+                    Spacer(Modifier.height(BudgetTheme.spacing.sectionGap))
+                    SectionLabel(group.label)
+                    group.options.forEach { option -> AutoSwitch(option = option, settings = autoSettings, onChange = onAutoChange) }
+                }
+
                 Spacer(Modifier.height(BudgetTheme.spacing.sectionGap))
 
                 SectionLabel("앱 정보")
@@ -153,10 +170,29 @@ fun SettingsScreen(
                     onOpenReleasePage = openReleasePage,
                 )
 
+                AutoSwitch(option = AutoOption.UPDATE_CHECK, settings = autoSettings, onChange = onAutoChange)
+
                 Spacer(Modifier.height(BudgetTheme.spacing.sectionGap))
             }
         }
     }
+}
+
+/**
+ * 자동 기능 스위치 한 줄. 기대는 스위치(parent)가 꺼져 있으면 흐리게 막는다. 스위치에는 사용자가 고른 값을 그대로 둬서,
+ * 위 스위치를 다시 켜면 전에 고른 대로 돌아간다. 기대는 줄은 조금 들여 써서 어느 스위치 밑인지 보이게 한다.
+ */
+@Composable
+private fun AutoSwitch(option: AutoOption, settings: AutoSettings, onChange: (AutoOption, Boolean) -> Unit) {
+    val parent = option.parent
+    SwitchRow(
+        title = option.title,
+        description = option.description,
+        checked = settings.chosen(option),
+        onCheckedChange = { on -> onChange(option, on) },
+        enabled = parent == null || settings[parent],
+        modifier = if (parent != null) Modifier.padding(start = BudgetTheme.spacing.itemGap) else Modifier,
+    )
 }
 
 @Composable

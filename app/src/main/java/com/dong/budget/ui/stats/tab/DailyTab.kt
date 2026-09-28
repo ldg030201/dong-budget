@@ -18,6 +18,7 @@ import com.dong.budget.ui.stats.tab.daily.DailySpendingSection
 import com.dong.budget.ui.stats.tab.daily.WeekdaySection
 import com.dong.budget.ui.stats.tab.daily.focusKey
 import com.dong.budget.ui.stats.tab.daily.showsDayRecords
+import com.dong.budget.ui.stats.tab.daily.startDay
 import com.dong.budget.ui.theme.BudgetTheme
 import kotlinx.coroutines.flow.first
 
@@ -36,11 +37,12 @@ sealed interface DailyRequest {
  *
  * 고른 날과 '하나만 보기' 필터는 달마다 처음 상태로 돌아간다. 스크롤 위치는 달을 바꿔도 그대로다(섹션 key 가 고정이다).
  * 고른 날은 사용자가 직접 고르기 전까지 기본 날(이번 달은 오늘, 지나간 달은 가장 많이 쓴 날)을 따라가서,
- * 이번 달을 켜 둔 채 자정이 지나면 새 오늘로 옮겨 간다.
+ * 이번 달을 켜 둔 채 자정이 지나면 새 오늘로 옮겨 간다. 이 자동 고르기를 끄면 1일부터 본다.
  *
  * @param contentPadding 아래 떠 있는 메뉴에 가리지 않게 LazyColumn 의 contentPadding 으로 쓴다
  * @param request 통계 탭이 보여 달라고 한 곳. 처리하면 [onRequestHandled] 를 부른다.
  * @param onOpenTransaction 읽기 판의 거래 줄을 누르면 거래 상세
+ * @param autoPickDay 처음 볼 날을 고를지('일별에서 볼 날 자동으로 고르기'). 아니면 1일부터 본다.
  */
 @Composable
 fun DailyTab(
@@ -50,6 +52,7 @@ fun DailyTab(
     onRequestHandled: () -> Unit,
     onOpenTransaction: (Long) -> Unit,
     modifier: Modifier = Modifier,
+    autoPickDay: Boolean = true,
 ) {
     val daily = state.daily
     val lastDay = daily.days.size
@@ -58,7 +61,7 @@ fun DailyTab(
     var pickedDay by rememberScopedSaveable<Int>(state.month)
     // '하나만 보기' 로 고른 계열. 번호가 아니라 분류를 들고 있어서 거래를 고쳐 순위가 바뀌어도 같은 분류를 따라간다.
     var focusKey by rememberScopedSaveable<String>(state.month)
-    val selectedDay = (pickedDay ?: daily.defaultDay).coerceIn(1, maxOf(lastDay, 1))
+    val selectedDay = (pickedDay ?: daily.startDay(autoPickDay)).coerceIn(1, maxOf(lastDay, 1))
     val focused = focusKey?.let { key -> daily.series.indexOfFirst { it.focusKey() == key }.takeIf { it >= 0 } }
     val showWeekdays = state.showsDayRecords()
 

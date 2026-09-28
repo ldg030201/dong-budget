@@ -3,6 +3,7 @@ package com.dong.budget.ui.stats.tab.daily
 import com.dong.budget.testing.day
 import com.dong.budget.testing.tx
 import com.dong.budget.ui.stats.calc.buildStatistics
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -22,6 +23,16 @@ class DayRecordsTest {
     fun `센 날이 있는 달은 하루 기록과 요일별을 보인다`() {
         assertTrue(buildStatistics(YearMonth.of(2026, 9), today, rows, day("2026-08-10")).showsDayRecords())
         assertTrue(buildStatistics(YearMonth.of(2026, 8), today, rows, day("2026-08-10")).showsDayRecords())
+    }
+
+    @Test
+    fun `일별에서 처음 볼 날은 자동이면 기본 날이고 끄면 1일이다`() {
+        // 지나간 달(8월)의 기본 날은 가장 많이 쓴 날(10일)이다
+        val august = buildStatistics(YearMonth.of(2026, 8), today, rows, day("2026-08-10"))
+        assertEquals(10, august.daily.startDay(autoPick = true))
+        assertEquals(1, august.daily.startDay(autoPick = false))
+        // 이번 달의 기본 날은 오늘이다
+        assertEquals(28, buildStatistics(YearMonth.of(2026, 9), today, rows, day("2026-08-10")).daily.startDay(autoPick = true))
     }
 
     @Test

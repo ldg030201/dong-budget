@@ -26,9 +26,14 @@ data object ShellKey : AppNavKey
 /**
  * 결제 알림에서 읽어 등록창을 미리 채울 값.
  * 알림을 눌러 들어오면 이 값으로 채워진 채 열리고, 사용자가 확인하고 저장해야 거래가 된다.
+ * 자동 기능 스위치(분류·결제수단·할부 채우기)는 열 때의 값을 여기에 담는다. 앱이 다시 떠도 처음 연 모양 그대로 되살아난다.
  *
- * @property paymentName 카드 이름. 같은 이름의 결제수단이 없으면 저장할 때 새로 만든다.
+ * @property paymentName 결제수단을 고를 카드 이름. 같은 이름의 결제수단이 없으면 저장할 때 새로 만든다([addMissingCard]).
+ *   '카드 이름으로 결제수단 고르기' 를 껐으면 null 이다.
+ * @property memo 채울 메모(할부). '할부는 메모에 적기' 를 껐으면 null 이다.
  * @property dedupKey 같은 결제를 두 번 등록하지 않게 거래에 함께 저장한다.
+ * @property guessCategory 같은 가게로 전에 등록한 지출의 분류를 미리 고를지
+ * @property addMissingCard [paymentName] 과 같은 결제수단이 없을 때 '신규' 로 골라 두고 저장할 때 만들지. 아니면 비워 둔다.
  */
 @Serializable
 data class EditorPrefill(
@@ -38,6 +43,8 @@ data class EditorPrefill(
     val memo: String?,
     val occurredAtMillis: Long,
     val dedupKey: String,
+    val guessCategory: Boolean = true,
+    val addMissingCard: Boolean = true,
 )
 
 /** 거래 등록/수정. transactionId 가 null 이면 새로 등록하는 것이다. prefill 이 있으면 그 값으로 채워 연다. */

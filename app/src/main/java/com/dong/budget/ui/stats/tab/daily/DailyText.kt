@@ -7,6 +7,7 @@ import com.dong.budget.ui.format.formatSignedTotal
 import com.dong.budget.ui.format.formatSpentAmount
 import com.dong.budget.ui.format.formatWeekday
 import com.dong.budget.ui.format.formatWeekdayFull
+import com.dong.budget.ui.stats.DailyStats
 import com.dong.budget.ui.stats.DayStack
 import com.dong.budget.ui.stats.GroupKey
 import com.dong.budget.ui.stats.StatSeries
@@ -24,6 +25,12 @@ internal fun dayTitle(date: LocalDate, today: LocalDate): String {
     val base = formatDateSpoken(date)
     return if (date == today) "$base · 오늘" else base
 }
+
+/**
+ * 날마다 쓴 돈에서 처음 볼 날(일). 자동으로 고르면 기본 날([DailyStats.defaultDay]: 이번 달은 오늘, 지나간 달은 가장 많이 쓴 날),
+ * 아니면 1일이다('일별에서 볼 날 자동으로 고르기').
+ */
+internal fun DailyStats.startDay(autoPick: Boolean): Int = if (autoPick) defaultDay else 1
 
 /** 하루 평균·쓴 날 평균 값. 낼 수 없으면(센 날이 없거나 환불이 더 많음) "—" */
 internal fun averageValue(amount: Long?): String = amount?.let { formatNetExpense(it) } ?: "—"

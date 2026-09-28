@@ -52,6 +52,8 @@ import sh.calvin.reorderable.rememberReorderableLazyListState
 /**
  * 전체 → 분류 관리. 지출·수입 분류와 결제수단을 추가하고 지우고, 길게 눌러 끌어서 순서를 바꾼다.
  * 바꾼 순서는 거래 등록 화면의 분류·결제수단 표에도 그대로 쓰인다.
+ *
+ * @param pickUnusedColor 추가 창의 처음 색을 안 쓴 색으로 고를지('새 분류·결제수단은 안 쓴 색으로'). 아니면 회색이다.
  */
 @Composable
 fun CategoryManageScreen(
@@ -66,6 +68,7 @@ fun CategoryManageScreen(
     onReorder: (List<ManagedItem>) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    pickUnusedColor: Boolean = true,
 ) {
     val isPayment = state.tab == ManageTab.PAYMENT
     val noun = if (isPayment) "결제수단" else "분류"
@@ -101,6 +104,7 @@ fun CategoryManageScreen(
             AddTarget.CATEGORY
         },
         usedColors = state.usedColors,
+        pickUnusedColor = pickUnusedColor,
         error = state.addError,
         onDismiss = onDismissAdd,
         onSubmit = onSubmitAdd,

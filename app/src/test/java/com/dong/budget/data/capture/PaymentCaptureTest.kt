@@ -1,5 +1,7 @@
 package com.dong.budget.data.capture
 
+import com.dong.budget.data.settings.AutoOption
+import com.dong.budget.data.settings.AutoSettings
 import com.dong.budget.testing.FakePreferences
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
@@ -20,11 +22,13 @@ class PaymentCaptureTest {
     private val prefs = FakePreferences()
     private val prompt = FakePrompt()
     private val registered = mutableSetOf<String>()
+    private var auto = AutoSettings()
 
     private fun capture(store: CaptureStore = CaptureStore(prefs, now = { clock })) = PaymentCapture(
         store = store,
         prompt = prompt,
         isRegistered = { it in registered },
+        settings = { auto },
         now = { clock },
     )
 
@@ -87,6 +91,60 @@ class PaymentCaptureTest {
         assertTrue(capture.post(title = "133,000원 결제", at = clock + 1))
         assertTrue(capture.post(text = "하나카드 | 스타벅스(일시불)", at = clock + 1))
         assertEquals(4, prompt.asked.size)
+    }
+
+    @Test
+    fun `묻기를 끄면 묻지도 기록하지도 않고, 다시 켜면 그 결제를 묻는다`() = runBlocking {
+        val capture = capture()
+        auto = auto.with(AutoOption.CAPTURE_PROMPT, false)
+        assertFalse(capture.post())
+        assertTrue(prompt.asked.isEmpty())
+        assertTrue(capture.records.first().isEmpty())
+        // 알림창에 남은 알림을 다시 살피면 그때 묻는다
+        auto = auto.with(AutoOption.CAPTURE_PROMPT, true)
+        assertTrue(capture.post())
+        assertEquals(1, prompt.asked.size)
+    }
+
+    @Test
+    fun `묻기를 끄면 지운 묻는 알림도 되살리지 않는다`() = runBlocking {
+        val capture = capture()
+        capture.post()
+        prompt.asked.clear()
+        auto = auto.with(AutoOption.CAPTURE_PROMPT, false)
+        capture.restorePrompts(showing = emptySet())
+        assertTrue(prompt.restored.isEmpty())
+    }
+
+    @Test
+    fun `같은 결제 한 번만 묻기를 끄면 알림 두 개를 모두 묻는다`() = runBlocking {
+        val capture = capture()
+        auto = auto.with(AutoOption.CAPTURE_DEDUPE, false)
+        assertTrue(capture.post("46,500원 결제 완료", "원더카드2.0 Life ・ 주식회사 우아한형제들(일시불)"))
+        assertTrue(capture.post("46,500원 결제", "하나카드 | 주식회사 우아한형제들(일시불)", at = clock + 1_500))
+        assertEquals(2, prompt.asked.size)
+    }
+
+    @Test
+    fun `다시 살피기를 끄면 앱을 열 때의 부탁을 흘려보낸다`() = runBlocking {
+        val capture = capture()
+        auto = auto.with(AutoOption.CAPTURE_RESCAN, false)
+        val received = Channel<Unit>(Channel.UNLIMITED)
+        val job = launch(Dispatchers.Default) { capture.rescanRequests.collect { received.send(Unit) } }
+        // 듣기 시작할 때까지 부탁을 거듭 보낸다(흘려보내면 끝까지 아무것도 받지 못한다)
+        repeat(20) {
+            capture.requestRescan()
+            kotlinx.coroutines.delay(5)
+        }
+        assertTrue(received.tryReceive().isFailure)
+        auto = auto.with(AutoOption.CAPTURE_RESCAN, true)
+        withTimeout(2_000) {
+            while (received.tryReceive().isFailure) {
+                capture.requestRescan()
+                kotlinx.coroutines.delay(5)
+            }
+        }
+        job.cancel()
     }
 
     @Test
