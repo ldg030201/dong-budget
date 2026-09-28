@@ -123,7 +123,7 @@ fun HomeShell(
                                 )
                             },
                             label = "통계",
-                            labelModifier = Modifier.sharedNavElement("$STATS_ENTRY_SHARED_KEY-label"),
+                            labelSharedKey = "$STATS_ENTRY_SHARED_KEY-label",
                             colors = itemColors,
                         )
                     }
@@ -173,7 +173,7 @@ fun HomeShell(
 
 /**
  * 하단 탭 한 칸. 앱은 리플을 꺼 두었으므로(Theme) 누르면 아이콘과 글자가 눌려 들어가게 한다.
- * @param labelModifier 글자에 붙일 것(다른 화면과 잇는 공유 요소 등)
+ * @param labelSharedKey 글자를 다른 화면의 같은 글자와 잇는 열쇠([sharedNavElement]). 없으면 null
  */
 @Composable
 private fun RowScope.ShellNavItem(
@@ -182,14 +182,20 @@ private fun RowScope.ShellNavItem(
     icon: @Composable () -> Unit,
     label: String,
     colors: NavigationBarItemColors,
-    labelModifier: Modifier = Modifier,
+    labelSharedKey: String? = null,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     NavigationBarItem(
         selected = selected,
         onClick = onClick,
         icon = icon,
-        label = { Text(label, style = MaterialTheme.typography.labelSmall, modifier = labelModifier) },
+        label = {
+            Text(
+                label,
+                style = MaterialTheme.typography.labelSmall,
+                modifier = if (labelSharedKey != null) Modifier.sharedNavElement(labelSharedKey) else Modifier,
+            )
+        },
         colors = colors,
         interactionSource = interactionSource,
         modifier =
