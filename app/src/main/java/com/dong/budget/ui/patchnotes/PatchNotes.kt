@@ -85,6 +85,7 @@ val PATCH_NOTES: List<Release> =
             listOf(
                 menu(
                     PatchMenu.EDITOR,
+                    improved("결제 알림에서 가져온 새 카드가 결제수단 표 맨 뒤에 '신규'로 보여서, 다른 결제수단을 골랐다가도 다시 고를 수 있어요"),
                     fixed("토스가 결제 한 건을 알림 두 개로 보내면 등록할지 두 번 묻던 문제를 고쳤어요"),
                 ),
             ),

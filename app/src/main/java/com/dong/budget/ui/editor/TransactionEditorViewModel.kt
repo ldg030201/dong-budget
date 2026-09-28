@@ -11,6 +11,7 @@ import com.dong.budget.data.TransactionRepository
 import com.dong.budget.data.db.BudgetTime
 import com.dong.budget.data.db.CategoryEntity
 import com.dong.budget.data.db.CategoryScope
+import com.dong.budget.data.db.CategoryStyle
 import com.dong.budget.data.db.PaymentMethodEntity
 import com.dong.budget.data.db.TransactionType
 import com.dong.budget.data.db.colors
@@ -55,8 +56,8 @@ sealed interface EditorEffect {
 data class EditorUiState(
     val isEditing: Boolean = false,
     /**
-     * 알림에서 읽은 카드 이름인데 같은 이름의 결제수단이 아직 없을 때 그 이름. 저장할 때 새로 만든다.
-     * 사용자가 다른 결제수단을 고르면 비운다.
+     * 알림에서 읽은 카드 이름인데 같은 이름의 결제수단이 아직 없을 때 그 이름. 이것을 고른 채 저장하면 새로 만든다.
+     * 다른 결제수단을 골라도 남겨 둔다. 결제수단 표의 맨 뒤에 보여서 다시 고를 수 있다([isPendingPaymentSelected]).
      */
     val pendingPaymentName: String? = null,
     /** 알림에서 읽은 결제의 열쇠. 같은 결제를 두 번 등록하지 않게 거래에 함께 저장한다. 직접 입력하면 null */
@@ -94,7 +95,7 @@ data class EditorUiState(
             buildList {
                 if (amount <= 0) add(RequiredField.AMOUNT)
                 if (selectedCategory == null) add(RequiredField.CATEGORY)
-                if (selectedPaymentMethod == null && pendingPaymentName == null) add(RequiredField.PAYMENT)
+                if (selectedPaymentMethod == null && !isPendingPaymentSelected) add(RequiredField.PAYMENT)
                 if (merchant.isBlank()) add(RequiredField.MERCHANT)
             }
 
@@ -104,6 +105,12 @@ data class EditorUiState(
     val selectedCategory: CategoryEntity? get() = categories.firstOrNull { it.id == categoryId }
 
     val selectedPaymentMethod: PaymentMethodEntity? get() = paymentMethods.firstOrNull { it.id == paymentMethodId }
+
+    /** 새로 만들 결제수단([pendingPaymentName])을 고른 상태인지. 다른 결제수단을 고르지 않았으면 이것이 골라져 있다. */
+    val isPendingPaymentSelected: Boolean get() = pendingPaymentName != null && paymentMethodId == null
+
+    /** [pendingPaymentName] 으로 새로 만들 결제수단의 색. 저장할 때 만들어질 색(findOrCreate)과 같다. */
+    val pendingPaymentColor: String get() = CategoryStyle.firstUnusedColor(usedPaymentColors)
 
     val usedPaymentColors: Set<String> get() = paymentMethods.colors()
 
@@ -131,19 +138,17 @@ class TransactionEditorViewModel(
         viewModelScope.launch {
             paymentMethodRepository.observeAll().collect { methods ->
                 _uiState.update { state ->
-                    // 알림에서 읽은 카드 이름과 같은 결제수단이 있으면 그것을 고른다(띄어쓰기·대소문자 무시)
-                    val pending = state.pendingPaymentName
+                    // 알림에서 읽은 카드 이름과 같은 결제수단이 있으면(띄어쓰기·대소문자 무시) 새로 만들 것이 없다.
+                    // 그 이름을 고른 상태였으면 있는 결제수단을 고른다. 등록창에서 같은 이름을 직접 추가한 경우도 여기로 온다.
                     val match =
-                        if (pending != null && state.paymentMethodId == null) {
+                        state.pendingPaymentName?.let { pending ->
                             methods.firstOrNull { PaymentMethodRepository.sameName(it.name, pending) }
-                        } else {
-                            null
                         }
-                    state.copy(
-                        paymentMethods = methods,
-                        paymentMethodId = match?.id ?: state.paymentMethodId,
-                        pendingPaymentName = if (match != null) null else pending,
-                    )
+                    if (match == null) {
+                        state.copy(paymentMethods = methods)
+                    } else {
+                        state.copy(paymentMethods = methods, paymentMethodId = state.paymentMethodId ?: match.id, pendingPaymentName = null)
+                    }
                 }
             }
         }
@@ -245,8 +250,13 @@ class TransactionEditorViewModel(
 
     fun selectPaymentMethod(id: Long) {
         // 결제수단은 필수라서 이미 고른 것을 다시 눌러도 선택을 풀지 않는다.
-        // 직접 골랐으면 알림에서 읽은 카드 이름으로 새로 만들 필요가 없다.
-        _uiState.update { it.copy(paymentMethodId = id, pendingPaymentName = null) }
+        // 알림에서 읽은 카드 이름은 지우지 않는다. 마음이 바뀌면 표에서 다시 고를 수 있다.
+        _uiState.update { it.copy(paymentMethodId = id) }
+    }
+
+    /** 알림에서 읽은 카드 이름으로 새로 만들 결제수단을 다시 고른다 */
+    fun selectPendingPaymentMethod() {
+        _uiState.update { if (it.pendingPaymentName != null) it.copy(paymentMethodId = null) else it }
     }
 
     /**
