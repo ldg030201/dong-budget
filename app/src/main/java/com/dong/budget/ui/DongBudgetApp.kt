@@ -238,8 +238,8 @@ fun DongBudgetApp(container: AppContainer, capturedToOpen: String? = null, onCap
                 entry<StatisticsKey>(metadata = statsTransitions()) {
                     val viewModel: StatsViewModel = viewModel(factory = statsViewModelFactory(container))
                     val state by viewModel.uiState.collectAsStateWithLifecycle()
-                    // 하위 탭은 여기서 들고 있다. 회전하거나 상세에 다녀와도 그대로고, 통계를 나갔다 오면 월별부터 다시 시작한다.
-                    var tab by rememberSaveable { mutableStateOf(StatsTab.MONTHLY) }
+                    // 하위 탭은 여기서 들고 있다. 회전하거나 상세에 다녀와도 그대로고, 통계를 나갔다 오면 첫 칸 '통계' 부터 다시 시작한다.
+                    var tab by rememberSaveable { mutableStateOf(StatsTab.OVERVIEW) }
                     // 들어오는 전환 동안 홈의 '통계' 를 연달아 누르면 두 번째 탭이 같은 높이의 떠 있는 메뉴('일별' 자리)에 떨어진다.
                     // 알림 화면처럼 자리 잡은 뒤(RESUMED)에만 탭 선택과 줄 누름을 받는다. 나가는 중이나 등록창이 올라오는 중에 누른 것도 무시한다.
                     val settled = rememberSettled()

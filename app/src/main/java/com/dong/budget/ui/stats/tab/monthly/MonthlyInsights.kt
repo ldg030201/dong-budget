@@ -31,17 +31,20 @@ import com.dong.budget.ui.theme.pressScaleClickable
 import java.time.YearMonth
 
 /**
- * ③ 눈에 띄는 점. 조건에 맞은 것만 최대 3줄. 줄마다 누르면 더 자세히 본다.
- * 분류 이야기(1위 분류 비율, 크게 달라진 분류)는 그 분류 상세로, 요일·돈 안 쓴 날은 일별 탭으로 간다.
+ * 눈에 띄는 점. 조건에 맞은 것만 최대 3줄. 줄마다 누르면 더 자세히 본다.
+ * 분류 이야기(1위 분류 비율, 크게 달라진 분류)는 그 분류 상세로, 요일은 일별 탭의 요일별 하루 평균으로,
+ * 돈 안 쓴 날은 하루 기록으로 간다.
  *
- * @param onShowDaily 요일·돈 안 쓴 날 줄을 눌렀을 때
+ * @param onShowWeekdays 요일 줄을 눌렀을 때
+ * @param onShowNoSpend 돈 안 쓴 날 줄을 눌렀을 때
  */
 @Composable
 internal fun InsightsSection(
     insights: List<Insight>,
     month: YearMonth,
     onOpenDetail: (StatsDetailKey) -> Unit,
-    onShowDaily: () -> Unit,
+    onShowWeekdays: () -> Unit,
+    onShowNoSpend: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     StatsSection(modifier = modifier, title = "눈에 띄는 점") {
@@ -52,7 +55,11 @@ internal fun InsightsSection(
                     insight = insight,
                     onClick = {
                         val key = insight.detailKey(month)
-                        if (key != null) onOpenDetail(key) else onShowDaily()
+                        when {
+                            key != null -> onOpenDetail(key)
+                            insight is Insight.NoSpendDays -> onShowNoSpend()
+                            else -> onShowWeekdays()
+                        }
                     },
                 )
             }
