@@ -74,7 +74,9 @@ fun SwitchRow(
                 Text(text = description, style = MaterialTheme.typography.bodySmall, color = BudgetTheme.colors.textSecondary)
             }
         }
-        Switch(checked = checked, onCheckedChange = null, enabled = enabled)
+        // 흐림은 줄의 alpha 한 번만 맡는다. 스위치의 비활성 색까지 겹치면 켜진 모양이 바탕에 묻혀 고른 값이 안 보인다.
+        // 누름과 화면 읽기(사용 중지됨)는 줄의 toggleable 이 맡으므로 스위치에 enabled 를 넘기지 않아도 된다.
+        Switch(checked = checked, onCheckedChange = null)
     }
 }
 
