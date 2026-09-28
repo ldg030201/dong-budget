@@ -1,6 +1,12 @@
 package com.dong.budget.ui.settings
 
 import androidx.annotation.DrawableRes
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -15,6 +21,7 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ProgressIndicatorDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -41,6 +48,7 @@ import com.dong.budget.ui.components.SectionLabel
 import com.dong.budget.ui.permission.AppPermission
 import com.dong.budget.ui.permission.PermissionDialog
 import com.dong.budget.ui.theme.BudgetTheme
+import com.dong.budget.ui.theme.Motion
 import java.util.Locale
 
 private const val BYTES_PER_MB = 1024.0 * 1024.0
@@ -159,6 +167,28 @@ private fun UpdateSection(
     onInstallDownloaded: () -> Unit,
     onOpenReleasePage: () -> Unit,
 ) {
+    // 확인 중 → 새 버전 있음 → 내려받는 중처럼 단계가 바뀌면 겹쳐 바뀌고, 칸 높이도 한 번에 튀지 않는다.
+    // 같은 단계 안의 변화(내려받은 양)는 그 자리에서 바뀐다.
+    AnimatedContent(
+        targetState = state,
+        contentKey = { it::class },
+        transitionSpec = {
+            (fadeIn(Motion.standard()) togetherWith fadeOut(Motion.quick())).using(SizeTransform { _, _ -> Motion.standard() })
+        },
+        label = "updateSection",
+    ) { shown ->
+        Column { UpdateStep(shown, downloadedVersion, onDownloadUpdate, onInstallDownloaded, onOpenReleasePage) }
+    }
+}
+
+@Composable
+private fun UpdateStep(
+    state: UpdateUiState,
+    downloadedVersion: String?,
+    onDownloadUpdate: () -> Unit,
+    onInstallDownloaded: () -> Unit,
+    onOpenReleasePage: () -> Unit,
+) {
     when (state) {
         // 확인은 버전 옆 버튼으로 한다
         UpdateUiState.Idle -> Unit
@@ -217,8 +247,10 @@ private fun UpdateSection(
         is UpdateUiState.Downloading -> {
             StatusText(if (state.progress >= 1f) "설치를 준비하고 있어요" else "${state.version} 버전을 내려받고 있어요")
             Spacer(Modifier.height(BudgetTheme.spacing.itemGap))
+            // 내려받은 양이 띄엄띄엄 알려져도 막대는 이어서 차오른다
+            val progress by animateFloatAsState(state.progress, ProgressIndicatorDefaults.ProgressAnimationSpec, label = "downloadProgress")
             LinearProgressIndicator(
-                progress = { state.progress },
+                progress = { progress },
                 modifier = Modifier.fillMaxWidth(),
                 color = MaterialTheme.colorScheme.primary,
                 trackColor = BudgetTheme.colors.sectionBackground,
