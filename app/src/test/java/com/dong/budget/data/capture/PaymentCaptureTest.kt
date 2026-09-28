@@ -128,22 +128,29 @@ class PaymentCaptureTest {
     @Test
     fun `다시 살피기를 끄면 앱을 열 때의 부탁을 흘려보낸다`() = runBlocking {
         val capture = capture()
-        auto = auto.with(AutoOption.CAPTURE_RESCAN, false)
         val received = Channel<Unit>(Channel.UNLIMITED)
         val job = launch(Dispatchers.Default) { capture.rescanRequests.collect { received.send(Unit) } }
-        // 듣기 시작할 때까지 부탁을 거듭 보낸다(흘려보내면 끝까지 아무것도 받지 못한다)
-        repeat(20) {
-            capture.requestRescan()
-            kotlinx.coroutines.delay(5)
-        }
-        assertTrue(received.tryReceive().isFailure)
-        auto = auto.with(AutoOption.CAPTURE_RESCAN, true)
-        withTimeout(2_000) {
+
+        // 켜진 동안 부탁 하나가 닿을 때까지 보낸다. 닿으면 듣기가 시작된 것이 확실하다.
+        suspend fun awaitDelivered() = withTimeout(2_000) {
             while (received.tryReceive().isFailure) {
                 capture.requestRescan()
                 kotlinx.coroutines.delay(5)
             }
         }
+        awaitDelivered()
+
+        // 듣고 있는 채로 끄면 부탁이 닿지 않는다
+        auto = auto.with(AutoOption.CAPTURE_RESCAN, false)
+        repeat(20) {
+            capture.requestRescan()
+            kotlinx.coroutines.delay(5)
+        }
+        assertTrue(received.tryReceive().isFailure)
+
+        // 다시 켜면 또 닿는다
+        auto = auto.with(AutoOption.CAPTURE_RESCAN, true)
+        awaitDelivered()
         job.cancel()
     }
 
