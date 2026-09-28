@@ -328,9 +328,9 @@ fun DongBudgetApp(container: AppContainer, capturedToOpen: String? = null, onCap
                 }
             },
         )
-        // 개발자 모드가 켜져 있으면 어느 화면에서든 벌레 표시를 띄워 둔다(누르면 개발자 모드 화면)
+        // 개발자 모드가 켜져 있으면 어느 화면에서든 오른쪽 아래에 벌레 표시를 띄워 둔다. 보이기만 하고 누름은 아래 화면이 받는다.
         val devModeOn by DevLog.enabled.collectAsStateWithLifecycle()
-        DevModeBadge(visible = devModeOn, onClick = { navigator.go(DeveloperKey) })
+        DevModeBadge(visible = devModeOn)
     }
 }
 

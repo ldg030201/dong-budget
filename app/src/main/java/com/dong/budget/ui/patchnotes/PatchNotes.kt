@@ -101,7 +101,7 @@ val PATCH_NOTES: List<Release> =
                 ),
                 menu(
                     PatchMenu.DEVELOPER,
-                    added("개발자 모드가 켜져 있으면 모든 화면 위쪽에 벌레 표시가 떠요. 누르면 개발자 모드로 가고, 무언가를 가리면 끌어서 옮길 수 있어요"),
+                    added("개발자 모드가 켜져 있으면 모든 화면 오른쪽 아래에 벌레 표시가 반투명하게 떠요. 표시만 하고 눌리지 않아서 밑의 버튼도 그대로 눌려요"),
                 ),
                 menu(
                     PatchMenu.COMMON,
