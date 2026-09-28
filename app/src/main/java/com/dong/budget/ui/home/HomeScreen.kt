@@ -11,6 +11,7 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.interaction.DragInteraction
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -43,6 +44,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -227,6 +229,15 @@ private fun MonthBody(state: HomeUiState, onOpenTransaction: (Long) -> Unit, mod
                     .filter { it.offset + it.size > stripHeightPx }
                     .mapNotNull { dayIndex.dateAt(it.index) }
             selected?.takeIf { it in visible } ?: visible.firstOrNull()
+        }
+    }
+
+    // 손으로 목록을 끌면 누른 날 표시를 놓는다. 그 뒤로 한 주 줄의 표시는 스크롤 위치를 따라가고,
+    // 맨 위로 돌아오면 달력은 아무 날도 고르지 않은 처음 모습이 된다. 놓지 않으면 스크롤로 다른 날을 지나 올라와도
+    // 달력에 처음 누른 날이 그대로 칠해져 있다. 누른 날로 옮겨 가는 스크롤(animateScrollToItem)은 끌기가 아니라 표시가 남는다.
+    LaunchedEffect(listState) {
+        listState.interactionSource.interactions.collect { interaction ->
+            if (interaction is DragInteraction.Start) selected = null
         }
     }
 
