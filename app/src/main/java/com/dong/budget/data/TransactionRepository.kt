@@ -43,6 +43,13 @@ class TransactionRepository(private val transactionDao: TransactionDao) {
 
     suspend fun findById(id: Long): TransactionEntity? = transactionDao.findById(id)
 
+    /** 거래 한 건(분류·결제수단 이름 포함). 고치면 새로 내보내고, 지우면 null 을 내보낸다. */
+    fun observeItem(id: Long): Flow<TransactionListItem?> = transactionDao.observeItem(id)
+
+    /** [start] 날(서울 0시)부터 가게 이름이 있는 거래. 앞으로의 날짜로 적은 거래도 들어온다. 거래 상세의 같은 곳 내역이 쓴다. */
+    fun observeWithMerchantSince(start: LocalDate): Flow<List<TransactionListItem>> =
+        transactionDao.observeWithMerchantSince(start.atStartOfDay(BudgetTime.ZONE).toInstant())
+
     /** 이 가게로 가장 최근에 등록한 지출의 분류. 없으면 null */
     suspend fun lastCategoryIdForMerchant(merchant: String): Long? = transactionDao.lastCategoryIdForMerchant(merchant)
 

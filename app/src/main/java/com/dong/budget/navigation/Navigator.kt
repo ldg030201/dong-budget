@@ -50,6 +50,15 @@ class Navigator(private val backStack: NavBackStack<NavKey>) {
             DevLog.info(LogTag.SCREEN, "닫기 ${key.logName()}")
         }
     }
+
+    /**
+     * [key] 화면을 백스택 어디에 있든 뺀다. 첫 화면(셸)은 빼지 않는다.
+     * 등록창에서 거래를 지웠을 때 그 아래 깔린 거래 상세를 같이 치우려고 쓴다. 맨 위가 아니면 움직임 없이 빠진다.
+     */
+    fun remove(key: AppNavKey) {
+        if (backStack.firstOrNull() == key) return
+        if (backStack.remove(key)) DevLog.info(LogTag.SCREEN, "닫기 ${key.logName()}")
+    }
 }
 
 /** 개발자 모드 로그에 적는 화면 이름. 등록창은 채운 내용(금액·가게) 대신 어디서 열었는지만 적는다. */
@@ -60,6 +69,8 @@ private fun AppNavKey.logName(): String = when (this) {
             prefill != null -> "등록창(알림에서)"
             else -> "등록창(새 거래)"
         }
+
+    is TransactionDetailKey -> "거래 상세(#$transactionId)"
 
     else -> toString()
 }

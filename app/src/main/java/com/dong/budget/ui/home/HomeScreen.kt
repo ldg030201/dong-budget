@@ -101,6 +101,7 @@ import java.time.YearMonth
  * 상단 인셋은 이 화면이 직접 처리한다. 셸의 Scaffold 는 인셋을 비워둔다.
  *
  * @param hasNewNotice 아직 눌러 보지 않은 알림이 있는지. 종에 빨간 점을 찍는다.
+ * @param onOpenTransaction 거래 줄을 누르면 그 거래의 상세
  */
 @Composable
 fun HomeScreen(
@@ -112,7 +113,7 @@ fun HomeScreen(
     onPreviousMonth: () -> Unit,
     onNextMonth: () -> Unit,
     onAddTransaction: () -> Unit,
-    onEditTransaction: (Long) -> Unit,
+    onOpenTransaction: (Long) -> Unit,
     onOpenInbox: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -146,7 +147,7 @@ fun HomeScreen(
                 modifier = Modifier.weight(1f),
                 label = "monthBody",
             ) { shown ->
-                MonthBody(state = shown, onEditTransaction = onEditTransaction, modifier = Modifier.fillMaxSize())
+                MonthBody(state = shown, onOpenTransaction = onOpenTransaction, modifier = Modifier.fillMaxSize())
             }
         }
         // 앱은 리플을 꺼 두었으므로(Theme) 누르면 버튼이 눌려 들어가게 한다. 그림자가 잘리지 않게 모양대로 자르지 않는다.
@@ -202,7 +203,7 @@ private class DayIndex(groups: List<DayGroup>) {
 }
 
 @Composable
-private fun MonthBody(state: HomeUiState, onEditTransaction: (Long) -> Unit, modifier: Modifier = Modifier) {
+private fun MonthBody(state: HomeUiState, onOpenTransaction: (Long) -> Unit, modifier: Modifier = Modifier) {
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     var selected by rememberSaveable { mutableStateOf<LocalDate?>(null) }
@@ -262,7 +263,7 @@ private fun MonthBody(state: HomeUiState, onEditTransaction: (Long) -> Unit, mod
             state.groups.forEach { group ->
                 animatedItem(key = "day-${group.date}") { DayHeader(date = group.date, today = state.today) }
                 animatedItems(items = group.items, key = { "tx-${it.id}" }) { item ->
-                    TransactionRow(item = item, onClick = { onEditTransaction(item.id) })
+                    TransactionRow(item = item, onClick = { onOpenTransaction(item.id) })
                 }
             }
         }

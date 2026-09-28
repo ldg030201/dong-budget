@@ -79,7 +79,10 @@ data class EditorUiState(
     val addError: String? = null,
     /** 저장을 눌렀을 때 비어 있던 첫 칸. 그 칸 밑에 채우라는 안내를 보여준다. */
     val invalidField: RequiredField? = null,
+    /** 저장이나 삭제가 끝났다. 화면을 닫는다. */
     val saved: Boolean = false,
+    /** 끝난 것이 삭제였는지. 아래에 깔린 그 거래의 상세도 같이 치운다. */
+    val deleted: Boolean = false,
 ) {
     val amount: Long get() = amountDigits.toLongOrNull() ?: 0L
 
@@ -392,7 +395,7 @@ class TransactionEditorViewModel(
         busy = true
         viewModelScope.launch {
             repository.delete(id)
-            _uiState.update { it.copy(saved = true) }
+            _uiState.update { it.copy(saved = true, deleted = true) }
         }
     }
 }

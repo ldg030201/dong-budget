@@ -30,6 +30,23 @@ class NavigatorTest {
     }
 
     @Test
+    fun `지운 거래의 상세는 등록창 아래에 있어도 빼고 셸은 빼지 않는다`() {
+        // 거래 상세 → 수정 → 삭제. 등록창이 닫히기 전에 아래 깔린 상세를 먼저 뺀다.
+        val backStack = NavBackStack<NavKey>(ShellKey)
+        val navigator = Navigator(backStack)
+        val detail = TransactionDetailKey(7)
+        val editor = TransactionEditorKey(7)
+        navigator.go(detail)
+        navigator.go(editor)
+        navigator.remove(detail)
+        assertEquals(listOf(ShellKey, editor), backStack.toList())
+        navigator.closeIfTop(editor)
+        navigator.remove(ShellKey)
+        navigator.remove(TransactionDetailKey(8))
+        assertEquals(listOf(ShellKey), backStack.toList())
+    }
+
+    @Test
     fun `첫 화면만 남으면 뒤로가기를 여러 번 눌러도 지우지 않는다`() {
         // 뒤로 버튼을 빠르게 두 번 누른 경우. 두 번째가 셸까지 지우면 NavDisplay 가 앱을 종료시킨다.
         val backStack = NavBackStack<NavKey>(ShellKey)

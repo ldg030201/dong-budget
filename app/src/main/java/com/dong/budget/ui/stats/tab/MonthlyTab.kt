@@ -51,7 +51,7 @@ import java.time.YearMonth
  * @param onShowMonth 6개월 표의 다른 달 줄을 누르면 통계 전체가 그 달로 바뀐다
  * @param onShowTab '눈에 띄는 점' 의 요일·돈 안 쓴 날 줄을 누르면 일별 탭으로
  * @param onOpenDetail '눈에 띄는 점' 의 분류 줄을 누르면 그 분류 상세
- * @param onOpenTransaction 큰 지출 줄을 누르면 등록창
+ * @param onOpenTransaction 큰 지출 줄을 누르면 거래 상세
  */
 @Composable
 fun MonthlyTab(
@@ -141,7 +141,7 @@ fun MonthlyTab(
 
 /**
  * ⑥ 큰 지출. 이 달 지출 중 큰 것 5건을 홈 목록과 같은 거래 줄로 보여 준다.
- * 여러 날이 섞이므로 부제에 시각 대신 날짜를 적는다. 누르면 그 거래의 등록창이 열린다.
+ * 여러 날이 섞이므로 부제에 시각 대신 날짜를 적는다. 누르면 그 거래의 상세가 열린다.
  */
 @Composable
 private fun LargestSection(title: String, items: List<TransactionListItem>, onOpenTransaction: (Long) -> Unit) {

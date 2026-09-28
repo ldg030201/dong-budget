@@ -44,6 +44,10 @@ data class EditorPrefill(
 @Serializable
 data class TransactionEditorKey(val transactionId: Long? = null, val prefill: EditorPrefill? = null) : AppNavKey
 
+/** 거래 상세. 홈·통계에서 거래 줄을 누르면 열린다. 오른쪽 위 '수정' 으로 그 거래의 등록창을 연다. */
+@Serializable
+data class TransactionDetailKey(val transactionId: Long) : AppNavKey
+
 @Serializable
 data object CategoryManageKey : AppNavKey
 

@@ -34,7 +34,7 @@ import java.time.YearMonth
  * 이번 달을 켜 둔 채 자정이 지나면 새 오늘로 옮겨 간다.
  *
  * @param contentPadding 아래 떠 있는 메뉴에 가리지 않게 LazyColumn 의 contentPadding 으로 쓴다
- * @param onOpenTransaction 읽기 판의 거래 줄을 누르면 등록창
+ * @param onOpenTransaction 읽기 판의 거래 줄을 누르면 거래 상세
  */
 @Composable
 fun DailyTab(state: StatsUiState, contentPadding: PaddingValues, onOpenTransaction: (Long) -> Unit, modifier: Modifier = Modifier) {
