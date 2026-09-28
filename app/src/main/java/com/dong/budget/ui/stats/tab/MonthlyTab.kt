@@ -8,6 +8,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import com.dong.budget.ui.components.animatedItem
 import com.dong.budget.ui.stats.StatsEmpty
 import com.dong.budget.ui.stats.StatsUiState
@@ -41,8 +42,12 @@ fun MonthlyTab(state: StatsUiState, contentPadding: PaddingValues, onShowMonth: 
 
     LazyColumn(
         modifier = modifier.fillMaxSize(),
-        // 달 줄 바로 아래 붙지 않게 조금 띄운다
-        contentPadding = PaddingValues(top = BudgetTheme.spacing.inlineGap, bottom = contentPadding.calculateBottomPadding()),
+        // 달 줄 바로 아래 붙지 않게 조금 띄운다. 빈 상태 안내는 스스로 여백이 있어서 띄우지 않는다(통계 탭의 안내와 같은 자리에 둔다).
+        contentPadding =
+        PaddingValues(
+            top = if (state.monthIsEmpty) 0.dp else BudgetTheme.spacing.inlineGap,
+            bottom = contentPadding.calculateBottomPadding(),
+        ),
         verticalArrangement = Arrangement.spacedBy(BudgetTheme.spacing.sectionGap),
     ) {
         if (state.monthIsEmpty) {
