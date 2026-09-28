@@ -15,7 +15,7 @@ class AutoOptionTextTest {
     }
 
     @Test
-    fun `기대는 스위치는 같은 묶음에서 바로 위에 있다`() {
+    fun `기대는 스위치는 같은 묶음에서 그 줄보다 앞에 있다`() {
         AutoGroup.entries.forEach { group ->
             group.options.forEachIndexed { index, option ->
                 option.parent?.let { parent ->
