@@ -41,6 +41,7 @@ import kotlinx.coroutines.launch
  * @param pressedTint 누르는 동안 [shape] 모양으로 옅은 바탕을 깐다. 아이콘이나 글자만 있는 버튼은
  *   줄어드는 것만으로는 눌린 게 거의 안 보여서 켠다.
  * @param onLongClick 길게 눌렀을 때 할 보조 동작(키패드의 전체 지우기 등). 없으면 null
+ * @param onClickLabel 누르면 무엇을 하는지 화면 읽기가 알려 줄 말('두 번 탭하여 하루 기록 보기'). 줄 글만으로 알 수 없을 때 준다.
  */
 @Composable
 fun Modifier.pressScaleClickable(
@@ -49,6 +50,7 @@ fun Modifier.pressScaleClickable(
     role: Role? = Role.Button,
     pressedTint: Boolean = false,
     onLongClick: (() -> Unit)? = null,
+    onClickLabel: String? = null,
     onClick: () -> Unit,
 ): Modifier {
     val interactionSource = remember { MutableInteractionSource() }
@@ -59,6 +61,7 @@ fun Modifier.pressScaleClickable(
             indication = null,
             enabled = enabled,
             role = role,
+            onClickLabel = onClickLabel,
             onLongClick = onLongClick,
             onClick = onClick,
         )

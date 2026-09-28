@@ -133,12 +133,11 @@ fun StatsScreen(
 
                         is StatsPage.Tab ->
                             tabStates.SaveableStateProvider(shown.tab.name) {
-                                Box(modifier = Modifier.fillMaxSize().semantics { if (incoming) paneTitle = "${shown.tab.label} 통계" }) {
+                                Box(modifier = Modifier.fillMaxSize().semantics { if (incoming) paneTitle = shown.tab.paneTitle }) {
                                     TabContent(
                                         tab = shown.tab,
                                         state = state,
                                         contentPadding = contentPadding,
-                                        onSelectTab = onSelectTab,
                                         dailyRequest = dailyRequest,
                                         onRequestDaily = { request ->
                                             dailyRequest = request
@@ -194,7 +193,6 @@ private fun TabContent(
     tab: StatsTab,
     state: StatsUiState,
     contentPadding: PaddingValues,
-    onSelectTab: (StatsTab) -> Unit,
     dailyRequest: DailyRequest?,
     onRequestDaily: (DailyRequest) -> Unit,
     onDailyRequestHandled: () -> Unit,
