@@ -89,6 +89,7 @@ val PATCH_NOTES: List<Release> =
                 menu(
                     PatchMenu.HOME,
                     changed("지난달과 견준 금액을 반올림하지 않고 내림으로 적어요"),
+                    fixed("달력에서 날짜를 누른 뒤 목록을 손으로 올리면 맨 위 달력에 처음 누른 날이 그대로 칠해져 있던 문제를 고쳤어요. 이제 끌기 시작하면 위의 한 주 줄이 스크롤을 따라가요"),
                 ),
                 newMenu(
                     PatchMenu.DETAIL,
