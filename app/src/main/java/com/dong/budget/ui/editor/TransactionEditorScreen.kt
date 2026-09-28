@@ -290,7 +290,8 @@ fun TransactionEditorScreen(
                                     size = BudgetTheme.size.badgeSmall,
                                 )
                             },
-                            text = "$pendingName (새로 추가돼요)",
+                            // 긴 카드 이름이면 두 줄이 된다. 안내가 '(새로 / 추가돼요)' 로 갈라지지 않게 붙는 빈칸을 쓴다.
+                            text = "$pendingName (새로\u00A0추가돼요)",
                         )
                     } else if (method == null) {
                         FormPlaceholder("결제수단을 골라주세요")

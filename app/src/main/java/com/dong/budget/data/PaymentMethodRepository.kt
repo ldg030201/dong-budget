@@ -25,6 +25,21 @@ class PaymentMethodRepository(private val dao: PaymentMethodDao) {
          * @return 비어 있으면 null
          */
         fun normalizeName(raw: String): String? = raw.trim().take(MAX_NAME_LENGTH).trim().ifEmpty { null }
+
+        /**
+         * 알림에서 읽은 카드 이름([normalizeName] 으로 다듬은 것)과 같은 결제수단. 없으면 null.
+         * 1.2.0 까지는 이름을 [LEGACY_NAME_LENGTH] 자로 잘라 만들었으므로('원더카드2.0 Li'), 그렇게 잘린 이름도 같은 카드로 본다.
+         * 보지 않으면 잘린 결제수단을 두고 온전한 이름으로 하나 더 만든다. 이름이 딱 맞는 것이 있으면 그것이 먼저다.
+         */
+        fun findSameCard(methods: List<PaymentMethodEntity>, cardName: String): PaymentMethodEntity? {
+            methods.firstOrNull { sameName(it.name, cardName) }?.let { return it }
+            if (cardName.length <= LEGACY_NAME_LENGTH) return null
+            val legacyName = cardName.take(LEGACY_NAME_LENGTH).trim()
+            return methods.firstOrNull { sameName(it.name, legacyName) }
+        }
+
+        /** 1.2.0 까지의 이름 길이 제한 */
+        private const val LEGACY_NAME_LENGTH = 10
     }
 
     fun observeAll(): Flow<List<PaymentMethodEntity>> = dao.observeAll()
@@ -60,13 +75,13 @@ class PaymentMethodRepository(private val dao: PaymentMethodDao) {
     suspend fun findOrCreate(rawName: String): Long? {
         val name = normalizeName(rawName) ?: return null
         val existing = dao.getAll()
-        existing.firstOrNull { sameName(it.name, name) }?.let { return it.id }
+        findSameCard(existing, name)?.let { return it.id }
         val color = CategoryStyle.firstUnusedColor(existing.colors())
         return when (val result = add(name, NEW_CARD_ICON, color)) {
             is AddResult.Added -> result.id
 
             // 그사이 같은 이름이 생겼으면 그것을 쓴다
-            else -> dao.getAll().firstOrNull { sameName(it.name, name) }?.id
+            else -> findSameCard(dao.getAll(), name)?.id
         }
     }
 
