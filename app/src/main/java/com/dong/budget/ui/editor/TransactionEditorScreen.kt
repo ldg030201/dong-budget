@@ -34,11 +34,11 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.input.ImeAction
 import com.dong.budget.data.PaymentMethodRepository
 import com.dong.budget.data.db.BudgetTime
-import com.dong.budget.data.db.CategoryStyle
 import com.dong.budget.data.db.TransactionType
 import com.dong.budget.ui.category.AddItemSheet
 import com.dong.budget.ui.category.AddTarget
 import com.dong.budget.ui.category.PickerGrid
+import com.dong.budget.ui.category.PickerPreview
 import com.dong.budget.ui.components.BudgetPrimaryButton
 import com.dong.budget.ui.components.BudgetTextButton
 import com.dong.budget.ui.components.BudgetTopAppBar
@@ -114,6 +114,7 @@ fun TransactionEditorScreen(
     onClearAmount: () -> Unit,
     onSelectCategory: (Long) -> Unit,
     onSelectPaymentMethod: (Long) -> Unit,
+    onSelectPendingPayment: () -> Unit,
     onOpenAdd: (AddTarget) -> Unit,
     onDismissAdd: () -> Unit,
     onSubmitAdd: (name: String, icon: String, color: String) -> Unit,
@@ -278,14 +279,14 @@ fun TransactionEditorScreen(
                 ) {
                     val method = state.selectedPaymentMethod
                     val pendingName = state.pendingPaymentName
-                    if (method == null && pendingName != null) {
+                    if (state.isPendingPaymentSelected && pendingName != null) {
                         // 알림에서 읽은 카드가 아직 결제수단에 없다. 저장할 때 새로 만든다.
                         // 저장할 때 만들어질 모양(아이콘·색)과 똑같이 보여준다
                         FormIconValue(
                             icon = {
                                 CategoryBadge(
                                     PaymentMethodRepository.NEW_CARD_ICON,
-                                    CategoryStyle.firstUnusedColor(state.usedPaymentColors),
+                                    state.pendingPaymentColor,
                                     size = BudgetTheme.size.badgeSmall,
                                 )
                             },
@@ -379,6 +380,20 @@ fun TransactionEditorScreen(
                                     },
                                     onAdd = { onOpenAdd(AddTarget.PAYMENT) },
                                     modifier = Modifier.fillMaxSize(),
+                                    // 알림에서 읽은 카드는 저장해야 생기지만, 다른 것을 골랐다가도 되돌아올 수 있게 표에 미리 둔다
+                                    preview =
+                                    state.pendingPaymentName?.let { name ->
+                                        PickerPreview(
+                                            name = name,
+                                            icon = PaymentMethodRepository.NEW_CARD_ICON,
+                                            color = state.pendingPaymentColor,
+                                            selected = state.isPendingPaymentSelected,
+                                            onSelect = {
+                                                onSelectPendingPayment()
+                                                panel = null
+                                            },
+                                        )
+                                    },
                                 )
                             }
 

@@ -179,6 +179,7 @@ fun DongBudgetApp(container: AppContainer, capturedToOpen: String? = null, onCap
                     onClearAmount = viewModel::clearAmount,
                     onSelectCategory = viewModel::selectCategory,
                     onSelectPaymentMethod = viewModel::selectPaymentMethod,
+                    onSelectPendingPayment = viewModel::selectPendingPaymentMethod,
                     onOpenAdd = viewModel::openAdd,
                     onDismissAdd = viewModel::dismissAdd,
                     onSubmitAdd = viewModel::submitAdd,
