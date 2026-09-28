@@ -79,8 +79,8 @@ private fun newMenu(menu: PatchMenu, vararg changes: Change) = MenuChanges(menu,
 val PATCH_NOTES: List<Release> =
     listOf(
         Release(
-            version = "1.2.1",
-            date = null,
+            version = "1.3.0",
+            date = LocalDate.of(2026, 9, 28),
             menus =
             listOf(
                 menu(
