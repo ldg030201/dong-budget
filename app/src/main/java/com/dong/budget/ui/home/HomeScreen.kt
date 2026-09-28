@@ -1,8 +1,13 @@
 package com.dong.budget.ui.home
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -73,8 +78,10 @@ import com.dong.budget.ui.format.formatSignedAmount
 import com.dong.budget.ui.format.formatSignedTotal
 import com.dong.budget.ui.format.formatTime
 import com.dong.budget.ui.theme.BudgetTheme
+import com.dong.budget.ui.theme.Motion
 import com.dong.budget.ui.theme.pressFeedback
 import com.dong.budget.ui.theme.pressScaleClickable
+import com.dong.budget.ui.theme.slideByDirection
 import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.YearMonth
@@ -122,9 +129,16 @@ fun HomeScreen(
                 if (updateVersion != null) shownVersion = updateVersion
                 UpdateBanner(version = shownVersion, onOpen = onOpenUpdate, onDismiss = onDismissUpdate)
             }
-            // 달이 바뀌면 스크롤 위치와 고른 날짜를 처음부터 다시 시작한다
-            key(state.month) {
-                MonthBody(state = state, onEditTransaction = onEditTransaction, modifier = Modifier.weight(1f))
+            // 달이 바뀌면 넘긴 방향으로 한 판이 밀려 바뀌고, 스크롤 위치와 고른 날짜는 처음부터 다시 시작한다(달마다 따로 구성).
+            // 나가는 판이 새 달의 내용으로 바뀌지 않게 상태를 통째로 넘기고 달로만 구분한다.
+            AnimatedContent(
+                targetState = state,
+                contentKey = { it.month },
+                transitionSpec = { slideByDirection(forward = targetState.month > initialState.month) { it / MONTH_SHIFT_DIVISOR } },
+                modifier = Modifier.weight(1f),
+                label = "monthBody",
+            ) { shown ->
+                MonthBody(state = shown, onEditTransaction = onEditTransaction, modifier = Modifier.fillMaxSize())
             }
         }
         // 앱은 리플을 꺼 두었으므로(Theme) 누르면 버튼이 눌려 들어가게 한다. 그림자가 잘리지 않게 모양대로 자르지 않는다.
@@ -152,6 +166,9 @@ private const val SUMMARY_KEY = "summary"
 private const val CALENDAR_KEY = "calendar"
 private const val CALENDAR_INDEX = 1
 private const val FIRST_DAY_INDEX = 2
+
+/** 달을 넘길 때 한 판을 옮기는 거리. 화면 폭의 1/5 만 옮기고 나머지는 흐려짐으로 보여준다. 판이 커서 많이 옮기면 어지럽다. */
+private const val MONTH_SHIFT_DIVISOR = 5
 
 /**
  * 목록 안에서 줄 번호와 날짜를 오가는 표.
@@ -332,6 +349,8 @@ private fun SummaryBlock(totals: Totals, comparison: SpendingComparison?) {
         Modifier
             .padding(horizontal = BudgetTheme.spacing.screenHorizontal)
             .fillMaxWidth()
+            // 지난달 비교 문장이 생기거나 없어지면 칸이 한 번에 늘지 않고 펼쳐진다
+            .animateContentSize(Motion.standard())
             .sectionBlock(),
     ) {
         Row {

@@ -2,6 +2,12 @@ package com.dong.budget.ui.editor
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -39,6 +45,7 @@ import com.dong.budget.ui.category.AddItemSheet
 import com.dong.budget.ui.category.AddTarget
 import com.dong.budget.ui.category.PickerGrid
 import com.dong.budget.ui.category.PickerPreview
+import com.dong.budget.ui.components.AnimatedErrorText
 import com.dong.budget.ui.components.BudgetPrimaryButton
 import com.dong.budget.ui.components.BudgetTextButton
 import com.dong.budget.ui.components.BudgetTopAppBar
@@ -58,6 +65,7 @@ import com.dong.budget.ui.format.formatAmount
 import com.dong.budget.ui.format.formatDate
 import com.dong.budget.ui.format.formatTime
 import com.dong.budget.ui.theme.BudgetTheme
+import com.dong.budget.ui.theme.Motion
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collectLatest
@@ -200,15 +208,13 @@ fun TransactionEditorScreen(
         )
     }
 
-    state.addTarget?.let { target ->
-        AddItemSheet(
-            target = target,
-            usedColors = state.usedColors(target),
-            error = state.addError,
-            onDismiss = onDismissAdd,
-            onSubmit = onSubmitAdd,
-        )
-    }
+    AddItemSheet(
+        target = state.addTarget,
+        usedColors = state.addTarget?.let(state::usedColors).orEmpty(),
+        error = state.addError,
+        onDismiss = onDismissAdd,
+        onSubmit = onSubmitAdd,
+    )
 
     Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -259,14 +265,16 @@ fun TransactionEditorScreen(
                     modifier = fieldModifier(EditorPanel.CATEGORY),
                     error = missingMessage(RequiredField.CATEGORY),
                 ) {
-                    val category = state.selectedCategory
-                    if (category == null) {
-                        FormPlaceholder("분류를 골라주세요")
-                    } else {
-                        FormIconValue(
-                            icon = { CategoryBadge(category.icon, category.color, size = BudgetTheme.size.badgeSmall) },
-                            text = category.name,
-                        )
+                    // 고르거나 바꾸면 칸 값이 겹쳐 바뀐다(지출/수입을 바꿔 분류가 비는 때도)
+                    FieldCrossfade(state.selectedCategory) { category ->
+                        if (category == null) {
+                            FormPlaceholder("분류를 골라주세요")
+                        } else {
+                            FormIconValue(
+                                icon = { CategoryBadge(category.icon, category.color, size = BudgetTheme.size.badgeSmall) },
+                                text = category.name,
+                            )
+                        }
                     }
                 }
 
@@ -277,29 +285,31 @@ fun TransactionEditorScreen(
                     modifier = fieldModifier(EditorPanel.PAYMENT),
                     error = missingMessage(RequiredField.PAYMENT),
                 ) {
-                    val method = state.selectedPaymentMethod
                     val pendingName = state.pendingPaymentName
-                    if (state.isPendingPaymentSelected && pendingName != null) {
-                        // 알림에서 읽은 카드가 아직 결제수단에 없다. 저장할 때 새로 만든다.
-                        // 저장할 때 만들어질 모양(아이콘·색)과 똑같이 보여준다
-                        FormIconValue(
-                            icon = {
-                                CategoryBadge(
-                                    PaymentMethodRepository.NEW_CARD_ICON,
-                                    state.pendingPaymentColor,
-                                    size = BudgetTheme.size.badgeSmall,
-                                )
-                            },
-                            // 긴 카드 이름이면 두 줄이 된다. 안내가 '(새로 / 추가돼요)' 로 갈라지지 않게 붙는 빈칸을 쓴다.
-                            text = "$pendingName (새로\u00A0추가돼요)",
-                        )
-                    } else if (method == null) {
-                        FormPlaceholder("결제수단을 골라주세요")
-                    } else {
-                        FormIconValue(
-                            icon = { CategoryBadge(method.icon, method.color, size = BudgetTheme.size.badgeSmall) },
-                            text = method.name,
-                        )
+                    // 고르거나 바꾸면 칸 값이 겹쳐 바뀐다(새로 추가될 카드 ↔ 있는 결제수단도)
+                    FieldCrossfade(state.isPendingPaymentSelected to state.selectedPaymentMethod) { (pendingSelected, method) ->
+                        if (pendingSelected && pendingName != null) {
+                            // 알림에서 읽은 카드가 아직 결제수단에 없다. 저장할 때 새로 만든다.
+                            // 저장할 때 만들어질 모양(아이콘·색)과 똑같이 보여준다
+                            FormIconValue(
+                                icon = {
+                                    CategoryBadge(
+                                        PaymentMethodRepository.NEW_CARD_ICON,
+                                        state.pendingPaymentColor,
+                                        size = BudgetTheme.size.badgeSmall,
+                                    )
+                                },
+                                // 긴 카드 이름이면 두 줄이 된다. 안내가 '(새로 / 추가돼요)' 로 갈라지지 않게 붙는 빈칸을 쓴다.
+                                text = "$pendingName (새로\u00A0추가돼요)",
+                            )
+                        } else if (method == null) {
+                            FormPlaceholder("결제수단을 골라주세요")
+                        } else {
+                            FormIconValue(
+                                icon = { CategoryBadge(method.icon, method.color, size = BudgetTheme.size.badgeSmall) },
+                                text = method.name,
+                            )
+                        }
                     }
                 }
 
@@ -349,7 +359,25 @@ fun TransactionEditorScreen(
                     .imePadding()
                     .navigationBarsPadding(),
             ) {
-                AnimatedContent(targetState = panel, label = "editorPanel") { current ->
+                AnimatedContent(
+                    targetState = panel,
+                    transitionSpec = {
+                        when {
+                            // 닫혀 있다가 열리면 아래에서 올라오고, 닫으면 아래로 내려간다
+                            initialState == null ->
+                                slideInVertically(Motion.standard()) { it / PANEL_RISE_DIVISOR } + fadeIn(Motion.standard()) togetherWith
+                                    fadeOut(Motion.quick())
+
+                            targetState == null ->
+                                fadeIn(Motion.quick()) togetherWith
+                                    slideOutVertically(Motion.standard()) { it / PANEL_RISE_DIVISOR } + fadeOut(Motion.quick())
+
+                            // 다른 입력판으로 바꾸면 제자리에서 겹쳐 바뀐다
+                            else -> fadeIn(Motion.standard()) togetherWith fadeOut(Motion.quick())
+                        }.using(SizeTransform(clip = true) { _, _ -> Motion.standard() })
+                    },
+                    label = "editorPanel",
+                ) { current ->
                     when (current) {
                         EditorPanel.AMOUNT ->
                             PanelBox {
@@ -415,15 +443,13 @@ fun TransactionEditorScreen(
                         null -> Box(Modifier.fillMaxWidth())
                     }
                 }
-                state.saveError?.let { error ->
-                    ErrorText(
-                        text = error,
-                        modifier =
-                        Modifier
-                            .padding(horizontal = BudgetTheme.spacing.screenHorizontal)
-                            .padding(bottom = BudgetTheme.spacing.inlineGap),
-                    )
-                }
+                AnimatedErrorText(
+                    text = state.saveError,
+                    modifier =
+                    Modifier
+                        .padding(horizontal = BudgetTheme.spacing.screenHorizontal)
+                        .padding(bottom = BudgetTheme.spacing.inlineGap),
+                )
                 BudgetPrimaryButton(
                     text = if (state.isEditing) "수정하기" else "등록하기",
                     // 빈 칸이 있어도 누를 수 있다. 누르면 비어 있는 칸을 알려준다.
@@ -460,4 +486,18 @@ private fun PanelBox(content: @Composable () -> Unit) {
 @Composable
 private fun DeleteAction(onClick: () -> Unit) {
     BudgetTextButton(text = "삭제", onClick = onClick, color = BudgetTheme.colors.danger)
+}
+
+/** 입력판이 열리고 닫힐 때 움직이는 거리. 입력판 높이의 1/4 */
+private const val PANEL_RISE_DIVISOR = 4
+
+/** 입력칸 값이 바뀔 때 겹쳐 바뀐다. 글자 길이가 달라져도 칸이 한 번에 튀지 않는다. */
+@Composable
+private fun <T> FieldCrossfade(value: T, content: @Composable (T) -> Unit) {
+    AnimatedContent(
+        targetState = value,
+        transitionSpec = { (fadeIn(Motion.quick()) togetherWith fadeOut(Motion.quick())).using(SizeTransform(clip = false)) },
+        contentAlignment = Alignment.CenterStart,
+        label = "fieldValue",
+    ) { shown -> content(shown) }
 }

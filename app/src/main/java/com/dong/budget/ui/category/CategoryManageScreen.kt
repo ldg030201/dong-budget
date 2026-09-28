@@ -92,15 +92,19 @@ fun CategoryManageScreen(
         )
     }
 
-    if (state.showAdd) {
-        AddItemSheet(
-            target = if (isPayment) AddTarget.PAYMENT else AddTarget.CATEGORY,
-            usedColors = state.usedColors,
-            error = state.addError,
-            onDismiss = onDismissAdd,
-            onSubmit = onSubmitAdd,
-        )
-    }
+    AddItemSheet(
+        target = if (!state.showAdd) {
+            null
+        } else if (isPayment) {
+            AddTarget.PAYMENT
+        } else {
+            AddTarget.CATEGORY
+        },
+        usedColors = state.usedColors,
+        error = state.addError,
+        onDismiss = onDismissAdd,
+        onSubmit = onSubmitAdd,
+    )
 
     Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(modifier = Modifier.fillMaxSize()) {

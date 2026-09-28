@@ -1,11 +1,18 @@
 package com.dong.budget.ui.stats
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterExitState
 import androidx.compose.animation.core.FastOutLinearInEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -31,6 +38,7 @@ import com.dong.budget.ui.stats.tab.BreakdownKind
 import com.dong.budget.ui.stats.tab.BreakdownTab
 import com.dong.budget.ui.stats.tab.DailyTab
 import com.dong.budget.ui.stats.tab.MonthlyTab
+import com.dong.budget.ui.theme.Motion
 import java.time.YearMonth
 
 /**
@@ -81,33 +89,51 @@ fun StatsScreen(
                     onPreviousMonth = onPreviousMonth,
                     onNextMonth = onNextMonth,
                     trailing = {
-                        if (state.month != YearMonth.from(state.today)) {
+                        AnimatedVisibility(
+                            visible = state.month != YearMonth.from(state.today),
+                            enter = fadeIn(Motion.quick()) + scaleIn(Motion.standard(), initialScale = HIDDEN_BUTTON_SCALE),
+                            exit = fadeOut(Motion.quick()) + scaleOut(Motion.standard(), targetScale = HIDDEN_BUTTON_SCALE),
+                        ) {
                             BudgetTextButton(text = "이번 달", onClick = onThisMonth)
                         }
                     },
                 )
-                when {
-                    // 첫 계산이 끝나기 전에는 달 줄과 메뉴만 둔다. 빈 상태 안내가 잠깐 보였다 사라지지 않게 한다.
-                    !state.loaded -> Unit
+                // 첫 계산이 끝나기 전에는 달 줄과 메뉴만 둔다. 빈 상태 안내가 잠깐 보였다 사라지지 않게 한다.
+                val page =
+                    when {
+                        !state.loaded -> null
+                        !state.hasAnyRecord -> StatsPage.Empty
+                        else -> StatsPage.Tab(selectedTab)
+                    }
+                // 탭을 바꾸거나 첫 계산이 끝나면 내용이 겹쳐 바뀐다
+                AnimatedContent(
+                    targetState = page,
+                    transitionSpec = { fadeIn(Motion.standard()) togetherWith fadeOut(Motion.quick()) },
+                    label = "statsPage",
+                ) { shown ->
+                    // 바뀌는 동안 두 탭이 함께 있다. 화면 읽기가 새 탭 이름만 알리도록 들어오는 쪽에만 이름을 붙인다.
+                    val incoming = transition.targetState == EnterExitState.Visible
+                    when (shown) {
+                        null -> Box(Modifier.fillMaxSize())
 
-                    !state.hasAnyRecord ->
-                        StatsEmpty(title = "아직 통계로 볼 거래가 없어요", body = "홈에서 거래를 남기면 여기서 모아 볼 수 있어요")
+                        StatsPage.Empty ->
+                            StatsEmpty(title = "아직 통계로 볼 거래가 없어요", body = "홈에서 거래를 남기면 여기서 모아 볼 수 있어요")
 
-                    else ->
-                        tabStates.SaveableStateProvider(selectedTab.name) {
-                            // 탭을 바꾸면 화면 읽기가 새 탭 이름을 알려준다
-                            Box(modifier = Modifier.fillMaxSize().semantics { paneTitle = "${selectedTab.label} 통계" }) {
-                                TabContent(
-                                    tab = selectedTab,
-                                    state = state,
-                                    contentPadding = contentPadding,
-                                    onSelectTab = onSelectTab,
-                                    onShowMonth = onShowMonth,
-                                    onOpenDetail = onOpenDetail,
-                                    onOpenTransaction = onOpenTransaction,
-                                )
+                        is StatsPage.Tab ->
+                            tabStates.SaveableStateProvider(shown.tab.name) {
+                                Box(modifier = Modifier.fillMaxSize().semantics { if (incoming) paneTitle = "${shown.tab.label} 통계" }) {
+                                    TabContent(
+                                        tab = shown.tab,
+                                        state = state,
+                                        contentPadding = contentPadding,
+                                        onSelectTab = onSelectTab,
+                                        onShowMonth = onShowMonth,
+                                        onOpenDetail = onOpenDetail,
+                                        onOpenTransaction = onOpenTransaction,
+                                    )
+                                }
                             }
-                        }
+                    }
                 }
             }
             FloatingSubBarScrim(modifier = Modifier.align(Alignment.BottomCenter))
@@ -123,6 +149,16 @@ fun StatsScreen(
 }
 
 private val TABS = StatsTab.entries.map { SubBarTab(label = it.label, icon = it.icon) }
+
+/** 통계 화면 가운데에 보이는 것. 첫 계산 전(null)·기록 없음·탭 하나 */
+private sealed interface StatsPage {
+    data object Empty : StatsPage
+
+    data class Tab(val tab: StatsTab) : StatsPage
+}
+
+/** '이번 달' 버튼이 나타나고 사라질 때 이 크기에서 커지고 여기까지 줄어든다 */
+private const val HIDDEN_BUTTON_SCALE = 0.8f
 
 @Composable
 private fun TabContent(

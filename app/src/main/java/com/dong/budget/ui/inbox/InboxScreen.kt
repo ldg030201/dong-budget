@@ -1,13 +1,16 @@
 package com.dong.budget.ui.inbox
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.expandHorizontally
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -79,44 +82,65 @@ fun InboxScreen(
                     )
                 },
             )
-            when {
-                // 불러오는 동안은 비워 둔다. 빈 목록 안내가 잠깐 보였다 사라지지 않게 한다.
-                items == null -> Unit
+            // 불러오는 동안은 비워 둔다. 빈 목록 안내가 잠깐 보였다 사라지지 않게 한다.
+            // 다 읽어 오거나 마지막 알림이 기간이 지나 빠지면 안내와 목록이 겹쳐 바뀐다.
+            val page =
+                when {
+                    items == null -> InboxPage.LOADING
+                    items.isEmpty() -> InboxPage.EMPTY
+                    else -> InboxPage.LIST
+                }
+            AnimatedContent(
+                targetState = page,
+                transitionSpec = { fadeIn(Motion.standard()) togetherWith fadeOut(Motion.quick()) },
+                label = "inboxPage",
+            ) { shown ->
+                when (shown) {
+                    InboxPage.LOADING -> Box(Modifier.fillMaxSize())
 
-                items.isEmpty() -> EmptyInbox()
+                    InboxPage.EMPTY -> EmptyInbox()
 
-                else ->
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize().navigationBarsPadding(),
-                        // 줄 바탕이 화면 끝에 붙지 않게 조금 띄운다. 글자는 줄 안쪽 여백까지 더해 화면 좌우 여백에 맞는다.
-                        contentPadding =
-                        PaddingValues(
-                            start = BudgetTheme.spacing.inlineGap,
-                            end = BudgetTheme.spacing.inlineGap,
-                            bottom = BudgetTheme.spacing.sectionGap,
-                        ),
-                        verticalArrangement = Arrangement.spacedBy(BudgetTheme.spacing.tightGap),
-                    ) {
-                        // 안내는 목록의 첫 줄로 둔다. 목록은 맨 위 줄을 기준으로 자리를 지키므로,
-                        // 맨 위를 보던 중에 새 결제가 들어오면 이 줄 바로 아래에 보인다(위쪽 밖에 숨지 않는다).
-                        item(key = CAPTION_KEY) {
-                            Text(
-                                text = "최근 ${CaptureStore.RETENTION_DAYS}일 동안 온 결제 알림이에요",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = BudgetTheme.colors.textSecondary,
-                                modifier = Modifier.padding(
-                                    horizontal = BudgetTheme.spacing.itemGap,
-                                ).padding(bottom = BudgetTheme.spacing.inlineGap),
-                            )
+                    InboxPage.LIST ->
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize().navigationBarsPadding(),
+                            // 줄 바탕이 화면 끝에 붙지 않게 조금 띄운다. 글자는 줄 안쪽 여백까지 더해 화면 좌우 여백에 맞는다.
+                            contentPadding =
+                            PaddingValues(
+                                start = BudgetTheme.spacing.inlineGap,
+                                end = BudgetTheme.spacing.inlineGap,
+                                bottom = BudgetTheme.spacing.sectionGap,
+                            ),
+                            verticalArrangement = Arrangement.spacedBy(BudgetTheme.spacing.tightGap),
+                        ) {
+                            // 안내는 목록의 첫 줄로 둔다. 목록은 맨 위 줄을 기준으로 자리를 지키므로,
+                            // 맨 위를 보던 중에 새 결제가 들어오면 이 줄 바로 아래에 보인다(위쪽 밖에 숨지 않는다).
+                            item(key = CAPTION_KEY) {
+                                Text(
+                                    text = "최근 ${CaptureStore.RETENTION_DAYS}일 동안 온 결제 알림이에요",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = BudgetTheme.colors.textSecondary,
+                                    modifier = Modifier.padding(
+                                        horizontal = BudgetTheme.spacing.itemGap,
+                                    ).padding(bottom = BudgetTheme.spacing.inlineGap),
+                                )
+                            }
+                            // 새 결제가 들어오거나 기간이 지난 결제가 빠지면 줄들이 제자리로 미끄러진다
+                            items(items = items.orEmpty(), key = { it.payment.dedupKey }) { item ->
+                                InboxRow(
+                                    item = item,
+                                    today = today,
+                                    onClick = { onOpen(item.payment.dedupKey) },
+                                    modifier = Modifier.animateItem(),
+                                )
+                            }
                         }
-                        items(items = items, key = { it.payment.dedupKey }) { item ->
-                            InboxRow(item = item, today = today, onClick = { onOpen(item.payment.dedupKey) })
-                        }
-                    }
+                }
             }
         }
     }
 }
+
+private enum class InboxPage { LOADING, EMPTY, LIST }
 
 private const val CAPTION_KEY = "caption"
 
@@ -161,7 +185,7 @@ private fun RowScope.RowEnd(visible: Boolean, content: @Composable () -> Unit) {
 
 /** 알림 한 줄. 금액과 가게, 그 아래 카드·할부·온 때를 적는다. 화면 읽기는 한 번에 읽는다. */
 @Composable
-private fun InboxRow(item: InboxItem, today: LocalDate, onClick: () -> Unit) {
+private fun InboxRow(item: InboxItem, today: LocalDate, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val payment = item.payment
     val shape = RoundedCornerShape(BudgetTheme.radius.control)
     // 읽으면 새 알림 바탕이 스르르 빠진다('모두 읽음' 도 한꺼번에 빠진다)
@@ -172,7 +196,7 @@ private fun InboxRow(item: InboxItem, today: LocalDate, onClick: () -> Unit) {
     )
     Row(
         modifier =
-        Modifier
+        modifier
             .fillMaxWidth()
             .pressScaleClickable(shape = shape, onClick = onClick)
             .background(background, shape)

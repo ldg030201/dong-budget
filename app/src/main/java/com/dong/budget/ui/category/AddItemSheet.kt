@@ -25,8 +25,10 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -40,6 +42,7 @@ import androidx.compose.ui.text.input.ImeAction
 import com.dong.budget.data.AddResult
 import com.dong.budget.data.MAX_NAME_LENGTH
 import com.dong.budget.data.db.CategoryStyle
+import com.dong.budget.ui.components.AnimatedErrorText
 import com.dong.budget.ui.components.BudgetPrimaryButton
 import com.dong.budget.ui.components.CategoryBadge
 import com.dong.budget.ui.components.ErrorText
@@ -60,22 +63,55 @@ enum class AddTarget(val title: String, val namePlaceholder: String) {
 /**
  * 분류나 결제수단을 새로 만드는 시트. 이름, 색, 아이콘을 고른다.
  *
- * 입력 중인 값은 이 시트 안에만 있다. 저장이 끝나면 부르는 쪽이 시트를 닫고,
- * 닫히면 값도 함께 사라져 다음에 열 때 새로 시작한다.
+ * [target] 이 있으면 띄운다. 입력 중인 값은 이 시트 안에만 있다. 저장이 끝나면 부르는 쪽이 target 을 null 로 바꾸고,
+ * 시트는 아래로 내려간 뒤에 사라진다. 사라지면 값도 함께 사라져 다음에 열 때 새로 시작한다.
+ * (부르는 쪽이 시트를 곧바로 빼 버리면 미끄러져 내려가지 않고 한 번에 없어진다.)
  *
  * @param usedColors 이미 쓰고 있는 색. 기본 선택을 겹치지 않는 색으로 고른다.
  * @param error 저장이 거절된 이유 (같은 이름이 있다 등). 없으면 null
  */
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun AddItemSheet(
+    target: AddTarget?,
+    usedColors: Set<String>,
+    error: String?,
+    onDismiss: () -> Unit,
+    onSubmit: (name: String, icon: String, color: String) -> Unit,
+) {
+    // 내려가는 동안에도 마지막으로 띄운 종류를 보여준다
+    var shown by remember { mutableStateOf(target) }
+    LaunchedEffect(target) { if (target != null) shown = target }
+    val current = target ?: shown ?: return
+    AddItemSheetContent(
+        target = current,
+        visible = target != null,
+        onHidden = { shown = null },
+        usedColors = usedColors,
+        error = error,
+        onDismiss = onDismiss,
+        onSubmit = onSubmit,
+    )
+}
+
+/** @param visible false 가 되면 시트를 내려보내고 [onHidden] 을 부른다 */
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@Composable
+private fun AddItemSheetContent(
     target: AddTarget,
+    visible: Boolean,
+    onHidden: () -> Unit,
     usedColors: Set<String>,
     error: String?,
     onDismiss: () -> Unit,
     onSubmit: (name: String, icon: String, color: String) -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    LaunchedEffect(visible) {
+        if (!visible) {
+            sheetState.hide()
+            onHidden()
+        }
+    }
     var name by rememberSaveable { mutableStateOf("") }
     var color by rememberSaveable { mutableStateOf(CategoryStyle.firstUnusedColor(usedColors)) }
     var icon by rememberSaveable { mutableStateOf(CategoryStyle.FALLBACK_ICON) }
@@ -118,7 +154,7 @@ fun AddItemSheet(
                     modifier = Modifier.weight(1f),
                 )
             }
-            if (error != null) ErrorText(error, Modifier.padding(top = BudgetTheme.spacing.tightGap))
+            AnimatedErrorText(error, Modifier.padding(top = BudgetTheme.spacing.tightGap))
 
             SectionLabel("색")
             FlowRow(

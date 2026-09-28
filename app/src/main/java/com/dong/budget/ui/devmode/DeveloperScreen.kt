@@ -7,11 +7,13 @@ import android.content.Context
 import android.os.Build
 import android.os.PersistableBundle
 import android.widget.Toast
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -110,15 +112,25 @@ fun DeveloperScreen(
                     }
                 },
             )
-            if (enabled) {
-                LogHeader(count = entries.size, onCopy = onCopy, onClear = { confirming = Confirm.CLEAR })
-                BudgetDivider(Modifier.padding(horizontal = BudgetTheme.spacing.screenHorizontal))
-                LogList(entries = entries, modifier = Modifier.weight(1f))
-            } else {
-                HintText(
-                    text = "오류가 나면 개발자 모드를 켜고 같은 일을 한 번 더 해 본 뒤, 로그를 복사해서 보내 주세요.",
-                    modifier = Modifier.padding(horizontal = BudgetTheme.spacing.screenHorizontal),
-                )
+            // 켜고 끄면 로그 칸과 안내가 겹쳐 바뀐다
+            AnimatedContent(
+                targetState = enabled,
+                transitionSpec = { fadeIn(Motion.standard()) togetherWith fadeOut(Motion.quick()) },
+                modifier = Modifier.weight(1f),
+                label = "devModeBody",
+            ) { on ->
+                Column(modifier = Modifier.fillMaxSize()) {
+                    if (on) {
+                        LogHeader(count = entries.size, onCopy = onCopy, onClear = { confirming = Confirm.CLEAR })
+                        BudgetDivider(Modifier.padding(horizontal = BudgetTheme.spacing.screenHorizontal))
+                        LogList(entries = entries, modifier = Modifier.weight(1f))
+                    } else {
+                        HintText(
+                            text = "오류가 나면 개발자 모드를 켜고 같은 일을 한 번 더 해 본 뒤, 로그를 복사해서 보내 주세요.",
+                            modifier = Modifier.padding(horizontal = BudgetTheme.spacing.screenHorizontal),
+                        )
+                    }
+                }
             }
         }
     }
