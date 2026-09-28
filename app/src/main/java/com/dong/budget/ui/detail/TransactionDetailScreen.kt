@@ -20,6 +20,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextAlign
@@ -108,7 +109,10 @@ private fun DetailContent(state: TransactionDetailUiState.Shown, onOpenTransacti
     }
 }
 
-/** 머리. 큰 분류 뱃지 아래에 가게 이름과 부호 붙은 큰 금액. 화면 읽기는 이름과 금액을 한 번에 읽는다. */
+/**
+ * 머리. 큰 분류 뱃지 아래에 가게 이름과 부호 붙은 큰 금액.
+ * 화면 읽기는 이름과 금액을 한 번에 읽고, 상단 바에 제목이 없는 대신 이 머리를 화면 제목(heading)으로 건너뛸 수 있다.
+ */
 @Composable
 private fun DetailHeader(item: TransactionListItem) {
     Column(
@@ -116,7 +120,7 @@ private fun DetailHeader(item: TransactionListItem) {
         Modifier
             .fillMaxWidth()
             .padding(horizontal = BudgetTheme.spacing.screenHorizontal)
-            .semantics(mergeDescendants = true) {},
+            .semantics(mergeDescendants = true) { heading() },
     ) {
         CategoryBadge(icon = item.categoryIcon, color = item.categoryColor, size = BudgetTheme.size.badgeLarge)
         Spacer(Modifier.height(BudgetTheme.spacing.itemGap))
