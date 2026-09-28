@@ -1,6 +1,11 @@
 package com.dong.budget.ui.category
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
@@ -12,6 +17,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material3.MaterialTheme
@@ -24,6 +30,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.CustomAccessibilityAction
@@ -38,6 +45,7 @@ import com.dong.budget.ui.components.ConfirmDialog
 import com.dong.budget.ui.components.HintText
 import com.dong.budget.ui.components.SegmentedToggle
 import com.dong.budget.ui.theme.BudgetTheme
+import com.dong.budget.ui.theme.Motion
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
 
@@ -113,13 +121,23 @@ fun CategoryManageScreen(
                 ),
             )
 
-            ReorderableList(
-                tab = state.tab,
-                items = state.items,
-                onRequestDelete = onRequestDelete,
-                onReorder = onReorder,
+            // 탭을 바꾸면 목록이 겹쳐 바뀐다. 같은 탭 안의 변화(추가·삭제·순서)는 목록이 줄 단위로 움직인다.
+            // 나가는 목록이 새 탭의 줄로 바뀌지 않게 탭과 목록을 한 쌍으로 넘기고, 탭으로만 구분한다.
+            AnimatedContent(
+                targetState = state.itemsTab to state.items,
+                contentKey = { (tab, _) -> tab },
+                transitionSpec = { fadeIn(Motion.standard()) togetherWith fadeOut(Motion.quick()) },
                 modifier = Modifier.weight(1f),
-            )
+                label = "manageTab",
+            ) { (tab, items) ->
+                ReorderableList(
+                    tab = tab,
+                    items = items,
+                    onRequestDelete = onRequestDelete,
+                    onReorder = onReorder,
+                    modifier = Modifier.fillMaxSize(),
+                )
+            }
 
             Column(
                 modifier =
@@ -174,18 +192,34 @@ private fun ReorderableList(
     ) {
         itemsIndexed(ordered, key = { _, item -> keyOf(item) }) { index, item ->
             ReorderableItem(reorderState, key = keyOf(item), enabled = item.movable) { isDragging ->
+                // 잡은 줄은 살짝 커지며 떠오른다. 놓으면 제자리로 미끄러져 들어가는 동안 천천히 내려앉는다.
                 val elevation by animateDpAsState(
                     if (isDragging) BudgetTheme.elevation.fab else BudgetTheme.elevation.none,
+                    animationSpec = Motion.standard(),
                     label = "dragElevation",
                 )
+                val lift by animateFloatAsState(if (isDragging) DRAG_LIFT_SCALE else 1f, Motion.standard(), label = "dragLift")
                 val onDragStarted: (Offset) -> Unit = { haptic.performHapticFeedback(HapticFeedbackType.GestureThresholdActivate) }
-                Surface(color = MaterialTheme.colorScheme.background, shadowElevation = elevation) {
+                val onDragStopped: () -> Unit = {
+                    haptic.performHapticFeedback(HapticFeedbackType.GestureEnd)
+                    save()
+                }
+                Surface(
+                    color = MaterialTheme.colorScheme.background,
+                    shape = RoundedCornerShape(BudgetTheme.radius.control),
+                    shadowElevation = elevation,
+                    modifier =
+                    Modifier.graphicsLayer {
+                        scaleX = lift
+                        scaleY = lift
+                    },
+                ) {
                     ManagedRow(
                         item = item,
                         onDelete = { onRequestDelete(item) },
                         modifier =
                         Modifier
-                            .longPressDraggableHandle(enabled = item.movable, onDragStarted = onDragStarted, onDragStopped = { save() })
+                            .longPressDraggableHandle(enabled = item.movable, onDragStarted = onDragStarted, onDragStopped = onDragStopped)
                             // 끌기는 화면 읽기로 할 수 없다. 한 칸씩 옮기는 동작을 따로 준다.
                             // 줄 전체(이름과 설명)를 한 덩어리로 묶어야 화면 읽기가 이 줄에 초점을 두고 동작을 보여준다.
                             // 옮길 수 없는 쪽('기타' 와 맞닿은 방향)의 동작은 누르면 아무 일도 없으니 아예 두지 않는다.
@@ -210,6 +244,9 @@ private fun ReorderableList(
         }
     }
 }
+
+/** 끌려고 잡은 줄의 크기. 손가락 밑에서 떠오른 게 보일 만큼만 키운다. */
+private const val DRAG_LIFT_SCALE = 1.02f
 
 @Composable
 private fun ManagedRow(item: ManagedItem, onDelete: () -> Unit, modifier: Modifier = Modifier) {
