@@ -75,7 +75,7 @@ fun MoreScreen(
         // 전체는 앱의 모든 메뉴를 늘어놓는 곳이라 아래 메뉴에 있는 통계도 여기 둔다
         MenuItem(
             title = "통계",
-            subtitle = "월별·일별·분류·결제수단으로 나눠 봐요",
+            subtitle = "한눈에 보고, 월별·일별·분류·결제수단으로 나눠 봐요",
             iconRes = R.drawable.ic_sym_bar_chart,
             color = "orange",
             onClick = onOpenStatistics,
