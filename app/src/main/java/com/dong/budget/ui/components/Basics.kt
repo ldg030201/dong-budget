@@ -21,19 +21,26 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import com.dong.budget.ui.theme.BudgetTheme
 import com.dong.budget.ui.theme.Motion
 
-/** 화면 안 묶음의 작은 제목(예: '화면 테마', '색') */
+/**
+ * 화면 안 묶음의 작은 제목(예: '화면 테마', '색').
+ * 화면 읽기가 묶음 단위로 건너뛸 수 있게 제목(heading)으로 알린다. 설정처럼 스위치가 길게 늘어선 화면에서 필요하다.
+ */
 @Composable
 fun SectionLabel(text: String, modifier: Modifier = Modifier) {
     Text(
         text = text,
         style = MaterialTheme.typography.labelMedium,
         color = BudgetTheme.colors.textSecondary,
-        modifier = modifier.padding(top = BudgetTheme.spacing.sectionPadding, bottom = BudgetTheme.spacing.inlineGap),
+        modifier =
+        modifier
+            .padding(top = BudgetTheme.spacing.sectionPadding, bottom = BudgetTheme.spacing.inlineGap)
+            .semantics { heading() },
     )
 }
 
