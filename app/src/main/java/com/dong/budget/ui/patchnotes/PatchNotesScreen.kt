@@ -8,6 +8,8 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -36,12 +38,14 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -54,6 +58,8 @@ import com.dong.budget.ui.components.BudgetTopAppBar
 import com.dong.budget.ui.components.IconBadge
 import com.dong.budget.ui.theme.BudgetTheme
 import com.dong.budget.ui.theme.CategorySwatch
+import com.dong.budget.ui.theme.Motion
+import com.dong.budget.ui.theme.pressFeedback
 import com.dong.budget.ui.theme.pressScaleClickable
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -186,17 +192,29 @@ private fun ReleaseCard(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     var expanded by rememberSaveable(initiallyExpanded) { mutableStateOf(initiallyExpanded) }
-    val arrowRotation by animateFloatAsState(targetValue = if (expanded) 180f else 0f, label = "releaseArrow")
+    // 화살표가 펼쳐지는 내용과 같은 빠르기로 돈다
+    val arrowRotation by animateFloatAsState(
+        targetValue = if (expanded) 180f else 0f,
+        animationSpec = Motion.standard(),
+        label = "releaseArrow",
+    )
     // 모양은 sectionBlock 과 같다. 여백은 누르는 머리와 내용에 따로 준다(카드 끝까지 누를 수 있게).
     val shape = RoundedCornerShape(BudgetTheme.radius.block)
     val padding = BudgetTheme.spacing.sectionPadding
-    Column(modifier = Modifier.fillMaxWidth().background(BudgetTheme.colors.sectionBackground, shape)) {
+    // 누르는 곳은 머리지만, 펼쳐져 있어도 카드 전체가 눌리고 카드 모양으로 포커스 표시를 그린다
+    val interactionSource = remember { MutableInteractionSource() }
+    Column(
+        modifier =
+        Modifier
+            .fillMaxWidth()
+            .pressFeedback(interactionSource, shape)
+            .background(BudgetTheme.colors.sectionBackground, shape),
+    ) {
         Row(
             modifier =
             Modifier
                 .fillMaxWidth()
-                // 접혔을 때는 머리가 카드 전체라 카드와 같은 모양으로 누름·포커스 표시를 그린다
-                .pressScaleClickable(shape = shape) { expanded = !expanded }
+                .clickable(interactionSource = interactionSource, indication = null, role = Role.Button) { expanded = !expanded }
                 .semantics { stateDescription = if (expanded) "펼쳐짐" else "접힘" }
                 .padding(padding),
             verticalAlignment = Alignment.CenterVertically,
@@ -229,8 +247,8 @@ private fun ReleaseCard(
         }
         AnimatedVisibility(
             visible = expanded,
-            enter = expandVertically() + fadeIn(),
-            exit = shrinkVertically() + fadeOut(),
+            enter = expandVertically(Motion.standard()) + fadeIn(Motion.standard()),
+            exit = shrinkVertically(Motion.standard()) + fadeOut(Motion.quick()),
         ) {
             Column(
                 modifier = Modifier.fillMaxWidth().padding(start = padding, end = padding, bottom = padding),

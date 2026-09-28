@@ -7,6 +7,12 @@ import android.content.Context
 import android.os.Build
 import android.os.PersistableBundle
 import android.widget.Toast
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -46,6 +52,8 @@ import com.dong.budget.ui.components.ConfirmDialog
 import com.dong.budget.ui.components.HintText
 import com.dong.budget.ui.components.sectionBlock
 import com.dong.budget.ui.theme.BudgetTheme
+import com.dong.budget.ui.theme.Motion
+import com.dong.budget.ui.theme.pressFeedback
 import com.dong.budget.ui.theme.pressScaleClickable
 
 /**
@@ -169,11 +177,20 @@ private fun ModeSwitch(enabled: Boolean, onToggle: (Boolean) -> Unit) {
             .sectionBlock(),
         verticalArrangement = Arrangement.spacedBy(BudgetTheme.spacing.inlineGap),
     ) {
+        // 앱은 리플을 꺼 두었으므로(Theme) 기본 누름 표시로는 아무것도 안 보인다. 다른 버튼과 같은 눌림과 포커스 테두리를 입힌다.
+        val interactionSource = remember { MutableInteractionSource() }
         Row(
             modifier =
             Modifier
                 .fillMaxWidth()
-                .toggleable(value = enabled, role = Role.Switch, onValueChange = onToggle),
+                .pressFeedback(interactionSource, RoundedCornerShape(BudgetTheme.radius.chip))
+                .toggleable(
+                    value = enabled,
+                    interactionSource = interactionSource,
+                    indication = null,
+                    role = Role.Switch,
+                    onValueChange = onToggle,
+                ),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(BudgetTheme.spacing.tightGap)) {
@@ -187,7 +204,12 @@ private fun ModeSwitch(enabled: Boolean, onToggle: (Boolean) -> Unit) {
             // 줄이 대신 눌리므로 스위치 자체는 누름을 받지 않는다
             Switch(checked = enabled, onCheckedChange = null)
         }
-        if (enabled) {
+        AnimatedVisibility(
+            visible = enabled,
+            enter = expandVertically(Motion.standard()) + fadeIn(Motion.standard()),
+            exit =
+            shrinkVertically(Motion.standard()) + fadeOut(Motion.quick()),
+        ) {
             HintText("결제 알림 내용과 오류가 이 폰에 쌓이고 있어요. 확인이 끝나면 꺼 주세요. 끄면 로그도 지워져요.")
         }
     }
@@ -254,7 +276,9 @@ private fun LogRow(entry: LogEntry) {
         modifier =
         Modifier
             .fillMaxWidth()
-            .pressScaleClickable(shape = RoundedCornerShape(BudgetTheme.radius.chip), onClick = { expanded = !expanded })
+            .pressScaleClickable(shape = RoundedCornerShape(BudgetTheme.radius.chip), pressedTint = true, onClick = {
+                expanded = !expanded
+            })
             .padding(horizontal = BudgetTheme.spacing.screenHorizontal, vertical = BudgetTheme.spacing.tightGap),
         verticalArrangement = Arrangement.spacedBy(BudgetTheme.spacing.tightGap),
     ) {

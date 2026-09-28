@@ -1,8 +1,15 @@
 package com.dong.budget.ui.shell
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Menu
@@ -10,12 +17,14 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemColors
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
@@ -28,6 +37,8 @@ import com.dong.budget.ui.home.HomeScreen
 import com.dong.budget.ui.home.HomeUiState
 import com.dong.budget.ui.home.MoreScreen
 import com.dong.budget.ui.theme.BudgetTheme
+import com.dong.budget.ui.theme.Motion
+import com.dong.budget.ui.theme.pressFeedback
 
 enum class ShellTab(val label: String, val icon: ImageVector) {
     // 거래 목록은 홈 달력 아래에 있다. 따로 '내역' 탭을 두면 같은 목록이 두 군데 생긴다.
@@ -88,21 +99,21 @@ fun HomeShell(
                         indicatorColor = Color.Transparent,
                     )
                 ShellTab.entries.forEach { tab ->
-                    NavigationBarItem(
+                    ShellNavItem(
                         selected = tab == selectedTab,
                         onClick = { selectedTab = tab },
                         icon = { Icon(tab.icon, contentDescription = null) },
-                        label = { Text(tab.label, style = MaterialTheme.typography.labelSmall) },
+                        label = tab.label,
                         colors = itemColors,
                     )
                     // 통계는 탭이 아니라 입구다. 누르면 통계 화면이 셸 위로 올라오고, 이 칸은 고른 칸이 되지 않는다.
                     // 그래서 ShellTab 에 넣지 않고 홈 바로 뒤에 끼운다.
                     if (tab == ShellTab.HOME) {
-                        NavigationBarItem(
+                        ShellNavItem(
                             selected = false,
                             onClick = onOpenStatistics,
                             icon = { Icon(ImageVector.vectorResource(R.drawable.ic_sym_bar_chart), contentDescription = null) },
-                            label = { Text("통계", style = MaterialTheme.typography.labelSmall) },
+                            label = "통계",
                             colors = itemColors,
                         )
                     }
@@ -111,34 +122,70 @@ fun HomeShell(
         },
     ) { innerPadding ->
         Box(modifier = Modifier.padding(innerPadding)) {
-            // 탭을 오갈 때 스크롤 위치 같은 화면 상태를 유지한다.
-            stateHolder.SaveableStateProvider(selectedTab.name) {
-                when (selectedTab) {
-                    ShellTab.HOME ->
-                        HomeScreen(
-                            state = state,
-                            updateVersion = updateVersion,
-                            hasNewNotice = hasNewNotice,
-                            onOpenUpdate = onOpenUpdate,
-                            onDismissUpdate = onDismissUpdate,
-                            onPreviousMonth = onPreviousMonth,
-                            onNextMonth = onNextMonth,
-                            onAddTransaction = onAddTransaction,
-                            onEditTransaction = onEditTransaction,
-                            onOpenInbox = onOpenInbox,
-                        )
+            // 탭을 오갈 때 뚝 끊기지 않고 겹쳐 바뀐다. 보관은 바뀌는 동안 두 탭이 함께 그려지므로 각자의 탭 이름으로 한다.
+            AnimatedContent(
+                targetState = selectedTab,
+                transitionSpec = { fadeIn(Motion.standard()) togetherWith fadeOut(Motion.quick()) },
+                label = "shellTab",
+            ) { tab ->
+                // 탭을 오갈 때 스크롤 위치 같은 화면 상태를 유지한다.
+                stateHolder.SaveableStateProvider(tab.name) {
+                    when (tab) {
+                        ShellTab.HOME ->
+                            HomeScreen(
+                                state = state,
+                                updateVersion = updateVersion,
+                                hasNewNotice = hasNewNotice,
+                                onOpenUpdate = onOpenUpdate,
+                                onDismissUpdate = onDismissUpdate,
+                                onPreviousMonth = onPreviousMonth,
+                                onNextMonth = onNextMonth,
+                                onAddTransaction = onAddTransaction,
+                                onEditTransaction = onEditTransaction,
+                                onOpenInbox = onOpenInbox,
+                            )
 
-                    ShellTab.MORE ->
-                        MoreScreen(
-                            devModeOn = devModeOn,
-                            onOpenCategories = onOpenCategories,
-                            onOpenStatistics = onOpenStatistics,
-                            onOpenSettings = onOpenSettings,
-                            onOpenPatchNotes = onOpenPatchNotes,
-                            onOpenDeveloper = onOpenDeveloper,
-                        )
+                        ShellTab.MORE ->
+                            MoreScreen(
+                                devModeOn = devModeOn,
+                                onOpenCategories = onOpenCategories,
+                                onOpenStatistics = onOpenStatistics,
+                                onOpenSettings = onOpenSettings,
+                                onOpenPatchNotes = onOpenPatchNotes,
+                                onOpenDeveloper = onOpenDeveloper,
+                            )
+                    }
                 }
             }
         }
     }
 }
+
+/** 하단 탭 한 칸. 앱은 리플을 꺼 두었으므로(Theme) 누르면 아이콘과 글자가 눌려 들어가게 한다. */
+@Composable
+private fun RowScope.ShellNavItem(
+    selected: Boolean,
+    onClick: () -> Unit,
+    icon: @Composable () -> Unit,
+    label: String,
+    colors: NavigationBarItemColors,
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    NavigationBarItem(
+        selected = selected,
+        onClick = onClick,
+        icon = icon,
+        label = { Text(label, style = MaterialTheme.typography.labelSmall) },
+        colors = colors,
+        interactionSource = interactionSource,
+        modifier =
+        Modifier.pressFeedback(
+            interactionSource,
+            RoundedCornerShape(BudgetTheme.radius.control),
+            pressedScale = NAV_PRESSED_SCALE,
+        ),
+    )
+}
+
+/** 하단 탭은 바탕 없이 작은 아이콘과 글자뿐이라 버튼보다 더 줄인다 */
+private const val NAV_PRESSED_SCALE = 0.9f

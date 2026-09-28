@@ -4,6 +4,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -71,6 +72,7 @@ import com.dong.budget.ui.format.formatSignedAmount
 import com.dong.budget.ui.format.formatSignedTotal
 import com.dong.budget.ui.format.formatTime
 import com.dong.budget.ui.theme.BudgetTheme
+import com.dong.budget.ui.theme.pressFeedback
 import com.dong.budget.ui.theme.pressScaleClickable
 import kotlinx.coroutines.launch
 import java.time.LocalDate
@@ -124,8 +126,11 @@ fun HomeScreen(
                 MonthBody(state = state, onEditTransaction = onEditTransaction, modifier = Modifier.weight(1f))
             }
         }
+        // 앱은 리플을 꺼 두었으므로(Theme) 누르면 버튼이 눌려 들어가게 한다. 그림자가 잘리지 않게 모양대로 자르지 않는다.
+        val fabInteraction = remember { MutableInteractionSource() }
         FloatingActionButton(
             onClick = onAddTransaction,
+            interactionSource = fabInteraction,
             shape = CircleShape,
             containerColor = MaterialTheme.colorScheme.primary,
             contentColor = MaterialTheme.colorScheme.onPrimary,
@@ -133,7 +138,8 @@ fun HomeScreen(
             modifier =
             Modifier
                 .align(Alignment.BottomEnd)
-                .padding(end = BudgetTheme.spacing.screenHorizontal, bottom = BudgetTheme.spacing.sectionPadding),
+                .padding(end = BudgetTheme.spacing.screenHorizontal, bottom = BudgetTheme.spacing.sectionPadding)
+                .pressFeedback(fabInteraction, CircleShape, clip = false),
         ) {
             Icon(imageVector = Icons.Filled.Add, contentDescription = "거래 등록")
         }
@@ -275,8 +281,9 @@ private fun UpdateBanner(version: String, onOpen: () -> Unit, onDismiss: () -> U
             .padding(horizontal = BudgetTheme.spacing.screenHorizontal)
             .padding(bottom = BudgetTheme.spacing.inlineGap)
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.primaryContainer, shape)
+            // 바탕을 눌림 뒤에 칠해야 알림 줄 전체가 같이 눌린다
             .pressScaleClickable(shape = shape, onClick = onOpen)
+            .background(MaterialTheme.colorScheme.primaryContainer, shape)
             .padding(start = BudgetTheme.spacing.sectionPadding),
         verticalAlignment = Alignment.CenterVertically,
     ) {

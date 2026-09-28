@@ -13,6 +13,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -104,12 +106,26 @@ private fun KeypadKey(
     content: @Composable () -> Unit,
 ) {
     val shape = RoundedCornerShape(BudgetTheme.radius.control)
+    val haptic = LocalHapticFeedback.current
     Box(
         modifier =
         modifier
             .height(KeyHeight)
             .then(if (contentDescription != null) Modifier.semantics { this.contentDescription = contentDescription } else Modifier)
-            .pressScaleClickable(shape = shape, onLongClick = onLongClick, onClick = onClick),
+            // 키에는 바탕이 없어 글자만 줄어든다. 누르는 동안 바탕을 깔아 어느 키를 눌렀는지 보이게 한다.
+            .pressScaleClickable(
+                shape = shape,
+                pressedTint = true,
+                // 길게 눌러 전부 지울 때는 톡 누를 때와 다르게 손끝으로도 알린다
+                onLongClick =
+                onLongClick?.let { clear ->
+                    {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        clear()
+                    }
+                },
+                onClick = onClick,
+            ),
         contentAlignment = Alignment.Center,
     ) {
         content()

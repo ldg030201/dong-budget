@@ -1,17 +1,20 @@
 package com.dong.budget.ui.components
 
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -20,9 +23,17 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.Dp
 import com.dong.budget.ui.theme.BudgetTheme
+import com.dong.budget.ui.theme.Motion
 import com.dong.budget.ui.theme.pressScaleClickable
 
 private const val DISABLED_ALPHA = 0.4f
+
+/** 누를 수 있게 되거나 막힐 때 흐려짐이 튀지 않고 바뀐다 */
+@Composable
+private fun enabledAlpha(enabled: Boolean): Float {
+    val alpha by animateFloatAsState(if (enabled) 1f else DISABLED_ALPHA, Motion.quick(), label = "enabledAlpha")
+    return alpha
+}
 
 /** 화면 하단에 고정되는 주 실행 버튼 */
 @Composable
@@ -33,7 +44,7 @@ fun BudgetPrimaryButton(text: String, onClick: () -> Unit, modifier: Modifier = 
         modifier
             .fillMaxWidth()
             .height(BudgetTheme.size.ctaHeight)
-            .alpha(if (enabled) 1f else DISABLED_ALPHA)
+            .alpha(enabledAlpha(enabled))
             .pressScaleClickable(shape = shape, enabled = enabled, onClick = onClick)
             .background(MaterialTheme.colorScheme.primary, shape),
         contentAlignment = Alignment.Center,
@@ -57,7 +68,7 @@ fun BudgetSmallButton(text: String, onClick: () -> Unit, modifier: Modifier = Mo
         modifier =
         modifier
             .minimumInteractiveComponentSize()
-            .alpha(if (enabled) 1f else DISABLED_ALPHA)
+            .alpha(enabledAlpha(enabled))
             .pressScaleClickable(shape = shape, enabled = enabled, onClick = onClick)
             .background(BudgetTheme.colors.sectionBackground, shape)
             .padding(horizontal = BudgetTheme.spacing.itemGap, vertical = BudgetTheme.spacing.inlineGap),
@@ -88,8 +99,9 @@ fun BudgetTextButton(
         modifier =
         modifier
             .minimumInteractiveComponentSize()
-            .alpha(if (enabled) 1f else DISABLED_ALPHA)
-            .pressScaleClickable(shape = shape, enabled = enabled, onClick = onClick)
+            .alpha(enabledAlpha(enabled))
+            // 글자만 있어 줄어드는 것만으로는 눌린 게 안 보인다
+            .pressScaleClickable(shape = shape, enabled = enabled, pressedTint = true, onClick = onClick)
             .padding(horizontal = BudgetTheme.spacing.tightGap),
         contentAlignment = Alignment.Center,
     ) {
@@ -114,15 +126,16 @@ fun BudgetIconButton(
     modifier: Modifier = Modifier,
     tint: Color = BudgetTheme.colors.textPrimary,
     iconSize: Dp = BudgetTheme.size.icon,
-    shape: Shape = MaterialTheme.shapes.small,
+    shape: Shape = CircleShape,
     enabled: Boolean = true,
 ) {
     Box(
         modifier =
         modifier
             .size(BudgetTheme.size.minTouchTarget)
-            .alpha(if (enabled) 1f else DISABLED_ALPHA)
-            .pressScaleClickable(shape = shape, enabled = enabled, onClick = onClick),
+            .alpha(enabledAlpha(enabled))
+            // 아이콘만 있어 줄어드는 것만으로는 눌린 게 안 보인다
+            .pressScaleClickable(shape = shape, enabled = enabled, pressedTint = true, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Icon(imageVector = icon, contentDescription = contentDescription, tint = tint, modifier = Modifier.size(iconSize))

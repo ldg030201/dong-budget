@@ -102,7 +102,7 @@ fun WeekStrip(
             Modifier
                 .fillMaxWidth()
                 .height(BudgetTheme.size.minTouchTarget)
-                .pressScaleClickable(shape = RoundedCornerShape(BudgetTheme.radius.chip), onClick = onExpand)
+                .pressScaleClickable(shape = RoundedCornerShape(BudgetTheme.radius.chip), pressedTint = true, onClick = onExpand)
                 .semantics { contentDescription = "달력 펼치기" },
             contentAlignment = Alignment.Center,
         ) {
