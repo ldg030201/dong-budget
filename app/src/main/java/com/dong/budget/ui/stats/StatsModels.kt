@@ -20,6 +20,8 @@ import java.time.YearMonth
 
 /** 통계 안의 하위 메뉴. 아래 떠 있는 메뉴에 이 순서로 선다. */
 enum class StatsTab(val label: String, @DrawableRes val icon: Int) {
+    /** 한눈에 보기. 들어오면 이 칸부터 본다. 아래 메뉴의 '통계' 와 같은 아이콘이라, 들어올 때 그 칸이 이 칸 자리로 옮겨 온다. */
+    OVERVIEW("통계", R.drawable.ic_sym_bar_chart),
     MONTHLY("월별", R.drawable.ic_sym_calendar_month),
     DAILY("일별", R.drawable.ic_sym_today),
     CATEGORY("분류", R.drawable.ic_sym_category),

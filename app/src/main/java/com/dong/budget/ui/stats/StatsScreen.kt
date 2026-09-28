@@ -21,7 +21,11 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.paneTitle
@@ -36,16 +40,19 @@ import com.dong.budget.ui.components.SubBarTab
 import com.dong.budget.ui.components.floatingBarClearance
 import com.dong.budget.ui.stats.tab.BreakdownKind
 import com.dong.budget.ui.stats.tab.BreakdownTab
+import com.dong.budget.ui.stats.tab.DailyRequest
 import com.dong.budget.ui.stats.tab.DailyTab
 import com.dong.budget.ui.stats.tab.MonthlyTab
+import com.dong.budget.ui.stats.tab.OverviewTab
 import com.dong.budget.ui.theme.Motion
 import java.time.YearMonth
 
 /**
  * 통계. 아래 메뉴의 '통계' 로 들어온다.
- * 맨 위 달 줄과 아래 떠 있는 메뉴(뒤로 · 월별 · 일별 · 분류 · 결제수단) 사이에 고른 탭을 보여준다.
+ * 맨 위 달 줄과 아래 떠 있는 메뉴(뒤로 · 통계 · 월별 · 일별 · 분류 · 결제수단) 사이에 고른 탭을 보여준다.
+ * 첫 칸 '통계' 는 한눈에 보는 요약이고, 나머지 칸은 저마다의 기준으로 자세히 본다.
  *
- * 네 탭이 달 하나를 같이 쓴다. 탭을 바꿔도 달은 그대로고, 달을 바꿔도 탭마다 보던 스크롤 위치는 그대로다.
+ * 다섯 탭이 달 하나를 같이 쓴다. 탭을 바꿔도 달은 그대로고, 달을 바꿔도 탭마다 보던 스크롤 위치는 그대로다.
  * 탭 이동은 뒤로 기록에 쌓지 않는다. 뒤로(메뉴의 ←, 시스템 뒤로)는 늘 통계를 나가 들어오기 전 화면으로 간다.
  *
  * 화면은 셸 위에서 빠르게 나타나고 사라지고(DongBudgetApp 의 statsTransitions), 떠 있는 메뉴는 따로 아래에서 떠오르고 가라앉는다.
@@ -75,6 +82,9 @@ fun StatsScreen(
 ) {
     // 탭을 오갈 때 탭마다 스크롤 위치 같은 화면 상태를 따로 보관한다
     val tabStates = rememberSaveableStateHolder()
+    // 통계 탭에서 일별 탭의 어느 곳(가장 많이 쓴 날, 요일별 하루 평균)을 보여 달라고 한 것. 일별 탭이 받아 처리하면 비운다.
+    // 한 번 쓰고 버리는 요청이라 저장하지 않는다.
+    var dailyRequest by remember { mutableStateOf<DailyRequest?>(null) }
     val contentPadding = PaddingValues(bottom = floatingBarClearance())
     // Surface 는 터치를 받는다. 셸 위로 나타나고 사라지는 동안 통계의 빈 곳을 누른 탭이 밑의 셸로 새지 않는다.
     Surface(
@@ -127,6 +137,12 @@ fun StatsScreen(
                                         state = state,
                                         contentPadding = contentPadding,
                                         onSelectTab = onSelectTab,
+                                        dailyRequest = dailyRequest,
+                                        onRequestDaily = { request ->
+                                            dailyRequest = request
+                                            onSelectTab(StatsTab.DAILY)
+                                        },
+                                        onDailyRequestHandled = { dailyRequest = null },
                                         onShowMonth = onShowMonth,
                                         onOpenDetail = onOpenDetail,
                                         onOpenTransaction = onOpenTransaction,
@@ -140,7 +156,11 @@ fun StatsScreen(
             FloatingSubBar(
                 tabs = TABS,
                 selectedIndex = selectedTab.ordinal,
-                onSelect = { index -> onSelectTab(StatsTab.entries[index]) },
+                onSelect = { index ->
+                    // 메뉴로 직접 옮기면 아직 처리하지 못한 일별 요청은 버린다. 나중에 일별을 열 때 뜻밖에 스크롤되지 않게 한다.
+                    dailyRequest = null
+                    onSelectTab(StatsTab.entries[index])
+                },
                 onBack = onBack,
                 modifier = Modifier.align(Alignment.BottomCenter).floatingBarMotion(),
             )
@@ -160,28 +180,43 @@ private sealed interface StatsPage {
 /** '이번 달' 버튼이 나타나고 사라질 때 이 크기에서 커지고 여기까지 줄어든다 */
 private const val HIDDEN_BUTTON_SCALE = 0.8f
 
+/**
+ * @param dailyRequest 통계 탭이 일별 탭에 보여 달라고 한 곳. 일별 탭이 처리하면 [onDailyRequestHandled] 로 비운다.
+ * @param onRequestDaily 통계 탭에서 일별 탭의 어느 곳을 보여 달라고 할 때. 일별 탭으로 옮긴다.
+ */
 @Composable
 private fun TabContent(
     tab: StatsTab,
     state: StatsUiState,
     contentPadding: PaddingValues,
     onSelectTab: (StatsTab) -> Unit,
+    dailyRequest: DailyRequest?,
+    onRequestDaily: (DailyRequest) -> Unit,
+    onDailyRequestHandled: () -> Unit,
     onShowMonth: (YearMonth) -> Unit,
     onOpenDetail: (StatsDetailKey) -> Unit,
     onOpenTransaction: (Long) -> Unit,
 ) {
     when (tab) {
-        StatsTab.MONTHLY ->
-            MonthlyTab(
+        StatsTab.OVERVIEW ->
+            OverviewTab(
                 state = state,
                 contentPadding = contentPadding,
-                onShowMonth = onShowMonth,
-                onShowTab = onSelectTab,
+                onRequestDaily = onRequestDaily,
                 onOpenDetail = onOpenDetail,
                 onOpenTransaction = onOpenTransaction,
             )
 
-        StatsTab.DAILY -> DailyTab(state = state, contentPadding = contentPadding, onOpenTransaction = onOpenTransaction)
+        StatsTab.MONTHLY -> MonthlyTab(state = state, contentPadding = contentPadding, onShowMonth = onShowMonth)
+
+        StatsTab.DAILY ->
+            DailyTab(
+                state = state,
+                contentPadding = contentPadding,
+                request = dailyRequest,
+                onRequestHandled = onDailyRequestHandled,
+                onOpenTransaction = onOpenTransaction,
+            )
 
         StatsTab.CATEGORY ->
             BreakdownTab(state = state, kind = BreakdownKind.CATEGORY, contentPadding = contentPadding, onOpenDetail = onOpenDetail)

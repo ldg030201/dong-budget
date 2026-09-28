@@ -61,12 +61,14 @@ enum class BreakdownKind {
  *
  * 위에서부터
  * - (분류만) 지출/수입 전환. 달을 바꿔도 보던 쪽을 그대로 둔다. 통계를 나갔다 오면 지출부터 다시 본다.
- * - 머리: "{달} 지출" 과 합계, "분류 {k}개". 환불이 더 많은 항목이 있으면 비율에서 뺐다고 알린다.
+ * - (분류만) 머리: "{달} 지출" 과 합계, "분류 {k}개". 환불이 더 많은 항목이 있으면 비율에서 뺐다고 알린다.
  * - 도넛과 옆 범례(계열이 둘 이상일 때). 계열이 하나뿐이면 "이번 달 지출은 모두 식비에 썼어요" 한 줄이 대신한다.
+ *   결제수단은 머리가 없어서 안내(수입은 뺐다, 환불이 더 많은 항목은 비율에서 뺐다)를 도넛 아래에 둔다.
  * - 순위 목록: 금액이 0 이 아닌 항목 전부. 누르면 그 분류(결제수단)의 상세
  * - (분류의 지출만) 많이 쓴 곳 10곳
  *
  * 결제수단 탭은 지출만 모은다. 수입을 결제수단으로 나눠 봐야 얻는 게 적고 전환 버튼만 늘어난다.
+ * 결제수단 탭의 머리(이번 달 지출 합계)는 통계 탭의 쓴 돈과 같아서 두지 않는다. 합계는 도넛 가운데에도 있다.
  *
  * @param contentPadding 아래 떠 있는 메뉴에 가리지 않게 LazyColumn 의 contentPadding 으로 쓴다
  * @param onOpenDetail 순위 목록의 줄을 누르면 그 분류나 결제수단의 상세
@@ -95,20 +97,20 @@ fun BreakdownTab(
 
     LazyColumn(modifier = modifier.fillMaxSize(), contentPadding = contentPadding) {
         // 섹션 key 를 고정해 두어 달을 넘겨 섹션이 숨었다 나타나도 스크롤 기준이 흔들리지 않는다
-        animatedItem(key = HEADER_KEY) {
-            Column(
-                modifier = Modifier.padding(top = BudgetTheme.spacing.inlineGap),
-                verticalArrangement = Arrangement.spacedBy(BudgetTheme.spacing.sectionPadding),
-            ) {
-                if (kind == BreakdownKind.CATEGORY) {
+        if (kind == BreakdownKind.CATEGORY) {
+            animatedItem(key = HEADER_KEY) {
+                Column(
+                    modifier = Modifier.padding(top = BudgetTheme.spacing.inlineGap),
+                    verticalArrangement = Arrangement.spacedBy(BudgetTheme.spacing.sectionPadding),
+                ) {
                     SegmentedToggle(
                         options = MEASURE_OPTIONS,
                         selectedIndex = if (showIncome) INCOME_INDEX else EXPENSE_INDEX,
                         onSelect = { index -> showIncome = index == INCOME_INDEX },
                         modifier = Modifier.padding(horizontal = BudgetTheme.spacing.screenHorizontal),
                     )
+                    if (breakdown.entries.isNotEmpty()) BreakdownHeader(breakdown = breakdown, dimension = dimension, monthLabel = label)
                 }
-                if (breakdown.entries.isNotEmpty()) BreakdownHeader(breakdown = breakdown, dimension = dimension, monthLabel = label)
             }
         }
 
@@ -118,7 +120,19 @@ fun BreakdownTab(
                 StatsEmpty(title = nothingText(label, dimension), body = emptyMonthText(state.month, state.today).description)
             }
         } else {
-            animatedItem(key = CHART_KEY) { BreakdownChart(breakdown = breakdown, dimension = dimension, monthLabel = label) }
+            animatedItem(key = CHART_KEY) {
+                BreakdownChart(
+                    breakdown = breakdown,
+                    dimension = dimension,
+                    monthLabel = label,
+                    // 머리가 없는 결제수단은 달 줄 바로 아래 조금만 띄우고, 머리에 있던 안내를 여기 둔다
+                    showHints = kind == BreakdownKind.PAYMENT,
+                    modifier =
+                    Modifier.padding(
+                        top = if (kind == BreakdownKind.PAYMENT) BudgetTheme.spacing.inlineGap else BudgetTheme.spacing.sectionGap,
+                    ),
+                )
+            }
             animatedItem(key = ENTRIES_KEY) {
                 Column(modifier = Modifier.padding(top = BudgetTheme.spacing.itemGap)) {
                     // 줄을 분류로 구분해 둔다. 순위가 바뀌어도 비율 막대가 제 분류를 따라 늘고 준다.
@@ -170,28 +184,44 @@ private fun BreakdownHeader(breakdown: Breakdown, dimension: StatsDimension, mon
             )
         }
         if (breakdown.negativeCount > 0) HintText(negativeHint(breakdown.negativeCount, dimension))
-        if (dimension == StatsDimension.PAYMENT_METHOD) HintText(PAYMENT_ONLY_EXPENSE_HINT)
     }
 }
 
-/** 도넛과 범례. 양수 계열이 하나뿐이면 문장 한 줄, 없으면(모두 환불이 더 많음) 아무것도 두지 않는다. */
+/**
+ * 도넛과 범례. 양수 계열이 하나뿐이면 문장 한 줄, 없으면(모두 환불이 더 많음) 그림은 두지 않는다.
+ * @param showHints 머리가 없는 결제수단 탭에서 머리 대신 안내(수입은 뺐다, 환불이 더 많은 항목은 비율에서 뺐다)를 아래에 둔다
+ */
 @Composable
-private fun BreakdownChart(breakdown: Breakdown, dimension: StatsDimension, monthLabel: String) {
+private fun BreakdownChart(
+    breakdown: Breakdown,
+    dimension: StatsDimension,
+    monthLabel: String,
+    showHints: Boolean,
+    modifier: Modifier = Modifier,
+) {
     val series = breakdown.series
-    if (series.isEmpty()) return
-    StatsSection(modifier = Modifier.padding(top = BudgetTheme.spacing.sectionGap)) {
-        if (series.size == 1) {
-            Text(
-                text = singleSeriesSentence(monthLabel, dimension, series.single().name),
-                style = MaterialTheme.typography.bodyMedium,
-                color = BudgetTheme.colors.textPrimary,
-            )
-        } else {
-            BreakdownDonut(
-                breakdown = breakdown,
-                caption = dimension.wholeName(),
-                income = dimension == StatsDimension.INCOME_CATEGORY,
-            )
+    if (series.isEmpty() && !showHints) return
+    StatsSection(modifier = modifier) {
+        when (series.size) {
+            0 -> Unit
+
+            1 ->
+                Text(
+                    text = singleSeriesSentence(monthLabel, dimension, series.single().name),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = BudgetTheme.colors.textPrimary,
+                )
+
+            else ->
+                BreakdownDonut(
+                    breakdown = breakdown,
+                    caption = dimension.wholeName(),
+                    income = dimension == StatsDimension.INCOME_CATEGORY,
+                )
+        }
+        if (showHints) {
+            if (breakdown.negativeCount > 0) HintText(negativeHint(breakdown.negativeCount, dimension))
+            HintText(PAYMENT_ONLY_EXPENSE_HINT)
         }
     }
 }

@@ -68,7 +68,7 @@ import com.dong.budget.ui.theme.pressScaleClickable
  * 알약 바탕(Surface)은 터치를 받아서, 알약 칸 사이의 빈 곳을 눌러도 밑에 가려진 목록 줄이 눌리지 않는다.
  * 알약 옆 여백은 그대로 밑으로 통과한다.
  *
- * @param tabs 칸마다 아이콘과 글자. 360dp 폭에서 4개가 상한이다(칸 하나 약 64dp).
+ * @param tabs 칸마다 아이콘과 글자. 5개가 상한이다. 320dp 폭에서 칸 하나가 약 43dp 라 네 글자('결제수단')가 줄여서 겨우 들어간다.
  * @param onBack 맨 왼쪽 ← 버튼
  */
 @Composable
@@ -163,8 +163,9 @@ private fun SubBarTabs(tabs: List<SubBarTab>, selectedIndex: Int, onSelect: (Int
                         .height(cellHeight)
                         .pressScaleClickable(shape = shape, role = Role.Tab, onClick = { onSelect(index) })
                         // 화면 읽기가 지금 고른 칸을 알려준다(예: '월별, 선택됨, 탭')
-                        .semantics { this.selected = selected }
-                        .padding(horizontal = BudgetTheme.spacing.tightGap),
+                        .semantics { this.selected = selected },
+                    // 칸 안쪽 좌우 여백은 두지 않는다. 칸이 5개면 320dp 폭에서 한 칸이 43dp 쯤이라 '결제수단' 이 겨우 들어간다.
+                    // 글자는 칸 가운데에 놓여서 옆 칸 글자와 붙어 보이지 않는다.
                     contentAlignment = Alignment.Center,
                 ) {
                     TabContent(tab = tab, selected = selected)
@@ -233,5 +234,8 @@ fun FloatingSubBarScrim(modifier: Modifier = Modifier) {
     )
 }
 
-/** 칸 글자를 줄이는 하한. 이보다 작으면 읽기 어렵다. */
-private val MIN_TAB_LABEL_SIZE = 11.sp
+/**
+ * 칸 글자를 줄이는 하한. 이보다 작으면 읽기 어렵다.
+ * 여기까지 줄어드는 건 화면 확대로 폭이 320dp 쯤 된 기기뿐이다. 그런 기기는 dp 하나가 실제로 커서 10sp 도 보통 화면의 11sp 쯤으로 보인다.
+ */
+private val MIN_TAB_LABEL_SIZE = 10.sp
