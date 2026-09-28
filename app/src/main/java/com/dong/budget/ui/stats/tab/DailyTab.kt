@@ -12,6 +12,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import com.dong.budget.ui.components.animatedItem
 import com.dong.budget.ui.stats.Period
 import com.dong.budget.ui.stats.StatsUiState
 import com.dong.budget.ui.stats.rememberScopedSaveable
@@ -58,7 +59,7 @@ fun DailyTab(state: StatsUiState, contentPadding: PaddingValues, onOpenTransacti
         verticalArrangement = Arrangement.spacedBy(BudgetTheme.spacing.sectionGap),
     ) {
         if (showRecords) {
-            item(key = RECORDS_KEY) {
+            animatedItem(key = RECORDS_KEY, slide = false) {
                 DayRecordsSection(
                     month = state.month,
                     daily = daily,
@@ -76,7 +77,7 @@ fun DailyTab(state: StatsUiState, contentPadding: PaddingValues, onOpenTransacti
                 )
             }
         }
-        item(key = SPENDING_KEY) {
+        animatedItem(key = SPENDING_KEY, slide = false) {
             DailySpendingSection(
                 state = state,
                 selectedDay = selectedDay,
@@ -87,7 +88,7 @@ fun DailyTab(state: StatsUiState, contentPadding: PaddingValues, onOpenTransacti
             )
         }
         if (showRecords) {
-            item(key = WEEKDAY_KEY) {
+            animatedItem(key = WEEKDAY_KEY, slide = false) {
                 WeekdaySection(weekday = daily.weekday, noPastDays = daily.counted.isEmpty())
             }
         }

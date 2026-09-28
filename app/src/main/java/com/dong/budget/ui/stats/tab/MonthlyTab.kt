@@ -17,6 +17,7 @@ import androidx.compose.ui.Modifier
 import com.dong.budget.data.db.TransactionListItem
 import com.dong.budget.navigation.StatsDetailKey
 import com.dong.budget.ui.components.TransactionRow
+import com.dong.budget.ui.components.animatedItem
 import com.dong.budget.ui.stats.SectionTitle
 import com.dong.budget.ui.stats.StatsEmpty
 import com.dong.budget.ui.stats.StatsTab
@@ -72,12 +73,12 @@ fun MonthlyTab(
         verticalArrangement = Arrangement.spacedBy(BudgetTheme.spacing.sectionGap),
     ) {
         if (state.monthIsEmpty) {
-            item(key = EMPTY_KEY) {
+            animatedItem(key = EMPTY_KEY) {
                 val text = emptyMonthText(state.month, state.today)
                 StatsEmpty(title = text.title, body = text.description)
             }
         } else {
-            item(key = SUMMARY_KEY) {
+            animatedItem(key = SUMMARY_KEY) {
                 SummaryHead(
                     monthly = monthly,
                     month = state.month,
@@ -86,9 +87,9 @@ fun MonthlyTab(
                     modifier = Modifier.padding(top = BudgetTheme.spacing.inlineGap),
                 )
             }
-            item(key = INCOME_KEY) { IncomeExpenseSection(totals = monthly.totals, period = state.period) }
+            animatedItem(key = INCOME_KEY) { IncomeExpenseSection(totals = monthly.totals, period = state.period) }
             if (monthly.insights.isNotEmpty()) {
-                item(key = INSIGHTS_KEY) {
+                animatedItem(key = INSIGHTS_KEY) {
                     InsightsSection(
                         insights = monthly.insights,
                         month = state.month,
@@ -99,7 +100,7 @@ fun MonthlyTab(
             }
             // 아직 오지 않은 달은 흐름이 없다
             monthly.flow?.let { flow ->
-                item(key = FLOW_KEY) {
+                animatedItem(key = FLOW_KEY) {
                     FlowSection(
                         title = flowTitle(state.month, state.today),
                         flow = flow,
@@ -113,7 +114,7 @@ fun MonthlyTab(
         }
         // 기록을 시작하기 전 달을 보고 있으면 표에 줄이 없어 섹션째 뺀다
         if (trendTableRows(monthly.trend).isNotEmpty()) {
-            item(key = TREND_KEY) {
+            animatedItem(key = TREND_KEY) {
                 TrendSection(
                     trend = monthly.trend,
                     month = state.month,
@@ -124,7 +125,7 @@ fun MonthlyTab(
             }
         }
         if (monthly.largest.isNotEmpty()) {
-            item(key = LARGEST_KEY) {
+            animatedItem(key = LARGEST_KEY) {
                 LargestSection(
                     title = largestTitle(state.month, state.today),
                     items = monthly.largest,
@@ -133,7 +134,7 @@ fun MonthlyTab(
             }
         }
         monthly.yearToDate?.let { ytd ->
-            item(key = YEAR_KEY) { YearToDateSection(ytd = ytd) }
+            animatedItem(key = YEAR_KEY) { YearToDateSection(ytd = ytd) }
         }
     }
 }

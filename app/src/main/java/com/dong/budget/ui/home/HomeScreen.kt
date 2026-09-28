@@ -71,6 +71,8 @@ import com.dong.budget.ui.components.DayHeader
 import com.dong.budget.ui.components.MonthStepper
 import com.dong.budget.ui.components.NoticeDot
 import com.dong.budget.ui.components.TransactionRow
+import com.dong.budget.ui.components.animatedItem
+import com.dong.budget.ui.components.animatedItems
 import com.dong.budget.ui.components.sectionBlock
 import com.dong.budget.ui.format.formatDayHeader
 import com.dong.budget.ui.format.formatMonth
@@ -235,10 +237,10 @@ private fun MonthBody(state: HomeUiState, onEditTransaction: (Long) -> Unit, mod
             // 마지막 거래가 떠 있는 추가 버튼에 가리지 않게 아래를 비운다
             contentPadding = PaddingValues(bottom = BudgetTheme.size.fab + BudgetTheme.spacing.sectionGap),
         ) {
-            item(key = SUMMARY_KEY) {
+            animatedItem(key = SUMMARY_KEY) {
                 SummaryBlock(totals = state.totals, comparison = state.comparison)
             }
-            item(key = CALENDAR_KEY) {
+            animatedItem(key = CALENDAR_KEY) {
                 MonthCalendar(
                     weeks = weeks,
                     days = state.days,
@@ -249,11 +251,11 @@ private fun MonthBody(state: HomeUiState, onEditTransaction: (Long) -> Unit, mod
                 )
             }
             if (state.groups.isEmpty()) {
-                item(key = "empty") { EmptyMonth() }
+                animatedItem(key = "empty") { EmptyMonth() }
             }
             state.groups.forEach { group ->
-                item(key = "day-${group.date}") { DayHeader(date = group.date, today = state.today) }
-                items(items = group.items, key = { "tx-${it.id}" }) { item ->
+                animatedItem(key = "day-${group.date}") { DayHeader(date = group.date, today = state.today) }
+                animatedItems(items = group.items, key = { "tx-${it.id}" }) { item ->
                     TransactionRow(item = item, onClick = { onEditTransaction(item.id) })
                 }
             }

@@ -101,22 +101,27 @@ fun PatchNotesScreen(
                 verticalArrangement = Arrangement.spacedBy(BudgetTheme.spacing.itemGap),
             ) {
                 // 업데이트 버튼은 가장 새 버전 칸에만 둔다. 업데이트하면 늘 최신 버전이 설치된다.
+                // 아직 설치 안 한 새 버전은 배포 목록을 받아 온 뒤에 맨 위로 들어온다. 아래 카드들이 한 번에 밀리지 않고 미끄러진다.
                 itemsIndexed(items = newerShown, key = { _, release -> "newer-${release.version}" }) { index, release ->
-                    NewerReleaseBlock(release = release, onOpenUpdate = onOpenUpdate.takeIf { index == 0 }, latest = index == 0)
+                    Box(Modifier.animateItem()) {
+                        NewerReleaseBlock(release = release, onOpenUpdate = onOpenUpdate.takeIf { index == 0 }, latest = index == 0)
+                    }
                 }
                 itemsIndexed(items = releases, key = { _, release -> release.version }) { index, release ->
                     val version = AppVersion.parse(release.version)
-                    ReleaseBlock(
-                        release = release,
-                        latest = newerShown.isEmpty() && index == 0,
-                        status =
-                        when {
-                            version == null || installed == null -> ReleaseStatus.PAST
-                            version == installed -> ReleaseStatus.CURRENT
-                            version > installed -> ReleaseStatus.UPCOMING
-                            else -> ReleaseStatus.PAST
-                        },
-                    )
+                    Box(Modifier.animateItem()) {
+                        ReleaseBlock(
+                            release = release,
+                            latest = newerShown.isEmpty() && index == 0,
+                            status =
+                            when {
+                                version == null || installed == null -> ReleaseStatus.PAST
+                                version == installed -> ReleaseStatus.CURRENT
+                                version > installed -> ReleaseStatus.UPCOMING
+                                else -> ReleaseStatus.PAST
+                            },
+                        )
+                    }
                 }
             }
         }
