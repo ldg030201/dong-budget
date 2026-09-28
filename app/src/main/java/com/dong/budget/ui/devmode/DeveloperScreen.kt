@@ -52,6 +52,7 @@ import com.dong.budget.ui.components.BudgetTextButton
 import com.dong.budget.ui.components.BudgetTopAppBar
 import com.dong.budget.ui.components.ConfirmDialog
 import com.dong.budget.ui.components.HintText
+import com.dong.budget.ui.components.SwitchRow
 import com.dong.budget.ui.components.sectionBlock
 import com.dong.budget.ui.theme.BudgetTheme
 import com.dong.budget.ui.theme.Motion
@@ -189,33 +190,13 @@ private fun ModeSwitch(enabled: Boolean, onToggle: (Boolean) -> Unit) {
             .sectionBlock(),
         verticalArrangement = Arrangement.spacedBy(BudgetTheme.spacing.inlineGap),
     ) {
-        // 앱은 리플을 꺼 두었으므로(Theme) 기본 누름 표시로는 아무것도 안 보인다. 다른 버튼과 같은 눌림과 포커스 테두리를 입힌다.
-        val interactionSource = remember { MutableInteractionSource() }
-        Row(
-            modifier =
-            Modifier
-                .fillMaxWidth()
-                .pressFeedback(interactionSource, RoundedCornerShape(BudgetTheme.radius.chip))
-                .toggleable(
-                    value = enabled,
-                    interactionSource = interactionSource,
-                    indication = null,
-                    role = Role.Switch,
-                    onValueChange = onToggle,
-                ),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(BudgetTheme.spacing.tightGap)) {
-                Text(text = "개발자 모드", style = MaterialTheme.typography.titleMedium, color = BudgetTheme.colors.textPrimary)
-                Text(
-                    text = if (enabled) "켜져 있어요. 로그를 쌓고 있어요" else "꺼져 있어요",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = BudgetTheme.colors.textSecondary,
-                )
-            }
-            // 줄이 대신 눌리므로 스위치 자체는 누름을 받지 않는다
-            Switch(checked = enabled, onCheckedChange = null)
-        }
+        SwitchRow(
+            title = "개발자 모드",
+            description = if (enabled) "켜져 있어요. 로그를 쌓고 있어요" else "꺼져 있어요",
+            checked = enabled,
+            onCheckedChange = onToggle,
+            titleStyle = MaterialTheme.typography.titleMedium,
+        )
         AnimatedVisibility(
             visible = enabled,
             enter = expandVertically(Motion.standard()) + fadeIn(Motion.standard()),
