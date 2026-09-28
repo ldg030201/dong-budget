@@ -41,7 +41,7 @@ import kotlin.reflect.KProperty
 /**
  * 탭 안의 섹션 하나. 화면 좌우 여백 안에 제목과 내용을 세로로 쌓는다.
  *
- * @param title null 이면 제목 없이 내용만 둔다(월별 요약 머리처럼 숫자가 곧 제목인 섹션)
+ * @param title null 이면 제목 없이 내용만 둔다(통계 탭 요약 머리처럼 숫자가 곧 제목인 섹션)
  * @param subtitle 제목 아래 한 줄(예: '최근 3달 (7월~9월)')
  * @param block true 면 제목과 내용을 회색 둥근 묶음(sectionBlock) 안에 넣는다. 숫자 묶음에 쓴다.
  *   차트는 어느 바탕 위에서도 맞게 그리므로 바탕 위에 둔다(false).
