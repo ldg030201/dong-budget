@@ -51,7 +51,7 @@ data class TransactionDetailKey(val transactionId: Long) : AppNavKey
 @Serializable
 data object CategoryManageKey : AppNavKey
 
-/** 통계. 아래 메뉴의 '통계' 로 들어온다. 안에서 월별·일별·분류·결제수단으로 나뉜다. */
+/** 통계. 아래 메뉴의 '통계' 로 들어온다. 안에서 통계(한눈에 보기)·월별·일별·분류·결제수단으로 나뉜다. */
 @Serializable
 data object StatisticsKey : AppNavKey
 

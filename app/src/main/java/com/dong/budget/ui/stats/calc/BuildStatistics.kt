@@ -63,7 +63,7 @@ fun buildStatistics(month: YearMonth, today: LocalDate, rows: List<TransactionLi
 /**
  * 분류·결제수단 증감에 쓰는 비교 창. 홈과 같은 [comparisonWindow] 인데, 지난달을 1일부터 기록하지 않았으면 null 이다.
  * 기록 전 날이 0원으로 들어가면 모든 줄이 '없었어요'·'늘었어요' 가 되고 눈에 띄는 점이 '더 썼어요' 로 나오기 때문이다.
- * (앞선 달 평균이 기록을 달 중간에 시작한 달을 빼는 것과 같은 규칙. 월별 요약의 비교 문장은 홈과 같게 compareSpending 을 쓴다)
+ * (앞선 달 평균이 기록을 달 중간에 시작한 달을 빼는 것과 같은 규칙. 통계 탭 요약 머리의 비교 문장은 홈과 같게 compareSpending 을 쓴다)
  */
 internal fun breakdownWindow(
     month: YearMonth,

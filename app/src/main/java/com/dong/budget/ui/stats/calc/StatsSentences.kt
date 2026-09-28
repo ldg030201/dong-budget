@@ -51,7 +51,7 @@ fun summaryLabel(month: YearMonth, today: LocalDate): String = when (periodOf(mo
 fun futureHint(count: Int): String = "오늘 뒤 날짜로 미리 적은 거래 ${count}건도 합쳤어요"
 
 /**
- * 월별 '수입과 지출' 의 문장.
+ * 통계 탭 '수입과 지출' 의 문장.
  * @property detail 아래에 붙는 보조 문장. 없으면 null
  * @property overspent 수입보다 더 썼는지. 참이면 경고 아이콘과 danger 색으로 적는다.
  */

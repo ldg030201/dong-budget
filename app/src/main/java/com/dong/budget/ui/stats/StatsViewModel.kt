@@ -21,7 +21,7 @@ import java.time.LocalDate
 import java.time.YearMonth
 
 /**
- * 통계 화면의 상태. 네 탭(월별·일별·분류·결제수단)이 고른 달 하나를 같이 쓴다.
+ * 통계 화면의 상태. 다섯 탭(통계·월별·일별·분류·결제수단)이 고른 달 하나를 같이 쓴다.
  *
  * 고른 달이 들어 있는 여러 달을 한 번에 읽어 순수 함수(calc/buildStatistics)로 모두 계산한다.
  * 거래를 고치거나 지우면 조회가 다시 내보내서 숫자가 바로 바뀐다.
@@ -65,7 +65,7 @@ class StatsViewModel(private val repository: TransactionRepository, private val 
         pickedMonth.value = null
     }
 
-    /** 월별 탭의 6개월 표에서 다른 달 줄을 눌렀을 때. 네 탭 모두 그 달로 바뀐다. 이번 달이면 다시 '이번 달 따라가기' 로 둔다. */
+    /** 월별 탭의 6개월 표에서 다른 달 줄을 눌렀을 때. 다섯 탭 모두 그 달로 바뀐다. 이번 달이면 다시 '이번 달 따라가기' 로 둔다. */
     fun showMonth(month: YearMonth) {
         pickedMonth.value = month.takeIf { it != YearMonth.now(clock) }
     }
