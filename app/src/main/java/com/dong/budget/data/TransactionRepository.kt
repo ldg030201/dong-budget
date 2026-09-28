@@ -16,7 +16,7 @@ import java.time.LocalDate
 import java.time.YearMonth
 import java.util.UUID
 
-/** 금액 자리수 상한. 원 단위라 12자리면 조 단위까지 들어간다. 등록 화면과 결제 알림 읽기가 같이 쓴다. */
+/** 금액 자리수 상한. 원 단위라 12자리면 9,999억 9,999만 9,999원까지다(1조는 13자리). 등록 화면과 결제 알림 읽기가 같이 쓴다. */
 const val MAX_AMOUNT_DIGITS = 12
 
 /**

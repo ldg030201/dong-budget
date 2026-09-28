@@ -46,6 +46,7 @@ import com.dong.budget.ui.category.AddTarget
 import com.dong.budget.ui.category.PickerGrid
 import com.dong.budget.ui.category.PickerPreview
 import com.dong.budget.ui.components.AnimatedErrorText
+import com.dong.budget.ui.components.AnimatedHintText
 import com.dong.budget.ui.components.BudgetPrimaryButton
 import com.dong.budget.ui.components.BudgetTextButton
 import com.dong.budget.ui.components.BudgetTopAppBar
@@ -63,6 +64,7 @@ import com.dong.budget.ui.components.NumberKeypad
 import com.dong.budget.ui.components.SegmentedToggle
 import com.dong.budget.ui.format.formatAmount
 import com.dong.budget.ui.format.formatDate
+import com.dong.budget.ui.format.formatKoreanWon
 import com.dong.budget.ui.format.formatTime
 import com.dong.budget.ui.theme.BudgetTheme
 import com.dong.budget.ui.theme.Motion
@@ -251,11 +253,18 @@ fun TransactionEditorScreen(
                     modifier = fieldModifier(EditorPanel.AMOUNT),
                     error = missingMessage(RequiredField.AMOUNT),
                 ) {
-                    Text(
-                        text = "${formatAmount(state.amount)}원",
-                        style = BudgetTheme.amount.large,
-                        color = if (state.amountDigits.isEmpty()) BudgetTheme.colors.textTertiary else BudgetTheme.colors.textPrimary,
-                    )
+                    Column {
+                        Text(
+                            text = "${formatAmount(state.amount)}원",
+                            style = BudgetTheme.amount.large,
+                            color = if (state.amountDigits.isEmpty()) BudgetTheme.colors.textTertiary else BudgetTheme.colors.textPrimary,
+                        )
+                        // 자리가 많으면 몇 원인지 세기 어렵다. 1만원부터 밑에 '1억 2,345만원' 처럼 끊어 적는다.
+                        AnimatedHintText(
+                            text = state.amount.takeIf { it >= KOREAN_READING_MIN }?.let(::formatKoreanWon),
+                            modifier = Modifier.padding(top = BudgetTheme.spacing.tightGap),
+                        )
+                    }
                 }
 
                 FormField(
@@ -487,6 +496,9 @@ private fun PanelBox(content: @Composable () -> Unit) {
 private fun DeleteAction(onClick: () -> Unit) {
     BudgetTextButton(text = "삭제", onClick = onClick, color = BudgetTheme.colors.danger)
 }
+
+/** 금액 밑에 만·억 단위로 끊어 적기 시작하는 금액. 만 원 아래는 위 숫자와 똑같아 적지 않는다. */
+private const val KOREAN_READING_MIN = 10_000L
 
 /** 입력판이 열리고 닫힐 때 움직이는 거리. 입력판 높이의 1/4 */
 private const val PANEL_RISE_DIVISOR = 4

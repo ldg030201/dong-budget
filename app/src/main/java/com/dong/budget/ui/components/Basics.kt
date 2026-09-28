@@ -65,6 +65,18 @@ fun ErrorText(text: String, modifier: Modifier = Modifier) {
  */
 @Composable
 fun AnimatedErrorText(text: String?, modifier: Modifier = Modifier) {
+    AnimatedLine(text) { ErrorText(it, modifier) }
+}
+
+/** [text] 가 있을 때만 [HintText] 를 보여준다. 나타나고 사라지는 모양은 [AnimatedErrorText] 와 같다. */
+@Composable
+fun AnimatedHintText(text: String?, modifier: Modifier = Modifier) {
+    AnimatedLine(text) { HintText(it, modifier) }
+}
+
+/** [text] 가 생기면 펼치며 나오고 없어지면 접히며 사라진다. 사라지는 동안에는 마지막 문구로 [content] 를 그린다. */
+@Composable
+private fun AnimatedLine(text: String?, content: @Composable (String) -> Unit) {
     val last = remember { LastText() }
     if (text != null) last.value = text
     AnimatedVisibility(
@@ -72,7 +84,7 @@ fun AnimatedErrorText(text: String?, modifier: Modifier = Modifier) {
         enter = expandVertically(Motion.standard()) + fadeIn(Motion.standard()),
         exit = shrinkVertically(Motion.standard()) + fadeOut(Motion.quick()),
     ) {
-        last.value?.let { ErrorText(it, modifier) }
+        last.value?.let { content(it) }
     }
 }
 
