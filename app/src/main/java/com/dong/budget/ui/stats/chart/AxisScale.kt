@@ -57,7 +57,8 @@ fun niceAxis(max: Long, min: Long = 0, ticks: Int = 3): AxisScale? {
  * 축과 막대 위에 적는 줄인 금액. 좁은 자리에 들어가게 단위 '원' 을 빼고 만·억으로 줄인다.
  *   0 → "0" / 5,000 → "5,000" / 10,000 → "1만" / 15,000 → "1.5만" / 1,500,000 → "150만"
  *   150,000,000 → "1.5억" / −10,000 → "-1만"
- * 만 단위와 억 단위는 두 자리까지 소수 한 자리를 붙이고(1.5만, 12.3억), 세 자리부터는 정수로 반올림한다(150만).
+ * 만 단위와 억 단위는 두 자리까지 소수 한 자리를 붙이고(1.5만, 12.3억), 세 자리부터는 정수로 적는다(150만).
+ * 적지 못한 아래 자리는 버린다(내림). 반올림하면 전체 금액보다 커 보일 수 있어서(2,076,048 → 208만) 옆의 전체 금액과 어긋나 보인다.
  * 문장 안의 금액은 formatCompactWon 을, 화면 읽기는 늘 전체 금액을 쓴다.
  */
 fun formatAxisWon(amount: Long): String {
@@ -65,19 +66,16 @@ fun formatAxisWon(amount: Long): String {
     val body =
         when {
             size < MAN -> formatAmount(size)
-
-            // 반올림해서 만 단위가 1만(=1억)이 되면 억으로 적는다(99,996,000 → "1억")
-            size + MAN / 2 < EOK -> scaled(size, MAN, "만")
-
+            size < EOK -> scaled(size, MAN, "만")
             else -> scaled(size, EOK, "억")
         }
     return if (amount < 0) "-$body" else body
 }
 
-/** [unit] 단위로 줄인다. 두 자리까지는 소수 한 자리(0 이면 뗀다), 세 자리부터는 정수로 반올림한다. */
+/** [unit] 단위로 줄인다. 두 자리까지는 소수 한 자리(0 이면 뗀다), 세 자리부터는 정수로 적는다. 아래 자리는 버린다. */
 private fun scaled(size: Long, unit: Long, suffix: String): String {
-    val tenths = (size * 10 + unit / 2) / unit
-    if (tenths >= DECIMAL_LIMIT) return "${formatAmount((size + unit / 2) / unit)}$suffix"
+    val tenths = size * 10 / unit
+    if (tenths >= DECIMAL_LIMIT) return "${formatAmount(size / unit)}$suffix"
     val whole = tenths / 10
     val fraction = tenths % 10
     return if (fraction == 0L) "$whole$suffix" else "$whole.$fraction$suffix"
