@@ -127,8 +127,12 @@ fun FloatingSubBar(tabs: List<SubBarTab>, selectedIndex: Int, onSelect: (Int) ->
     }
 }
 
-/** 떠 있는 메뉴의 칸 하나. 아이콘 아래에 글자를 둔다(셸의 아래 메뉴와 같은 모양) */
-data class SubBarTab(val label: String, @DrawableRes val icon: Int)
+/**
+ * 떠 있는 메뉴의 칸 하나. 아이콘 아래에 글자를 둔다(셸의 아래 메뉴와 같은 모양)
+ * @property sharedKey 다른 화면의 같은 칸과 이을 열쇠([sharedNavElement]). 아이콘과 글자에 '-icon', '-label' 을 붙여 쓴다.
+ *   화면이 바뀌는 동안 그 칸이 이 칸 자리로 옮겨 온다. 없으면 null
+ */
+data class SubBarTab(val label: String, @DrawableRes val icon: Int, val sharedKey: String? = null)
 
 /** 알약 안의 칸들. 칸 폭이 모두 같아서 고른 칸 표시는 '칸 번호 × 칸 폭' 만큼 옮기면 된다. */
 @Composable
@@ -190,10 +194,11 @@ private fun TabContent(tab: SubBarTab, selected: Boolean) {
             painter = painterResource(tab.icon),
             contentDescription = null,
             tint = color,
-            modifier = Modifier.size(BudgetTheme.size.iconSmall),
+            modifier = Modifier.size(BudgetTheme.size.iconSmall).sharedPart(tab.sharedKey, "icon"),
         )
         BasicText(
             text = tab.label,
+            modifier = Modifier.sharedPart(tab.sharedKey, "label"),
             style =
             style.copy(
                 color = color,
@@ -205,6 +210,10 @@ private fun TabContent(tab: SubBarTab, selected: Boolean) {
         )
     }
 }
+
+/** [key] 가 있으면 그 열쇠 뒤에 [part] 를 붙여 다른 화면의 같은 부분과 잇는다 */
+@Composable
+private fun Modifier.sharedPart(key: String?, part: String): Modifier = if (key == null) this else sharedNavElement("$key-$part")
 
 /**
  * [FloatingSubBar] 밑에 깔리는 목록이 비워 둘 아래 여백.
