@@ -37,7 +37,7 @@ internal val AutoOption.description: String
         AutoOption.EDITOR_SELECT_ADDED -> "등록하다가 새로 추가하면 바로 그것으로 골라 둬요"
         AutoOption.NEW_ITEM_COLOR -> "추가할 때 아직 안 쓴 색을 미리 골라 둬요. 끄면 회색으로 시작해요"
         AutoOption.UPDATE_CHECK -> "새 버전이 있으면 홈 위에 알려 줘요. 끄면 여기서 직접 확인해요"
-        AutoOption.STATS_DAY -> "이번 달은 오늘, 지난달은 가장 많이 쓴 날을 먼저 보여 줘요. 끄면 1일부터 보여요"
+        AutoOption.STATS_DAY -> "이번 달은 오늘, 지나간 달은 가장 많이 쓴 날을 먼저 보여 줘요. 끄면 1일부터 보여요"
     }
 
 /** 설정 화면에서 스위치를 모아 두는 묶음. 화면 위에서부터 이 순서다. 새 버전 확인([AutoOption.UPDATE_CHECK])은 '앱 정보' 에 있다. */
