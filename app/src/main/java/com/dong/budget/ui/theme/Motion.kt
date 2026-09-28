@@ -3,6 +3,8 @@ package com.dong.budget.ui.theme
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.Easing
 import androidx.compose.animation.core.FiniteAnimationSpec
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 
 // ─────────────────────────────────────────────────────────────────────
@@ -30,4 +32,9 @@ object Motion {
     fun <T> standard(): FiniteAnimationSpec<T> = tween(STANDARD_MS, easing = Easing)
 
     fun <T> screen(): FiniteAnimationSpec<T> = tween(SCREEN_MS, easing = Easing)
+
+    /** 고른 칸 표시가 옆 칸으로 미끄러질 때. 살짝 탄력 있게 멈춘다(떠 있는 메뉴, 지출/수입 토글). */
+    fun <T> indicator(): FiniteAnimationSpec<T> = spring(dampingRatio = INDICATOR_DAMPING, stiffness = Spring.StiffnessMediumLow)
+
+    private const val INDICATOR_DAMPING = 0.8f
 }

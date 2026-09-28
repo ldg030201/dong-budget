@@ -1,5 +1,6 @@
 package com.dong.budget.ui.home
 
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -22,6 +23,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -40,6 +42,7 @@ import com.dong.budget.ui.format.formatDateSpoken
 import com.dong.budget.ui.format.formatSignedTotal
 import com.dong.budget.ui.format.formatWeekday
 import com.dong.budget.ui.theme.BudgetTheme
+import com.dong.budget.ui.theme.Motion
 import com.dong.budget.ui.theme.pressScaleClickable
 import java.time.LocalDate
 
@@ -183,6 +186,27 @@ private fun DayCell(
     modifier: Modifier = Modifier,
 ) {
     val isToday = date == today
+    // 고른 날의 동그라미와 글자색이 뚝 바뀌지 않고 번지듯 바뀐다
+    val markColor by animateColorAsState(
+        MaterialTheme.colorScheme.primaryContainer.copy(alpha = if (highlighted) 1f else 0f),
+        Motion.quick(),
+        label = "dayMark",
+    )
+    val textColor by animateColorAsState(
+        when {
+            // 동그라미 위에서는 오늘이어도 동그라미 전용 글자색을 쓴다. 브랜드색 글자는 동그라미 위에서 대비가 모자라다.
+            highlighted -> MaterialTheme.colorScheme.onPrimaryContainer
+
+            isToday -> BudgetTheme.colors.brandText
+
+            // 아직 오지 않은 날은 한 단계 흐리게 둔다. 가장 흐린 글자색은 이 크기에서 대비가 모자라다.
+            date.isAfter(today) -> BudgetTheme.colors.textSecondary
+
+            else -> BudgetTheme.colors.textPrimary
+        },
+        Motion.quick(),
+        label = "dayText",
+    )
     val clickable =
         if (totals != null) {
             Modifier.pressScaleClickable(shape = RoundedCornerShape(BudgetTheme.radius.chip), onClick = onClick)
@@ -203,25 +227,14 @@ private fun DayCell(
             modifier =
             Modifier
                 .size(BudgetTheme.size.calendarDayMark)
-                .background(if (highlighted) MaterialTheme.colorScheme.primaryContainer else Color.Transparent, CircleShape),
+                .background(markColor, CircleShape),
             contentAlignment = Alignment.Center,
         ) {
             Text(
                 text = date.dayOfMonth.toString(),
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = if (isToday || highlighted) FontWeight.Bold else FontWeight.Normal,
-                color =
-                when {
-                    // 동그라미 위에서는 오늘이어도 동그라미 전용 글자색을 쓴다. 브랜드색 글자는 동그라미 위에서 대비가 모자라다.
-                    highlighted -> MaterialTheme.colorScheme.onPrimaryContainer
-
-                    isToday -> BudgetTheme.colors.brandText
-
-                    // 아직 오지 않은 날은 한 단계 흐리게 둔다. 가장 흐린 글자색은 이 크기에서 대비가 모자라다.
-                    date.isAfter(today) -> BudgetTheme.colors.textSecondary
-
-                    else -> BudgetTheme.colors.textPrimary
-                },
+                color = textColor,
             )
         }
         if (totals != null) {
