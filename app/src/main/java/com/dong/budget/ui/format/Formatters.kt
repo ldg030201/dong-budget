@@ -107,8 +107,32 @@ fun formatCompactWon(amount: Long): String {
     }
 }
 
+/**
+ * 금액을 조·억·만 단위로 끊어 줄이지 않고 적는다. 등록창 금액 밑의 작은 글씨에 쓴다.
+ *   12,345 → "1만 2,345원" / 120,000,000 → "1억 2,000만원" / 100,005,000 → "1억 5,000원"
+ *   1,234,500,000,000 → "1조 2,345억원" / 8,500 → "8,500원"
+ * 빈 단위는 건너뛴다. 부호는 붙이지 않는다.
+ */
+fun formatKoreanWon(amount: Long): String {
+    var rest = abs(amount)
+    if (rest == 0L) return "0원"
+    val groups =
+        buildList {
+            KOREAN_UNITS.forEach { (unit, name) ->
+                val value = rest / unit
+                rest %= unit
+                if (value > 0) add("${formatAmount(value)}$name")
+            }
+        }
+    return groups.joinToString(" ") + "원"
+}
+
 private const val MAN = 10_000L
 private const val EOK = 100_000_000L
+private const val JO = 1_000_000_000_000L
+
+/** 큰 단위부터. 마지막 1 은 단위 이름 없이 남은 자리다. */
+private val KOREAN_UNITS = listOf(JO to "조", EOK to "억", MAN to "만", 1L to "")
 
 /** 목록의 날짜 구분선. "25일 금요일", 오늘과 어제는 뒤에 붙여 알려준다. */
 fun formatDayHeader(date: LocalDate, today: LocalDate): String {

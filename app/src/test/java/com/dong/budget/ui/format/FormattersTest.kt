@@ -55,6 +55,24 @@ class FormattersTest {
     }
 
     @Test
+    fun `한국어 단위 표기는 줄이지 않고 1원까지 적는다`() {
+        assertEquals("8,500원", formatKoreanWon(8_500))
+        assertEquals("1만원", formatKoreanWon(10_000))
+        assertEquals("1만 2,345원", formatKoreanWon(12_345))
+        assertEquals("1억 2,345만 6,789원", formatKoreanWon(123_456_789))
+        assertEquals("9,999억 9,999만 9,999원", formatKoreanWon(999_999_999_999))
+    }
+
+    @Test
+    fun `한국어 단위 표기는 빈 단위를 건너뛰고 조까지 쓴다`() {
+        assertEquals("1억 2,000만원", formatKoreanWon(120_000_000))
+        assertEquals("1억 5,000원", formatKoreanWon(100_005_000))
+        assertEquals("1억 1원", formatKoreanWon(100_000_001))
+        assertEquals("1조 2,345억원", formatKoreanWon(1_234_500_000_000))
+        assertEquals("0원", formatKoreanWon(0))
+    }
+
+    @Test
     fun `부호는 떼고 크기만 쓴다`() {
         assertEquals("9만원", formatCompactWon(-90_400))
     }
