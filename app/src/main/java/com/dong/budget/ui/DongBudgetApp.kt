@@ -189,9 +189,14 @@ fun DongBudgetApp(container: AppContainer, capturedToOpen: String? = null, onCap
                         navigator.closeIfTop(key)
                     }
 
+                    // 수정 창은 거래 상세 위에 올라온다. 상세의 '수정' 과 이 창의 '삭제' 가 같은 자리라서, '수정' 을 연달아 누른 두 번째 탭이
+                    // 올라오는 중인 '삭제' 에 떨어지지 않게 자리 잡은 뒤(RESUMED)에만 '삭제' 를 받는다.
+                    val settled = rememberSettled()
                     TransactionEditorScreen(
                         state = state,
-                        onClose = navigator::goBack,
+                        // 내려가는 동안 X 를 한 번 더 받아도 맨 위일 때만 닫아서 아래 화면(거래 상세 등)까지 닫지 않게 한다
+                        onClose = { navigator.closeIfTop(key) },
+                        acceptsTaps = settled,
                         onSelectType = viewModel::selectType,
                         onDigit = viewModel::appendDigit,
                         onDeleteDigit = viewModel::deleteDigit,
@@ -261,8 +266,10 @@ fun DongBudgetApp(container: AppContainer, capturedToOpen: String? = null, onCap
                     val settled = rememberSettled()
                     StatsDetailScreen(
                         state = state,
-                        // 나가는 동안(약 0.7초) 이 화면이 위에 남아 ← 를 한 번 더 받는다. 맨 위일 때만 닫아서 통계까지 닫지 않게 한다.
-                        onBack = { navigator.closeIfTop(key) },
+                        // ← 는 자리 잡은 뒤에만 받는다. 전환 중에는 나가는 화면과 들어오는 화면이 모두 같은 자리의 탭을 받아서,
+                        // 위의 거래 상세에서 ← 를 연달아 누른 두 번째 탭이 막 드러난 이 화면의 ← 에 떨어져 통계 상세까지 닫힌다.
+                        // 맨 위일 때만 닫으므로 이 화면이 나가는 동안 받은 ← 도 통계까지 닫지 않는다.
+                        onBack = { if (settled()) navigator.closeIfTop(key) },
                         onPreviousMonth = viewModel::showPreviousMonth,
                         onNextMonth = viewModel::showNextMonth,
                         onOpenTransaction = { id -> if (settled()) navigator.go(TransactionDetailKey(id)) },
@@ -283,8 +290,10 @@ fun DongBudgetApp(container: AppContainer, capturedToOpen: String? = null, onCap
                     val settled = rememberSettled()
                     TransactionDetailScreen(
                         state = state,
-                        // 같은 곳 내역에서 상세 위에 상세를 쌓을 수 있다. 나가는 동안 ← 를 한 번 더 받아도 맨 위일 때만 닫아서 아래 상세까지 닫지 않게 한다.
-                        onBack = { navigator.closeIfTop(key) },
+                        // 같은 곳 내역에서 상세 위에 상세를 쌓을 수 있다. ← 는 자리 잡은 뒤에만 받는다. 전환 중에는 들어오는 화면도 같은 자리의 탭을 받아서,
+                        // 위 상세의 ← 나 수정 창의 X 를 연달아 누른 두 번째 탭이 막 드러난 이 화면의 ← 에 떨어져 이 상세까지 닫힌다.
+                        // 맨 위일 때만 닫으므로 이 화면이 나가는 동안 받은 ← 도 아래 상세까지 닫지 않는다.
+                        onBack = { if (settled()) navigator.closeIfTop(key) },
                         onEdit = { if (settled()) navigator.go(TransactionEditorKey(key.transactionId)) },
                         onOpenTransaction = { id -> if (settled()) navigator.go(TransactionDetailKey(id)) },
                     )

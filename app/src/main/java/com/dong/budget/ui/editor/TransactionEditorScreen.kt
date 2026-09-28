@@ -113,6 +113,8 @@ private val TYPE_OPTIONS = listOf(TransactionType.EXPENSE to "지출", Transacti
  * 메모를 뺀 칸은 모두 채워야 저장된다. 빈 칸이 있는데 저장을 누르면
  * 위에서부터 첫 빈 칸으로 옮겨 가고, 그 칸 밑에 '분류를 선택해주세요' 같은 안내가 나온다.
  * 안내는 저장을 누른 뒤에만 나온다. 입력하는 도중에 미리 빨갛게 표시하지 않는다.
+ *
+ * @param acceptsTaps '삭제' 를 받아도 되는지. 화면이 올라오는 중에는 false 라서, 아래 화면에서 연달아 누른 탭이 '삭제' 로 새지 않는다.
  */
 @Composable
 fun TransactionEditorScreen(
@@ -136,6 +138,7 @@ fun TransactionEditorScreen(
     effects: Flow<EditorEffect>,
     onDeleteTransaction: () -> Unit,
     modifier: Modifier = Modifier,
+    acceptsTaps: () -> Boolean = { true },
 ) {
     // 새로 등록할 때는 금액부터 받으므로 키패드를 열어둔다.
     // 수정할 때는 값을 먼저 훑어보게 모두 닫아둔다.
@@ -224,7 +227,7 @@ fun TransactionEditorScreen(
                 onNavigationClick = onClose,
                 title = if (state.isEditing) "거래 수정" else "거래 등록",
                 style = NavButtonStyle.CLOSE,
-                actions = { if (state.isEditing) DeleteAction(onClick = { showDeleteConfirm = true }) },
+                actions = { if (state.isEditing) DeleteAction(onClick = { if (acceptsTaps()) showDeleteConfirm = true }) },
             )
 
             Column(
