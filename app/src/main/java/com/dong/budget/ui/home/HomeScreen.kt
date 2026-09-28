@@ -58,6 +58,7 @@ import androidx.compose.ui.text.withStyle
 import com.dong.budget.R
 import com.dong.budget.data.db.TransactionListItem
 import com.dong.budget.data.db.TransactionType
+import com.dong.budget.ui.components.AnimatedNoticeDot
 import com.dong.budget.ui.components.BudgetDivider
 import com.dong.budget.ui.components.BudgetIconButton
 import com.dong.budget.ui.components.CategoryBadge
@@ -318,11 +319,9 @@ private fun InboxButton(hasNew: Boolean, onClick: () -> Unit) {
             contentDescription = if (hasNew) "알림, 새 알림 있음" else "알림",
             onClick = onClick,
         )
-        if (hasNew) {
-            // 종 그림 칸의 오른쪽 위 모서리에 맞춘다
-            val inset = (BudgetTheme.size.minTouchTarget - BudgetTheme.size.icon) / 2
-            NoticeDot(Modifier.align(Alignment.TopEnd).padding(top = inset, end = inset))
-        }
+        // 종 그림 칸의 오른쪽 위 모서리에 맞춘다. 새 알림이 오면 톡 튀어나온다.
+        val inset = (BudgetTheme.size.minTouchTarget - BudgetTheme.size.icon) / 2
+        AnimatedNoticeDot(visible = hasNew, modifier = Modifier.align(Alignment.TopEnd).padding(top = inset, end = inset))
     }
 }
 

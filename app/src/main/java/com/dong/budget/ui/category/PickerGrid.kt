@@ -1,5 +1,6 @@
 package com.dong.budget.ui.category
 
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -20,6 +21,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -35,6 +37,7 @@ import com.dong.budget.data.db.StyledItem
 import com.dong.budget.ui.components.CategoryBadge
 import com.dong.budget.ui.components.IconBadge
 import com.dong.budget.ui.theme.BudgetTheme
+import com.dong.budget.ui.theme.Motion
 import com.dong.budget.ui.theme.pressScaleClickable
 
 private const val COLUMNS = 4
@@ -69,17 +72,25 @@ fun PickerGrid(
                 selected = item.id == selectedId,
                 label = item.name,
                 onClick = { onSelect(item.id) },
+                // 새로 만든 칸이 끼어들면 뒤 칸들이 제자리로 미끄러진다
+                modifier = Modifier.animateItem(),
             ) { CategoryBadge(icon = item.icon, color = item.color, size = BudgetTheme.size.badgeLarge) }
         }
         if (preview != null) {
             item(key = "preview") {
-                PickerTile(selected = preview.selected, label = preview.name, onClick = preview.onSelect, tag = "신규") {
+                PickerTile(
+                    selected = preview.selected,
+                    label = preview.name,
+                    onClick = preview.onSelect,
+                    tag = "신규",
+                    modifier = Modifier.animateItem(),
+                ) {
                     CategoryBadge(icon = preview.icon, color = preview.color, size = BudgetTheme.size.badgeLarge)
                 }
             }
         }
         item(key = "add") {
-            PickerTile(selected = false, label = "추가", onClick = onAdd) {
+            PickerTile(selected = false, label = "추가", onClick = onAdd, modifier = Modifier.animateItem()) {
                 IconBadge(
                     iconRes = R.drawable.ic_sym_add,
                     swatch = BudgetTheme.categoryPalette[CategoryStyle.FALLBACK_COLOR],
@@ -92,14 +103,34 @@ fun PickerGrid(
 
 /** @param tag 아이콘 오른쪽 위에 붙는 꼬리표. 없으면 null */
 @Composable
-private fun PickerTile(selected: Boolean, label: String, onClick: () -> Unit, tag: String? = null, badge: @Composable () -> Unit) {
+private fun PickerTile(
+    selected: Boolean,
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    tag: String? = null,
+    badge: @Composable () -> Unit,
+) {
+    // 고른 칸의 고리와 글자색이 뚝 바뀌지 않고 번지듯 바뀐다
+    val ringColor by animateColorAsState(
+        MaterialTheme.colorScheme.primary.copy(alpha = if (selected) 1f else 0f),
+        Motion.quick(),
+        label = "pickerRing",
+    )
+    val labelColor by animateColorAsState(
+        if (selected) MaterialTheme.colorScheme.primary else BudgetTheme.colors.textPrimary,
+        Motion.quick(),
+        label = "pickerLabel",
+    )
     Column(
         modifier =
-        Modifier
+        modifier
             .fillMaxWidth()
             .pressScaleClickable(
                 shape = RoundedCornerShape(BudgetTheme.radius.control),
                 role = Role.RadioButton,
+                // 칸에 바탕이 없어 아이콘과 글자만 줄어든다. 누르는 동안 바탕을 깐다.
+                pressedTint = true,
                 onClick = onClick,
             ).semantics { this.selected = selected }
             .padding(vertical = BudgetTheme.spacing.tightGap),
@@ -113,7 +144,7 @@ private fun PickerTile(selected: Boolean, label: String, onClick: () -> Unit, ta
                     .size(BudgetTheme.size.badgeLarge + BudgetTheme.spacing.inlineGap)
                     .border(
                         width = BudgetTheme.size.underlineActive,
-                        color = if (selected) MaterialTheme.colorScheme.primary else Color.Transparent,
+                        color = ringColor,
                         shape = CircleShape,
                     ),
                 contentAlignment = Alignment.Center,
@@ -141,7 +172,7 @@ private fun PickerTile(selected: Boolean, label: String, onClick: () -> Unit, ta
             text = label,
             style = MaterialTheme.typography.labelMedium,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-            color = if (selected) MaterialTheme.colorScheme.primary else BudgetTheme.colors.textPrimary,
+            color = labelColor,
             // 칸이 좁아 카드 상품명 같은 긴 이름은 한 줄에 다 안 들어간다. 두 줄까지 보여준다.
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,

@@ -1,5 +1,7 @@
 package com.dong.budget.ui.stats.chart
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -17,6 +19,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -30,6 +33,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import com.dong.budget.ui.theme.BudgetTheme
+import com.dong.budget.ui.theme.Motion
 import com.dong.budget.ui.theme.pressScaleClickable
 
 // ─────────────────────────────────────────────────────────────────────
@@ -141,9 +145,27 @@ fun LegendChip(
     val shape = RoundedCornerShape(BudgetTheme.radius.chip)
     val spacing = BudgetTheme.spacing
     val size = BudgetTheme.size
-    val border = if (selected) MaterialTheme.colorScheme.primary else BudgetTheme.colors.divider
-    val container = if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent
-    val content = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else BudgetTheme.colors.textSecondary
+    // 고르면 채움·테두리·글자가 바로 뒤바뀌지 않고 번지듯 바뀐다(BudgetChip 과 같다)
+    val border by animateColorAsState(
+        if (selected) MaterialTheme.colorScheme.primary else BudgetTheme.colors.divider,
+        Motion.quick(),
+        label = "legendChipBorder",
+    )
+    val container by animateColorAsState(
+        MaterialTheme.colorScheme.primaryContainer.copy(alpha = if (selected) 1f else 0f),
+        Motion.quick(),
+        label = "legendChipContainer",
+    )
+    val content by animateColorAsState(
+        if (selected) MaterialTheme.colorScheme.onPrimaryContainer else BudgetTheme.colors.textSecondary,
+        Motion.quick(),
+        label = "legendChipContent",
+    )
+    val borderWidth by animateDpAsState(
+        if (selected) size.underlineActive else size.underline,
+        Motion.quick(),
+        label = "legendChipBorderWidth",
+    )
 
     Box(
         modifier =
@@ -162,7 +184,7 @@ fun LegendChip(
                 .padding(vertical = spacing.tightGap)
                 .heightIn(min = size.minTouchTarget - spacing.tightGap * 2)
                 .background(container, shape)
-                .border(if (selected) size.underlineActive else size.underline, border, shape)
+                .border(borderWidth, border, shape)
                 .padding(horizontal = spacing.itemGap),
             verticalAlignment = Alignment.CenterVertically,
         ) {

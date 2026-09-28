@@ -1,5 +1,12 @@
 package com.dong.budget.ui.components
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -11,11 +18,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import com.dong.budget.ui.theme.BudgetTheme
+import com.dong.budget.ui.theme.Motion
 
 /** 화면 안 묶음의 작은 제목(예: '화면 테마', '색') */
 @Composable
@@ -50,6 +59,26 @@ fun ErrorText(text: String, modifier: Modifier = Modifier) {
     )
 }
 
+/**
+ * [text] 가 있을 때만 [ErrorText] 를 보여준다. 문구가 생기거나 없어질 때 아래 내용이 한 번에 밀리지 않게 펼치며 나온다.
+ * 사라지는 동안에는 마지막 문구를 그대로 둔다.
+ */
+@Composable
+fun AnimatedErrorText(text: String?, modifier: Modifier = Modifier) {
+    val last = remember { LastText() }
+    if (text != null) last.value = text
+    AnimatedVisibility(
+        visible = text != null,
+        enter = expandVertically(Motion.standard()) + fadeIn(Motion.standard()),
+        exit = shrinkVertically(Motion.standard()) + fadeOut(Motion.quick()),
+    ) {
+        last.value?.let { ErrorText(it, modifier) }
+    }
+}
+
+/** 사라지는 동안 보여줄 마지막 문구. 그리기 중에 적어도 다시 그리게 하지 않는 보관함이다. */
+private class LastText(var value: String? = null)
+
 /** 목록이나 묶음 사이의 가는 구분선 */
 @Composable
 fun BudgetDivider(modifier: Modifier = Modifier) {
@@ -71,4 +100,17 @@ fun Modifier.sectionBlock(): Modifier = this
 @Composable
 fun NoticeDot(modifier: Modifier = Modifier) {
     Box(modifier.size(BudgetTheme.size.noticeDot).background(BudgetTheme.colors.danger, CircleShape))
+}
+
+/** [visible] 에 따라 [NoticeDot] 이 톡 튀어나오고 줄어들며 사라진다 */
+@Composable
+fun AnimatedNoticeDot(visible: Boolean, modifier: Modifier = Modifier) {
+    AnimatedVisibility(
+        visible = visible,
+        modifier = modifier,
+        enter = scaleIn(Motion.standard()) + fadeIn(Motion.quick()),
+        exit = scaleOut(Motion.standard()) + fadeOut(Motion.quick()),
+    ) {
+        NoticeDot()
+    }
 }

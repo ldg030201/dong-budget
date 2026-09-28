@@ -1,6 +1,7 @@
 package com.dong.budget.ui.components
 
 import androidx.annotation.DrawableRes
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.spring
@@ -34,6 +35,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -48,6 +50,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.sp
 import com.dong.budget.ui.theme.BudgetTheme
+import com.dong.budget.ui.theme.Motion
 import com.dong.budget.ui.theme.pressScaleClickable
 
 /**
@@ -138,7 +141,7 @@ private fun SubBarTabs(tabs: List<SubBarTab>, selectedIndex: Int, onSelect: (Int
         val indicatorOffset =
             animateDpAsState(
                 targetValue = cellWidth * selectedIndex,
-                animationSpec = spring(dampingRatio = INDICATOR_DAMPING, stiffness = Spring.StiffnessMediumLow),
+                animationSpec = Motion.indicator(),
                 label = "subBarIndicator",
             )
         // 위치는 그리기 직전(배치 단계)에 읽는다. 움직이는 동안 칸 글자까지 다시 그리지 않게 한다.
@@ -174,7 +177,12 @@ private fun SubBarTabs(tabs: List<SubBarTab>, selectedIndex: Int, onSelect: (Int
 /** 칸 안의 아이콘과 글자. 아이콘은 꾸밈이라 화면 읽기는 글자만 읽는다. */
 @Composable
 private fun TabContent(tab: SubBarTab, selected: Boolean) {
-    val color = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else BudgetTheme.colors.textSecondary
+    // 고른 칸 표시가 미끄러져 오는 동안 글자색도 따라 바뀐다. 바로 바뀌면 표시가 닿기 전에 글자만 먼저 바뀐다.
+    val color by animateColorAsState(
+        if (selected) MaterialTheme.colorScheme.onPrimaryContainer else BudgetTheme.colors.textSecondary,
+        Motion.standard(),
+        label = "subBarTabColor",
+    )
     val style = MaterialTheme.typography.labelSmall
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Icon(
@@ -224,9 +232,6 @@ fun FloatingSubBarScrim(modifier: Modifier = Modifier) {
             .background(Brush.verticalGradient(listOf(background.copy(alpha = 0f), background))),
     )
 }
-
-/** 고른 칸 표시가 미끄러지다 살짝만 튕기고 멈추게 한다 */
-private const val INDICATOR_DAMPING = 0.8f
 
 /** 칸 글자를 줄이는 하한. 이보다 작으면 읽기 어렵다. */
 private val MIN_TAB_LABEL_SIZE = 11.sp

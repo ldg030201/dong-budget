@@ -1,6 +1,8 @@
 package com.dong.budget.ui.components
 
 import androidx.annotation.DrawableRes
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
@@ -15,6 +17,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -24,6 +27,7 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import com.dong.budget.ui.theme.BudgetTheme
+import com.dong.budget.ui.theme.Motion
 import com.dong.budget.ui.theme.pressScaleClickable
 
 private val SelectedBorderWidth = 1.5.dp
@@ -45,12 +49,27 @@ fun BudgetChip(
     @DrawableRes icon: Int? = null,
 ) {
     val shape = RoundedCornerShape(BudgetTheme.radius.chip)
-    val borderColor =
-        if (selected) MaterialTheme.colorScheme.primary else BudgetTheme.colors.divider
-    val containerColor =
-        if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent
-    val contentColor =
-        if (selected) MaterialTheme.colorScheme.onPrimaryContainer else BudgetTheme.colors.textSecondary
+    // 고르면 채움·테두리·글자가 바로 뒤바뀌지 않고 번지듯 바뀐다
+    val borderColor by animateColorAsState(
+        if (selected) MaterialTheme.colorScheme.primary else BudgetTheme.colors.divider,
+        Motion.quick(),
+        label = "chipBorder",
+    )
+    val containerColor by animateColorAsState(
+        MaterialTheme.colorScheme.primaryContainer.copy(alpha = if (selected) 1f else 0f),
+        Motion.quick(),
+        label = "chipContainer",
+    )
+    val contentColor by animateColorAsState(
+        if (selected) MaterialTheme.colorScheme.onPrimaryContainer else BudgetTheme.colors.textSecondary,
+        Motion.quick(),
+        label = "chipContent",
+    )
+    val borderWidth by animateDpAsState(
+        if (selected) SelectedBorderWidth else UnselectedBorderWidth,
+        Motion.quick(),
+        label = "chipBorderWidth",
+    )
 
     Box(
         modifier =
@@ -61,7 +80,7 @@ fun BudgetChip(
             .semantics { this.selected = selected }
             .background(containerColor, shape)
             .border(
-                width = if (selected) SelectedBorderWidth else UnselectedBorderWidth,
+                width = borderWidth,
                 color = borderColor,
                 shape = shape,
             ).padding(horizontal = BudgetTheme.spacing.itemGap, vertical = BudgetTheme.spacing.inlineGap),

@@ -1,5 +1,10 @@
 package com.dong.budget.ui.components
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -32,6 +37,7 @@ import androidx.compose.ui.semantics.error
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import com.dong.budget.ui.theme.BudgetTheme
+import com.dong.budget.ui.theme.Motion
 import com.dong.budget.ui.theme.pressScaleClickable
 
 /**
@@ -60,6 +66,30 @@ fun FormField(
         } else {
             Modifier
         }
+    // 칸을 고르거나 빈 칸 안내가 뜨면 이름표와 밑줄이 바로 뒤바뀌지 않고 번지듯 바뀐다
+    val labelColor by animateColorAsState(
+        when {
+            error != null -> BudgetTheme.colors.danger
+            active -> MaterialTheme.colorScheme.primary
+            else -> BudgetTheme.colors.textSecondary
+        },
+        Motion.quick(),
+        label = "fieldLabel",
+    )
+    val underlineColor by animateColorAsState(
+        when {
+            error != null -> BudgetTheme.colors.danger
+            active -> MaterialTheme.colorScheme.primary
+            else -> BudgetTheme.colors.divider
+        },
+        Motion.quick(),
+        label = "fieldUnderline",
+    )
+    val underlineHeight by animateDpAsState(
+        if (active || error != null) BudgetTheme.size.underlineActive else BudgetTheme.size.underline,
+        Motion.quick(),
+        label = "fieldUnderlineHeight",
+    )
     // 밑줄은 누름 영역 밖에 둔다. 누름 효과가 모서리를 둥글게 잘라내서(clip)
     // 안에 두면 밑줄 양 끝이 깎여 다른 칸보다 짧아 보인다.
     Column(modifier = modifier.fillMaxWidth()) {
@@ -72,16 +102,7 @@ fun FormField(
                 .semantics { if (error != null) error(error) }
                 .padding(top = BudgetTheme.spacing.itemGap, bottom = BudgetTheme.spacing.inlineGap),
         ) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelMedium,
-                color =
-                when {
-                    error != null -> BudgetTheme.colors.danger
-                    active -> MaterialTheme.colorScheme.primary
-                    else -> BudgetTheme.colors.textSecondary
-                },
-            )
+            Text(text = label, style = MaterialTheme.typography.labelMedium, color = labelColor)
             Spacer(Modifier.height(BudgetTheme.spacing.tightGap))
             Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterStart) {
                 content()
@@ -90,17 +111,11 @@ fun FormField(
         Box(
             Modifier
                 .fillMaxWidth()
-                .height(if (active || error != null) BudgetTheme.size.underlineActive else BudgetTheme.size.underline)
-                .background(
-                    when {
-                        error != null -> BudgetTheme.colors.danger
-                        active -> MaterialTheme.colorScheme.primary
-                        else -> BudgetTheme.colors.divider
-                    },
-                ),
+                .height(underlineHeight)
+                .background(underlineColor),
         )
         // 문구는 칸 안의 오류 표시(error)로 이미 읽힌다. 새로 나타날 때 한 번 알려주기만 한다.
-        if (error != null) ErrorText(error, Modifier.padding(top = BudgetTheme.spacing.tightGap))
+        AnimatedErrorText(error, Modifier.padding(top = BudgetTheme.spacing.tightGap))
     }
 }
 
@@ -139,7 +154,10 @@ fun FormTextField(
 ) {
     var focused by remember { mutableStateOf(false) }
     FormField(label = label, active = focused, modifier = modifier, error = error) {
-        if (value.isEmpty()) FormPlaceholder(placeholder)
+        // 첫 글자를 치면 안내가 스르르 빠진다
+        AnimatedVisibility(visible = value.isEmpty(), enter = fadeIn(Motion.quick()), exit = fadeOut(Motion.quick())) {
+            FormPlaceholder(placeholder)
+        }
         BasicTextField(
             value = value,
             onValueChange = { onValueChange(it.take(maxLength)) },
