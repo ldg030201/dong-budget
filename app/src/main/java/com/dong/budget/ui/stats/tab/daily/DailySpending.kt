@@ -1,5 +1,10 @@
 package com.dong.budget.ui.stats.tab.daily
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
@@ -30,6 +35,7 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import com.dong.budget.data.db.TransactionListItem
 import com.dong.budget.ui.components.BudgetDivider
 import com.dong.budget.ui.components.BudgetIconButton
 import com.dong.budget.ui.components.BudgetTextButton
@@ -56,6 +62,7 @@ import com.dong.budget.ui.stats.chart.rememberEntityColors
 import com.dong.budget.ui.stats.netExpenseColor
 import com.dong.budget.ui.stats.rememberScopedSaveable
 import com.dong.budget.ui.theme.BudgetTheme
+import com.dong.budget.ui.theme.Motion
 import java.time.LocalDate
 import java.time.YearMonth
 
@@ -264,20 +271,36 @@ private fun DetailRow(color: Color, name: String, amount: Long) {
 private fun DayTransactions(day: DayStack, onOpenTransaction: (Long) -> Unit) {
     if (day.items.isEmpty()) return
     var expanded by rememberScopedSaveable<Boolean>(day.date)
-    val shown = if (expanded == true) day.items else day.items.take(PREVIEW_ITEMS)
-    val hidden = day.items.size - shown.size
+    val preview = day.items.take(PREVIEW_ITEMS)
+    val rest = day.items.drop(PREVIEW_ITEMS)
+    val row: @Composable (TransactionListItem) -> Unit = { item ->
+        key(item.id) { TransactionRow(item = item, onClick = { onOpenTransaction(item.id) }, colorExpense = true) }
+    }
     Column(modifier = Modifier.fillMaxWidth().padding(top = BudgetTheme.spacing.itemGap)) {
         BudgetDivider(Modifier.padding(horizontal = BudgetTheme.spacing.screenHorizontal))
-        shown.forEach { item ->
-            key(item.id) { TransactionRow(item = item, onClick = { onOpenTransaction(item.id) }, colorExpense = true) }
-        }
-        if (hidden > 0) {
-            BudgetTextButton(
-                text = moreItemsText(hidden),
-                onClick = { expanded = true },
-                // 버튼 안쪽 여백만큼 당겨서 글자가 거래 줄의 뱃지와 줄을 맞춘다
-                modifier = Modifier.padding(horizontal = BudgetTheme.spacing.screenHorizontal - BudgetTheme.spacing.tightGap),
-            )
+        preview.forEach { row(it) }
+        // 다른 날로 옮기면 접힌 채 새로 시작한다. 날마다 따로 두어야 접히는 움직임이 날을 옮길 때마다 보이지 않는다.
+        key(day.date) {
+            // '더 보기' 를 누르면 나머지 거래가 펼쳐지며 나오고 버튼은 접히며 빠진다
+            AnimatedVisibility(
+                visible = expanded == true,
+                enter = expandVertically(Motion.standard()) + fadeIn(Motion.standard()),
+                exit = shrinkVertically(Motion.standard()) + fadeOut(Motion.quick()),
+            ) {
+                Column { rest.forEach { row(it) } }
+            }
+            AnimatedVisibility(
+                visible = expanded != true && rest.isNotEmpty(),
+                enter = expandVertically(Motion.standard()) + fadeIn(Motion.standard()),
+                exit = shrinkVertically(Motion.standard()) + fadeOut(Motion.quick()),
+            ) {
+                BudgetTextButton(
+                    text = moreItemsText(rest.size),
+                    onClick = { expanded = true },
+                    // 버튼 안쪽 여백만큼 당겨서 글자가 거래 줄의 뱃지와 줄을 맞춘다
+                    modifier = Modifier.padding(horizontal = BudgetTheme.spacing.screenHorizontal - BudgetTheme.spacing.tightGap),
+                )
+            }
         }
     }
 }

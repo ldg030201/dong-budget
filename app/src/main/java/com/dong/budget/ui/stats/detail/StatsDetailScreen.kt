@@ -28,6 +28,8 @@ import com.dong.budget.ui.components.DayHeader
 import com.dong.budget.ui.components.HintText
 import com.dong.budget.ui.components.MonthStepper
 import com.dong.budget.ui.components.TransactionRow
+import com.dong.budget.ui.components.animatedItem
+import com.dong.budget.ui.components.animatedItems
 import com.dong.budget.ui.format.formatDirected
 import com.dong.budget.ui.format.formatNetExpense
 import com.dong.budget.ui.format.monthLabel
@@ -93,11 +95,11 @@ private fun DetailContent(state: StatsDetailUiState, onOpenTransaction: (Long) -
         contentPadding = PaddingValues(top = BudgetTheme.spacing.inlineGap, bottom = BudgetTheme.spacing.sectionGap),
     ) {
         // 섹션 key 를 고정해 두어 달을 넘겨 섹션이 숨었다 나타나도 스크롤 기준이 흔들리지 않는다
-        item(key = HEADER_KEY) { DetailHeader(state = state, monthLabel = label) }
-        item(key = TREND_KEY) { DetailTrend(trend = state.trend, highlight = highlightColor(state)) }
+        animatedItem(key = HEADER_KEY) { DetailHeader(state = state, monthLabel = label) }
+        animatedItem(key = TREND_KEY) { DetailTrend(trend = state.trend, highlight = highlightColor(state)) }
 
         if (cross != null && crossDimension != null && crossTitle != null && cross.entries.isNotEmpty()) {
-            item(key = CROSS_KEY) {
+            animatedItem(key = CROSS_KEY) {
                 Column(modifier = Modifier.padding(top = BudgetTheme.spacing.sectionGap)) {
                     // 줄은 스스로 좌우 여백을 가진다(누를 수 있는 탭의 줄과 같은 부품)
                     SectionTitle(text = crossTitle, modifier = Modifier.padding(horizontal = BudgetTheme.spacing.screenHorizontal))
@@ -107,12 +109,12 @@ private fun DetailContent(state: StatsDetailUiState, onOpenTransaction: (Long) -
         }
 
         if (state.merchants.isNotEmpty()) {
-            item(key = MERCHANTS_KEY) {
+            animatedItem(key = MERCHANTS_KEY) {
                 MerchantsSection(merchants = state.merchants)
             }
         }
 
-        item(key = TRANSACTIONS_KEY) {
+        animatedItem(key = TRANSACTIONS_KEY) {
             StatsSection(
                 modifier = Modifier.padding(top = BudgetTheme.spacing.sectionGap),
                 title = transactionsTitle(state.count).takeIf { state.days.isNotEmpty() },
@@ -121,8 +123,8 @@ private fun DetailContent(state: StatsDetailUiState, onOpenTransaction: (Long) -
             }
         }
         state.days.forEach { group ->
-            item(key = "day-${group.date}") { DayHeader(date = group.date, today = state.today) }
-            items(items = group.items, key = { "tx-${it.id}" }) { item ->
+            animatedItem(key = "day-${group.date}") { DayHeader(date = group.date, today = state.today) }
+            animatedItems(items = group.items, key = { "tx-${it.id}" }) { item ->
                 TransactionRow(item = item, onClick = { onOpenTransaction(item.id) }, colorExpense = true)
             }
         }

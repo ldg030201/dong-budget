@@ -20,6 +20,7 @@ import com.dong.budget.navigation.StatsDetailKey
 import com.dong.budget.navigation.StatsDimension
 import com.dong.budget.ui.components.HintText
 import com.dong.budget.ui.components.SegmentedToggle
+import com.dong.budget.ui.components.animatedItem
 import com.dong.budget.ui.format.formatDirected
 import com.dong.budget.ui.format.formatNetExpense
 import com.dong.budget.ui.format.monthLabel
@@ -93,7 +94,7 @@ fun BreakdownTab(
 
     LazyColumn(modifier = modifier.fillMaxSize(), contentPadding = contentPadding) {
         // 섹션 key 를 고정해 두어 달을 넘겨 섹션이 숨었다 나타나도 스크롤 기준이 흔들리지 않는다
-        item(key = HEADER_KEY) {
+        animatedItem(key = HEADER_KEY) {
             Column(
                 modifier = Modifier.padding(top = BudgetTheme.spacing.inlineGap),
                 verticalArrangement = Arrangement.spacedBy(BudgetTheme.spacing.sectionPadding),
@@ -111,13 +112,13 @@ fun BreakdownTab(
         }
 
         if (breakdown.entries.isEmpty()) {
-            item(key = EMPTY_KEY) {
+            animatedItem(key = EMPTY_KEY) {
                 // 이 달 전체가 빈 달이면 설명이 '홈에서 남기면…' / '미리 적어 두면…' 으로 갈린다
                 StatsEmpty(title = nothingText(label, dimension), body = emptyMonthText(state.month, state.today).description)
             }
         } else {
-            item(key = CHART_KEY) { BreakdownChart(breakdown = breakdown, dimension = dimension, monthLabel = label) }
-            item(key = ENTRIES_KEY) {
+            animatedItem(key = CHART_KEY) { BreakdownChart(breakdown = breakdown, dimension = dimension, monthLabel = label) }
+            animatedItem(key = ENTRIES_KEY) {
                 Column(modifier = Modifier.padding(top = BudgetTheme.spacing.itemGap)) {
                     breakdown.entries.forEach { entry ->
                         BreakdownRow(entry = entry, dimension = dimension, onClick = { openEntry(entry) })
@@ -125,7 +126,7 @@ fun BreakdownTab(
                 }
             }
             if (dimension == StatsDimension.EXPENSE_CATEGORY && state.merchants.isNotEmpty()) {
-                item(key = MERCHANTS_KEY) {
+                animatedItem(key = MERCHANTS_KEY) {
                     MerchantsSection(merchants = state.merchants)
                 }
             }
