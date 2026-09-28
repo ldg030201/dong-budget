@@ -13,8 +13,10 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -60,6 +62,7 @@ import com.dong.budget.navigation.StatsDetailKey
 import com.dong.budget.navigation.TransactionEditorKey
 import com.dong.budget.ui.category.CategoryManageScreen
 import com.dong.budget.ui.category.CategoryManageViewModel
+import com.dong.budget.ui.devmode.DevModeBadge
 import com.dong.budget.ui.devmode.DeveloperScreen
 import com.dong.budget.ui.devmode.copyLog
 import com.dong.budget.ui.editor.ALREADY_REGISTERED_MESSAGE
@@ -121,209 +124,214 @@ fun DongBudgetApp(container: AppContainer, capturedToOpen: String? = null, onCap
         onStopOrDispose {}
     }
 
-    NavDisplay(
-        backStack = backStack,
-        // 가로 화면에서 옆에 붙는 시스템 버튼 줄이나 카메라 구멍 밑으로 상단 바 버튼과 금액이 들어가지 않게 한다.
-        // 바탕은 바깥(MainActivity)이 화면 끝까지 칠한다.
-        modifier = Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)),
-        onBack = navigator::goBack,
-        // 따로 정하지 않은 화면(설정·분류 관리·알림 등)의 이동. 라이브러리 기본값은 0.7초 동안 두 화면이 함께 흐려져 느리고 겹쳐 보인다.
-        transitionSpec = { pushTransform() },
-        popTransitionSpec = { popTransform() },
-        // 뒤로 가기 몸짓을 하는 동안에도 손가락을 따라 뒤로 갈 때와 같은 모양으로 움직인다
-        predictivePopTransitionSpec = { _ -> popTransform() },
-        entryDecorators =
-        listOf(
-            // 탭 스크롤 위치 같은 화면 상태를 엔트리별로 보관한다
-            rememberSaveableStateHolderNavEntryDecorator(),
-            // ViewModel 을 엔트리 수명에 묶는다
-            rememberViewModelStoreNavEntryDecorator(),
-        ),
-        entryProvider =
-        entryProvider {
-            entry<ShellKey> {
-                val viewModel: HomeViewModel =
-                    viewModel(factory = homeViewModelFactory(container))
-                val state by viewModel.uiState.collectAsStateWithLifecycle()
+    Box(modifier = Modifier.fillMaxSize()) {
+        NavDisplay(
+            backStack = backStack,
+            // 가로 화면에서 옆에 붙는 시스템 버튼 줄이나 카메라 구멍 밑으로 상단 바 버튼과 금액이 들어가지 않게 한다.
+            // 바탕은 바깥(MainActivity)이 화면 끝까지 칠한다.
+            modifier = Modifier.windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)),
+            onBack = navigator::goBack,
+            // 따로 정하지 않은 화면(설정·분류 관리·알림 등)의 이동. 라이브러리 기본값은 0.7초 동안 두 화면이 함께 흐려져 느리고 겹쳐 보인다.
+            transitionSpec = { pushTransform() },
+            popTransitionSpec = { popTransform() },
+            // 뒤로 가기 몸짓을 하는 동안에도 손가락을 따라 뒤로 갈 때와 같은 모양으로 움직인다
+            predictivePopTransitionSpec = { _ -> popTransform() },
+            entryDecorators =
+            listOf(
+                // 탭 스크롤 위치 같은 화면 상태를 엔트리별로 보관한다
+                rememberSaveableStateHolderNavEntryDecorator(),
+                // ViewModel 을 엔트리 수명에 묶는다
+                rememberViewModelStoreNavEntryDecorator(),
+            ),
+            entryProvider =
+            entryProvider {
+                entry<ShellKey> {
+                    val viewModel: HomeViewModel =
+                        viewModel(factory = homeViewModelFactory(container))
+                    val state by viewModel.uiState.collectAsStateWithLifecycle()
 
-                val updateVersion by container.updateChecker.bannerVersion.collectAsStateWithLifecycle(initialValue = null)
-                val hasNewNotice by viewModel.hasNewNotice.collectAsStateWithLifecycle()
-                val devModeOn by DevLog.enabled.collectAsStateWithLifecycle()
-                HomeShell(
-                    state = state,
-                    updateVersion = updateVersion,
-                    hasNewNotice = hasNewNotice,
-                    onOpenUpdate = { navigator.go(SettingsKey) },
-                    onDismissUpdate = container.updateChecker::dismissBanner,
-                    onPreviousMonth = viewModel::showPreviousMonth,
-                    onNextMonth = viewModel::showNextMonth,
-                    onAddTransaction = { navigator.go(TransactionEditorKey()) },
-                    onEditTransaction = { id -> navigator.go(TransactionEditorKey(id)) },
-                    onOpenInbox = { navigator.go(InboxKey) },
-                    onOpenCategories = { navigator.go(CategoryManageKey) },
-                    onOpenStatistics = { navigator.go(StatisticsKey) },
-                    onOpenSettings = { navigator.go(SettingsKey) },
-                    onOpenPatchNotes = { navigator.go(PatchNotesKey) },
-                    devModeOn = devModeOn,
-                    onOpenDeveloper = { navigator.go(DeveloperKey) },
-                )
-            }
-
-            entry<TransactionEditorKey>(metadata = modalTransitions()) { key ->
-                val viewModel: TransactionEditorViewModel =
-                    viewModel(factory = editorViewModelFactory(container, key.transactionId, key.prefill))
-                val state by viewModel.uiState.collectAsStateWithLifecycle()
-
-                // 저장이 끝나면 화면을 닫는다
-                LaunchedEffect(state.saved) {
-                    if (state.saved) navigator.closeIfTop(key)
+                    val updateVersion by container.updateChecker.bannerVersion.collectAsStateWithLifecycle(initialValue = null)
+                    val hasNewNotice by viewModel.hasNewNotice.collectAsStateWithLifecycle()
+                    val devModeOn by DevLog.enabled.collectAsStateWithLifecycle()
+                    HomeShell(
+                        state = state,
+                        updateVersion = updateVersion,
+                        hasNewNotice = hasNewNotice,
+                        onOpenUpdate = { navigator.go(SettingsKey) },
+                        onDismissUpdate = container.updateChecker::dismissBanner,
+                        onPreviousMonth = viewModel::showPreviousMonth,
+                        onNextMonth = viewModel::showNextMonth,
+                        onAddTransaction = { navigator.go(TransactionEditorKey()) },
+                        onEditTransaction = { id -> navigator.go(TransactionEditorKey(id)) },
+                        onOpenInbox = { navigator.go(InboxKey) },
+                        onOpenCategories = { navigator.go(CategoryManageKey) },
+                        onOpenStatistics = { navigator.go(StatisticsKey) },
+                        onOpenSettings = { navigator.go(SettingsKey) },
+                        onOpenPatchNotes = { navigator.go(PatchNotesKey) },
+                        devModeOn = devModeOn,
+                        onOpenDeveloper = { navigator.go(DeveloperKey) },
+                    )
                 }
 
-                TransactionEditorScreen(
-                    state = state,
-                    onClose = navigator::goBack,
-                    onSelectType = viewModel::selectType,
-                    onDigit = viewModel::appendDigit,
-                    onDeleteDigit = viewModel::deleteDigit,
-                    onClearAmount = viewModel::clearAmount,
-                    onSelectCategory = viewModel::selectCategory,
-                    onSelectPaymentMethod = viewModel::selectPaymentMethod,
-                    onSelectPendingPayment = viewModel::selectPendingPaymentMethod,
-                    onOpenAdd = viewModel::openAdd,
-                    onDismissAdd = viewModel::dismissAdd,
-                    onSubmitAdd = viewModel::submitAdd,
-                    onMerchantChange = viewModel::updateMerchant,
-                    onMemoChange = viewModel::updateMemo,
-                    onDateChange = viewModel::updateDate,
-                    onTimeChange = viewModel::updateTime,
-                    onSave = viewModel::save,
-                    effects = viewModel.effects,
-                    onDeleteTransaction = viewModel::delete,
-                )
-            }
+                entry<TransactionEditorKey>(metadata = modalTransitions()) { key ->
+                    val viewModel: TransactionEditorViewModel =
+                        viewModel(factory = editorViewModelFactory(container, key.transactionId, key.prefill))
+                    val state by viewModel.uiState.collectAsStateWithLifecycle()
 
-            entry<CategoryManageKey> {
-                val viewModel: CategoryManageViewModel =
-                    viewModel(factory = categoryManageViewModelFactory(container))
-                val state by viewModel.uiState.collectAsStateWithLifecycle()
-                CategoryManageScreen(
-                    state = state,
-                    onTabChange = viewModel::selectTab,
-                    onOpenAdd = viewModel::openAdd,
-                    onDismissAdd = viewModel::dismissAdd,
-                    onSubmitAdd = viewModel::add,
-                    onRequestDelete = viewModel::requestDelete,
-                    onCancelDelete = viewModel::cancelDelete,
-                    onConfirmDelete = viewModel::confirmDelete,
-                    onReorder = viewModel::reorder,
-                    onBack = navigator::goBack,
-                )
-            }
+                    // 저장이 끝나면 화면을 닫는다
+                    LaunchedEffect(state.saved) {
+                        if (state.saved) navigator.closeIfTop(key)
+                    }
 
-            entry<StatisticsKey>(metadata = statsTransitions()) {
-                val viewModel: StatsViewModel = viewModel(factory = statsViewModelFactory(container))
-                val state by viewModel.uiState.collectAsStateWithLifecycle()
-                // 하위 탭은 여기서 들고 있다. 회전하거나 상세에 다녀와도 그대로고, 통계를 나갔다 오면 월별부터 다시 시작한다.
-                var tab by rememberSaveable { mutableStateOf(StatsTab.MONTHLY) }
-                // 들어오는 전환 동안 홈의 '통계' 를 연달아 누르면 두 번째 탭이 같은 높이의 떠 있는 메뉴('일별' 자리)에 떨어진다.
-                // 알림 화면처럼 자리 잡은 뒤(RESUMED)에만 탭 선택과 줄 누름을 받는다. 나가는 중이나 등록창이 올라오는 중에 누른 것도 무시한다.
-                val settled = rememberSettled()
-                StatsScreen(
-                    state = state,
-                    selectedTab = tab,
-                    onSelectTab = { selected -> if (settled()) tab = selected },
-                    onPreviousMonth = viewModel::showPreviousMonth,
-                    onNextMonth = viewModel::showNextMonth,
-                    onThisMonth = viewModel::showThisMonth,
-                    onShowMonth = { month -> if (settled()) viewModel.showMonth(month) },
-                    onOpenDetail = { key -> if (settled()) navigator.go(key) },
-                    onOpenTransaction = { id -> if (settled()) navigator.go(TransactionEditorKey(id)) },
-                    onBack = navigator::goBack,
-                )
-            }
+                    TransactionEditorScreen(
+                        state = state,
+                        onClose = navigator::goBack,
+                        onSelectType = viewModel::selectType,
+                        onDigit = viewModel::appendDigit,
+                        onDeleteDigit = viewModel::deleteDigit,
+                        onClearAmount = viewModel::clearAmount,
+                        onSelectCategory = viewModel::selectCategory,
+                        onSelectPaymentMethod = viewModel::selectPaymentMethod,
+                        onSelectPendingPayment = viewModel::selectPendingPaymentMethod,
+                        onOpenAdd = viewModel::openAdd,
+                        onDismissAdd = viewModel::dismissAdd,
+                        onSubmitAdd = viewModel::submitAdd,
+                        onMerchantChange = viewModel::updateMerchant,
+                        onMemoChange = viewModel::updateMemo,
+                        onDateChange = viewModel::updateDate,
+                        onTimeChange = viewModel::updateTime,
+                        onSave = viewModel::save,
+                        effects = viewModel.effects,
+                        onDeleteTransaction = viewModel::delete,
+                    )
+                }
 
-            // 상세는 보통 서브플로우 전환이다. 떠 있는 메뉴는 통계 본 화면 것이라 여기에는 없다.
-            entry<StatsDetailKey> { key ->
-                val viewModel: StatsDetailViewModel = viewModel(factory = statsDetailViewModelFactory(container, key))
-                val state by viewModel.uiState.collectAsStateWithLifecycle()
-                // 통계 화면과 같은 이유로 자리 잡은 뒤(RESUMED)에만 거래 줄 누름을 받는다.
-                // 들어오는 중에 같은 자리를 한 번 더 누르거나, 나가는 중에 누른 줄로 등록창이 열리지 않게 한다.
-                val settled = rememberSettled()
-                StatsDetailScreen(
-                    state = state,
-                    // 나가는 동안(약 0.7초) 이 화면이 위에 남아 ← 를 한 번 더 받는다. 맨 위일 때만 닫아서 통계까지 닫지 않게 한다.
-                    onBack = { navigator.closeIfTop(key) },
-                    onPreviousMonth = viewModel::showPreviousMonth,
-                    onNextMonth = viewModel::showNextMonth,
-                    onOpenTransaction = { id -> if (settled()) navigator.go(TransactionEditorKey(id)) },
-                )
-            }
+                entry<CategoryManageKey> {
+                    val viewModel: CategoryManageViewModel =
+                        viewModel(factory = categoryManageViewModelFactory(container))
+                    val state by viewModel.uiState.collectAsStateWithLifecycle()
+                    CategoryManageScreen(
+                        state = state,
+                        onTabChange = viewModel::selectTab,
+                        onOpenAdd = viewModel::openAdd,
+                        onDismissAdd = viewModel::dismissAdd,
+                        onSubmitAdd = viewModel::add,
+                        onRequestDelete = viewModel::requestDelete,
+                        onCancelDelete = viewModel::cancelDelete,
+                        onConfirmDelete = viewModel::confirmDelete,
+                        onReorder = viewModel::reorder,
+                        onBack = navigator::goBack,
+                    )
+                }
 
-            entry<SettingsKey> {
-                val viewModel: SettingsViewModel =
-                    viewModel(factory = settingsViewModelFactory(container))
-                val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
-                val updateState by viewModel.updateState.collectAsStateWithLifecycle()
-                val downloadedVersion by viewModel.downloadedVersion.collectAsStateWithLifecycle()
+                entry<StatisticsKey>(metadata = statsTransitions()) {
+                    val viewModel: StatsViewModel = viewModel(factory = statsViewModelFactory(container))
+                    val state by viewModel.uiState.collectAsStateWithLifecycle()
+                    // 하위 탭은 여기서 들고 있다. 회전하거나 상세에 다녀와도 그대로고, 통계를 나갔다 오면 월별부터 다시 시작한다.
+                    var tab by rememberSaveable { mutableStateOf(StatsTab.MONTHLY) }
+                    // 들어오는 전환 동안 홈의 '통계' 를 연달아 누르면 두 번째 탭이 같은 높이의 떠 있는 메뉴('일별' 자리)에 떨어진다.
+                    // 알림 화면처럼 자리 잡은 뒤(RESUMED)에만 탭 선택과 줄 누름을 받는다. 나가는 중이나 등록창이 올라오는 중에 누른 것도 무시한다.
+                    val settled = rememberSettled()
+                    StatsScreen(
+                        state = state,
+                        selectedTab = tab,
+                        onSelectTab = { selected -> if (settled()) tab = selected },
+                        onPreviousMonth = viewModel::showPreviousMonth,
+                        onNextMonth = viewModel::showNextMonth,
+                        onThisMonth = viewModel::showThisMonth,
+                        onShowMonth = { month -> if (settled()) viewModel.showMonth(month) },
+                        onOpenDetail = { key -> if (settled()) navigator.go(key) },
+                        onOpenTransaction = { id -> if (settled()) navigator.go(TransactionEditorKey(id)) },
+                        onBack = navigator::goBack,
+                    )
+                }
 
-                SettingsScreen(
-                    themeMode = themeMode,
-                    currentVersion = viewModel.currentVersion,
-                    updateState = updateState,
-                    onThemeModeChange = viewModel::selectThemeMode,
-                    onCheckUpdate = viewModel::checkForUpdate,
-                    onDownloadUpdate = viewModel::downloadAndInstall,
-                    downloadedVersion = downloadedVersion,
-                    onInstallDownloaded = viewModel::installDownloadedManually,
-                    releasePageUrl = viewModel.releasePageUrl,
-                    onBack = navigator::goBack,
-                )
-            }
+                // 상세는 보통 서브플로우 전환이다. 떠 있는 메뉴는 통계 본 화면 것이라 여기에는 없다.
+                entry<StatsDetailKey> { key ->
+                    val viewModel: StatsDetailViewModel = viewModel(factory = statsDetailViewModelFactory(container, key))
+                    val state by viewModel.uiState.collectAsStateWithLifecycle()
+                    // 통계 화면과 같은 이유로 자리 잡은 뒤(RESUMED)에만 거래 줄 누름을 받는다.
+                    // 들어오는 중에 같은 자리를 한 번 더 누르거나, 나가는 중에 누른 줄로 등록창이 열리지 않게 한다.
+                    val settled = rememberSettled()
+                    StatsDetailScreen(
+                        state = state,
+                        // 나가는 동안(약 0.7초) 이 화면이 위에 남아 ← 를 한 번 더 받는다. 맨 위일 때만 닫아서 통계까지 닫지 않게 한다.
+                        onBack = { navigator.closeIfTop(key) },
+                        onPreviousMonth = viewModel::showPreviousMonth,
+                        onNextMonth = viewModel::showNextMonth,
+                        onOpenTransaction = { id -> if (settled()) navigator.go(TransactionEditorKey(id)) },
+                    )
+                }
 
-            entry<InboxKey> {
-                val viewModel: InboxViewModel = viewModel(factory = inboxViewModelFactory(container))
-                val items by viewModel.items.collectAsStateWithLifecycle()
-                val today by viewModel.today.collectAsStateWithLifecycle()
-                // 전환 애니메이션(약 0.7초) 동안에는 거의 투명한 이 화면이 맨 위에서 터치를 받는다. 홈의 종을 연달아 누르면
-                // 두 번째 탭이 같은 자리의 '모두 읽음' 에 떨어져 알림창의 묻는 알림까지 치우므로, 자리 잡은 뒤(RESUMED)에만 받는다.
-                // 뒤로 나가는 중이나 등록창이 올라오는 중에 누른 줄도 같은 이유로 무시한다.
-                val settled = rememberSettled()
-                InboxScreen(
-                    items = items,
-                    today = today,
-                    onBack = navigator::goBack,
-                    onOpen = { dedupKey ->
-                        if (settled()) scope.launch { openCaptured(dedupKey, container.paymentCapture, navigator, context) }
-                    },
-                    onMarkAllRead = { dedupKeys -> if (settled()) viewModel.markAllRead(dedupKeys) },
-                )
-            }
+                entry<SettingsKey> {
+                    val viewModel: SettingsViewModel =
+                        viewModel(factory = settingsViewModelFactory(container))
+                    val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
+                    val updateState by viewModel.updateState.collectAsStateWithLifecycle()
+                    val downloadedVersion by viewModel.downloadedVersion.collectAsStateWithLifecycle()
 
-            entry<PatchNotesKey> {
-                val viewModel: PatchNotesViewModel = viewModel(factory = patchNotesViewModelFactory(container))
-                val newer by viewModel.newer.collectAsStateWithLifecycle()
-                PatchNotesScreen(
-                    currentVersion = BuildConfig.VERSION_NAME,
-                    onBack = navigator::goBack,
-                    newer = newer,
-                    onOpenUpdate = { navigator.go(SettingsKey) },
-                )
-            }
+                    SettingsScreen(
+                        themeMode = themeMode,
+                        currentVersion = viewModel.currentVersion,
+                        updateState = updateState,
+                        onThemeModeChange = viewModel::selectThemeMode,
+                        onCheckUpdate = viewModel::checkForUpdate,
+                        onDownloadUpdate = viewModel::downloadAndInstall,
+                        downloadedVersion = downloadedVersion,
+                        onInstallDownloaded = viewModel::installDownloadedManually,
+                        releasePageUrl = viewModel.releasePageUrl,
+                        onBack = navigator::goBack,
+                    )
+                }
 
-            entry<DeveloperKey> {
-                val enabled by DevLog.enabled.collectAsStateWithLifecycle()
-                val entries by DevLog.entries.collectAsStateWithLifecycle()
-                DeveloperScreen(
-                    enabled = enabled,
-                    entries = entries,
-                    onEnabledChange = DevLog::setEnabled,
-                    onCopy = { copyLog(context, DevLog.export()) },
-                    onClear = DevLog::clear,
-                    onBack = navigator::goBack,
-                )
-            }
-        },
-    )
+                entry<InboxKey> {
+                    val viewModel: InboxViewModel = viewModel(factory = inboxViewModelFactory(container))
+                    val items by viewModel.items.collectAsStateWithLifecycle()
+                    val today by viewModel.today.collectAsStateWithLifecycle()
+                    // 전환 애니메이션(약 0.7초) 동안에는 거의 투명한 이 화면이 맨 위에서 터치를 받는다. 홈의 종을 연달아 누르면
+                    // 두 번째 탭이 같은 자리의 '모두 읽음' 에 떨어져 알림창의 묻는 알림까지 치우므로, 자리 잡은 뒤(RESUMED)에만 받는다.
+                    // 뒤로 나가는 중이나 등록창이 올라오는 중에 누른 줄도 같은 이유로 무시한다.
+                    val settled = rememberSettled()
+                    InboxScreen(
+                        items = items,
+                        today = today,
+                        onBack = navigator::goBack,
+                        onOpen = { dedupKey ->
+                            if (settled()) scope.launch { openCaptured(dedupKey, container.paymentCapture, navigator, context) }
+                        },
+                        onMarkAllRead = { dedupKeys -> if (settled()) viewModel.markAllRead(dedupKeys) },
+                    )
+                }
+
+                entry<PatchNotesKey> {
+                    val viewModel: PatchNotesViewModel = viewModel(factory = patchNotesViewModelFactory(container))
+                    val newer by viewModel.newer.collectAsStateWithLifecycle()
+                    PatchNotesScreen(
+                        currentVersion = BuildConfig.VERSION_NAME,
+                        onBack = navigator::goBack,
+                        newer = newer,
+                        onOpenUpdate = { navigator.go(SettingsKey) },
+                    )
+                }
+
+                entry<DeveloperKey> {
+                    val enabled by DevLog.enabled.collectAsStateWithLifecycle()
+                    val entries by DevLog.entries.collectAsStateWithLifecycle()
+                    DeveloperScreen(
+                        enabled = enabled,
+                        entries = entries,
+                        onEnabledChange = DevLog::setEnabled,
+                        onCopy = { copyLog(context, DevLog.export()) },
+                        onClear = DevLog::clear,
+                        onBack = navigator::goBack,
+                    )
+                }
+            },
+        )
+        // 개발자 모드가 켜져 있으면 어느 화면에서든 벌레 표시를 띄워 둔다(누르면 개발자 모드 화면)
+        val devModeOn by DevLog.enabled.collectAsStateWithLifecycle()
+        DevModeBadge(visible = devModeOn, onClick = { navigator.go(DeveloperKey) })
+    }
 }
 
 /** 새 화면이 오른쪽에서 밀려 들어오고, 뒤 화면은 왼쪽으로 조금 비켜난다 */
