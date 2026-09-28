@@ -33,6 +33,24 @@ data class TransactionListItem(
     val categorySortOrder: Int? = null,
 )
 
+/** [TransactionListItem] 을 읽는 SELECT. 뒤에 WHERE·ORDER BY 를 붙여 쓴다. 목록·상세가 같은 값을 읽게 한 곳에 둔다. */
+private const val LIST_ITEM_SELECT =
+    """
+        SELECT t.id, t.type, t.amount, t.occurredAt, t.occurredDate,
+               t.merchant, t.memo,
+               c.name AS categoryName,
+               c.icon AS categoryIcon,
+               c.color AS categoryColor,
+               p.name AS paymentMethodName,
+               t.categoryId, t.paymentMethodId,
+               p.icon AS paymentMethodIcon,
+               p.color AS paymentMethodColor,
+               c.sortOrder AS categorySortOrder
+        FROM transactions t
+        LEFT JOIN categories c ON c.id = t.categoryId
+        LEFT JOIN payment_methods p ON p.id = t.paymentMethodId
+    """
+
 /** 결제수단 목록에 거래 건수를 붙인 것 */
 data class PaymentMethodWithCount(@Embedded val paymentMethod: PaymentMethodEntity, val transactionCount: Int)
 
@@ -49,25 +67,30 @@ interface TransactionDao {
      * 인덱스가 범위 스캔에 쓰이지 못한다.
      */
     @Query(
-        """
-        SELECT t.id, t.type, t.amount, t.occurredAt, t.occurredDate,
-               t.merchant, t.memo,
-               c.name AS categoryName,
-               c.icon AS categoryIcon,
-               c.color AS categoryColor,
-               p.name AS paymentMethodName,
-               t.categoryId, t.paymentMethodId,
-               p.icon AS paymentMethodIcon,
-               p.color AS paymentMethodColor,
-               c.sortOrder AS categorySortOrder
-        FROM transactions t
-        LEFT JOIN categories c ON c.id = t.categoryId
-        LEFT JOIN payment_methods p ON p.id = t.paymentMethodId
+        LIST_ITEM_SELECT +
+            """
         WHERE t.occurredAt >= :start AND t.occurredAt < :end
         ORDER BY t.occurredAt DESC, t.id DESC
         """,
     )
     fun observeBetween(start: Instant, end: Instant): Flow<List<TransactionListItem>>
+
+    /** 거래 한 건(분류·결제수단 이름과 색 포함). 고치면 새 값을, 지우면 null 을 내보낸다. 거래 상세가 쓴다. */
+    @Query(LIST_ITEM_SELECT + " WHERE t.id = :id")
+    fun observeItem(id: Long): Flow<TransactionListItem?>
+
+    /**
+     * [start] 부터 끝 없이, 가게 이름이 있는 거래를 최신순으로. 거래 상세의 '같은 곳' 내역이 쓴다.
+     * 날짜를 앞으로 적어 둔 거래도 들어온다. 같은 가게인지(띄어쓰기·대소문자 무시)는 SQL 로 같은 규칙을 만들 수 없어 앱이 가린다.
+     */
+    @Query(
+        LIST_ITEM_SELECT +
+            """
+        WHERE t.occurredAt >= :start AND t.merchant IS NOT NULL
+        ORDER BY t.occurredAt DESC, t.id DESC
+        """,
+    )
+    fun observeWithMerchantSince(start: Instant): Flow<List<TransactionListItem>>
 
     @Query("SELECT * FROM transactions WHERE id = :id")
     suspend fun findById(id: Long): TransactionEntity?

@@ -61,9 +61,9 @@ import com.dong.budget.ui.theme.BudgetTheme
  * - ② 최근 6개월: 한 계열 막대. 고른 달만 그 분류 색이고 나머지는 흐린 색이다. 막대마다 금액을 적는다.
  * - ③ 교차 비중: 분류 상세는 결제수단별, 결제수단 상세는 분류별(누를 수 없다). 수입 분류에는 없다.
  * - ④ 많이 쓴 곳 5곳(지출 쪽만)
- * - ⑤ 이 달 거래. 날짜별로 묶고, 누르면 등록창이 열린다.
+ * - ⑤ 이 달 거래. 날짜별로 묶고, 누르면 거래 상세가 열린다.
  *
- * @param onOpenTransaction 거래 줄을 누르면 그 거래의 등록창
+ * @param onOpenTransaction 거래 줄을 누르면 그 거래의 상세
  */
 @Composable
 fun StatsDetailScreen(

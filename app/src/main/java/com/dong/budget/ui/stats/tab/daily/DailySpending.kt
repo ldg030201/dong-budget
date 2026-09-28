@@ -77,7 +77,7 @@ import java.time.YearMonth
  * @param onSelectDay 차트를 누르거나 끌어서, 또는 읽기 판의 ‹ › 로 다른 날(일)을 고를 때
  * @param focused '하나만 보기' 로 고른 계열 번호. null 이면 모든 계열을 쌓는다.
  * @param onFocus 칩을 누르면 그 계열 번호, '전체' 를 누르거나 고른 칩을 다시 누르면 null
- * @param onOpenTransaction 읽기 판 아래 거래 줄을 누르면 등록창
+ * @param onOpenTransaction 읽기 판 아래 거래 줄을 누르면 거래 상세
  */
 @Composable
 internal fun DailySpendingSection(

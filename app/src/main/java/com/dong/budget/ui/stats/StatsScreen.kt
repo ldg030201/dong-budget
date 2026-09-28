@@ -57,7 +57,7 @@ import java.time.YearMonth
  * @param onThisMonth 다른 달을 보고 있을 때 달 줄 오른쪽에 나오는 '이번 달'
  * @param onShowMonth 월별 탭의 6개월 표에서 다른 달을 눌렀을 때
  * @param onOpenDetail 분류나 결제수단 하나의 상세
- * @param onOpenTransaction 거래 줄을 누르면 그 거래의 등록창
+ * @param onOpenTransaction 거래 줄을 누르면 그 거래의 상세
  */
 @Composable
 fun StatsScreen(

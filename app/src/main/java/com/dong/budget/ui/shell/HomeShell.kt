@@ -68,7 +68,7 @@ fun HomeShell(
     onPreviousMonth: () -> Unit,
     onNextMonth: () -> Unit,
     onAddTransaction: () -> Unit,
-    onEditTransaction: (Long) -> Unit,
+    onOpenTransaction: (Long) -> Unit,
     onOpenInbox: () -> Unit,
     onOpenCategories: () -> Unit,
     onOpenStatistics: () -> Unit,
@@ -141,7 +141,7 @@ fun HomeShell(
                                 onPreviousMonth = onPreviousMonth,
                                 onNextMonth = onNextMonth,
                                 onAddTransaction = onAddTransaction,
-                                onEditTransaction = onEditTransaction,
+                                onOpenTransaction = onOpenTransaction,
                                 onOpenInbox = onOpenInbox,
                             )
 

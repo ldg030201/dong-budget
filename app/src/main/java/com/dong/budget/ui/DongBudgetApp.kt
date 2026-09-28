@@ -59,9 +59,13 @@ import com.dong.budget.navigation.SettingsKey
 import com.dong.budget.navigation.ShellKey
 import com.dong.budget.navigation.StatisticsKey
 import com.dong.budget.navigation.StatsDetailKey
+import com.dong.budget.navigation.TransactionDetailKey
 import com.dong.budget.navigation.TransactionEditorKey
 import com.dong.budget.ui.category.CategoryManageScreen
 import com.dong.budget.ui.category.CategoryManageViewModel
+import com.dong.budget.ui.detail.TransactionDetailScreen
+import com.dong.budget.ui.detail.TransactionDetailUiState
+import com.dong.budget.ui.detail.TransactionDetailViewModel
 import com.dong.budget.ui.devmode.DevModeBadge
 import com.dong.budget.ui.devmode.DeveloperScreen
 import com.dong.budget.ui.devmode.copyLog
@@ -162,7 +166,7 @@ fun DongBudgetApp(container: AppContainer, capturedToOpen: String? = null, onCap
                         onPreviousMonth = viewModel::showPreviousMonth,
                         onNextMonth = viewModel::showNextMonth,
                         onAddTransaction = { navigator.go(TransactionEditorKey()) },
-                        onEditTransaction = { id -> navigator.go(TransactionEditorKey(id)) },
+                        onOpenTransaction = { id -> navigator.go(TransactionDetailKey(id)) },
                         onOpenInbox = { navigator.go(InboxKey) },
                         onOpenCategories = { navigator.go(CategoryManageKey) },
                         onOpenStatistics = { navigator.go(StatisticsKey) },
@@ -178,9 +182,11 @@ fun DongBudgetApp(container: AppContainer, capturedToOpen: String? = null, onCap
                         viewModel(factory = editorViewModelFactory(container, key.transactionId, key.prefill))
                     val state by viewModel.uiState.collectAsStateWithLifecycle()
 
-                    // 저장이 끝나면 화면을 닫는다
+                    // 저장이 끝나면 화면을 닫는다. 지웠으면 아래 깔린 그 거래의 상세도 같이 치워서, 내려가는 등록창 밑으로 그 아래 화면이 바로 보이게 한다.
                     LaunchedEffect(state.saved) {
-                        if (state.saved) navigator.closeIfTop(key)
+                        if (!state.saved) return@LaunchedEffect
+                        if (state.deleted) key.transactionId?.let { navigator.remove(TransactionDetailKey(it)) }
+                        navigator.closeIfTop(key)
                     }
 
                     TransactionEditorScreen(
@@ -241,7 +247,7 @@ fun DongBudgetApp(container: AppContainer, capturedToOpen: String? = null, onCap
                         onThisMonth = viewModel::showThisMonth,
                         onShowMonth = { month -> if (settled()) viewModel.showMonth(month) },
                         onOpenDetail = { key -> if (settled()) navigator.go(key) },
-                        onOpenTransaction = { id -> if (settled()) navigator.go(TransactionEditorKey(id)) },
+                        onOpenTransaction = { id -> if (settled()) navigator.go(TransactionDetailKey(id)) },
                         onBack = navigator::goBack,
                     )
                 }
@@ -251,7 +257,7 @@ fun DongBudgetApp(container: AppContainer, capturedToOpen: String? = null, onCap
                     val viewModel: StatsDetailViewModel = viewModel(factory = statsDetailViewModelFactory(container, key))
                     val state by viewModel.uiState.collectAsStateWithLifecycle()
                     // 통계 화면과 같은 이유로 자리 잡은 뒤(RESUMED)에만 거래 줄 누름을 받는다.
-                    // 들어오는 중에 같은 자리를 한 번 더 누르거나, 나가는 중에 누른 줄로 등록창이 열리지 않게 한다.
+                    // 들어오는 중에 같은 자리를 한 번 더 누르거나, 나가는 중에 누른 줄로 거래 상세가 열리지 않게 한다.
                     val settled = rememberSettled()
                     StatsDetailScreen(
                         state = state,
@@ -259,7 +265,28 @@ fun DongBudgetApp(container: AppContainer, capturedToOpen: String? = null, onCap
                         onBack = { navigator.closeIfTop(key) },
                         onPreviousMonth = viewModel::showPreviousMonth,
                         onNextMonth = viewModel::showNextMonth,
-                        onOpenTransaction = { id -> if (settled()) navigator.go(TransactionEditorKey(id)) },
+                        onOpenTransaction = { id -> if (settled()) navigator.go(TransactionDetailKey(id)) },
+                    )
+                }
+
+                entry<TransactionDetailKey> { key ->
+                    val viewModel: TransactionDetailViewModel =
+                        viewModel(factory = transactionDetailViewModelFactory(container, key.transactionId))
+                    val state by viewModel.uiState.collectAsStateWithLifecycle()
+                    // 거래가 없어졌으면 이 화면도 치운다. 등록창에서 지운 경우는 등록창이 먼저 치우므로, 앱을 다시 띄웠는데 이미 지운 거래였을 때 같은 드문 경우다.
+                    val gone = state == TransactionDetailUiState.Gone
+                    LaunchedEffect(gone) {
+                        if (gone) navigator.remove(key)
+                    }
+                    // 통계 화면과 같은 이유로 자리 잡은 뒤(RESUMED)에만 '수정' 과 같은 곳 내역 줄 누름을 받는다.
+                    // 거래 줄을 연달아 누른 두 번째 탭이 막 뜨는 이 화면의 같은 자리에 떨어져 다른 거래가 열리지 않게 한다.
+                    val settled = rememberSettled()
+                    TransactionDetailScreen(
+                        state = state,
+                        // 같은 곳 내역에서 상세 위에 상세를 쌓을 수 있다. 나가는 동안 ← 를 한 번 더 받아도 맨 위일 때만 닫아서 아래 상세까지 닫지 않게 한다.
+                        onBack = { navigator.closeIfTop(key) },
+                        onEdit = { if (settled()) navigator.go(TransactionEditorKey(key.transactionId)) },
+                        onOpenTransaction = { id -> if (settled()) navigator.go(TransactionDetailKey(id)) },
                     )
                 }
 
@@ -435,6 +462,10 @@ private fun editorViewModelFactory(container: AppContainer, transactionId: Long?
             onCaptureRegistered = container.paymentCapture::onRegistered,
         )
     }
+}
+
+private fun transactionDetailViewModelFactory(container: AppContainer, transactionId: Long) = viewModelFactory {
+    initializer { TransactionDetailViewModel(container.transactionRepository, transactionId) }
 }
 
 private fun settingsViewModelFactory(container: AppContainer) = viewModelFactory {
