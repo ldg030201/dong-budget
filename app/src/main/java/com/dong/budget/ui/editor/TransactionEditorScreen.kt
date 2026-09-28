@@ -140,10 +140,12 @@ fun TransactionEditorScreen(
     modifier: Modifier = Modifier,
     acceptsTaps: () -> Boolean = { true },
 ) {
-    // 새로 등록할 때는 금액부터 받으므로 키패드를 열어둔다.
+    // 새로 등록할 때는 금액부터 받으므로 키패드를 열어둔다('금액 키패드 바로 열기' 를 껐으면 닫아둔다).
     // 수정할 때는 값을 먼저 훑어보게 모두 닫아둔다.
     // 알림에서 채워 들어온 경우도 값부터 확인하게 닫아둔다.
-    var panel by rememberSaveable { mutableStateOf(if (state.isEditing || state.isPrefilled) null else EditorPanel.AMOUNT) }
+    var panel by rememberSaveable {
+        mutableStateOf(if (state.isEditing || state.isPrefilled || !state.keypadOnStart) null else EditorPanel.AMOUNT)
+    }
     var showDeleteConfirm by remember { mutableStateOf(false) }
     val focusManager = LocalFocusManager.current
 
@@ -216,6 +218,7 @@ fun TransactionEditorScreen(
     AddItemSheet(
         target = state.addTarget,
         usedColors = state.addTarget?.let(state::usedColors).orEmpty(),
+        pickUnusedColor = state.pickUnusedColor,
         error = state.addError,
         onDismiss = onDismissAdd,
         onSubmit = onSubmitAdd,

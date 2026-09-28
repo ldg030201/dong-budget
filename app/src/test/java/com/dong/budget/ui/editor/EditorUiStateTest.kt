@@ -1,5 +1,6 @@
 package com.dong.budget.ui.editor
 
+import com.dong.budget.data.db.CategoryStyle
 import com.dong.budget.data.db.PaymentMethodEntity
 import com.dong.budget.data.db.PaymentMethodType
 import org.junit.Assert.assertEquals
@@ -28,6 +29,12 @@ class EditorUiStateTest {
         assertFalse(RequiredField.PAYMENT in switched.missingFields)
 
         assertTrue(switched.copy(paymentMethodId = null).isPendingPaymentSelected)
+    }
+
+    @Test
+    fun `새로 만들 카드의 색은 안 쓴 색이고, 스위치를 끄면 회색이다`() {
+        assertEquals(CategoryStyle.firstUnusedColor(setOf(hana.color)), prefilled.pendingPaymentColor)
+        assertEquals(CategoryStyle.FALLBACK_COLOR, prefilled.copy(pickUnusedColor = false).pendingPaymentColor)
     }
 
     @Test

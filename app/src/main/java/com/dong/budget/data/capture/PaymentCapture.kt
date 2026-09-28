@@ -3,13 +3,15 @@ package com.dong.budget.data.capture
 import com.dong.budget.BuildConfig
 import com.dong.budget.data.devlog.DevLog
 import com.dong.budget.data.devlog.LogTag
+import com.dong.budget.data.settings.AutoOption
+import com.dong.budget.data.settings.AutoSettings
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.transformLatest
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -36,6 +38,8 @@ class PaymentCapture(
     private val prompt: CapturePrompt,
     /** 이미 가계부에 등록한 결제인지. 보통 TransactionRepository.isRegistered */
     private val isRegistered: suspend (dedupKey: String) -> Boolean,
+    /** 자동 기능 스위치(묻기, 같은 결제 한 번만, 다시 살피기). 저장소를 다 읽은 값을 돌려준다. */
+    private val settings: suspend () -> AutoSettings = { AutoSettings() },
     private val now: () -> Long = System::currentTimeMillis,
 ) {
     /**
@@ -59,6 +63,12 @@ class PaymentCapture(
     private suspend fun handleNotification(titles: List<CharSequence?>, texts: List<CharSequence?>, occurredAtMillis: Long): Boolean {
         // 너무 오래된 결제는 묻지 않는다. 기록을 지운 뒤 같은 알림이 다시 들어와도 또 묻지 않게 하기 위함이다.
         if (now() - occurredAtMillis > CaptureStore.RETENTION_MS) return false
+        val auto = settings()
+        // 묻기를 끈 동안 온 결제는 기록하지 않는다. 다시 켜면 알림창에 남아 있는 것부터 물을 수 있게 둔다.
+        if (!auto[AutoOption.CAPTURE_PROMPT]) {
+            logSkipped("결제 알림으로 묻기가 꺼져 있어 넘겼어요")
+            return false
+        }
         val payment =
             titles.firstNotNullOfOrNull { title ->
                 texts.firstNotNullOfOrNull { text -> TossPaymentParser.parse(title, text, occurredAtMillis) }
@@ -72,9 +82,12 @@ class PaymentCapture(
         // 알림 권한·채널을 묻는 일(시스템 호출)보다 먼저 본다.
         if (store.knows(payment.dedupKey)) return false
         // 토스가 같은 결제를 모양이 다른 알림으로 한 번 더 보내기도 한다. 먼저 온 알림으로 물었으면 그것만 남긴다.
-        store.findSamePayment(payment)?.let { first ->
-            logSkipped("같은 결제의 알림이 또 와서 넘겼어요 · ${describe(payment)} · 먼저 온 알림 ${first.dedupKey}")
-            return false
+        // 스위치를 끄면 알림마다 묻는다(같은 가게에서 같은 금액을 3초 안에 두 번 결제하는 일이 잦은 경우).
+        if (auto[AutoOption.CAPTURE_DEDUPE]) {
+            store.findSamePayment(payment)?.let { first ->
+                logSkipped("같은 결제의 알림이 또 와서 넘겼어요 · ${describe(payment)} · 먼저 온 알림 ${first.dedupKey}")
+                return false
+            }
         }
         // 알림을 보낼 수 없으면 기록하지 않는다. 나중에 알림을 허용한 뒤 다시 연결될 때 물을 수 있게 둔다.
         if (!prompt.canAsk()) {
@@ -110,7 +123,8 @@ class PaymentCapture(
      * 답한 것(사용자가 지웠거나 등록한 것), 이미 등록돼 있는 것, 지금 떠 있는 것([showing])은 빼고 소리 없이 띄운다.
      */
     suspend fun restorePrompts(showing: Set<String>) = mutex.withLock {
-        if (!prompt.canAsk()) return@withLock
+        // 묻기를 끄면 지운 묻는 알림도 되살리지 않는다
+        if (!prompt.canAsk() || !settings()[AutoOption.CAPTURE_PROMPT]) return@withLock
         var restored = 0
         store.pending().forEach { payment ->
             when {
@@ -223,8 +237,11 @@ class PaymentCapture(
 
     private val rescans = MutableSharedFlow<Unit>(extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
 
-    /** 알림 읽기(PaymentNotificationListener)가 연결돼 있는 동안 듣는다 */
-    val rescanRequests: SharedFlow<Unit> = rescans.asSharedFlow()
+    /**
+     * 알림 읽기(PaymentNotificationListener)가 연결돼 있는 동안 듣는다.
+     * '앱을 열 때 놓친 알림 다시 살피기' 를 끄면 부탁을 흘려보낸다. 알림 읽기가 새로 연결될 때 훑는 것은 그대로다.
+     */
+    val rescanRequests: Flow<Unit> = rescans.asSharedFlow().filter { settings()[AutoOption.CAPTURE_RESCAN] }
 
     companion object {
         /** 토스 앱 */

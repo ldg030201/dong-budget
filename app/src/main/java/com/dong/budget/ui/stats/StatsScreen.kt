@@ -67,6 +67,7 @@ import java.time.YearMonth
  * @param onShowMonth 월별 탭의 6개월 표에서 다른 달을 눌렀을 때
  * @param onOpenDetail 분류나 결제수단 하나의 상세
  * @param onOpenTransaction 거래 줄을 누르면 그 거래의 상세
+ * @param autoPickDay 일별에서 처음 볼 날을 고를지('일별에서 볼 날 자동으로 고르기'). 아니면 1일부터 본다.
  */
 @Composable
 fun StatsScreen(
@@ -81,6 +82,7 @@ fun StatsScreen(
     onOpenTransaction: (Long) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    autoPickDay: Boolean = true,
 ) {
     // 탭을 오갈 때 탭마다 스크롤 위치 같은 화면 상태를 따로 보관한다
     val tabStates = rememberSaveableStateHolder()
@@ -147,6 +149,7 @@ fun StatsScreen(
                                         onShowMonth = onShowMonth,
                                         onOpenDetail = onOpenDetail,
                                         onOpenTransaction = onOpenTransaction,
+                                        autoPickDay = autoPickDay,
                                     )
                                 }
                             }
@@ -199,6 +202,7 @@ private fun TabContent(
     onShowMonth: (YearMonth) -> Unit,
     onOpenDetail: (StatsDetailKey) -> Unit,
     onOpenTransaction: (Long) -> Unit,
+    autoPickDay: Boolean,
 ) {
     when (tab) {
         StatsTab.OVERVIEW ->
@@ -219,6 +223,7 @@ private fun TabContent(
                 request = dailyRequest,
                 onRequestHandled = onDailyRequestHandled,
                 onOpenTransaction = onOpenTransaction,
+                autoPickDay = autoPickDay,
             )
 
         StatsTab.CATEGORY ->

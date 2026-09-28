@@ -70,13 +70,14 @@ class PaymentMethodRepository(private val dao: PaymentMethodDao) {
 
     /**
      * 이름이 같은 결제수단을 찾고, 없으면 카드 아이콘으로 새로 만든다. 알림에서 읽은 카드 이름을 저장할 때 쓴다.
+     * @param pickUnusedColor 새로 만들 때 아직 안 쓴 색을 고를지. 아니면 회색이다('새 분류·결제수단은 안 쓴 색으로').
      * @return 결제수단 id. 이름이 비어 있으면 null
      */
-    suspend fun findOrCreate(rawName: String): Long? {
+    suspend fun findOrCreate(rawName: String, pickUnusedColor: Boolean = true): Long? {
         val name = normalizeName(rawName) ?: return null
         val existing = dao.getAll()
         findSameCard(existing, name)?.let { return it.id }
-        val color = CategoryStyle.firstUnusedColor(existing.colors())
+        val color = if (pickUnusedColor) CategoryStyle.firstUnusedColor(existing.colors()) else CategoryStyle.FALLBACK_COLOR
         return when (val result = add(name, NEW_CARD_ICON, color)) {
             is AddResult.Added -> result.id
 

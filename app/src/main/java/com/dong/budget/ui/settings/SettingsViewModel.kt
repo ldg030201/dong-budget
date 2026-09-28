@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.dong.budget.BuildConfig
 import com.dong.budget.data.devlog.DevLog
 import com.dong.budget.data.devlog.LogTag
+import com.dong.budget.data.settings.AutoOption
 import com.dong.budget.data.settings.SettingsRepository
 import com.dong.budget.data.settings.ThemeMode
 import com.dong.budget.data.update.ApkInstaller
@@ -118,6 +119,11 @@ class SettingsViewModel(
 
     fun selectThemeMode(mode: ThemeMode) {
         viewModelScope.launch { settingsRepository.setThemeMode(mode) }
+    }
+
+    /** 자동 기능 스위치를 켜거나 끈다. 화면은 앱 전체가 따라가는 값(AppContainer.autoSettings)을 받아 그린다. */
+    fun setAuto(option: AutoOption, on: Boolean) {
+        viewModelScope.launch { settingsRepository.setAuto(option, on) }
     }
 
     fun checkForUpdate() {

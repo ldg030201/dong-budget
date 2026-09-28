@@ -17,6 +17,8 @@ import com.dong.budget.data.db.TransactionType
 import com.dong.budget.data.db.colors
 import com.dong.budget.data.devlog.DevLog
 import com.dong.budget.data.devlog.LogTag
+import com.dong.budget.data.settings.AutoOption
+import com.dong.budget.data.settings.AutoSettings
 import com.dong.budget.navigation.EditorPrefill
 import com.dong.budget.ui.category.AddTarget
 import com.dong.budget.ui.category.message
@@ -79,6 +81,10 @@ data class EditorUiState(
     val addError: String? = null,
     /** 저장을 눌렀을 때 비어 있던 첫 칸. 그 칸 밑에 채우라는 안내를 보여준다. */
     val invalidField: RequiredField? = null,
+    /** 새로 등록할 때 금액 키패드를 열어 둔 채 시작할지('금액 키패드 바로 열기'). 열 때의 스위치 값이다. */
+    val keypadOnStart: Boolean = true,
+    /** 새로 만드는 분류·결제수단의 색을 아직 안 쓴 색으로 고를지('새 분류·결제수단은 안 쓴 색으로'). 아니면 회색이다. */
+    val pickUnusedColor: Boolean = true,
     /** 저장이나 삭제가 끝났다. 화면을 닫는다. */
     val saved: Boolean = false,
     /** 끝난 것이 삭제였는지. 아래에 깔린 그 거래의 상세도 같이 치운다. */
@@ -113,7 +119,8 @@ data class EditorUiState(
     val isPendingPaymentSelected: Boolean get() = pendingPaymentName != null && paymentMethodId == null
 
     /** [pendingPaymentName] 으로 새로 만들 결제수단의 색. 저장할 때 만들어질 색(findOrCreate)과 같다. */
-    val pendingPaymentColor: String get() = CategoryStyle.firstUnusedColor(usedPaymentColors)
+    val pendingPaymentColor: String
+        get() = if (pickUnusedColor) CategoryStyle.firstUnusedColor(usedPaymentColors) else CategoryStyle.FALLBACK_COLOR
 
     val usedPaymentColors: Set<String> get() = paymentMethods.colors()
 
@@ -129,6 +136,8 @@ class TransactionEditorViewModel(
     private val prefill: EditorPrefill? = null,
     /** 알림에서 읽은 결제가 가계부에 들어갔다(방금 등록했거나 이미 있었다). 묻던 알림을 치운다. */
     private val onCaptureRegistered: (dedupKey: String) -> Unit = {},
+    /** 자동 기능 스위치의 지금 값. 등록창을 연 뒤에 설정을 바꿀 일은 없지만, 쓰는 순간의 값을 읽는다. */
+    private val autoSettings: () -> AutoSettings = { AutoSettings() },
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(initialState())
     val uiState: StateFlow<EditorUiState> = _uiState.asStateFlow()
@@ -145,7 +154,9 @@ class TransactionEditorViewModel(
                     // 그 이름을 고른 상태였으면 있는 결제수단을 고른다. 등록창에서 같은 이름을 직접 추가한 경우도 여기로 온다.
                     val match = state.pendingPaymentName?.let { PaymentMethodRepository.findSameCard(methods, it) }
                     if (match == null) {
-                        state.copy(paymentMethods = methods)
+                        // '없는 카드는 새로 추가하기' 를 껐으면 새로 만들 카드를 두지 않는다. 결제수단은 사용자가 고른다.
+                        val keepPending = prefill?.addMissingCard != false
+                        state.copy(paymentMethods = methods, pendingPaymentName = state.pendingPaymentName.takeIf { keepPending })
                     } else {
                         state.copy(paymentMethods = methods, paymentMethodId = state.paymentMethodId ?: match.id, pendingPaymentName = null)
                     }
@@ -153,12 +164,19 @@ class TransactionEditorViewModel(
             }
         }
         if (transactionId != null) loadExisting(transactionId)
-        if (transactionId == null && prefill != null) guessCategory(prefill.merchant)
+        // '같은 가게면 지난 분류 고르기' 를 껐으면 분류는 사용자가 고른다
+        if (transactionId == null && prefill != null && prefill.guessCategory) guessCategory(prefill.merchant)
     }
 
     /** 새 등록이면서 알림에서 읽은 값이 있으면 그 값으로 채워 시작한다 */
     private fun initialState(): EditorUiState {
-        val base = EditorUiState(isEditing = transactionId != null)
+        val auto = autoSettings()
+        val base =
+            EditorUiState(
+                isEditing = transactionId != null,
+                keypadOnStart = auto[AutoOption.EDITOR_KEYPAD],
+                pickUnusedColor = auto[AutoOption.NEW_ITEM_COLOR],
+            )
         val data = prefill?.takeIf { transactionId == null } ?: return base
         return base.copy(
             type = TransactionType.EXPENSE,
@@ -308,6 +326,11 @@ class TransactionEditorViewModel(
                 _uiState.update { it.copy(addError = result.message()) }
                 return@launch
             }
+            // '새로 만든 분류·결제수단 바로 고르기' 를 껐으면 추가 창만 닫고 표는 열어 둔다. 새 칸이 보이니 직접 누른다.
+            if (!autoSettings()[AutoOption.EDITOR_SELECT_ADDED]) {
+                _uiState.update { it.copy(addTarget = null, addError = null) }
+                return@launch
+            }
             _uiState.update {
                 when (target) {
                     AddTarget.CATEGORY -> it.copy(categoryId = result.id, addTarget = null, addError = null)
@@ -348,7 +371,9 @@ class TransactionEditorViewModel(
                 }
                 // 알림에서 읽은 카드가 아직 결제수단에 없으면 이때 만든다. 등록을 취소하면 만들지 않는다.
                 val paymentMethodId =
-                    state.paymentMethodId ?: state.pendingPaymentName?.let { paymentMethodRepository.findOrCreate(it) }
+                    state.paymentMethodId ?: state.pendingPaymentName?.let {
+                        paymentMethodRepository.findOrCreate(it, pickUnusedColor = state.pickUnusedColor)
+                    }
                 try {
                     repository.add(
                         type = state.type,

@@ -68,12 +68,14 @@ enum class AddTarget(val title: String, val namePlaceholder: String) {
  * (부르는 쪽이 시트를 곧바로 빼 버리면 미끄러져 내려가지 않고 한 번에 없어진다.)
  *
  * @param usedColors 이미 쓰고 있는 색. 기본 선택을 겹치지 않는 색으로 고른다.
+ * @param pickUnusedColor 처음 색을 [usedColors] 와 겹치지 않는 색으로 고를지. 아니면 회색으로 시작한다('새 분류·결제수단은 안 쓴 색으로').
  * @param error 저장이 거절된 이유 (같은 이름이 있다 등). 없으면 null
  */
 @Composable
 fun AddItemSheet(
     target: AddTarget?,
     usedColors: Set<String>,
+    pickUnusedColor: Boolean,
     error: String?,
     onDismiss: () -> Unit,
     onSubmit: (name: String, icon: String, color: String) -> Unit,
@@ -86,7 +88,7 @@ fun AddItemSheet(
         target = current,
         visible = target != null,
         onHidden = { shown = null },
-        usedColors = usedColors,
+        initialColor = if (pickUnusedColor) CategoryStyle.firstUnusedColor(usedColors) else CategoryStyle.FALLBACK_COLOR,
         error = error,
         onDismiss = onDismiss,
         onSubmit = onSubmit,
@@ -100,7 +102,7 @@ private fun AddItemSheetContent(
     target: AddTarget,
     visible: Boolean,
     onHidden: () -> Unit,
-    usedColors: Set<String>,
+    initialColor: String,
     error: String?,
     onDismiss: () -> Unit,
     onSubmit: (name: String, icon: String, color: String) -> Unit,
@@ -113,7 +115,7 @@ private fun AddItemSheetContent(
         }
     }
     var name by rememberSaveable { mutableStateOf("") }
-    var color by rememberSaveable { mutableStateOf(CategoryStyle.firstUnusedColor(usedColors)) }
+    var color by rememberSaveable { mutableStateOf(initialColor) }
     var icon by rememberSaveable { mutableStateOf(CategoryStyle.FALLBACK_ICON) }
 
     ModalBottomSheet(
