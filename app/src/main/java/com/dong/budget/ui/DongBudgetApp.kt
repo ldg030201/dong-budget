@@ -170,7 +170,7 @@ fun DongBudgetApp(container: AppContainer, capturedToOpen: String? = null, onCap
                             val state by viewModel.uiState.collectAsStateWithLifecycle()
 
                             val bannerVersion by container.updateChecker.bannerVersion.collectAsStateWithLifecycle(initialValue = null)
-                            // 새 버전 자동 확인을 껐으면 홈에 알림 줄도 띄우지 않는다(설정에서 직접 확인한 결과는 설정에만 보인다)
+                            // 새 버전 자동 확인을 껐으면 홈에 알림 줄도 띄우지 않는다(설정에서 직접 확인한 결과는 설정과 패치노트에서 보인다)
                             val updateVersion = bannerVersion.takeIf { autoSettings[AutoOption.UPDATE_CHECK] }
                             val hasNewNotice by viewModel.hasNewNotice.collectAsStateWithLifecycle()
                             val devModeOn by DevLog.enabled.collectAsStateWithLifecycle()
@@ -484,7 +484,7 @@ private fun editorViewModelFactory(container: AppContainer, transactionId: Long?
             transactionId = transactionId,
             prefill = prefill,
             onCaptureRegistered = container.paymentCapture::onRegistered,
-            autoSettings = { container.autoSettings.value },
+            autoSettings = container.autoSettings,
         )
     }
 }

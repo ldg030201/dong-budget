@@ -136,8 +136,12 @@ class TransactionEditorViewModel(
     private val prefill: EditorPrefill? = null,
     /** 알림에서 읽은 결제가 가계부에 들어갔다(방금 등록했거나 이미 있었다). 묻던 알림을 치운다. */
     private val onCaptureRegistered: (dedupKey: String) -> Unit = {},
-    /** 자동 기능 스위치의 지금 값. 등록창을 연 뒤에 설정을 바꿀 일은 없지만, 쓰는 순간의 값을 읽는다. */
-    private val autoSettings: () -> AutoSettings = { AutoSettings() },
+    /**
+     * 자동 기능 스위치(앱 전체가 따라가는 값). 키패드는 처음 그릴 때의 값만 쓴다. 색은 계속 따라간다.
+     * 앱이 강제 종료됐다 등록창째 되살아나면 저장소를 다 읽기 전(모두 켜짐)에 만들어지므로, 값이 도착하면 색을 맞춘다.
+     * 맞추지 않으면 '안 쓴 색' 을 꺼 둬도 새 카드가 색이 든 채 만들어진다.
+     */
+    private val autoSettings: StateFlow<AutoSettings> = MutableStateFlow(AutoSettings()),
 ) : ViewModel() {
     private val _uiState = MutableStateFlow(initialState())
     val uiState: StateFlow<EditorUiState> = _uiState.asStateFlow()
@@ -147,6 +151,11 @@ class TransactionEditorViewModel(
 
     init {
         observeCategories()
+        viewModelScope.launch {
+            autoSettings.map { it[AutoOption.NEW_ITEM_COLOR] }.distinctUntilChanged().collect { on ->
+                _uiState.update { it.copy(pickUnusedColor = on) }
+            }
+        }
         viewModelScope.launch {
             paymentMethodRepository.observeAll().collect { methods ->
                 _uiState.update { state ->
@@ -170,7 +179,7 @@ class TransactionEditorViewModel(
 
     /** 새 등록이면서 알림에서 읽은 값이 있으면 그 값으로 채워 시작한다 */
     private fun initialState(): EditorUiState {
-        val auto = autoSettings()
+        val auto = autoSettings.value
         val base =
             EditorUiState(
                 isEditing = transactionId != null,
@@ -312,7 +321,10 @@ class TransactionEditorViewModel(
         _uiState.update { it.copy(addTarget = null, addError = null) }
     }
 
-    /** 등록 도중에 분류나 결제수단을 새로 만든다. 만들어지면 바로 그것을 고른 상태가 된다. */
+    /**
+     * 등록 도중에 분류나 결제수단을 새로 만든다. '새로 만든 분류·결제수단 바로 고르기' 가 켜져 있으면 그것을 고르고 표를 닫는다.
+     * 꺼져 있으면 추가 창만 닫고 표는 열어 둔다.
+     */
     fun submitAdd(name: String, icon: String, color: String) {
         val state = _uiState.value
         val target = state.addTarget ?: return
@@ -327,7 +339,7 @@ class TransactionEditorViewModel(
                 return@launch
             }
             // '새로 만든 분류·결제수단 바로 고르기' 를 껐으면 추가 창만 닫고 표는 열어 둔다. 새 칸이 보이니 직접 누른다.
-            if (!autoSettings()[AutoOption.EDITOR_SELECT_ADDED]) {
+            if (!autoSettings.value[AutoOption.EDITOR_SELECT_ADDED]) {
                 _uiState.update { it.copy(addTarget = null, addError = null) }
                 return@launch
             }

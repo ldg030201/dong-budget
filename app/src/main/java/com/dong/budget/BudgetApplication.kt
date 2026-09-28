@@ -14,6 +14,8 @@ class BudgetApplication : Application() {
         // 가장 먼저 둔다. 개발자 모드를 켜 두었다면 이 뒤에 앱이 죽어도 오류가 남는다.
         DevLog.init(this)
         container = AppContainer(this)
+        // 자동 기능 스위치를 지금부터 읽어 둔다. 첫 화면(강제 종료 뒤 되살아난 등록창 등)이 그려질 즈음엔 저장된 값이 와 있게 한다.
+        container.autoSettings
         thread(name = "update-startup") {
             // 설치가 끝나 이 버전이 켜졌다면 받아둔 설치 파일은 더 필요 없다. 캐시에 남기지 않는다.
             container.apkInstaller.deleteStaleDownloads(BuildConfig.VERSION_NAME)
