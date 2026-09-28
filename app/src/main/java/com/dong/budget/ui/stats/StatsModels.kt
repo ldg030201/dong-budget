@@ -18,10 +18,16 @@ import java.time.YearMonth
 // 숫자 규칙은 홈과 같다: 이체는 어디에도 넣지 않고, 환불은 지출에서 뺀다(Totals).
 // ─────────────────────────────────────────────────────────────────────
 
-/** 통계 안의 하위 메뉴. 아래 떠 있는 메뉴에 이 순서로 선다. */
-enum class StatsTab(val label: String, @DrawableRes val icon: Int) {
-    /** 한눈에 보기. 들어오면 이 칸부터 본다. 아래 메뉴의 '통계' 와 같은 아이콘이라, 들어올 때 그 칸이 이 칸 자리로 옮겨 온다. */
-    OVERVIEW("통계", R.drawable.ic_sym_bar_chart),
+/**
+ * 통계 안의 하위 메뉴. 아래 떠 있는 메뉴에 이 순서로 선다.
+ * @property paneTitle 탭을 바꿀 때 화면 읽기가 알리는 이름. 보통 "월별 통계" 처럼 이름 뒤에 '통계' 를 붙인다.
+ */
+enum class StatsTab(val label: String, @DrawableRes val icon: Int, val paneTitle: String = "$label 통계") {
+    /**
+     * 한눈에 보기. 들어오면 이 칸부터 본다. 아래 메뉴의 '통계' 와 같은 아이콘이라, 들어올 때 그 칸이 이 칸 자리로 옮겨 온다.
+     * 이름이 이미 '통계' 라 뒤에 '통계' 를 붙이면 '통계 통계' 로 겹쳐 읽혀서 화면 읽기 이름을 따로 둔다.
+     */
+    OVERVIEW("통계", R.drawable.ic_sym_bar_chart, paneTitle = "한눈에 보는 통계"),
     MONTHLY("월별", R.drawable.ic_sym_calendar_month),
     DAILY("일별", R.drawable.ic_sym_today),
     CATEGORY("분류", R.drawable.ic_sym_category),
@@ -151,7 +157,7 @@ data class CumulativeFlow(val month: YearMonth, val thisMonth: List<Long>, val p
  */
 data class Pace(val remaining: Long, val scheduled: Long, val daysLeft: Int, val dailyAllowance: Long?)
 
-/** 월별 '눈에 띄는 점' 한 줄. 문장은 calc 의 insightSentence 가 만든다. */
+/** 통계 탭의 '눈에 띄는 점' 한 줄. 문장은 calc 의 insightSentence 가 만든다. */
 sealed interface Insight {
     /** 1위 지출 분류가 지출의 [percent]% 를 차지한다(20% 이상) */
     data class TopShare(val entry: BreakdownEntry, val percent: Int) : Insight

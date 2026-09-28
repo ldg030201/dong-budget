@@ -36,6 +36,13 @@ class MonthlyTextTest {
     }
 
     @Test
+    fun `눈에 띄는 점 줄은 누르면 갈 곳을 화면 읽기에 알린다`() {
+        assertEquals("분류 상세 보기", insightActionLabel(Insight.TopShare(entry(GroupKey.Id(1)), 42)))
+        assertEquals("요일별 하루 평균 보기", insightActionLabel(Insight.WeekPattern(weekendHigher = true, ratio = 1.6)))
+        assertEquals("하루 기록 보기", insightActionLabel(Insight.NoSpendDays(8)))
+    }
+
+    @Test
     fun `섹션 제목은 달 이름을 따른다`() {
         assertEquals("이번 달 흐름", flowTitle(september, today))
         assertEquals("8월 흐름", flowTitle(YearMonth.of(2026, 8), today))

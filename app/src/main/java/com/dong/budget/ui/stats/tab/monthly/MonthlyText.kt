@@ -21,8 +21,8 @@ import java.time.LocalDate
 import java.time.YearMonth
 
 // ─────────────────────────────────────────────────────────────────────
-// 월별 탭의 줄·표·제목 글자와 고르기. 화면과 떼어 두어 단위 테스트로 확인한다.
-// 문장은 calc 의 StatsSentences 가 만들고, 여기에는 월별 탭의 배치에만 묶인 것을 둔다.
+// 월별·통계 탭의 줄·표·제목 글자와 고르기. 화면과 떼어 두어 단위 테스트로 확인한다.
+// 문장은 calc 의 StatsSentences 가 만들고, 여기에는 두 탭의 배치에만 묶인 것을 둔다(요약 머리·큰 지출·눈에 띄는 점은 통계 탭이 쓴다).
 // ─────────────────────────────────────────────────────────────────────
 
 /** 요약 머리에서 지출이 음수일 때 금액 아래 붙는 부제 */
@@ -37,9 +37,16 @@ internal fun largestTitle(month: YearMonth, today: LocalDate): String = "${month
 /**
  * '눈에 띄는 점' 한 줄을 누르면 갈 분류 상세. 분류 이야기(a·b)만 상세가 있다.
  * '분류 없음' 이면 id 가 null 인 상세다.
- * @return 요일·돈 안 쓴 날(c·d)이면 null. 이 둘은 일별 탭에서 자세히 본다.
+ * @return 요일·돈 안 쓴 날(c·d)이면 null. 요일은 일별 탭의 요일별 하루 평균, 돈 안 쓴 날은 통계 탭의 하루 기록에서 본다.
  */
 internal fun Insight.detailKey(month: YearMonth): StatsDetailKey? = categoryEntry?.key?.detailKey(StatsDimension.EXPENSE_CATEGORY, month)
+
+/** '눈에 띄는 점' 한 줄을 누르면 무엇을 하는지. 화면 읽기가 '두 번 탭하여 …' 뒤에 읽는다. */
+internal fun insightActionLabel(insight: Insight): String = when (insight) {
+    is Insight.TopShare, is Insight.CategoryChange -> "분류 상세 보기"
+    is Insight.WeekPattern -> "요일별 하루 평균 보기"
+    is Insight.NoSpendDays -> "하루 기록 보기"
+}
 
 // ── 최근 6개월 ─────────────────────────────────────────────────────────
 

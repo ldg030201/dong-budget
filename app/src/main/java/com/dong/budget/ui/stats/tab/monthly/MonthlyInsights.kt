@@ -67,14 +67,21 @@ internal fun InsightsSection(
     }
 }
 
-/** 뱃지 + 문장 + 꺾쇠. 누를 수 있는 줄이라 한 번에 '버튼' 으로 읽힌다. */
+/**
+ * 뱃지 + 문장 + 꺾쇠. 누를 수 있는 줄이라 한 번에 '버튼' 으로 읽힌다.
+ * 문장만으로는 누르면 어디로 가는지 모른다(돈 안 쓴 날은 같은 탭 안에서 스크롤만 된다). 화면 읽기가 갈 곳을 알려 준다.
+ */
 @Composable
 private fun InsightRow(insight: Insight, onClick: () -> Unit) {
     Row(
         modifier =
         Modifier
             .fillMaxWidth()
-            .pressScaleClickable(shape = RoundedCornerShape(BudgetTheme.radius.chip), onClick = onClick)
+            .pressScaleClickable(
+                shape = RoundedCornerShape(BudgetTheme.radius.chip),
+                onClickLabel = insightActionLabel(insight),
+                onClick = onClick,
+            )
             .heightIn(min = BudgetTheme.size.minTouchTarget)
             .padding(vertical = BudgetTheme.spacing.tightGap),
         verticalAlignment = Alignment.CenterVertically,
