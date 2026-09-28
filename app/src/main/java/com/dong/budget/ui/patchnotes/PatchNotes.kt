@@ -37,6 +37,9 @@ enum class PatchMenu(val label: String) {
 
     /** 0.1.3 에서 홈으로 합쳐진 옛 탭. 지난 기록을 위해 남긴다. */
     HISTORY("내역"),
+
+    /** 1.4.0 에서 생긴 거래 상세. 홈·통계에서 거래를 누르면 열린다. */
+    DETAIL("거래 상세"),
     EDITOR("거래 등록"),
     STATISTICS("통계"),
     CATEGORIES("분류 관리"),
@@ -72,12 +75,25 @@ private fun menu(menu: PatchMenu, vararg changes: Change) = MenuChanges(menu, ch
 private fun newMenu(menu: PatchMenu, vararg changes: Change) = MenuChanges(menu, changes.toList(), isNew = true)
 
 /**
- * 최신 버전이 맨 위. 메뉴는 앱 화면 순서(홈 → 거래 등록 → 통계 → 분류 관리 → 전체 → 패치노트 → 개발자 모드 → 설정 → 공통)로 적는다.
+ * 최신 버전이 맨 위. 메뉴는 앱 화면 순서(홈 → 거래 상세 → 거래 등록 → 통계 → 분류 관리 → 전체 → 패치노트 → 개발자 모드 → 설정 → 공통)로 적는다.
  * 메뉴 안의 항목은 화면에서 종류 순서(추가 → 개선 → 수정 → 오류수정)로 다시 정렬되므로 적는 순서는 자유다.
  * 그 버전에서 처음 생긴 메뉴는 [newMenu] 로 적는다(메뉴 이름 옆 '신규'). 첫 버전(0.1.0)은 모두 처음이라 붙이지 않는다.
  */
 val PATCH_NOTES: List<Release> =
     listOf(
+        Release(
+            version = "1.4.0",
+            date = null,
+            menus =
+            listOf(
+                newMenu(
+                    PatchMenu.DETAIL,
+                    added("홈과 통계에서 내역을 누르면 바로 수정 화면 대신 거래 상세가 열려요. 금액, 분류, 결제수단, 날짜, 시간, 메모를 한눈에 봐요"),
+                    added("고치려면 오른쪽 위 '수정'을 눌러요"),
+                    added("아래 '최근 내역'에서 같은 곳에서 쓴 내역을 최근 1년까지 달별로 모아 보여 주고, 몇 번 썼는지와 모두 얼마인지, 한 번에 평균도 알려 줘요. 누르면 그 내역의 상세로 가요"),
+                ),
+            ),
+        ),
         Release(
             version = "1.3.0",
             date = LocalDate.of(2026, 9, 28),

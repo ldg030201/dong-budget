@@ -315,6 +315,7 @@ private fun MenuSection(menu: MenuChanges) {
 private fun PatchMenu.iconRes(): Int = when (this) {
     PatchMenu.HOME -> R.drawable.ic_sym_home
     PatchMenu.HISTORY -> R.drawable.ic_sym_receipt_long
+    PatchMenu.DETAIL -> R.drawable.ic_sym_receipt_long
     PatchMenu.EDITOR -> R.drawable.ic_sym_edit_note
     PatchMenu.STATISTICS -> R.drawable.ic_sym_bar_chart
     PatchMenu.CATEGORIES -> R.drawable.ic_sym_category
@@ -328,14 +329,26 @@ private fun PatchMenu.iconRes(): Int = when (this) {
 /** 전체 메뉴 화면의 색과 맞춘다(분류 관리는 남색, 패치노트는 보라, 설정은 회색). 나머지는 서로 겹치지 않게 고른다. */
 private fun PatchMenu.color(): String = when (this) {
     PatchMenu.HOME -> "blue"
+
     PatchMenu.HISTORY -> "teal"
+
+    // 내역 한 건을 보는 화면이라 옛 '내역' 탭과 같은 모양이다. 옛 탭은 0.1.0 기록에만 나와 한 버전에 같이 보이지 않는다.
+    PatchMenu.DETAIL -> "teal"
+
     PatchMenu.EDITOR -> "green"
+
     PatchMenu.STATISTICS -> "orange"
+
     PatchMenu.CATEGORIES -> "indigo"
+
     PatchMenu.MORE -> "pink"
+
     PatchMenu.PATCH_NOTES -> "purple"
+
     PatchMenu.DEVELOPER -> "gray"
+
     PatchMenu.SETTINGS -> "gray"
+
     PatchMenu.COMMON -> "amber"
 }
 
