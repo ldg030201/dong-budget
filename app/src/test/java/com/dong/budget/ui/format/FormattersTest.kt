@@ -37,19 +37,21 @@ class FormattersTest {
     }
 
     @Test
-    fun `만 원부터는 만 단위로 반올림한다`() {
+    fun `만 원부터는 만 단위 아래를 버린다`() {
         assertEquals("1만원", formatCompactWon(10_000))
         assertEquals("9만원", formatCompactWon(93_000))
-        assertEquals("10만원", formatCompactWon(95_000))
-        assertEquals("1,000만원", formatCompactWon(9_999_500))
+        assertEquals("9만원", formatCompactWon(95_000))
+        assertEquals("999만원", formatCompactWon(9_999_500))
+        // 통계 머리의 전체 금액(2,076,048원)보다 커 보이지 않는다
+        assertEquals("207만원", formatCompactWon(2_076_048))
     }
 
     @Test
     fun `억 단위`() {
         assertEquals("1억원", formatCompactWon(100_000_000))
-        assertEquals("1억 2,346만원", formatCompactWon(123_456_789))
-        // 반올림으로 1억이 되면 억으로 올린다
-        assertEquals("1억원", formatCompactWon(99_995_000))
+        assertEquals("1억 2,345만원", formatCompactWon(123_456_789))
+        // 1억에 모자라면 억으로 올리지 않는다
+        assertEquals("9,999만원", formatCompactWon(99_995_000))
     }
 
     @Test

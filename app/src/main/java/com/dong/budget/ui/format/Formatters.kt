@@ -89,20 +89,16 @@ fun formatMonth(month: YearMonth): String = "${month.year}년 ${month.monthValue
 
 /**
  * 금액을 만 단위로 줄인다. 문장 안에서 대략의 크기만 전할 때 쓴다.
- * 만 원 아래는 그대로 쓰고, 그 위는 만 단위에서 반올림한다.
- *   8,500 → "8,500원" / 93,000 → "9만원" / 123,456,789 → "1억 2,346만원"
+ * 만 원 아래는 그대로 쓰고, 그 위는 만 단위 아래를 버린다(내림). 반올림하면 옆에 적힌 전체 금액보다
+ * 커 보일 수 있어서(2,076,048원 → 208만원) 두 금액이 어긋나 보인다.
+ *   8,500 → "8,500원" / 93,000 → "9만원" / 99,000 → "9만원" / 123,456,789 → "1억 2,345만원"
  * 부호는 붙이지 않는다. 덜/더 는 문장이 말한다.
  */
 fun formatCompactWon(amount: Long): String {
     val abs = abs(amount)
     if (abs < MAN) return "${formatAmount(abs)}원"
-    var eok = abs / EOK
-    var man = (abs % EOK + MAN / 2) / MAN
-    // 반올림으로 만 단위가 1억이 되면 억으로 올린다 (99,995,000 → 1억원)
-    if (man == EOK / MAN) {
-        eok += 1
-        man = 0
-    }
+    val eok = abs / EOK
+    val man = abs % EOK / MAN
     return buildString {
         if (eok > 0) append("${formatAmount(eok)}억")
         if (eok > 0 && man > 0) append(' ')

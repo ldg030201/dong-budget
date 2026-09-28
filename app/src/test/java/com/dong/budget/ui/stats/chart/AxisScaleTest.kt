@@ -70,10 +70,12 @@ class AxisScaleTest {
     }
 
     @Test
-    fun `반올림으로 자리가 바뀌면 윗 단위로 올린다`() {
-        assertEquals("10만", formatAxisWon(99_960))
-        assertEquals("100만", formatAxisWon(999_960))
-        assertEquals("1억", formatAxisWon(99_996_000))
+    fun `적지 못한 아래 자리는 버리고 윗 단위로 올리지 않는다`() {
+        assertEquals("9.9만", formatAxisWon(99_960))
+        assertEquals("99.9만", formatAxisWon(999_960))
+        assertEquals("9,999만", formatAxisWon(99_996_000))
+        // 통계 머리의 전체 금액(2,076,048원)보다 커 보이지 않는다
+        assertEquals("207만", formatAxisWon(2_076_048))
     }
 
     @Test
