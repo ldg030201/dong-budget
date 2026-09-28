@@ -138,12 +138,9 @@ class TransactionEditorViewModel(
         viewModelScope.launch {
             paymentMethodRepository.observeAll().collect { methods ->
                 _uiState.update { state ->
-                    // 알림에서 읽은 카드 이름과 같은 결제수단이 있으면(띄어쓰기·대소문자 무시) 새로 만들 것이 없다.
+                    // 알림에서 읽은 카드 이름과 같은 결제수단이 있으면(띄어쓰기·대소문자 무시, 예전에 잘려 만든 이름 포함) 새로 만들 것이 없다.
                     // 그 이름을 고른 상태였으면 있는 결제수단을 고른다. 등록창에서 같은 이름을 직접 추가한 경우도 여기로 온다.
-                    val match =
-                        state.pendingPaymentName?.let { pending ->
-                            methods.firstOrNull { PaymentMethodRepository.sameName(it.name, pending) }
-                        }
+                    val match = state.pendingPaymentName?.let { PaymentMethodRepository.findSameCard(methods, it) }
                     if (match == null) {
                         state.copy(paymentMethods = methods)
                     } else {

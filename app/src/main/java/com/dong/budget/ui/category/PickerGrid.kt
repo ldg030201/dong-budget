@@ -142,7 +142,8 @@ private fun PickerTile(selected: Boolean, label: String, onClick: () -> Unit, ta
             style = MaterialTheme.typography.labelMedium,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
             color = if (selected) MaterialTheme.colorScheme.primary else BudgetTheme.colors.textPrimary,
-            maxLines = 1,
+            // 칸이 좁아 카드 상품명 같은 긴 이름은 한 줄에 다 안 들어간다. 두 줄까지 보여준다.
+            maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             textAlign = TextAlign.Center,
             modifier = Modifier.padding(horizontal = BudgetTheme.spacing.tightGap),
