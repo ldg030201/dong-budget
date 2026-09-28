@@ -36,6 +36,7 @@ import com.dong.budget.ui.components.BudgetTextButton
 import com.dong.budget.ui.components.FloatingSubBar
 import com.dong.budget.ui.components.FloatingSubBarScrim
 import com.dong.budget.ui.components.MonthStepper
+import com.dong.budget.ui.components.STATS_ENTRY_SHARED_KEY
 import com.dong.budget.ui.components.SubBarTab
 import com.dong.budget.ui.components.floatingBarClearance
 import com.dong.budget.ui.stats.tab.BreakdownKind
@@ -51,6 +52,7 @@ import java.time.YearMonth
  * 통계. 아래 메뉴의 '통계' 로 들어온다.
  * 맨 위 달 줄과 아래 떠 있는 메뉴(뒤로 · 통계 · 월별 · 일별 · 분류 · 결제수단) 사이에 고른 탭을 보여준다.
  * 첫 칸 '통계' 는 한눈에 보는 요약이고, 나머지 칸은 저마다의 기준으로 자세히 본다.
+ * 들어올 때 아래 메뉴의 '통계' 가 첫 칸 '통계' 자리로 옮겨 오고, 나갈 때는 거꾸로 아래 메뉴로 내려간다([STATS_ENTRY_SHARED_KEY]).
  *
  * 다섯 탭이 달 하나를 같이 쓴다. 탭을 바꿔도 달은 그대로고, 달을 바꿔도 탭마다 보던 스크롤 위치는 그대로다.
  * 탭 이동은 뒤로 기록에 쌓지 않는다. 뒤로(메뉴의 ←, 시스템 뒤로)는 늘 통계를 나가 들어오기 전 화면으로 간다.
@@ -168,7 +170,10 @@ fun StatsScreen(
     }
 }
 
-private val TABS = StatsTab.entries.map { SubBarTab(label = it.label, icon = it.icon) }
+private val TABS =
+    StatsTab.entries.map { tab ->
+        SubBarTab(label = tab.label, icon = tab.icon, sharedKey = STATS_ENTRY_SHARED_KEY.takeIf { tab == StatsTab.OVERVIEW })
+    }
 
 /** 통계 화면 가운데에 보이는 것. 첫 계산 전(null)·기록 없음·탭 하나 */
 private sealed interface StatsPage {

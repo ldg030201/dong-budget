@@ -33,6 +33,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.vectorResource
 import com.dong.budget.R
+import com.dong.budget.ui.components.STATS_ENTRY_SHARED_KEY
+import com.dong.budget.ui.components.sharedNavElement
 import com.dong.budget.ui.home.HomeScreen
 import com.dong.budget.ui.home.HomeUiState
 import com.dong.budget.ui.home.MoreScreen
@@ -108,12 +110,20 @@ fun HomeShell(
                     )
                     // 통계는 탭이 아니라 입구다. 누르면 통계 화면이 셸 위로 올라오고, 이 칸은 고른 칸이 되지 않는다.
                     // 그래서 ShellTab 에 넣지 않고 홈 바로 뒤에 끼운다.
+                    // 통계를 열면 이 칸의 아이콘과 글자가 통계 하위 메뉴의 첫 칸 '통계' 자리로 옮겨 가고, 닫으면 여기로 내려온다.
                     if (tab == ShellTab.HOME) {
                         ShellNavItem(
                             selected = false,
                             onClick = onOpenStatistics,
-                            icon = { Icon(ImageVector.vectorResource(R.drawable.ic_sym_bar_chart), contentDescription = null) },
+                            icon = {
+                                Icon(
+                                    ImageVector.vectorResource(R.drawable.ic_sym_bar_chart),
+                                    contentDescription = null,
+                                    modifier = Modifier.sharedNavElement("$STATS_ENTRY_SHARED_KEY-icon"),
+                                )
+                            },
                             label = "통계",
+                            labelModifier = Modifier.sharedNavElement("$STATS_ENTRY_SHARED_KEY-label"),
                             colors = itemColors,
                         )
                     }
@@ -161,7 +171,10 @@ fun HomeShell(
     }
 }
 
-/** 하단 탭 한 칸. 앱은 리플을 꺼 두었으므로(Theme) 누르면 아이콘과 글자가 눌려 들어가게 한다. */
+/**
+ * 하단 탭 한 칸. 앱은 리플을 꺼 두었으므로(Theme) 누르면 아이콘과 글자가 눌려 들어가게 한다.
+ * @param labelModifier 글자에 붙일 것(다른 화면과 잇는 공유 요소 등)
+ */
 @Composable
 private fun RowScope.ShellNavItem(
     selected: Boolean,
@@ -169,13 +182,14 @@ private fun RowScope.ShellNavItem(
     icon: @Composable () -> Unit,
     label: String,
     colors: NavigationBarItemColors,
+    labelModifier: Modifier = Modifier,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     NavigationBarItem(
         selected = selected,
         onClick = onClick,
         icon = icon,
-        label = { Text(label, style = MaterialTheme.typography.labelSmall) },
+        label = { Text(label, style = MaterialTheme.typography.labelSmall, modifier = labelModifier) },
         colors = colors,
         interactionSource = interactionSource,
         modifier =
