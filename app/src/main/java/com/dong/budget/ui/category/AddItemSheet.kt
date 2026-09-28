@@ -1,5 +1,6 @@
 package com.dong.budget.ui.category
 
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -47,6 +48,7 @@ import com.dong.budget.ui.components.IconBadge
 import com.dong.budget.ui.components.SectionLabel
 import com.dong.budget.ui.components.categoryIconRes
 import com.dong.budget.ui.theme.BudgetTheme
+import com.dong.budget.ui.theme.Motion
 import com.dong.budget.ui.theme.pressScaleClickable
 
 /** 새로 만들 것. 추가 시트의 제목과 이름 예시가 정해진다. */
@@ -151,11 +153,16 @@ fun AddItemSheet(
 @Composable
 private fun ColorDot(key: String, selected: Boolean, onClick: () -> Unit) {
     val swatch = BudgetTheme.categoryPalette[key]
+    val ring by animateColorAsState(
+        if (selected) BudgetTheme.colors.textPrimary else Color.Transparent,
+        Motion.quick(),
+        label = "colorRing",
+    )
     Box(
         modifier =
         Modifier
             .size(BudgetTheme.size.minTouchTarget)
-            .pressScaleClickable(shape = CircleShape, role = Role.RadioButton, onClick = onClick)
+            .pressScaleClickable(shape = CircleShape, role = Role.RadioButton, pressedTint = true, onClick = onClick)
             .semantics {
                 this.selected = selected
                 contentDescription = colorLabel(key)
@@ -167,7 +174,7 @@ private fun ColorDot(key: String, selected: Boolean, onClick: () -> Unit) {
                 .size(BudgetTheme.size.badgeSmall)
                 .border(
                     width = BudgetTheme.size.underlineActive,
-                    color = if (selected) BudgetTheme.colors.textPrimary else Color.Transparent,
+                    color = ring,
                     shape = CircleShape,
                 ).padding(BudgetTheme.size.underlineActive * 2)
                 .background(swatch.content, CircleShape),
@@ -178,17 +185,20 @@ private fun ColorDot(key: String, selected: Boolean, onClick: () -> Unit) {
 @Composable
 private fun IconChoice(key: String, selected: Boolean, color: String, onClick: () -> Unit) {
     // 고르지 않은 아이콘은 회색으로 둔다. 스물네 개가 전부 색칠돼 있으면 화면이 요란하다.
+    val ring by animateColorAsState(
+        if (selected) MaterialTheme.colorScheme.primary else Color.Transparent,
+        Motion.quick(),
+        label = "iconRing",
+    )
     IconBadge(
         iconRes = categoryIconRes(key),
         swatch = BudgetTheme.categoryPalette[if (selected) color else CategoryStyle.FALLBACK_COLOR],
         size = BudgetTheme.size.minTouchTarget,
         modifier =
         Modifier
-            .border(
-                width = BudgetTheme.size.underlineActive,
-                color = if (selected) MaterialTheme.colorScheme.primary else Color.Transparent,
-                shape = CircleShape,
-            ).pressScaleClickable(shape = CircleShape, role = Role.RadioButton, onClick = onClick)
+            // 고리가 아이콘과 함께 눌리도록 눌림 뒤에 두른다
+            .pressScaleClickable(shape = CircleShape, role = Role.RadioButton, onClick = onClick)
+            .border(width = BudgetTheme.size.underlineActive, color = ring, shape = CircleShape)
             .semantics {
                 this.selected = selected
                 contentDescription = iconLabel(key)
