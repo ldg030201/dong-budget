@@ -3,8 +3,10 @@ package com.dong.budget.ui.home
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
@@ -125,7 +127,11 @@ fun HomeScreen(
             )
             // 새 버전이 있으면 달 선택 아래에 알림 줄을 둔다. 목록 안이 아니라 고정 자리에 두어
             // 달력을 누를 때 쓰는 목록 줄 번호가 흔들리지 않게 한다.
-            AnimatedVisibility(visible = updateVersion != null) {
+            AnimatedVisibility(
+                visible = updateVersion != null,
+                enter = expandVertically(Motion.standard()) + fadeIn(Motion.standard()),
+                exit = shrinkVertically(Motion.standard()) + fadeOut(Motion.quick()),
+            ) {
                 // 사라지는 애니메이션 동안에도 마지막 버전을 보여준다
                 var shownVersion by remember { mutableStateOf(updateVersion.orEmpty()) }
                 if (updateVersion != null) shownVersion = updateVersion
@@ -263,8 +269,8 @@ private fun MonthBody(state: HomeUiState, onEditTransaction: (Long) -> Unit, mod
 
         AnimatedVisibility(
             visible = showStrip,
-            enter = fadeIn(),
-            exit = fadeOut(),
+            enter = fadeIn(Motion.quick()),
+            exit = fadeOut(Motion.quick()),
             modifier = Modifier.align(Alignment.TopCenter),
         ) {
             val shown = anchor ?: highlight ?: state.today
