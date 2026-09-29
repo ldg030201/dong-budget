@@ -54,6 +54,11 @@ class SalaryTextTest {
     fun `1초에 버는 돈과 통상시급`() {
         assertEquals("₩4.73/s", perSecondBadge(4.7348))
         assertEquals("₩1,234.50/s", perSecondBadge(1_234.5))
+        // 1시간에 버는 돈은 원 아래를 반올림한다: 4.7348 × 3600 = 17,045.28
+        assertEquals("₩17,045/h", perHourBadge(4.7348))
+        assertEquals("₩0/h", perHourBadge(0.0))
+        assertEquals("₩4.73/s · ₩17,045/h", rateBadge(4.7348))
+        assertEquals("1초에 4.73원, 1시간에 17,045원", spokenRate(4.7348))
         assertEquals("세전 기준으로 쌓여요 · 통상시급 14,354원 (월 209시간 기준)", basisLine(salary))
         // 실수령을 적으면 쌓이는 돈은 실수령, 통상시급은 그대로 세전이다
         assertEquals("실수령 기준으로 쌓여요 · 통상시급 14,354원 (월 209시간 기준)", basisLine(salary.copy(takeHome = 2_600_000)))
