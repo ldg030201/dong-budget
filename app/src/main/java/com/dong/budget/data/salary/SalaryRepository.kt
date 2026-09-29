@@ -48,10 +48,11 @@ class SalaryRepository(private val context: Context) {
      * 로그에 적을 설정 요약. 번 돈이 이상하다는 신고를 받으면 어떤 설정이었는지 보려고 쓴다.
      * 금액은 적지 않는다. 개발자 모드 로그는 사용자가 복사해 남에게 보내는 글이다.
      */
-    fun describe(settings: SalarySettings): String = "${settings.basis} · ${settings.workStart}~${settings.workEnd}" +
+    fun describe(settings: SalarySettings): String = "${settings.basis}${if (settings.usesTakeHome) " · 실수령" else ""} · " +
+        "${settings.workStart}~${settings.workEnd}" +
         "${if (settings.skipLunch) " 점심 ${settings.lunchStart}~${settings.lunchEnd} 뺌" else ""} · " +
         "요일 ${settings.workdays.sorted().joinToString(",") { it.value.toString() }} · 월급날 ${settings.payday}일" +
-        "${settings.startDate?.let { " · 시작일 $it" } ?: ""} · 알림 ${if (settings.paydayNotice) "켬" else "끔"}"
+        "${settings.startDate?.let { " · 입사일 $it" } ?: ""} · 알림 ${if (settings.paydayNotice) "켬" else "끔"}"
 
     private fun decode(text: String): SalaryRecord? = runCatching { json.decodeFromString(SalaryRecord.serializer(), text) }.getOrNull()
 
@@ -71,6 +72,7 @@ private val Context.salaryDataStore by preferencesDataStore(name = "salary")
 data class SalaryRecord(
     val basis: String = PayBasis.MONTHLY.name,
     val amount: Long = 0,
+    val takeHome: Long = 0,
     val workStart: String = "09:00",
     val workEnd: String = "18:00",
     val skipLunch: Boolean = true,
@@ -85,6 +87,7 @@ data class SalaryRecord(
 fun SalarySettings.toRecord(): SalaryRecord = SalaryRecord(
     basis = basis.name,
     amount = amount,
+    takeHome = takeHome,
     workStart = workStart.toString(),
     workEnd = workEnd.toString(),
     skipLunch = skipLunch,
@@ -102,6 +105,7 @@ fun SalaryRecord.toSettings(): SalarySettings {
     return SalarySettings(
         basis = PayBasis.entries.firstOrNull { it.name == basis } ?: PayBasis.MONTHLY,
         amount = amount.coerceAtLeast(0),
+        takeHome = takeHome.coerceAtLeast(0),
         workStart = parseTime(workStart) ?: defaults.workStart,
         workEnd = parseTime(workEnd) ?: defaults.workEnd,
         skipLunch = skipLunch,

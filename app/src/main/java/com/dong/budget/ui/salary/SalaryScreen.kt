@@ -51,6 +51,7 @@ import java.time.Clock
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.YearMonth
+import java.util.Locale
 
 /**
  * 월급 탭. 일하는 동안 오늘 번 돈이 초마다 오르고, 이번 달·올해 번 돈과 월급날까지 남은 날을 보여 준다.
@@ -169,9 +170,18 @@ private fun TodayCard(settings: SalarySettings, now: () -> LocalDateTime, spentT
         StatusRow(status = earnings.status, text = statusLine(settings, time))
         Spacer(Modifier.height(BudgetTheme.spacing.itemGap))
         // 매초 바뀌는 금액은 화면 읽기에서 빼고, 천 원 단위로 끊은 글을 대신 읽힌다
-        val spoken = "오늘 번 돈 ${spokenEarned(earnings.today)}"
+        val spoken = "오늘 번 돈 ${spokenEarned(earnings.today)}, 1초에 ${String.format(Locale.KOREA, "%.2f", earnings.perSecond)}원"
         Column(modifier = Modifier.clearAndSetSemantics { contentDescription = spoken }) {
-            Text(text = "오늘 번 돈", style = MaterialTheme.typography.bodyMedium, color = BudgetTheme.colors.textSecondary)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "오늘 번 돈",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = BudgetTheme.colors.textSecondary,
+                    modifier = Modifier.weight(1f),
+                )
+                // 1초에 버는 돈. 일하지 않는 때에도 이번 월급 기간의 빠르기를 보여 준다.
+                Text(text = perSecondBadge(earnings.perSecond), style = BudgetTheme.amount.tableCell, color = BudgetTheme.colors.income)
+            }
             RollingText(text = formatEarned(earnings.today), style = BudgetTheme.amount.hero, color = BudgetTheme.colors.income)
         }
         Spacer(Modifier.height(BudgetTheme.spacing.itemGap))
@@ -224,23 +234,19 @@ private fun StatusRow(status: WorkStatus, text: String) {
     }
 }
 
-/** 이번 달과 올해 번 돈. 초마다 따라 오르지만 글자가 굴러가지는 않는다(움직이는 것은 오늘 번 돈 하나로 둔다). */
+/** 월급날부터와 올해 번 돈. 초마다 따라 오르지만 글자가 굴러가지는 않는다(움직이는 것은 오늘 번 돈 하나로 둔다). */
 @Composable
 private fun TotalsCard(settings: SalarySettings, now: () -> LocalDateTime) {
     val time = now()
     val earnings = settings.earningsAt(time)
     Column(modifier = Modifier.fillMaxWidth().sectionBlock()) {
-        TotalRow(
-            label = "이번 달 번 돈",
-            amount = earnings.month,
-            caption = monthCaption(earnings.month, earnings.monthTotal),
-        )
+        TotalRow(label = "월급날부터 번 돈", amount = earnings.period, caption = periodCaption(earnings))
         Spacer(Modifier.height(BudgetTheme.spacing.inlineGap))
-        EarnBar(fraction = if (earnings.monthTotal > 0) (earnings.month / earnings.monthTotal).toFloat() else 0f)
+        EarnBar(fraction = if (earnings.periodTotal > 0) (earnings.period / earnings.periodTotal).toFloat() else 0f)
         Spacer(Modifier.height(BudgetTheme.spacing.sectionPadding))
         TotalRow(label = "올해 번 돈", amount = earnings.year, caption = yearCaption(settings, time.toLocalDate()))
         Spacer(Modifier.height(BudgetTheme.spacing.sectionPadding))
-        HintText(rateLine(earnings.perSecond))
+        HintText(basisLine(settings))
     }
 }
 
@@ -253,16 +259,10 @@ private fun TotalRow(label: String, amount: Double, caption: String) {
     }
 }
 
-private fun monthCaption(earned: Double, total: Double): String {
-    if (total <= 0) return "이번 달은 일하는 날이 없어요"
-    val percent = (earned * PERCENT / total).toInt().coerceIn(0, PERCENT.toInt())
-    return "이번 달 월급 ${formatAmount(total.toLong())}원 중 $percent%"
-}
-
 /** 올해 언제부터 셌는지. 시작일이 올해면 그날부터, 아니면 1월 1일부터 */
 private fun yearCaption(settings: SalarySettings, today: LocalDate): String {
     val start = settings.startDate?.takeIf { it.year == today.year && !it.isAfter(today) }
-    return if (start == null) "1월 1일부터 셌어요" else "${start.monthValue}월 ${start.dayOfMonth}일부터 셌어요"
+    return if (start == null) "1월 1일부터 셌어요" else "입사일 ${start.monthValue}월 ${start.dayOfMonth}일부터 셌어요"
 }
 
 /** 월급날. 막 지났는데 아직 등록하지 않았으면 등록 버튼을 둔다. */
@@ -308,5 +308,3 @@ private fun EarnBar(fraction: Float) {
             },
     )
 }
-
-private const val PERCENT = 100.0

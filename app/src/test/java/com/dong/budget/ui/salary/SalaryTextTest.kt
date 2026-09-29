@@ -31,7 +31,7 @@ class SalaryTextTest {
         assertEquals("쉬는 날이에요 · 월요일부터 다시 쌓여요", statusLine(salary, at("2026-09-26T11:00:00")))
         assertEquals("쉬는 날이에요 · 내일부터 다시 쌓여요", statusLine(salary, at("2026-09-27T11:00:00")))
         assertEquals(
-            "10월 1일 (목)부터 쌓여요",
+            "입사일 10월 1일 (목)부터 쌓여요",
             statusLine(salary.copy(startDate = LocalDate.of(2026, 10, 1)), at("2026-09-29T11:00:00")),
         )
         assertEquals("월급을 정하면 쌓이기 시작해요", statusLine(SalarySettings(), at("2026-09-29T11:00:00")))
@@ -46,8 +46,21 @@ class SalaryTextTest {
     }
 
     @Test
-    fun `버는 빠르기`() {
-        assertEquals("1초에 4.73원 · 1분에 284원 · 1시간에 17,045원", rateLine(4.7348))
+    fun `1초에 버는 돈과 통상시급`() {
+        assertEquals("₩4.73/s", perSecondBadge(4.7348))
+        assertEquals("₩1,234.50/s", perSecondBadge(1_234.5))
+        assertEquals("세전 기준으로 쌓여요 · 통상시급 14,354원 (월 209시간 기준)", basisLine(salary))
+        // 실수령을 적으면 쌓이는 돈은 실수령, 통상시급은 그대로 세전이다
+        assertEquals("실수령 기준으로 쌓여요 · 통상시급 14,354원 (월 209시간 기준)", basisLine(salary.copy(takeHome = 2_600_000)))
+        // 실수령만 적으면 통상시급을 셀 수 없다
+        assertEquals("실수령 기준으로 쌓여요", basisLine(SalarySettings(takeHome = 2_600_000)))
+    }
+
+    @Test
+    fun `월급날부터 번 돈 밑 안내`() {
+        val earnings = salary.earningsAt(at("2026-09-29T10:30:00"))
+        // 10월 월급 기간 9월 26일~, 150,000 + 28,125 = 178,125원 → 5%
+        assertEquals("9월 26일부터 · 10월 월급 3,000,000원 중 5%", periodCaption(earnings))
     }
 
     @Test

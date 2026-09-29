@@ -53,7 +53,7 @@ import java.time.LocalDate
 import java.time.LocalTime
 
 /** 아래 입력판. 무엇을 고치는 중인지 */
-private enum class SalaryPanel { AMOUNT, WORK_START, WORK_END, LUNCH_START, LUNCH_END, PAYDAY, START_DATE }
+private enum class SalaryPanel { AMOUNT, TAKE_HOME, START_DATE, WORK_START, WORK_END, LUNCH_START, LUNCH_END, PAYDAY }
 
 /**
  * 월급 설정. 줄을 누르면 화면 아래에 입력판(키패드·시계·날짜)이 열린다(등록창과 같은 방식). 바꾸는 대로 바로 저장한다.
@@ -65,9 +65,9 @@ private enum class SalaryPanel { AMOUNT, WORK_START, WORK_END, LUNCH_START, LUNC
 fun SalarySettingsScreen(
     settings: SalarySettings?,
     onChange: (SalarySettings) -> Unit,
-    onDigit: (String) -> Unit,
-    onDeleteDigit: () -> Unit,
-    onClearAmount: () -> Unit,
+    onDigit: (takeHome: Boolean, digit: String) -> Unit,
+    onDeleteDigit: (takeHome: Boolean) -> Unit,
+    onClearAmount: (takeHome: Boolean) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -117,14 +117,36 @@ fun SalarySettingsScreen(
                         modifier = Modifier.padding(vertical = BudgetTheme.spacing.inlineGap),
                     )
                     ActionRow(
-                        title = settings.basis.label(),
+                        title = "세전 ${settings.basis.label()}",
                         value = if (settings.amount > 0) "${formatAmount(settings.amount)}원" else "정해 주세요",
                         valueColor = valueColor(SalaryPanel.AMOUNT),
                         onClick = { toggle(SalaryPanel.AMOUNT) },
                         modifier = row(SalaryPanel.AMOUNT),
                     )
+                    amountHint(settings)?.let { HintText(it, modifier = Modifier.padding(bottom = BudgetTheme.spacing.tightGap)) }
+                    ActionRow(
+                        title = "실수령 월급 (선택)",
+                        value = if (settings.takeHome > 0) "${formatAmount(settings.takeHome)}원" else "적지 않음",
+                        valueColor = valueColor(SalaryPanel.TAKE_HOME),
+                        onClick = { toggle(SalaryPanel.TAKE_HOME) },
+                        modifier = row(SalaryPanel.TAKE_HOME),
+                    )
                     HintText(
-                        text = amountHint(settings),
+                        text = takeHomeHint(settings),
+                        modifier = Modifier.padding(bottom = BudgetTheme.spacing.inlineGap),
+                    )
+                }
+
+                SettingsGroup("입사일") {
+                    ActionRow(
+                        title = "입사일",
+                        value = settings.startDate?.let { "${it.year}년 ${it.monthValue}월 ${it.dayOfMonth}일" } ?: "정하지 않음",
+                        valueColor = valueColor(SalaryPanel.START_DATE),
+                        onClick = { toggle(SalaryPanel.START_DATE) },
+                        modifier = row(SalaryPanel.START_DATE),
+                    )
+                    HintText(
+                        "입사일 전은 번 돈으로 치지 않아요. 올해 입사했다면 올해 번 돈도 입사일부터 세요",
                         modifier = Modifier.padding(bottom = BudgetTheme.spacing.inlineGap),
                     )
                 }
@@ -180,7 +202,10 @@ fun SalarySettingsScreen(
                         onClick = { toggle(SalaryPanel.PAYDAY) },
                         modifier = row(SalaryPanel.PAYDAY),
                     )
-                    HintText("그 달에 없는 날이면 말일, 주말이면 앞 금요일에 받는 것으로 쳐요")
+                    HintText(
+                        "그 달에 없는 날이면 말일, 주말이면 앞 금요일에 받는 것으로 쳐요. 월급날 다음 날부터 다시 0원부터 쌓여요",
+                        modifier = Modifier.padding(bottom = BudgetTheme.spacing.inlineGap),
+                    )
                     SwitchRow(
                         title = "월급날 알림",
                         description = "월급날 출근 시각에 '월급 들어왔나요?' 알림을 띄워요. 누르면 월급을 수입으로 등록해요",
@@ -189,27 +214,21 @@ fun SalarySettingsScreen(
                     )
                 }
 
-                SettingsGroup("시작일") {
-                    ActionRow(
-                        title = "일을 시작한 날",
-                        value = settings.startDate?.let { "${it.year}년 ${it.monthValue}월 ${it.dayOfMonth}일" } ?: "정하지 않음",
-                        valueColor = valueColor(SalaryPanel.START_DATE),
-                        onClick = { toggle(SalaryPanel.START_DATE) },
-                        modifier = row(SalaryPanel.START_DATE),
-                    )
-                    HintText(
-                        "올해 중간에 일을 시작했다면 정해 주세요. 그 전에는 번 돈으로 치지 않아요",
-                        modifier = Modifier.padding(bottom = BudgetTheme.spacing.inlineGap),
-                    )
-                }
-
                 Spacer(Modifier.height(BudgetTheme.spacing.sectionGap))
             }
 
             AnimatedInputPanel(panel = panel, modifier = Modifier.navigationBarsPadding()) { current ->
                 when (current) {
-                    SalaryPanel.AMOUNT ->
-                        InputPanelBox { NumberKeypad(onDigit = onDigit, onDelete = onDeleteDigit, onClear = onClearAmount) }
+                    SalaryPanel.AMOUNT, SalaryPanel.TAKE_HOME -> {
+                        val takeHome = current == SalaryPanel.TAKE_HOME
+                        InputPanelBox {
+                            NumberKeypad(
+                                onDigit = { onDigit(takeHome, it) },
+                                onDelete = { onDeleteDigit(takeHome) },
+                                onClear = { onClearAmount(takeHome) },
+                            )
+                        }
+                    }
 
                     SalaryPanel.WORK_START -> TimeInput(settings.workStart) { onChange(settings.copy(workStart = it)) }
 
@@ -290,11 +309,18 @@ private fun PayBasis.label(): String = when (this) {
     PayBasis.YEARLY -> "연봉"
 }
 
-/** 금액 밑 안내. 연봉이면 한 달에 얼마로 치는지, 월급이면 한국어 단위로 끊어 읽기 */
-private fun amountHint(settings: SalarySettings): String = when {
-    settings.amount <= 0 -> "실제로 받는 돈(세후)으로 적으면 통장에 들어오는 돈 기준으로 쌓여요"
-    settings.basis == PayBasis.YEARLY -> "${formatKoreanWon(settings.amount)} · 한 달에 ${formatKoreanWon(settings.monthly.toLong())}씩 쳐요"
+/** 세전 금액 밑 안내. 연봉이면 한 달에 얼마로 치는지, 월급이면 한국어 단위로 끊어 읽기 */
+private fun amountHint(settings: SalarySettings): String? = when {
+    settings.amount <= 0 -> null
+    settings.basis == PayBasis.YEARLY -> "${formatKoreanWon(settings.amount)} · 한 달에 ${formatKoreanWon(settings.grossMonthly.toLong())}씩 쳐요"
     else -> formatKoreanWon(settings.amount)
+}
+
+/** 실수령 밑 안내. 무엇을 무엇으로 세는지 알린다. */
+private fun takeHomeHint(settings: SalarySettings): String = if (settings.takeHome > 0) {
+    "${formatKoreanWon(settings.takeHome)} · 번 돈과 월급날 등록 금액은 실수령으로, 통상시급은 세전으로 세요"
+} else {
+    "적으면 통장에 들어오는 돈으로 쌓여요. 비워 두면 세전으로 쌓여요"
 }
 
 /** 입력판이 열린 뒤 줄을 끌어올리기까지 기다리는 시간(등록창과 같다) */

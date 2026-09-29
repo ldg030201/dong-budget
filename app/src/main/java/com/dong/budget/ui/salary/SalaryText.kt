@@ -1,5 +1,6 @@
 package com.dong.budget.ui.salary
 
+import com.dong.budget.data.salary.Earnings
 import com.dong.budget.data.salary.SalarySettings
 import com.dong.budget.data.salary.WorkStatus
 import com.dong.budget.ui.format.formatAmount
@@ -29,7 +30,7 @@ internal fun statusLine(settings: SalarySettings, now: LocalDateTime): String {
     fun until(target: LocalTime) = formatDuration(Duration.between(time, target).seconds.coerceAtLeast(1))
     return when (settings.statusAt(now)) {
         WorkStatus.NOT_SET -> "월급을 정하면 쌓이기 시작해요"
-        WorkStatus.NOT_STARTED -> "${settings.startDate?.let(::formatDayShort)}부터 쌓여요"
+        WorkStatus.NOT_STARTED -> "입사일 ${settings.startDate?.let(::formatDayShort)}부터 쌓여요"
         WorkStatus.DAY_OFF -> "쉬는 날이에요 · ${nextWorkdayText(settings, now.toLocalDate())}"
         WorkStatus.BEFORE_WORK -> "출근 전이에요 · 출근까지 ${until(settings.workStart)}"
         WorkStatus.WORKING -> "일하는 중이에요 · 퇴근까지 ${until(settings.workEnd)}"
@@ -51,12 +52,31 @@ internal fun paydayLine(payday: LocalDate, today: LocalDate): String = when (val
     else -> "월급날까지 ${days}일 남았어요"
 }
 
-/** 버는 빠르기. "1초에 4.73원 · 1분에 284원 · 1시간에 17,045원" */
-internal fun rateLine(perSecond: Double): String {
-    val second = String.format(Locale.KOREA, "%,.2f", perSecond)
-    val minute = formatAmount(floor(perSecond * SECONDS_PER_MINUTE).toLong())
-    val hour = formatAmount(floor(perSecond * SECONDS_PER_HOUR).toLong())
-    return "1초에 ${second}원 · 1분에 ${minute}원 · 1시간에 ${hour}원"
+/** 1초에 버는 돈. 사용자가 고른 모양이다. "₩4.73/s" */
+internal fun perSecondBadge(perSecond: Double): String = "₩${String.format(Locale.KOREA, "%,.2f", perSecond)}/s"
+
+/**
+ * 번 돈 카드 밑 안내. 무엇으로 쌓는지와 통상시급(세전 월급 ÷ 한 달 소정근로시간).
+ * "실수령 기준으로 쌓여요 · 통상시급 14,354원 (월 209시간 기준)". 세전을 적지 않았으면 통상시급은 뺀다.
+ */
+internal fun basisLine(settings: SalarySettings): String {
+    val basis = if (settings.usesTakeHome) "실수령 기준으로 쌓여요" else "세전 기준으로 쌓여요"
+    val wage = settings.ordinaryHourlyWage
+    if (wage <= 0) return basis
+    return "$basis · 통상시급 ${formatAmount(floor(wage).toLong())}원 (월 ${settings.standardMonthlyHours}시간 기준)"
+}
+
+/**
+ * '월급날부터 번 돈' 밑 안내. 언제부터 셌고, 이번 월급의 몇 %를 벌었는지.
+ * "9월 26일부터 · 10월 월급 3,000,000원 중 12%"
+ */
+internal fun periodCaption(earnings: Earnings): String {
+    val start = earnings.periodStart ?: return ""
+    val month = earnings.payMonth ?: return ""
+    val from = "${start.monthValue}월 ${start.dayOfMonth}일부터"
+    if (earnings.periodTotal <= 0) return "$from · 이번 월급 기간에는 일하는 날이 없어요"
+    val percent = (earnings.period * PERCENT / earnings.periodTotal).toInt().coerceIn(0, PERCENT.toInt())
+    return "$from · ${month.monthValue}월 월급 ${formatAmount(earnings.periodTotal.toLong())}원 중 $percent%"
 }
 
 /**
@@ -100,7 +120,6 @@ private fun hoursAndMinutes(minutes: Long): String {
 internal fun spokenEarned(amount: Double): String = "약 ${formatAmount((floor(amount / SPOKEN_STEP) * SPOKEN_STEP).toLong())}원"
 
 private const val SECONDS_PER_MINUTE = 60L
-private const val SECONDS_PER_HOUR = 3_600L
 private const val MINUTES_PER_HOUR = 60L
 private const val PERCENT = 100.0
 private const val SPOKEN_STEP = 1_000.0

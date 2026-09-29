@@ -170,7 +170,7 @@ internal fun problemOf(backup: Backup): String? {
     val paymentUuids = paymentMethods.mapTo(HashSet()) { it.uuid }
     val transactionUuids = transactions.mapTo(HashSet()) { it.uuid }
     backup.salary?.let { salary ->
-        if (salary.amount !in 0..MAX_AMOUNT) return "월급 금액이 범위를 벗어나요: ${salary.amount}"
+        if (salary.amount !in 0..MAX_AMOUNT || salary.takeHome !in 0..MAX_AMOUNT) return "월급 금액이 범위를 벗어나요"
     }
     transactions.forEach { t ->
         val problem =

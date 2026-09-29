@@ -5,16 +5,21 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.YearMonth
+import kotlin.math.ceil
 
 // ─────────────────────────────────────────────────────────────────────
 // 실시간 월급. 연봉이나 월급, 출퇴근 시간, 일하는 요일을 정해 두면 일하는 동안 초마다 번 돈이 쌓인다.
 //
 // 셈법
-//   - 한 달 월급을 그 달의 일하는 날 수로 나눠 하루치를 정하고, 하루치를 하루에 일하는 초로 나눠 초당 버는 돈을 정한다.
-//     그래서 달마다 일하는 날 수가 달라도 말일 퇴근 때 '이번 달' 이 딱 월급이 된다(초당 버는 돈은 달마다 조금 다르다).
+//   - 월급은 월급날 기준으로 센다. 앞 달 월급날 다음 날부터 이번 월급날까지가 한 번의 월급 기간이다([payPeriod]).
+//   - 한 달 월급을 그 기간의 일하는 날 수로 나눠 하루치를 정하고, 하루치를 하루에 일하는 초로 나눠 초당 버는 돈을 정한다.
+//     그래서 기간마다 일하는 날 수가 달라도 월급날 퇴근 때 '월급날부터 번 돈' 이 딱 월급이 되고, 다음 날 0원부터 다시 쌓인다.
+//     (초당 버는 돈은 기간마다 조금 다르다. 한국의 통상시급처럼 월 209시간으로 나누면 쉬는 날의 주휴 몫까지 들어 있어,
+//     일하는 시간에만 쌓을 때 월급날에 월급의 약 83% 에서 멈춘다. 통상시급은 [ordinaryHourlyWage] 로 따로 보여 준다.)
 //   - 출근부터 퇴근 사이에만 쌓이고, 점심시간은 뺀다(끌 수 있다). 퇴근 뒤와 쉬는 요일에는 멈춘다.
 //   - 공휴일은 모른다(자료가 없다). 일하는 요일이면 일한 날로 친다.
-//   - 시작일(입사일)이 있으면 그 전날까지는 벌지 않는다. 시작한 달은 그날부터 일한 날만큼만(일할 계산) 쌓인다.
+//   - 시작일(입사일)이 있으면 그 전날까지는 벌지 않는다. 시작한 기간은 그날부터 일한 날만큼만(일할 계산) 쌓인다.
+//   - '올해 번 돈' 은 1월 1일부터 센다. 월급 기간이 해를 넘으면 올해에 든 날만 센다.
 //   - 시각은 가계부처럼 서울 기준이다(BudgetTime.ZONE). 부르는 쪽이 서울 시각을 넘긴다.
 // ─────────────────────────────────────────────────────────────────────
 
@@ -29,7 +34,8 @@ enum class PayBasis {
 
 /**
  * 실시간 월급 설정.
- * @property amount 적은 금액(원). [basis] 가 연봉이면 연봉, 월급이면 월급. 0 이면 아직 정하지 않은 것이다.
+ * @property amount 세전 금액(원). [basis] 가 연봉이면 연봉, 월급이면 월급. 통상시급은 이것으로 센다. 0 이면 적지 않은 것이다.
+ * @property takeHome 실수령 월급(원). 적었으면 쌓이는 돈과 월급날 등록 금액은 이것으로 센다. 0 이면 세전으로 센다.
  * @property workEnd 퇴근. 출근보다 늦어야 한다(밤을 넘기는 근무는 아직 모른다).
  * @property skipLunch true 면 점심시간([lunchStart]~[lunchEnd])에는 쌓이지 않는다.
  * @property workdays 일하는 요일
@@ -40,6 +46,7 @@ enum class PayBasis {
 data class SalarySettings(
     val basis: PayBasis = PayBasis.MONTHLY,
     val amount: Long = 0,
+    val takeHome: Long = 0,
     val workStart: LocalTime = LocalTime.of(9, 0),
     val workEnd: LocalTime = LocalTime.of(18, 0),
     val skipLunch: Boolean = true,
@@ -50,26 +57,44 @@ data class SalarySettings(
     val startDate: LocalDate? = null,
     val paydayNotice: Boolean = true,
 ) {
-    /** 한 달 월급(원). 연봉이면 12로 나눈다. */
-    val monthly: Double get() = if (basis == PayBasis.YEARLY) amount / MONTHS_PER_YEAR else amount.toDouble()
+    /** 세전 한 달 월급(원). 연봉이면 12로 나눈다. */
+    val grossMonthly: Double get() = if (basis == PayBasis.YEARLY) amount / MONTHS_PER_YEAR else amount.toDouble()
+
+    /** 실수령으로 세는지. 실수령을 적었으면 그렇다. */
+    val usesTakeHome: Boolean get() = takeHome > 0
+
+    /** 쌓이는 한 달 월급(원). 실수령을 적었으면 실수령, 아니면 세전이다. 월급날 등록 금액도 이것이다. */
+    val monthly: Double get() = if (usesTakeHome) takeHome.toDouble() else grossMonthly
 
     /** 하루에 쌓이는 초. 출근~퇴근에서 그 안에 든 점심시간만큼 뺀다. */
     val workSecondsPerDay: Long get() = workedSeconds(workEnd.toSecondOfDay().toDouble()).toLong()
 
     /** 계산할 수 있게 다 정했는지. 금액·요일이 있고 하루에 일하는 시간이 있어야 한다. */
-    val isReady: Boolean get() = amount > 0 && workdays.isNotEmpty() && workSecondsPerDay > 0
+    val isReady: Boolean get() = monthly > 0 && workdays.isNotEmpty() && workSecondsPerDay > 0
 
     /** [date] 가 버는 날인지. 일하는 요일이고 시작일 뒤여야 한다. */
     fun earnsOn(date: LocalDate): Boolean = date.dayOfWeek in workdays && (startDate == null || !date.isBefore(startDate))
 
-    /** [month] 의 일하는 요일 수. 시작일과 상관없이 센다(하루치를 정하는 데 쓴다). */
-    fun workdaysIn(month: YearMonth): Int = (1..month.lengthOfMonth()).count { month.atDay(it).dayOfWeek in workdays }
+    /** [payMonth] 월급을 받기까지의 기간. 앞 달 월급날 다음 날부터 그달 월급날까지(둘 다 넣는다). */
+    fun payPeriod(payMonth: YearMonth): ClosedRange<LocalDate> = paydayIn(payMonth.minusMonths(1)).plusDays(1)..paydayIn(payMonth)
 
-    /** [month] 에 하루 일하면 버는 돈 */
-    fun dailyAmount(month: YearMonth): Double = workdaysIn(month).let { days -> if (days == 0) 0.0 else monthly / days }
+    /** [date] 가 어느 달 월급의 기간에 드는지. 월급날 당일은 그달 월급의 마지막 날이다. */
+    fun payMonthFor(date: LocalDate): YearMonth {
+        // 월급날은 달마다 앞으로만 간다(주말로 당겨도 이틀). 앞 달부터 차례로 보면 곧 찾는다.
+        var month = YearMonth.from(date).minusMonths(1)
+        while (paydayIn(month).isBefore(date)) month = month.plusMonths(1)
+        return month
+    }
 
-    /** [month] 에 일하는 동안 1초에 버는 돈 */
-    fun perSecond(month: YearMonth): Double = workSecondsPerDay.let { seconds -> if (seconds == 0L) 0.0 else dailyAmount(month) / seconds }
+    /** [payMonth] 월급 기간의 일하는 요일 수. 시작일과 상관없이 센다(하루치를 정하는 데 쓴다). */
+    fun workdaysIn(payMonth: YearMonth): Int = payPeriod(payMonth).dates().count { it.dayOfWeek in workdays }
+
+    /** [payMonth] 월급 기간에 하루 일하면 버는 돈 */
+    fun dailyAmount(payMonth: YearMonth): Double = workdaysIn(payMonth).let { days -> if (days == 0) 0.0 else monthly / days }
+
+    /** [payMonth] 월급 기간에 일하는 동안 1초에 버는 돈 */
+    fun perSecond(payMonth: YearMonth): Double =
+        workSecondsPerDay.let { seconds -> if (seconds == 0L) 0.0 else dailyAmount(payMonth) / seconds }
 
     /** 하루 중 [secondOfDay] 까지 일한 초. 출근 전 0, 퇴근 뒤 하루치. 점심시간을 빼면 그동안은 늘지 않는다. */
     fun workedSeconds(secondOfDay: Double): Double {
@@ -87,11 +112,25 @@ data class SalarySettings(
         return worked
     }
 
-    /** [month] 가 다 지나면 번 돈. 시작일이 그 달 안이면 그날부터 일한 날만큼(일할 계산), 그 뒤면 0 이다. */
-    fun earnedInWholeMonth(month: YearMonth): Double {
-        val counted = (1..month.lengthOfMonth()).count { earnsOn(month.atDay(it)) }
-        return dailyAmount(month) * counted
-    }
+    /** [payMonth] 월급 기간이 다 지나면 번 돈(보통 월급). 시작일이 기간 안이면 그날부터 일한 날만큼(일할 계산), 그 뒤면 0 이다. */
+    fun earnedInPeriod(payMonth: YearMonth): Double = dailyAmount(payMonth) * payPeriod(payMonth).dates().count(::earnsOn)
+
+    /**
+     * 한 달 소정근로시간(통상시급을 셀 때 나누는 시간). 주 소정근로시간(40시간까지)에 주휴시간을 더해 한 달 평균 주 수를 곱하고 올린다.
+     * 주 5일 하루 8시간이면 (40 + 8) × 365 ÷ 7 ÷ 12 = 208.6 → 209시간이다. 주 15시간이 안 되면 주휴가 없다.
+     * 주 40시간을 넘는 몫은 연장근로라 넣지 않는다.
+     */
+    val standardMonthlyHours: Int
+        get() {
+            val weeklyHours = (workdays.size * workSecondsPerDay / SECONDS_PER_HOUR).coerceAtMost(MAX_WEEKLY_HOURS)
+            if (weeklyHours <= 0) return 0
+            val weeklyRestHours = if (weeklyHours >= MIN_HOURS_FOR_WEEKLY_REST) weeklyHours / MAX_WEEKLY_HOURS * PAID_REST_HOURS else 0.0
+            return ceil((weeklyHours + weeklyRestHours) * DAYS_PER_YEAR / DAYS_PER_WEEK / MONTHS_PER_YEAR - ROUNDING_SLACK).toInt()
+        }
+
+    /** 통상시급(원). 세전 한 달 월급을 [standardMonthlyHours] 로 나눈다(통상임금은 세전이다). 세전을 적지 않았거나 계산할 수 없으면 0 */
+    val ordinaryHourlyWage: Double
+        get() = standardMonthlyHours.let { hours -> if (!isReady || hours == 0 || amount <= 0) 0.0 else grossMonthly / hours }
 
     /**
      * 달마다 다르지 않은, 평균으로 1초에 버는 돈. 한 달을 평균 [WEEKS_PER_MONTH] 주로 보고 일하는 요일 수로 센다.
@@ -177,29 +216,46 @@ data class SalarySettings(
     /** [now](서울 시각)에 본 벌이. 아직 다 정하지 않았으면 모두 0 이다. */
     fun earningsAt(now: LocalDateTime): Earnings {
         val today = now.toLocalDate()
-        val month = YearMonth.from(today)
-        val secondOfDay = now.toLocalTime().toSecondOfDay() + now.nano / NANOS_PER_SECOND
         val status = statusAt(now)
         if (!isReady) return Earnings(status = status)
+        val payMonth = payMonthFor(today)
+        val period = payPeriod(payMonth)
+        val secondOfDay = now.toLocalTime().toSecondOfDay() + now.nano / NANOS_PER_SECOND
 
         val daySeconds = workSecondsPerDay.toDouble()
         val worked = workedSeconds(secondOfDay)
         val todayShare = if (earnsOn(today)) worked / daySeconds else 0.0
-        val daily = dailyAmount(month)
+        val daily = dailyAmount(payMonth)
         val earnedToday = daily * todayShare
-        val daysBefore = (1 until today.dayOfMonth).count { earnsOn(month.atDay(it)) }
-        val earnedMonth = daily * daysBefore + earnedToday
-        val earnedYear = (1 until month.monthValue).sumOf { earnedInWholeMonth(YearMonth.of(month.year, it)) } + earnedMonth
+        val earnedPeriod = daily * countEarnDays(period.start, today) + earnedToday
+
+        // 올해: 1월 1일부터 오늘 전까지 지나간 날들을 그날이 든 월급 기간의 하루치로 더하고 오늘을 더한다
+        val newYear = LocalDate.of(today.year, 1, 1)
+        var earnedYear = earnedToday
+        var month = payMonthFor(newYear)
+        while (month <= payMonth) {
+            val range = payPeriod(month)
+            val from = maxOf(range.start, newYear)
+            val until = minOf(range.endInclusive.plusDays(1), today)
+            earnedYear += dailyAmount(month) * countEarnDays(from, until)
+            month = month.plusMonths(1)
+        }
         return Earnings(
             status = status,
             today = earnedToday,
-            month = earnedMonth,
+            period = earnedPeriod,
             year = earnedYear,
             dayProgress = if (earnsOn(today)) (worked / daySeconds).toFloat() else 0f,
-            perSecond = perSecond(month),
-            monthTotal = earnedInWholeMonth(month),
+            perSecond = perSecond(payMonth),
+            payMonth = payMonth,
+            periodStart = period.start,
+            periodTotal = earnedInPeriod(payMonth),
         )
     }
+
+    /** [from] 부터 [until] 전날까지 버는 날 수. [until] 이 [from] 과 같거나 앞이면 0 */
+    private fun countEarnDays(from: LocalDate, until: LocalDate): Int =
+        generateSequence(from) { it.plusDays(1) }.takeWhile { it.isBefore(until) }.count(::earnsOn)
 
     /** [now] 에 일하는 중인지, 점심인지, 쉬는 날인지 */
     fun statusAt(now: LocalDateTime): WorkStatus {
@@ -225,6 +281,16 @@ data class SalarySettings(
 
         /** 월급이 월급날보다 이만큼 일찍 들어와도 그달 월급으로 본다 */
         private const val SALARY_EARLY_DAYS = 7L
+
+        private const val SECONDS_PER_HOUR = 3_600.0
+        private const val MAX_WEEKLY_HOURS = 40.0
+        private const val PAID_REST_HOURS = 8.0
+        private const val MIN_HOURS_FOR_WEEKLY_REST = 15.0
+        private const val DAYS_PER_YEAR = 365.0
+        private const val DAYS_PER_WEEK = 7.0
+
+        /** 208.0000001 처럼 계산 오차로 딱 떨어지는 값이 한 시간 올라가지 않게 한다 */
+        private const val ROUNDING_SLACK = 1e-9
 
         /** 한 달의 평균 주 수(365.2425일 / 7 / 12) */
         private const val WEEKS_PER_MONTH = 365.2425 / 7 / 12
@@ -262,16 +328,25 @@ enum class WorkStatus {
 
 /**
  * 어느 순간에 본 벌이. 금액은 원 단위 소수다(초마다 몇 원씩 쌓이므로). 화면에 보일 때 원 아래는 버린다.
+ * @property period 지난 월급날 다음 날부터 지금까지 번 돈('월급날부터 번 돈')
  * @property dayProgress 오늘 하루치 중 일한 몫(0~1). 쉬는 날은 0
- * @property perSecond 이번 달에 일하는 동안 1초에 버는 돈
- * @property monthTotal 이번 달이 다 지나면 벌 돈(보통 월급, 시작한 달은 일할 계산)
+ * @property perSecond 이번 월급 기간에 일하는 동안 1초에 버는 돈
+ * @property payMonth 지금 벌고 있는 월급이 몇 월 월급인지
+ * @property periodStart 이번 월급 기간의 첫날(지난 월급날 다음 날)
+ * @property periodTotal 이번 월급 기간이 다 지나면 벌 돈(보통 월급, 시작한 기간은 일할 계산)
  */
 data class Earnings(
     val status: WorkStatus,
     val today: Double = 0.0,
-    val month: Double = 0.0,
+    val period: Double = 0.0,
     val year: Double = 0.0,
     val dayProgress: Float = 0f,
     val perSecond: Double = 0.0,
-    val monthTotal: Double = 0.0,
+    val payMonth: YearMonth? = null,
+    val periodStart: LocalDate? = null,
+    val periodTotal: Double = 0.0,
 )
+
+/** 기간 안의 날짜들(처음과 끝 포함) */
+private fun ClosedRange<LocalDate>.dates(): Sequence<LocalDate> =
+    generateSequence(start) { it.plusDays(1) }.takeWhile { !it.isAfter(endInclusive) }

@@ -11,23 +11,37 @@ import java.time.LocalTime
 import java.time.YearMonth
 
 class SalaryTest {
-    // 월 300만 원, 월~금 9~18시, 점심 12~13시는 빼서 하루 8시간
+    // 월 300만 원, 월~금 9~18시, 점심 12~13시는 빼서 하루 8시간, 월급날 25일
     private val salary = SalarySettings(amount = 3_000_000)
     private val september = YearMonth.of(2026, 9)
+    private val october = YearMonth.of(2026, 10)
 
-    // 2026년 9월은 1일이 화요일이라 평일이 22일이다
-    private val daily = 3_000_000.0 / 22
+    // 10월 월급 기간은 9월 26일(토)부터 10월 23일(금, 25일이 일요일이라 당김)까지이고 평일이 20일이다
+    private val daily = 3_000_000.0 / 20
 
     private fun at(text: String) = LocalDateTime.parse(text)
 
     private fun assertWon(expected: Double, actual: Double) = assertEquals(expected, actual, 0.001)
 
     @Test
-    fun `하루치는 그 달 평일 수로 나누고, 초당 버는 돈은 하루 일하는 초로 나눈다`() {
-        assertEquals(22, salary.workdaysIn(september))
+    fun `월급 기간은 앞 달 월급날 다음 날부터 그달 월급날까지다`() {
+        assertEquals(LocalDate.of(2026, 9, 26)..LocalDate.of(2026, 10, 23), salary.payPeriod(october))
+        assertEquals(LocalDate.of(2026, 8, 26)..LocalDate.of(2026, 9, 25), salary.payPeriod(september))
+        assertEquals(september, salary.payMonthFor(LocalDate.of(2026, 9, 25)))
+        assertEquals(october, salary.payMonthFor(LocalDate.of(2026, 9, 26)))
+        // 11월 1일 월급이 10월 30일로 당겨지면 10월 31일은 12월 월급 기간이다
+        val first = salary.copy(payday = 1)
+        assertEquals(YearMonth.of(2026, 11), first.payMonthFor(LocalDate.of(2026, 10, 30)))
+        assertEquals(YearMonth.of(2026, 12), first.payMonthFor(LocalDate.of(2026, 10, 31)))
+    }
+
+    @Test
+    fun `하루치는 월급 기간의 평일 수로 나누고, 초당 버는 돈은 하루 일하는 초로 나눈다`() {
+        assertEquals(20, salary.workdaysIn(october))
+        assertEquals(23, salary.workdaysIn(september))
         assertEquals(8 * 3600L, salary.workSecondsPerDay)
-        assertWon(daily, salary.dailyAmount(september))
-        assertWon(daily / (8 * 3600), salary.perSecond(september))
+        assertWon(daily, salary.dailyAmount(october))
+        assertWon(daily / (8 * 3600), salary.perSecond(october))
     }
 
     @Test
@@ -35,8 +49,10 @@ class SalaryTest {
         val now = salary.earningsAt(at("2026-09-29T10:30:00"))
         assertEquals(WorkStatus.WORKING, now.status)
         assertWon(daily * 1.5 / 8, now.today)
-        // 29일 전의 평일 20일 + 오늘
-        assertWon(daily * 20 + daily * 1.5 / 8, now.month)
+        // 월급 기간(9월 26일~)에서 오늘 전의 평일 하루(28일) + 오늘
+        assertWon(daily + daily * 1.5 / 8, now.period)
+        assertEquals(october, now.payMonth)
+        assertEquals(LocalDate.of(2026, 9, 26), now.periodStart)
         assertEquals(1.5f / 8, now.dayProgress, 0.0001f)
     }
 
@@ -66,57 +82,68 @@ class SalaryTest {
     }
 
     @Test
-    fun `쉬는 요일은 오늘 0 이고 이번 달은 그 전 평일만큼이다`() {
-        val saturday = salary.earningsAt(at("2026-09-26T11:00:00"))
+    fun `쉬는 요일은 오늘 0 이고 월급날부터는 그 전 평일만큼이다`() {
+        val saturday = salary.earningsAt(at("2026-10-03T11:00:00"))
         assertEquals(WorkStatus.DAY_OFF, saturday.status)
         assertWon(0.0, saturday.today)
         assertEquals(0f, saturday.dayProgress)
-        // 1~25일의 평일 19일
-        assertWon(daily * 19, saturday.month)
+        // 9월 26일~10월 2일의 평일 5일
+        assertWon(daily * 5, saturday.period)
     }
 
     @Test
-    fun `말일 퇴근 뒤에는 이번 달이 딱 월급이다`() {
-        assertWon(3_000_000.0, salary.earningsAt(at("2026-09-30T18:00:00")).month)
-        // 평일 수가 다른 달도 마찬가지다(2026년 2월은 20일)
-        assertEquals(20, salary.workdaysIn(YearMonth.of(2026, 2)))
-        assertWon(3_000_000.0, salary.earningsAt(at("2026-02-27T19:00:00")).month)
+    fun `월급날 퇴근 뒤에는 딱 월급이고, 다음 날 0원부터 다시 쌓인다`() {
+        assertWon(3_000_000.0, salary.earningsAt(at("2026-10-23T18:00:00")).period)
+        assertWon(3_000_000.0, salary.earningsAt(at("2026-09-25T19:00:00")).period)
+        val next = salary.earningsAt(at("2026-10-24T10:00:00"))
+        assertEquals(YearMonth.of(2026, 11), next.payMonth)
+        assertWon(0.0, next.period)
     }
 
     @Test
-    fun `올해는 지난 달들의 월급과 이번 달 번 돈을 더한다`() {
+    fun `올해는 1월 1일부터 지나간 날을 그날이 든 월급 기간의 하루치로 더한다`() {
+        // 1월 월급 기간은 2025-12-26~2026-01-23(평일 21일) 이라 1월 1일~23일 몫(평일 17일)만 올해다.
+        // 2월 월급(1월 24일~2월 25일)은 통째로, 3월 월급 기간(2월 26일~, 평일 20일)은 2월 26·27일 이틀 몫이다.
         val march = salary.earningsAt(at("2026-03-02T08:00:00"))
-        assertWon(6_000_000.0, march.year)
-        assertWon(0.0, march.month)
-        val september = salary.earningsAt(at("2026-09-29T10:30:00"))
-        assertWon(8 * 3_000_000.0 + september.month, september.year)
+        assertWon(3_000_000.0 * 17 / 21 + 3_000_000 + 3_000_000.0 / 20 * 2, march.year)
+        assertWon(3_000_000.0 / 20 * 2, march.period)
+    }
+
+    @Test
+    fun `해가 바뀌면 올해는 1월 1일부터 다시 센다`() {
+        // 2027년 1월 월급 기간은 2026-12-26~2027-01-25(평일 21일). 1월 5일 오전 10시는 1일(금)·4일(월) 이틀과 오늘 1시간
+        val daily2027 = 3_000_000.0 / 21
+        val now = salary.earningsAt(at("2027-01-05T10:00:00"))
+        assertWon(daily2027 * (2 + 1.0 / 8), now.year)
+        // 월급날부터는 해를 넘겨 12월 28일부터 센다(평일 6일)
+        assertWon(daily2027 * (6 + 1.0 / 8), now.period)
     }
 
     @Test
     fun `연봉은 12로 나눠 한 달 월급으로 본다`() {
         val yearly = SalarySettings(basis = PayBasis.YEARLY, amount = 36_000_000)
         assertWon(3_000_000.0, yearly.monthly)
-        assertWon(daily, yearly.dailyAmount(september))
+        assertWon(daily, yearly.dailyAmount(october))
     }
 
     @Test
-    fun `시작일 전에는 벌지 않고, 시작한 달은 그날부터 일한 날만큼이다`() {
-        val joined = salary.copy(startDate = LocalDate.of(2026, 9, 15))
-        assertEquals(WorkStatus.NOT_STARTED, joined.statusAt(at("2026-09-14T10:00:00")))
-        assertWon(0.0, joined.earningsAt(at("2026-09-14T10:00:00")).month)
-        // 15~30일의 평일 12일
-        assertWon(daily * 12, joined.earnedInWholeMonth(september))
-        val end = joined.earningsAt(at("2026-09-30T18:00:00"))
-        assertWon(daily * 12, end.month)
-        assertWon(daily * 12, end.year)
-        assertWon(daily * 12, end.monthTotal)
+    fun `시작일 전에는 벌지 않고, 시작한 월급 기간은 그날부터 일한 날만큼이다`() {
+        val joined = salary.copy(startDate = LocalDate.of(2026, 10, 5))
+        assertEquals(WorkStatus.NOT_STARTED, joined.statusAt(at("2026-10-02T10:00:00")))
+        assertWon(0.0, joined.earningsAt(at("2026-10-02T10:00:00")).period)
+        // 10월 5일~23일의 평일 15일
+        assertWon(daily * 15, joined.earnedInPeriod(october))
+        val end = joined.earningsAt(at("2026-10-23T18:00:00"))
+        assertWon(daily * 15, end.period)
+        assertWon(daily * 15, end.year)
+        assertWon(daily * 15, end.periodTotal)
     }
 
     @Test
     fun `일하는 요일을 바꾸면 그 요일로 센다`() {
         val weekend = salary.copy(workdays = setOf(DayOfWeek.SATURDAY, DayOfWeek.SUNDAY))
-        // 2026년 9월의 토·일은 8일
-        assertEquals(8, weekend.workdaysIn(september))
+        // 10월 월급 기간(9월 26일~10월 23일)의 토·일은 8일
+        assertEquals(8, weekend.workdaysIn(october))
         assertEquals(WorkStatus.WORKING, weekend.statusAt(at("2026-09-26T10:00:00")))
         assertEquals(WorkStatus.DAY_OFF, weekend.statusAt(at("2026-09-29T10:00:00")))
     }
@@ -196,5 +223,33 @@ class SalaryTest {
         assertEquals(YearMonth.of(2026, 10), salary.nextPaydayAlarm(at("2026-09-26T08:00:00"), notified = null)?.first)
         assertEquals(null, salary.copy(paydayNotice = false).nextPaydayAlarm(at("2026-09-20T12:00:00"), notified = null))
         assertEquals(null, SalarySettings().nextPaydayAlarm(at("2026-09-20T12:00:00"), notified = null))
+    }
+
+    @Test
+    fun `통상시급은 월 소정근로시간(주휴 포함)으로 나눈다`() {
+        assertEquals(209, salary.standardMonthlyHours)
+        assertEquals(3_000_000.0 / 209, salary.ordinaryHourlyWage, 1e-6)
+        // 주 40시간을 넘는 몫은 연장근로라 넣지 않는다
+        assertEquals(209, salary.copy(workdays = salary.workdays + DayOfWeek.SATURDAY).standardMonthlyHours)
+        // 주 3일 8시간: (24 + 4.8) × 365 ÷ 7 ÷ 12 = 125.1 → 126
+        assertEquals(126, salary.copy(workdays = setOf(DayOfWeek.MONDAY, DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY)).standardMonthlyHours)
+        // 주 15시간이 안 되면 주휴가 없다: 주 2일 7시간 = 14 × 365 ÷ 7 ÷ 12 = 60.8 → 61
+        val short = salary.copy(workdays = setOf(DayOfWeek.MONDAY, DayOfWeek.TUESDAY), workEnd = LocalTime.of(17, 0))
+        assertEquals(61, short.standardMonthlyHours)
+        assertEquals(0.0, SalarySettings().ordinaryHourlyWage, 0.0)
+    }
+
+    @Test
+    fun `실수령을 적으면 쌓이는 돈은 실수령으로, 통상시급은 세전으로 센다`() {
+        val both = salary.copy(takeHome = 2_600_000)
+        assertTrue(both.usesTakeHome)
+        assertWon(2_600_000.0, both.monthly)
+        assertWon(2_600_000.0 / 20, both.dailyAmount(october))
+        assertWon(2_600_000.0, both.earningsAt(at("2026-10-23T18:00:00")).period)
+        assertEquals(3_000_000.0 / 209, both.ordinaryHourlyWage, 1e-6)
+        // 실수령만 적어도 쌓인다. 통상시급은 셀 수 없다.
+        val onlyTakeHome = SalarySettings(takeHome = 2_600_000)
+        assertTrue(onlyTakeHome.isReady)
+        assertEquals(0.0, onlyTakeHome.ordinaryHourlyWage, 0.0)
     }
 }
