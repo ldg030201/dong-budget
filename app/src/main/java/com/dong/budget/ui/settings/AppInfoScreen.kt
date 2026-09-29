@@ -127,8 +127,8 @@ fun AppInfoScreen(
                             text = "업데이트 확인",
                             onClick = onCheckUpdate,
                             enabled = !updateState.isBusy,
-                            // 회색 판 위라 판과 같은 회색 바탕은 안 보인다. 화면 바탕색으로 띄운다.
-                            container = MaterialTheme.colorScheme.background,
+                            // 회색 판 위라 판과 같은 회색 바탕은 안 보인다. 판 위에 떠 있는 색으로 띄운다.
+                            container = BudgetTheme.colors.raised,
                         )
                     }
 
