@@ -1,5 +1,6 @@
 package com.dong.budget.ui.components
 
+import androidx.annotation.DrawableRes
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
@@ -7,13 +8,16 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -21,6 +25,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
@@ -32,9 +37,17 @@ import com.dong.budget.ui.theme.pressScaleClickable
 /**
  * 지출/수입처럼 둘 이상 중 하나를 고르는 토글. 회색 판 위에 고른 칸만 떠 보인다.
  * 다른 칸을 고르면 떠 있는 판이 그 칸으로 미끄러져 간다(떠 있는 메뉴와 같은 움직임).
+ *
+ * @param icons 칸마다 글 앞에 둘 아이콘([options] 와 같은 순서). 뜻은 글이 전하므로 화면 읽기에는 읽히지 않게 둔다.
  */
 @Composable
-fun SegmentedToggle(options: List<String>, selectedIndex: Int, onSelect: (Int) -> Unit, modifier: Modifier = Modifier) {
+fun SegmentedToggle(
+    options: List<String>,
+    selectedIndex: Int,
+    onSelect: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+    @DrawableRes icons: List<Int>? = null,
+) {
     val shape = RoundedCornerShape(BudgetTheme.radius.control)
     val cellShape = RoundedCornerShape(BudgetTheme.radius.chip)
     val gap = BudgetTheme.spacing.tightGap
@@ -87,7 +100,16 @@ fun SegmentedToggle(options: List<String>, selectedIndex: Int, onSelect: (Int) -
                     horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(text = label, style = MaterialTheme.typography.titleSmall, color = textColor)
+                    icons?.getOrNull(index)?.let { icon ->
+                        Icon(
+                            painter = painterResource(icon),
+                            contentDescription = null,
+                            tint = textColor,
+                            modifier = Modifier.size(BudgetTheme.size.iconSmall),
+                        )
+                        Spacer(Modifier.width(BudgetTheme.spacing.tightGap))
+                    }
+                    Text(text = label, style = MaterialTheme.typography.titleSmall, color = textColor, maxLines = 1)
                 }
             }
         }
