@@ -67,7 +67,8 @@ class SalaryViewModel(
         flowOf(null)
     } else {
         val month = settings.latestPayMonth(today)
-        if (ChronoUnit.DAYS.between(settings.paydayIn(month), today) >= REGISTER_DAYS) {
+        // 입사 전 달은 받을 월급이 없다
+        if (settings.payFor(month) <= 0 || ChronoUnit.DAYS.between(settings.paydayIn(month), today) >= REGISTER_DAYS) {
             flowOf(null)
         } else {
             val (from, until) = settings.salaryPeriod(month)

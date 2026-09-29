@@ -252,4 +252,31 @@ class SalaryTest {
         assertTrue(onlyTakeHome.isReady)
         assertEquals(0.0, onlyTakeHome.ordinaryHourlyWage, 0.0)
     }
+
+    @Test
+    fun `월급날 퇴근 뒤에는 소수 오차 없이 딱 월급이다`() {
+        // 하루치를 먼저 구해 곱하면 2,999,999.9999999995 가 된다(평일 23일인 9월 월급 기간)
+        assertEquals(3_000_000.0, salary.earningsAt(at("2026-09-25T18:00:00")).period, 0.0)
+        assertEquals(3_000_000.0, salary.earnedInPeriod(september), 0.0)
+        assertEquals(3_000_000L, salary.payFor(september))
+        assertEquals(3_330_000L, salary.copy(amount = 3_330_000).payFor(september))
+    }
+
+    @Test
+    fun `입사 전 달은 받을 월급이 없어 알림도 띄우지 않고, 입사한 달은 일할로 받는다`() {
+        val joined = salary.copy(startDate = LocalDate.of(2026, 11, 2))
+        assertEquals(0L, joined.payFor(october))
+        // 11월 월급 기간(10월 24일~11월 25일)에 입사 11월 2일이라 그날부터 일한 만큼
+        val november = YearMonth.of(2026, 11)
+        val novemberDays = generateSequence(LocalDate.of(2026, 10, 24)) { it.plusDays(1) }
+            .takeWhile { !it.isAfter(LocalDate.of(2026, 11, 25)) }
+        val total = novemberDays.count { it.dayOfWeek !in setOf(DayOfWeek.SATURDAY, DayOfWeek.SUNDAY) }
+        val worked = novemberDays.count {
+            it.dayOfWeek !in setOf(DayOfWeek.SATURDAY, DayOfWeek.SUNDAY) &&
+                !it.isBefore(LocalDate.of(2026, 11, 2))
+        }
+        assertEquals((3_000_000.0 * worked / total).toLong(), joined.payFor(november))
+        // 9월 29일에 맞추면 10월(입사 전)을 건너뛰고 11월 월급날(25일, 수) 알림을 맞춘다
+        assertEquals(november to LocalDateTime.of(2026, 11, 25, 9, 0), joined.nextPaydayAlarm(at("2026-09-29T10:00:00"), notified = null))
+    }
 }

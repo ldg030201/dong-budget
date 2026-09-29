@@ -51,12 +51,17 @@ private const val LIST_ITEM_SELECT =
         LEFT JOIN payment_methods p ON p.id = t.paymentMethodId
     """
 
-/** 기간 안([start], [end])에 코드가 붙은 분류(기본 분류)의 수입이 있는지 */
+/**
+ * 기간 안([start], [end])에 코드가 붙은 분류(기본 분류)의 수입이 있는지. 직접 적은 월급을 찾는다.
+ * 월급날 알림·월급 탭으로 등록한 월급(열쇠가 'salary:' 로 시작)은 자기 달의 열쇠로만 센다. 월급날을 바꿔 기간이 옮겨 가도
+ * 다른 달 월급이 이번 달 월급으로 잡히지 않게 하기 위함이다.
+ */
 private const val INCOME_WITH_CODE_EXISTS =
     """
         SELECT EXISTS(
             SELECT 1 FROM transactions t JOIN categories c ON c.id = t.categoryId
             WHERE t.type = 'INCOME' AND c.code = :code AND t.occurredAt >= :start AND t.occurredAt < :end
+              AND (t.dedupKey IS NULL OR t.dedupKey NOT LIKE 'salary:%')
         )
     """
 

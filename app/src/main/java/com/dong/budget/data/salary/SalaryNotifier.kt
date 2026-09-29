@@ -80,6 +80,13 @@ class SalaryNotifier(private val context: Context) {
         manager.cancel(key, NOTIFICATION_ID)
     }
 
+    /** 떠 있는 월급날 알림을 모두 치운다(데이터 초기화, 월급 설정을 지웠을 때) */
+    fun dismissAll() {
+        manager.activeNotifications
+            .filter { it.id == NOTIFICATION_ID && it.tag?.let(::salaryMonthOf) != null }
+            .forEach { manager.cancel(it.tag, NOTIFICATION_ID) }
+    }
+
     private fun hasPermission(): Boolean = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
         ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
 

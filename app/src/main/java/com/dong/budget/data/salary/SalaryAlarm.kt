@@ -35,6 +35,11 @@ class SalaryScheduler(private val context: Context, private val prefs: SharedPre
         get() = prefs.getString(KEY_NOTIFIED, null)?.let { runCatching { YearMonth.parse(it) }.getOrNull() }
         private set(value) = prefs.edit { putString(KEY_NOTIFIED, value?.toString()) }
 
+    /** 알린 달 기록을 지운다(데이터 초기화). 처음 설치한 것처럼 된다. */
+    fun reset() {
+        notifiedMonth = null
+    }
+
     fun markNotified(month: YearMonth) {
         val last = notifiedMonth
         if (last == null || month.isAfter(last)) notifiedMonth = month
@@ -114,6 +119,9 @@ class SalaryAlarmReceiver : BroadcastReceiver() {
         val month = settings.payMonthOn(today) ?: return
         val notified = scheduler.notifiedMonth
         if (!settings.isReady || !settings.paydayNotice || (notified != null && !month.isAfter(notified))) return
+        // 입사 전 달은 받을 월급이 없다
+        val pay = settings.payFor(month)
+        if (pay <= 0) return
         val (from, until) = settings.salaryPeriod(month)
         when {
             transactions.isSalaryRegistered(salaryKey(month), SALARY_CATEGORY_CODE, from, until) ->
@@ -123,7 +131,7 @@ class SalaryAlarmReceiver : BroadcastReceiver() {
             !notifier.canNotify() -> DevLog.info(LogTag.SALARY, "알림을 보낼 수 없어 ${month.monthValue}월 월급날 알림을 건너뛰었어요")
 
             else -> {
-                notifier.show(month, settings.monthly.toLong())
+                notifier.show(month, pay)
                 DevLog.info(LogTag.SALARY, "${month.monthValue}월 월급날 알림을 띄웠어요")
             }
         }
