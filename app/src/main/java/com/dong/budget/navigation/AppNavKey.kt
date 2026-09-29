@@ -34,6 +34,10 @@ data object ShellKey : AppNavKey
  * @property dedupKey 같은 결제를 두 번 등록하지 않게 거래에 함께 저장한다.
  * @property guessCategory 같은 가게로 전에 등록한 지출의 분류를 미리 고를지
  * @property addMissingCard [paymentName] 과 같은 결제수단이 없을 때 '신규' 로 골라 두고 저장할 때 만들지. 아니면 비워 둔다.
+ * @property source 어디서 채운 값인지. 월급날이면 수입으로 연다.
+ * @property categoryCode 미리 고를 기본 분류의 코드(월급날이면 급여 'SALARY'). 사용자가 지웠으면 비워 둔다.
+ *
+ * 칸을 늘릴 때는 맨 뒤에 기본값을 달아 둔다. 앱이 다시 떠서 되살리는 옛 백스택에는 새 칸이 없다.
  */
 @Serializable
 data class EditorPrefill(
@@ -45,7 +49,19 @@ data class EditorPrefill(
     val dedupKey: String,
     val guessCategory: Boolean = true,
     val addMissingCard: Boolean = true,
+    val source: PrefillSource = PrefillSource.PAYMENT_ALERT,
+    val categoryCode: String? = null,
 )
+
+/** 등록창을 채운 곳 */
+@Serializable
+enum class PrefillSource {
+    /** 토스 결제 알림(지출) */
+    PAYMENT_ALERT,
+
+    /** 월급날 알림이나 월급 탭(수입) */
+    PAYDAY,
+}
 
 /** 거래 등록/수정. transactionId 가 null 이면 새로 등록하는 것이다. prefill 이 있으면 그 값으로 채워 연다. */
 @Serializable
@@ -85,6 +101,10 @@ data class StatsDetailKey(val dimension: StatsDimension, val id: Long?, val year
 
 @Serializable
 data object SettingsKey : AppNavKey
+
+/** 월급 탭의 설정. 연봉·월급, 출퇴근·점심시간, 일하는 요일, 월급날 */
+@Serializable
+data object SalarySettingsKey : AppNavKey
 
 /** 설정의 '고급 설정'. 자동 기능 스위치와 설정·데이터 초기화 */
 @Serializable

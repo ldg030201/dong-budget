@@ -20,20 +20,23 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.toArgb
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dong.budget.data.capture.CaptureNotifier
+import com.dong.budget.data.salary.SalaryNotifier
+import com.dong.budget.data.salary.salaryMonthOf
 import com.dong.budget.data.settings.ThemeMode
 import com.dong.budget.data.update.InstallEvents
 import com.dong.budget.ui.DongBudgetApp
+import com.dong.budget.ui.OpenRequest
 import com.dong.budget.ui.theme.BudgetTheme
 import kotlinx.coroutines.flow.MutableStateFlow
 
 class MainActivity : ComponentActivity() {
-    /** 결제 등록 알림을 눌러 들어왔을 때 그 결제의 열쇠. 등록창을 열면 비운다. */
-    private val capturedToOpen = MutableStateFlow<String?>(null)
+    /** 결제 등록·월급날 알림을 눌러 들어왔을 때 열어 줄 것. 등록창을 열면 비운다. */
+    private val toOpen = MutableStateFlow<OpenRequest?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // 화면 회전 등으로 다시 만들어질 때는 같은 Intent 가 또 들어온다. 등록창은 백스택에 이미 복원돼 있다.
-        if (savedInstanceState == null) receiveCaptured(intent)
+        if (savedInstanceState == null) receiveOpenRequest(intent)
 
         val container = (application as BudgetApplication).container
         setContent {
@@ -71,11 +74,11 @@ class MainActivity : ComponentActivity() {
                 SideEffect { window.setBackgroundDrawable(ColorDrawable(background.toArgb())) }
                 // 화면 전환 중에 비치는 바닥도 앱 테마의 배경색으로 칠해 둔다
                 Box(modifier = Modifier.fillMaxSize().background(background)) {
-                    val captured by capturedToOpen.collectAsStateWithLifecycle()
+                    val request by toOpen.collectAsStateWithLifecycle()
                     DongBudgetApp(
                         container = container,
-                        capturedToOpen = captured,
-                        onCapturedOpened = { capturedToOpen.value = null },
+                        openRequest = request,
+                        onOpened = { toOpen.value = null },
                     )
                 }
             }
@@ -98,18 +101,26 @@ class MainActivity : ComponentActivity() {
         InstallEvents.takePendingConfirm()?.let { runCatching { startActivity(it) } }
     }
 
-    /** 앱이 열린 채로 결제 등록 알림을 누르면 여기로 온다(singleTop) */
+    /** 앱이 열린 채로 결제 등록·월급날 알림을 누르면 여기로 온다(singleTop) */
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        receiveCaptured(intent)
+        receiveOpenRequest(intent)
     }
 
-    private fun receiveCaptured(intent: Intent?) {
-        if (intent?.action != CaptureNotifier.ACTION_OPEN_CAPTURED) return
+    private fun receiveOpenRequest(intent: Intent?) {
+        val action = intent?.action ?: return
+        if (action != CaptureNotifier.ACTION_OPEN_CAPTURED && action != SalaryNotifier.ACTION_OPEN_SALARY) return
         // 최근 앱 목록에서 다시 열면 처음 열었던 Intent 가 그대로 다시 온다. 그때 등록창을 또 띄우지 않는다.
         if (intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0) return
         // 열쇠는 extras 가 아니라 identifier 에 담겨 온다. 동계부 첫 화면은 다른 앱도 열 수 있는데,
         // extras 를 읽으면 다른 앱이 넣은 망가진 값을 풀다가 앱이 죽을 수 있다. identifier 는 그냥 문자열이다.
-        capturedToOpen.value = intent.identifier
+        val key = intent.identifier ?: return
+        toOpen.value =
+            when (action) {
+                CaptureNotifier.ACTION_OPEN_CAPTURED -> OpenRequest.Captured(key)
+
+                // 다른 앱이 보낸 엉뚱한 값은 버린다
+                else -> OpenRequest.Salary(key).takeIf { salaryMonthOf(key) != null }
+            }
     }
 }
