@@ -51,6 +51,15 @@ private const val LIST_ITEM_SELECT =
         LEFT JOIN payment_methods p ON p.id = t.paymentMethodId
     """
 
+/** 기간 안([start], [end])에 코드가 붙은 분류(기본 분류)의 수입이 있는지 */
+private const val INCOME_WITH_CODE_EXISTS =
+    """
+        SELECT EXISTS(
+            SELECT 1 FROM transactions t JOIN categories c ON c.id = t.categoryId
+            WHERE t.type = 'INCOME' AND c.code = :code AND t.occurredAt >= :start AND t.occurredAt < :end
+        )
+    """
+
 /** 결제수단 목록에 거래 건수를 붙인 것 */
 data class PaymentMethodWithCount(@Embedded val paymentMethod: PaymentMethodEntity, val transactionCount: Int)
 
@@ -119,6 +128,13 @@ interface TransactionDao {
     /** [keys] 중 이미 등록된 결제의 열쇠. 알림 목록에 '등록함' 을 붙일 때 쓴다. */
     @Query("SELECT dedupKey FROM transactions WHERE dedupKey IN (:keys)")
     fun observeRegisteredKeys(keys: List<String>): Flow<List<String>>
+
+    /** 기간 안에 코드가 [code] 인 분류의 수입이 있는지. 월급을 직접 적어 등록했는지 볼 때 쓴다. */
+    @Query(INCOME_WITH_CODE_EXISTS)
+    fun observeIncomeWithCategoryCode(code: String, start: Instant, end: Instant): Flow<Boolean>
+
+    @Query(INCOME_WITH_CODE_EXISTS)
+    suspend fun hasIncomeWithCategoryCode(code: String, start: Instant, end: Instant): Boolean
 
     @Insert
     suspend fun insert(transaction: TransactionEntity): Long

@@ -62,4 +62,19 @@ object BudgetTime {
             delay(millisUntilNextDay(now))
         }
     }.distinctUntilChanged()
+
+    /**
+     * 매초 정각(…:00.000)마다 지금 시각을 내보낸다. 월급 탭의 번 돈이 초마다 오른다.
+     * 모으는 쪽이 화면에 보일 때만 모으면(collectAsStateWithLifecycle) 뒤에 있을 때는 멈춘다.
+     * 쌓아 가지 않고 매번 시계를 다시 읽는다. 절전으로 늦게 깨어나도 값이 어긋나지 않는다.
+     */
+    fun everySecond(clock: Clock): Flow<Instant> = flow {
+        while (true) {
+            val now = clock.instant()
+            emit(now)
+            delay(MILLIS_PER_SECOND - now.toEpochMilli() % MILLIS_PER_SECOND)
+        }
+    }
+
+    private const val MILLIS_PER_SECOND = 1_000L
 }

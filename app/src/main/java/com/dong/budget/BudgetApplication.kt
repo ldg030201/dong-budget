@@ -22,7 +22,11 @@ class BudgetApplication : Application() {
             // 지난 확인 결과를 미리 읽어 둔다. 첫 화면(홈 배너)을 그리는 메인 스레드가 파일 읽기를 기다리지 않게 하기 위함이다.
             container.updateChecker
         }
-        // 결제 등록 알림의 채널을 미리 만든다. 기기 설정의 알림 목록에 처음부터 보이게 하기 위함이다.
-        thread(name = "notification-channel") { container.captureNotifier.ensureChannel() }
+        // 결제 등록·월급날 알림의 채널을 미리 만든다. 기기 설정의 알림 목록에 처음부터 보이게 하기 위함이다.
+        thread(name = "notification-channel") {
+            container.captureNotifier.ensureChannel()
+            container.salaryNotifier.ensureChannel()
+        }
+        container.startSalaryAlarm()
     }
 }

@@ -83,6 +83,9 @@ data class DefaultCategory(
 }
 
 const val ETC_EXPENSE_CODE = "ETC_EXPENSE"
+
+/** 기본 수입 분류 '급여'. 월급날 등록창이 미리 고르고, 월급을 직접 적었는지 볼 때 쓴다. */
+const val SALARY_CATEGORY_CODE = "SALARY"
 const val ETC_INCOME_CODE = "ETC_INCOME"
 
 /** '기타' 는 항상 맨 뒤에 오도록 정렬 순서를 크게 둔다. */
@@ -102,7 +105,7 @@ val DEFAULT_CATEGORIES =
         DefaultCategory(CategoryScope.EXPENSE, "FASHION", "패션/미용", "checkroom", "pink", 3),
         DefaultCategory(CategoryScope.EXPENSE, "FIXED", "고정지출", "event_repeat", "purple", 4),
         DefaultCategory(CategoryScope.EXPENSE, ETC_EXPENSE_CODE, "기타", "interests", "gray", ETC_SORT_ORDER),
-        DefaultCategory(CategoryScope.INCOME, "SALARY", "급여", "payments", "teal", 0),
+        DefaultCategory(CategoryScope.INCOME, SALARY_CATEGORY_CODE, "급여", "payments", "teal", 0),
         DefaultCategory(CategoryScope.INCOME, "ALLOWANCE", "용돈", "redeem", "amber", 1),
         DefaultCategory(CategoryScope.INCOME, ETC_INCOME_CODE, "기타", "interests", "gray", ETC_SORT_ORDER),
     )
