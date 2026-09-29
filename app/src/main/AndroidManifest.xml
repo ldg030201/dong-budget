@@ -17,6 +17,8 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- 재부팅하면 월급날 알람이 사라진다. 켜질 때 다시 맞춘다. 설치할 때 자동으로 주어지는 일반 권한이다. -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- 월급 탭을 지문으로 열 때 쓴다. 설치할 때 자동으로 주어지는 일반 권한이다. -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
 
 
     <application

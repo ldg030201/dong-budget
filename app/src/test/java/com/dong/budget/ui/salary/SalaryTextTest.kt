@@ -81,7 +81,7 @@ class SalaryTextTest {
     @Test
     fun `일한 시간은 하루치를 넘으면 일하는 날로 센다`() {
         val day = 8 * 3600L
-        assertEquals("1분도 안 돼요", workValue(20.0, day))
+        assertEquals("1분 미만", workValue(20.0, day))
         assertEquals("약 47분", workValue(47 * 60.0 + 10, day))
         assertEquals("약 2시간 5분", workValue(125 * 60.0, day))
         assertEquals("약 3시간", workValue(180 * 60.0, day))

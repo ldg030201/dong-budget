@@ -7,6 +7,8 @@ import com.dong.budget.data.capture.CaptureNotifier
 import com.dong.budget.data.capture.CaptureStore
 import com.dong.budget.data.capture.PaymentCapture
 import com.dong.budget.data.db.BudgetDatabase
+import com.dong.budget.data.salary.SalaryLock
+import com.dong.budget.data.salary.SalaryLockReset
 import com.dong.budget.data.salary.SalaryNotifier
 import com.dong.budget.data.salary.SalaryRepository
 import com.dong.budget.data.salary.SalaryScheduler
@@ -56,6 +58,9 @@ class AppContainer(context: Context) {
 
     val salaryNotifier by lazy { SalaryNotifier(context) }
 
+    /** 월급 탭 잠금(PIN·지문)과 처음 안내를 확인했는지 */
+    val salaryLock by lazy { SalaryLock(context.getSharedPreferences(SalaryLock.PREFS_NAME, Context.MODE_PRIVATE)) }
+
     val salaryScheduler by lazy {
         SalaryScheduler(context, context.getSharedPreferences(SalaryScheduler.PREFS_NAME, Context.MODE_PRIVATE))
     }
@@ -89,11 +94,19 @@ class AppContainer(context: Context) {
         }
     }
 
-    /** 월급 설정을 지운다(데이터 초기화). 월급날 알림 기록과 떠 있는 월급날 알림도 치운다. */
-    suspend fun clearSalary() {
+    /**
+     * 월급 설정을 지운다. 월급날 알림 기록과 떠 있는 월급날 알림도 치운다.
+     * @param lock 잠금을 어떻게 할지. 월급 설정 초기화는 그대로 두고, PIN 을 잊었을 때는 PIN 만, 데이터 초기화는 처음 안내까지 지운다.
+     */
+    suspend fun clearSalary(lock: SalaryLockReset = SalaryLockReset.KEEP) {
         salaryRepository.clear()
         salaryScheduler.reset()
         salaryNotifier.dismissAll()
+        when (lock) {
+            SalaryLockReset.KEEP -> Unit
+            SalaryLockReset.PIN -> salaryLock.reset(keepIntro = true)
+            SalaryLockReset.ALL -> salaryLock.reset(keepIntro = false)
+        }
     }
 
     /**

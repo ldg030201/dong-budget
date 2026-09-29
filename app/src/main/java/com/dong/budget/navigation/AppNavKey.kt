@@ -102,9 +102,13 @@ data class StatsDetailKey(val dimension: StatsDimension, val id: Long?, val year
 @Serializable
 data object SettingsKey : AppNavKey
 
-/** 월급 탭의 설정. 연봉·월급, 출퇴근·점심시간, 일하는 요일, 월급날 */
+/** 월급 탭의 설정. 연봉·월급, 출퇴근·점심시간, 일하는 요일, 월급날, 잠금 */
 @Serializable
 data object SalarySettingsKey : AppNavKey
+
+/** 월급 탭 잠금의 PIN 정하기(처음 켤 때, 바꿀 때) */
+@Serializable
+data object SalaryPinSetupKey : AppNavKey
 
 /** 설정의 '고급 설정'. 자동 기능 스위치와 설정·데이터 초기화 */
 @Serializable

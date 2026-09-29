@@ -15,6 +15,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -72,8 +73,22 @@ fun SalarySettingsScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
     onReset: () -> Unit = {},
+    lock: SalaryLockControls = SalaryLockControls(),
 ) {
     var askReset by rememberSaveable { mutableStateOf(false) }
+    var askUnlockOff by rememberSaveable { mutableStateOf(false) }
+    if (askUnlockOff) {
+        ConfirmDialog(
+            title = "잠금을 끌까요?",
+            message = "월급 탭을 열 때 PIN이나 지문을 묻지 않아요. 폰을 다른 사람이 보면 연봉이 드러날 수 있어요.",
+            confirmLabel = "잠금 끄기",
+            onConfirm = {
+                askUnlockOff = false
+                lock.onDisable()
+            },
+            onDismiss = { askUnlockOff = false },
+        )
+    }
     if (askReset) {
         ConfirmDialog(
             title = "월급 설정을 처음대로 돌릴까요?",
@@ -230,6 +245,23 @@ fun SalarySettingsScreen(
                     )
                 }
 
+                SettingsGroup("잠금") {
+                    SwitchRow(
+                        title = "월급 잠그기",
+                        description = "월급 탭을 열 때 PIN 4자리를 물어요. 앱을 나갔다 오면 다시 잠겨요",
+                        checked = lock.enabled,
+                        onCheckedChange = { on -> if (on) lock.onEnable() else askUnlockOff = true },
+                    )
+                    ActionRow(title = "PIN 바꾸기", onClick = lock.onChangePin, enabled = lock.enabled, opensScreen = true)
+                    SwitchRow(
+                        title = "지문으로 열기",
+                        description = if (lock.biometricAvailable) "월급 탭을 열 때 지문 창이 바로 떠요" else "이 폰에 지문이 등록돼 있지 않아요",
+                        checked = lock.biometric,
+                        onCheckedChange = lock.onBiometricChange,
+                        enabled = lock.enabled && lock.biometricAvailable,
+                    )
+                }
+
                 // 월급 설정만 지우고 다시 적는다. 앱 전체 초기화는 설정 > 고급 설정에 있다.
                 SettingsGroup("초기화") {
                     ActionRow(
@@ -354,3 +386,21 @@ private fun takeHomeHint(settings: SalarySettings): String = if (settings.takeHo
 
 /** 입력판이 열린 뒤 줄을 끌어올리기까지 기다리는 시간(등록창과 같다) */
 private const val PANEL_SETTLE_MS = 100L
+
+/**
+ * 월급 설정의 잠금 묶음이 부르는 일
+ * @property enabled PIN 으로 잠가 두었는지
+ * @property biometricAvailable 이 폰에서 지문을 쓸 수 있는지(지문을 등록해 두었는지)
+ * @property onEnable 잠금을 켠다. PIN 을 정하러 간다.
+ * @property onDisable 잠금을 끈다(한 번 더 물은 뒤)
+ */
+@Immutable
+data class SalaryLockControls(
+    val enabled: Boolean = false,
+    val biometric: Boolean = false,
+    val biometricAvailable: Boolean = false,
+    val onEnable: () -> Unit = {},
+    val onDisable: () -> Unit = {},
+    val onChangePin: () -> Unit = {},
+    val onBiometricChange: (Boolean) -> Unit = {},
+)

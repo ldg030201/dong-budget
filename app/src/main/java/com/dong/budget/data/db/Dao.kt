@@ -106,6 +106,17 @@ interface TransactionDao {
     )
     fun observeWithMerchantSince(start: Instant): Flow<List<TransactionListItem>>
 
+    /** [end] 앞의 지출을 최신순으로 [limit] 건. 월급 탭의 최근 내역이 쓴다. 날짜를 앞으로 적어 둔 거래는 [end] 로 뺀다. */
+    @Query(
+        LIST_ITEM_SELECT +
+            """
+        WHERE t.type = 'EXPENSE' AND t.occurredAt < :end
+        ORDER BY t.occurredAt DESC, t.id DESC
+        LIMIT :limit
+        """,
+    )
+    fun observeRecentExpenses(end: Instant, limit: Int): Flow<List<TransactionListItem>>
+
     @Query("SELECT * FROM transactions WHERE id = :id")
     suspend fun findById(id: Long): TransactionEntity?
 

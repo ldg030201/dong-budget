@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.dong.budget.data.TransactionRepository
 import com.dong.budget.data.db.BudgetTime
 import com.dong.budget.data.db.SALARY_CATEGORY_CODE
+import com.dong.budget.data.db.TransactionListItem
 import com.dong.budget.data.salary.SalaryRepository
 import com.dong.budget.data.salary.SalarySettings
 import com.dong.budget.data.salary.salaryKey
@@ -29,6 +30,7 @@ import java.time.temporal.ChronoUnit
  * @property loaded 저장된 설정을 읽었는지. 읽기 전에는 '월급을 정해 주세요' 가 잠깐 비치지 않게 아무것도 그리지 않는다.
  * @property spentToday 오늘 쓴 돈(지출 − 환불). 환불이 더 많으면 음수다.
  * @property registerMonth 월급날이 막 지났는데(일주일 안) 아직 등록하지 않은 달. 있으면 '월급 등록하기' 를 보여 준다.
+ * @property recent 최근 지출(오늘까지, 최신순 [RECENT_LIMIT] 건). 탭 아래 최근 내역에 몇 분 일한 값인지와 함께 보여 준다.
  */
 @Immutable
 data class SalaryUiState(
@@ -37,9 +39,13 @@ data class SalaryUiState(
     val today: LocalDate,
     val spentToday: Long = 0,
     val registerMonth: YearMonth? = null,
+    val recent: List<TransactionListItem> = emptyList(),
 )
 
-/** 월급 탭. 설정과 오늘 쓴 돈, 이번 달 월급을 등록했는지를 따라간다. 날이 바뀌면 오늘을 새로 잡는다. */
+/** 월급 탭 최근 내역에 보일 지출 수 */
+const val RECENT_LIMIT = 10
+
+/** 월급 탭. 설정과 오늘 쓴 돈, 이번 달 월급을 등록했는지, 최근 지출을 따라간다. 날이 바뀌면 오늘을 새로 잡는다. */
 class SalaryViewModel(
     salaryRepository: SalaryRepository,
     private val transactions: TransactionRepository,
@@ -53,8 +59,17 @@ class SalaryViewModel(
                 combine(
                     transactions.observeDay(today).map { it.totals().expense },
                     registerMonth(settings, today),
-                ) { spent, month ->
-                    SalaryUiState(loaded = true, settings = settings, today = today, spentToday = spent, registerMonth = month)
+                    // 월급을 정하기 전에는 탭이 빈 화면이라 읽지 않는다
+                    if (settings.isReady) transactions.observeRecentExpenses(today, RECENT_LIMIT) else flowOf(emptyList()),
+                ) { spent, month, recent ->
+                    SalaryUiState(
+                        loaded = true,
+                        settings = settings,
+                        today = today,
+                        spentToday = spent,
+                        registerMonth = month,
+                        recent = recent,
+                    )
                 }
             }.stateIn(
                 scope = viewModelScope,

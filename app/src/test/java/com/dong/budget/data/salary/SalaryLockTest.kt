@@ -1,0 +1,147 @@
+package com.dong.budget.data.salary
+
+import com.dong.budget.testing.FakePreferences
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class SalaryLockTest {
+    private var nowMillis = 1_000_000L
+    private val prefs = FakePreferences()
+    private val lock = SalaryLock(prefs) { nowMillis }
+
+    @Test
+    fun `처음에는 안내 전이고 잠겨 있지 않다`() {
+        assertEquals(SalaryLock.State(introDone = false, enabled = false, biometric = false), lock.state.value)
+        assertTrue(lock.isOpen())
+    }
+
+    @Test
+    fun `안내를 확인하면 남는다`() {
+        lock.markIntroDone()
+        assertTrue(lock.state.value.introDone)
+        assertTrue(SalaryLock(prefs).state.value.introDone)
+    }
+
+    @Test
+    fun `PIN 을 정하면 잠금이 켜지고 방금 정했으니 풀려 있다`() {
+        lock.setPin("1234")
+        assertTrue(lock.state.value.enabled)
+        assertTrue(lock.isOpen())
+        // 앱을 다시 띄우면 잠겨 있다(풀린 상태는 저장하지 않는다)
+        val reopened = SalaryLock(prefs)
+        assertTrue(reopened.state.value.enabled)
+        assertFalse(reopened.isOpen())
+    }
+
+    @Test
+    fun `PIN 은 그대로 저장하지 않는다`() {
+        lock.setPin("1234")
+        assertFalse(prefs.all.values.any { it == "1234" })
+    }
+
+    @Test
+    fun `앱을 나가면 다시 잠기고 맞는 PIN 으로 풀린다`() {
+        lock.setPin("1234")
+        lock.lock()
+        assertFalse(lock.isOpen())
+        assertEquals(SalaryLock.Attempt.Ok, lock.tryUnlock("1234"))
+        assertTrue(lock.isOpen())
+    }
+
+    @Test
+    fun `틀리면 남은 횟수를 알려 주고 다섯 번 틀리면 30초 막는다`() {
+        lock.setPin("1234")
+        lock.lock()
+        assertEquals(
+            listOf(4, 3, 2, 1).map { SalaryLock.Attempt.Wrong(remaining = it) },
+            List(4) { lock.tryUnlock("0000") },
+        )
+        assertEquals(SalaryLock.Attempt.Blocked(seconds = 30), lock.tryUnlock("0000"))
+        // 막힌 동안에는 맞는 PIN 도 받지 않는다
+        nowMillis += 10_500
+        assertEquals(SalaryLock.Attempt.Blocked(seconds = 20), lock.tryUnlock("1234"))
+        assertFalse(lock.isOpen())
+        nowMillis += 20_000
+        assertEquals(SalaryLock.Attempt.Ok, lock.tryUnlock("1234"))
+        assertTrue(lock.isOpen())
+    }
+
+    @Test
+    fun `맞게 풀면 틀린 횟수를 처음부터 센다`() {
+        lock.setPin("1234")
+        lock.lock()
+        repeat(4) { lock.tryUnlock("0000") }
+        assertEquals(SalaryLock.Attempt.Ok, lock.tryUnlock("1234"))
+        lock.lock()
+        assertEquals(SalaryLock.Attempt.Wrong(remaining = 4), lock.tryUnlock("0000"))
+    }
+
+    @Test
+    fun `PIN 을 바꾸면 전 PIN 으로는 풀리지 않는다`() {
+        lock.setPin("1234")
+        lock.setPin("5678")
+        lock.lock()
+        assertEquals(SalaryLock.Attempt.Wrong(remaining = 4), lock.tryUnlock("1234"))
+        assertEquals(SalaryLock.Attempt.Ok, lock.tryUnlock("5678"))
+    }
+
+    @Test
+    fun `같은 PIN 이어도 기기마다 소금이 달라 저장 값이 다르다`() {
+        val other = FakePreferences()
+        lock.setPin("1234")
+        SalaryLock(other).setPin("1234")
+        assertNotEquals(prefs.getString("pin_hash", null), other.getString("pin_hash", null))
+    }
+
+    @Test
+    fun `지문은 잠금이 켜져 있을 때만 켜진다`() {
+        lock.setBiometric(true)
+        assertFalse(lock.state.value.biometric)
+        lock.setPin("1234")
+        lock.setBiometric(true)
+        assertTrue(lock.state.value.biometric)
+        lock.lock()
+        lock.unlockWithBiometric()
+        assertTrue(lock.isOpen())
+    }
+
+    @Test
+    fun `잠금을 끄면 지문도 같이 꺼지고 늘 열려 있다`() {
+        lock.setPin("1234")
+        lock.setBiometric(true)
+        lock.lock()
+        lock.disable()
+        assertEquals(SalaryLock.State(introDone = false, enabled = false, biometric = false), lock.state.value)
+        assertTrue(lock.isOpen())
+    }
+
+    @Test
+    fun `PIN 을 잊으면 잠금만 지우고 안내는 남긴다`() {
+        lock.markIntroDone()
+        lock.setPin("1234")
+        lock.setBiometric(true)
+        lock.reset(keepIntro = true)
+        assertEquals(SalaryLock.State(introDone = true, enabled = false, biometric = false), lock.state.value)
+        assertTrue(lock.isOpen())
+    }
+
+    @Test
+    fun `데이터 초기화는 안내까지 지운다`() {
+        lock.markIntroDone()
+        lock.setPin("1234")
+        lock.reset(keepIntro = false)
+        assertEquals(SalaryLock.State(), lock.state.value)
+    }
+
+    @Test
+    fun `PIN 은 숫자 네 자리만 된다`() {
+        assertTrue(SalaryLock.isValidPin("0000"))
+        assertFalse(SalaryLock.isValidPin("123"))
+        assertFalse(SalaryLock.isValidPin("12345"))
+        assertFalse(SalaryLock.isValidPin("12a4"))
+        assertFalse(SalaryLock.isValidPin("١٢٣٤"))
+    }
+}

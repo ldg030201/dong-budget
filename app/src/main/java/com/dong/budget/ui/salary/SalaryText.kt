@@ -105,12 +105,12 @@ internal fun spentLine(earned: Double, spent: Long): String = when {
 
 /**
  * 돈을 버는 데 드는 일한 시간. 하루치를 넘으면 일하는 날 수로 센다.
- * "약 47분", "약 2시간 5분", "약 3일 2시간", 1분이 안 되면 "1분도 안 돼요"
+ * "약 47분", "약 2시간 5분", "약 3일 2시간", 1분이 안 되면 "1분 미만"
  * @param secondsPerDay 하루에 일하는 초. 일하는 날 수를 셀 때 쓴다.
  */
 internal fun workValue(seconds: Double, secondsPerDay: Long): String {
     val minutes = (seconds / SECONDS_PER_MINUTE).roundToLong()
-    if (minutes < 1) return "1분도 안 돼요"
+    if (minutes < 1) return "1분 미만"
     val minutesPerDay = secondsPerDay / SECONDS_PER_MINUTE
     if (minutesPerDay <= 0 || minutes < minutesPerDay) return "약 ${hoursAndMinutes(minutes)}"
     var days = minutes / minutesPerDay

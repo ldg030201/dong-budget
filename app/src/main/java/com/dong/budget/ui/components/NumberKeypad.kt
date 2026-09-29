@@ -1,9 +1,11 @@
 package com.dong.budget.ui.components
 
+import androidx.annotation.DrawableRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -15,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -25,14 +28,32 @@ import com.dong.budget.ui.theme.pressScaleClickable
 
 private val KeyHeight = 56.dp
 
+/** 키패드 왼쪽 아래 칸 */
+sealed interface KeypadCorner {
+    /** '00'(금액 입력) */
+    data object DoubleZero : KeypadCorner
+
+    /** 비워 둔다(PIN 입력) */
+    data object Empty : KeypadCorner
+
+    /** 아이콘 버튼(PIN 입력의 지문 등) */
+    data class Action(@DrawableRes val icon: Int, val contentDescription: String, val onClick: () -> Unit) : KeypadCorner
+}
+
 /**
- * 금액 입력용 숫자 키패드.
+ * 금액 입력용 숫자 키패드. PIN 입력에도 쓴다(왼쪽 아래 칸만 바꾼다, [corner]).
  *
  * 시스템 키보드를 쓰지 않는 이유: 금액은 숫자만 받으면 되는데
  * 시스템 키보드는 화면을 절반 가까이 덮고 기기마다 모양이 다르다.
  */
 @Composable
-fun NumberKeypad(onDigit: (String) -> Unit, onDelete: () -> Unit, onClear: () -> Unit, modifier: Modifier = Modifier) {
+fun NumberKeypad(
+    onDigit: (String) -> Unit,
+    onDelete: () -> Unit,
+    onClear: () -> Unit,
+    modifier: Modifier = Modifier,
+    corner: KeypadCorner = KeypadCorner.DoubleZero,
+) {
     val backspace: ImageVector = ImageVector.vectorResource(R.drawable.ic_backspace)
 
     Column(
@@ -57,12 +78,22 @@ fun NumberKeypad(onDigit: (String) -> Unit, onDelete: () -> Unit, onClear: () ->
             }
         }
         KeypadRow {
-            KeypadKey(modifier = Modifier.weight(1f), onClick = { onDigit("00") }) {
-                Text(
-                    text = "00",
-                    style = BudgetTheme.amount.keypadDigit,
-                    color = BudgetTheme.colors.textPrimary,
-                )
+            when (corner) {
+                KeypadCorner.DoubleZero ->
+                    KeypadKey(modifier = Modifier.weight(1f), onClick = { onDigit("00") }) {
+                        Text(
+                            text = "00",
+                            style = BudgetTheme.amount.keypadDigit,
+                            color = BudgetTheme.colors.textPrimary,
+                        )
+                    }
+
+                KeypadCorner.Empty -> Spacer(Modifier.weight(1f))
+
+                is KeypadCorner.Action ->
+                    KeypadKey(modifier = Modifier.weight(1f), onClick = corner.onClick, contentDescription = corner.contentDescription) {
+                        Icon(painter = painterResource(corner.icon), contentDescription = null, tint = BudgetTheme.colors.textPrimary)
+                    }
             }
             KeypadKey(modifier = Modifier.weight(1f), onClick = { onDigit("0") }) {
                 Text(
