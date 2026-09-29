@@ -35,6 +35,9 @@ data class Change(val kind: ChangeKind, val text: String)
 enum class PatchMenu(val label: String) {
     HOME("홈"),
 
+    /** 1.5.0 에서 생긴 아래 메뉴 '월급'(실시간 월급) */
+    SALARY("월급"),
+
     /** 0.1.3 에서 홈으로 합쳐진 옛 탭. 지난 기록을 위해 남긴다. */
     HISTORY("내역"),
 
@@ -75,7 +78,7 @@ private fun menu(menu: PatchMenu, vararg changes: Change) = MenuChanges(menu, ch
 private fun newMenu(menu: PatchMenu, vararg changes: Change) = MenuChanges(menu, changes.toList(), isNew = true)
 
 /**
- * 최신 버전이 맨 위. 메뉴는 앱 화면 순서(홈 → 거래 상세 → 거래 등록 → 통계 → 분류 관리 → 전체 → 패치노트 → 개발자 모드 → 설정 → 공통)로 적는다.
+ * 최신 버전이 맨 위. 메뉴는 앱 화면 순서(홈 → 월급 → 거래 상세 → 거래 등록 → 통계 → 분류 관리 → 전체 → 패치노트 → 개발자 모드 → 설정 → 공통)로 적는다.
  * 메뉴 안의 항목은 화면에서 종류 순서(추가 → 개선 → 수정 → 오류수정)로 다시 정렬되므로 적는 순서는 자유다.
  * 그 버전에서 처음 생긴 메뉴는 [newMenu] 로 적는다(메뉴 이름 옆 '신규'). 첫 버전(0.1.0)은 모두 처음이라 붙이지 않는다.
  */
@@ -86,9 +89,25 @@ val PATCH_NOTES: List<Release> =
             date = null,
             menus =
             listOf(
+                newMenu(
+                    PatchMenu.SALARY,
+                    added("아래 메뉴에 '월급'이 생겼어요. 연봉이나 월급과 출퇴근 시간을 정하면 일하는 동안 오늘 번 돈이 초마다 올라가요"),
+                    added("이번 달·올해 번 돈, 월급날까지 남은 날, 1초·1분·1시간에 버는 돈을 보여 줘요"),
+                    added("오늘 번 돈과 오늘 쓴 돈을 나란히 보여 줘요"),
+                    added("점심시간은 빼고 셀 수 있고, 일하는 요일과 일을 시작한 날도 정할 수 있어요"),
+                    added("월급날 출근 시각에 '월급 들어왔나요?' 알림을 띄워요. 누르면 월급으로 채운 수입 등록창이 열려요"),
+                ),
+                menu(
+                    PatchMenu.DETAIL,
+                    added("월급을 정해 두면 지출마다 몇 분 일한 값인지 보여 줘요"),
+                ),
+                menu(
+                    PatchMenu.MORE,
+                    added("전체에도 '월급'을 두었어요"),
+                ),
                 menu(
                     PatchMenu.SETTINGS,
-                    added("백업: 거래·분류·결제수단을 JSON으로 복사하거나 다운로드 폴더에 파일로 내려받을 수 있어요"),
+                    added("백업: 거래·분류·결제수단과 월급 설정을 JSON으로 복사하거나 다운로드 폴더에 파일로 내려받을 수 있어요"),
                     added("복원: 저장해 둔 백업 파일이나 복사한 JSON으로 되살릴 수 있어요. 되살리기 전에 무엇이 담긴 백업인지 보여 줘요"),
                     added("고급 설정: 설정 초기화(화면 테마·자동 기능)와 데이터 초기화(처음 설치한 상태로)를 할 수 있어요"),
                     improved("설정을 묶음마다 둥근 판에 담아 정리했어요"),
