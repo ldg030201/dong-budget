@@ -314,7 +314,7 @@ fun SalarySettingsScreen(
                         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
                             if (settings.startDate != null) {
                                 BudgetTextButton(
-                                    text = "시작일 지우기",
+                                    text = "입사일 지우기",
                                     onClick = {
                                         onChange(settings.copy(startDate = null))
                                         panel = null
