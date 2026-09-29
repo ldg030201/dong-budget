@@ -52,8 +52,9 @@ class PaymentCapture(
     /**
      * 토스 알림 하나를 살펴 결제면 등록할지 묻는다.
      *
-     * 제목과 본문은 알림에 따라 담기는 칸이 달라서 후보를 여러 개 받는다. 짧은 본문부터 맞춰 본다.
-     * 펼친 본문에는 줄이 더 붙을 수 있어 딱 맞는 모양을 찾기 어렵기 때문이다.
+     * 제목과 본문은 알림에 따라 담기는 칸이 달라서 후보를 여러 개 받는다. 짧은 본문부터 맞춰 보되,
+     * 카드 이름까지 읽힌 것이 있으면 그것을 쓴다. 캐시백 알림은 카드 이름이 본문 둘째 줄에 있어서
+     * 첫 줄만 담긴 짧은 본문으로는 카드를 못 읽는다.
      *
      * @return 물어봤으면 true
      */
@@ -69,10 +70,8 @@ class PaymentCapture(
             logSkipped("결제 알림으로 묻기가 꺼져 있어 넘겼어요")
             return false
         }
-        val payment =
-            titles.firstNotNullOfOrNull { title ->
-                texts.firstNotNullOfOrNull { text -> TossPaymentParser.parse(title, text, occurredAtMillis) }
-            }
+        val parsed = titles.flatMap { title -> texts.mapNotNull { text -> TossPaymentParser.parse(title, text, occurredAtMillis) } }
+        val payment = parsed.firstOrNull { it.paymentName != null } ?: parsed.firstOrNull()
         if (payment == null) {
             // 새 모양의 결제 알림을 고칠 때 실제 문구가 필요하다(개발자 모드 로그)
             logSkipped("결제 알림 모양이 아니라 넘겼어요 · 제목 ${quoted(titles)} · 본문 ${quoted(texts)}")
