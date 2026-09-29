@@ -5,6 +5,7 @@ import com.dong.budget.data.db.TransactionType
 import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.YearMonth
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
@@ -72,6 +73,24 @@ fun formatDate(instant: Instant, today: LocalDate = LocalDate.now(BudgetTime.ZON
 }
 
 fun formatTime(instant: Instant): String = timeFormatter.format(instant.atZone(BudgetTime.ZONE))
+
+/** 시각만. "오전 9:00", "오후 6:30" */
+fun formatClock(time: LocalTime): String = timeFormatter.format(time)
+
+/**
+ * 남은 시간. 분 아래는 올려서 "1시간 5분", "40분", "3시간" 처럼 적는다. 1분이 안 남았으면 "1분" 이다.
+ * @param seconds 0 보다 커야 한다
+ */
+fun formatDuration(seconds: Long): String {
+    val minutes = (seconds + SECONDS_PER_MINUTE - 1) / SECONDS_PER_MINUTE
+    val hours = minutes / MINUTES_PER_HOUR
+    val rest = minutes % MINUTES_PER_HOUR
+    return when {
+        hours == 0L -> "${minutes.coerceAtLeast(1)}분"
+        rest == 0L -> "${hours}시간"
+        else -> "${hours}시간 ${rest}분"
+    }
+}
 
 /** 알림이 온 때. "오늘 오후 2:22", "어제 오전 8:40", 그 전은 "9월 23일 오후 3:00" */
 fun formatNoticeTime(instant: Instant, today: LocalDate): String {
@@ -185,3 +204,6 @@ fun monthLabel(month: YearMonth, today: LocalDate): String = when {
     month.year == today.year -> "${month.monthValue}월"
     else -> formatMonth(month)
 }
+
+private const val SECONDS_PER_MINUTE = 60L
+private const val MINUTES_PER_HOUR = 60L

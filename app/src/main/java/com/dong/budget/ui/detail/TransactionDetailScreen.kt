@@ -164,6 +164,8 @@ private fun DetailFields(item: TransactionListItem, state: TransactionDetailUiSt
         FieldRow(label = "날짜", value = formatDate(item.occurredAt, state.today))
         FieldRow(label = "시간", value = formatTime(item.occurredAt))
         item.memo?.let { FieldRow(label = "메모", value = it) }
+        // 월급을 정해 두었으면 이 지출이 몇 분 일한 값인지 보여 준다
+        state.workTime?.let { FieldRow(label = "일한 시간", value = it) }
     }
 }
 
