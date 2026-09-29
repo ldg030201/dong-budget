@@ -15,12 +15,15 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -51,6 +54,7 @@ import com.dong.budget.data.capture.CaptureStore
 import com.dong.budget.data.capture.PaymentCapture
 import com.dong.budget.data.db.SALARY_CATEGORY_CODE
 import com.dong.budget.data.devlog.DevLog
+import com.dong.budget.data.salary.SalaryLockReset
 import com.dong.budget.data.salary.salaryKey
 import com.dong.budget.data.salary.salaryMonthOf
 import com.dong.budget.data.settings.AutoOption
@@ -62,6 +66,7 @@ import com.dong.budget.navigation.EditorPrefill
 import com.dong.budget.navigation.InboxKey
 import com.dong.budget.navigation.Navigator
 import com.dong.budget.navigation.PatchNotesKey
+import com.dong.budget.navigation.SalaryPinSetupKey
 import com.dong.budget.navigation.SalarySettingsKey
 import com.dong.budget.navigation.SettingsKey
 import com.dong.budget.navigation.ShellKey
@@ -71,6 +76,7 @@ import com.dong.budget.navigation.TransactionDetailKey
 import com.dong.budget.navigation.TransactionEditorKey
 import com.dong.budget.ui.category.CategoryManageScreen
 import com.dong.budget.ui.category.CategoryManageViewModel
+import com.dong.budget.ui.components.BudgetTopAppBar
 import com.dong.budget.ui.components.LocalSharedTransitionScope
 import com.dong.budget.ui.detail.TransactionDetailScreen
 import com.dong.budget.ui.detail.TransactionDetailUiState
@@ -90,10 +96,16 @@ import com.dong.budget.ui.inbox.InboxViewModel
 import com.dong.budget.ui.patchnotes.PatchNotesScreen
 import com.dong.budget.ui.patchnotes.PatchNotesViewModel
 import com.dong.budget.ui.permission.PermissionGate
+import com.dong.budget.ui.salary.HideFromRecents
+import com.dong.budget.ui.salary.SalaryLockControls
+import com.dong.budget.ui.salary.SalaryLockScreen
+import com.dong.budget.ui.salary.SalaryPinSetup
 import com.dong.budget.ui.salary.SalaryScreen
 import com.dong.budget.ui.salary.SalarySettingsScreen
 import com.dong.budget.ui.salary.SalarySettingsViewModel
+import com.dong.budget.ui.salary.SalaryTabGate
 import com.dong.budget.ui.salary.SalaryViewModel
+import com.dong.budget.ui.salary.biometricAvailable
 import com.dong.budget.ui.settings.AdvancedSettingsScreen
 import com.dong.budget.ui.settings.AdvancedSettingsViewModel
 import com.dong.budget.ui.settings.AppInfoScreen
@@ -213,14 +225,34 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
                                 devModeOn = devModeOn,
                                 onOpenDeveloper = { navigator.go(DeveloperKey) },
                                 salaryContent = {
-                                    // 월급 탭을 처음 열 때 만들어지고, 셸과 같이 산다. 탭을 떠나 있으면 구독을 멈춘다(WhileSubscribed).
-                                    val salaryViewModel: SalaryViewModel = viewModel(factory = salaryViewModelFactory(container))
-                                    val salaryState by salaryViewModel.uiState.collectAsStateWithLifecycle()
-                                    SalaryScreen(
-                                        state = salaryState,
-                                        onOpenSettings = { navigator.go(SalarySettingsKey) },
-                                        onRegisterSalary = { month -> scope.launch { openSalary(month, container, navigator, context) } },
-                                    )
+                                    val lock = container.salaryLock
+                                    val lockState by lock.state.collectAsStateWithLifecycle()
+                                    val unlocked by lock.unlocked.collectAsStateWithLifecycle()
+                                    // 처음이면 연봉 공개 주의 안내, 잠겨 있으면 PIN·지문, 그 뒤에야 월급을 그린다
+                                    SalaryTabGate(
+                                        state = lockState,
+                                        unlocked = unlocked,
+                                        onIntroConfirm = { wantsLock ->
+                                            lock.markIntroDone()
+                                            if (wantsLock) navigator.go(SalaryPinSetupKey)
+                                        },
+                                        onUnlock = lock::tryUnlock,
+                                        onBiometricSuccess = lock::unlockWithBiometric,
+                                        onForgot = { scope.launch { container.clearSalary(SalaryLockReset.PIN) } },
+                                    ) {
+                                        HideFromRecents(active = lockState.enabled)
+                                        // 월급 탭을 처음 열 때 만들어지고, 셸과 같이 산다. 탭을 떠나 있으면 구독을 멈춘다(WhileSubscribed).
+                                        val salaryViewModel: SalaryViewModel = viewModel(factory = salaryViewModelFactory(container))
+                                        val salaryState by salaryViewModel.uiState.collectAsStateWithLifecycle()
+                                        SalaryScreen(
+                                            state = salaryState,
+                                            onOpenSettings = { navigator.go(SalarySettingsKey) },
+                                            onRegisterSalary = { month ->
+                                                scope.launch { openSalary(month, container, navigator, context) }
+                                            },
+                                            onOpenTransaction = { id -> navigator.go(TransactionDetailKey(id)) },
+                                        )
+                                    }
                                 },
                             )
                         }
@@ -396,9 +428,29 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
                             )
                         }
 
-                        entry<SalarySettingsKey> {
+                        entry<SalarySettingsKey> { key ->
+                            val lock = container.salaryLock
+                            val lockState by lock.state.collectAsStateWithLifecycle()
+                            val unlocked by lock.unlocked.collectAsStateWithLifecycle()
+                            // 월급 설정도 월급이 보이는 곳이라 같이 잠근다(앱을 나갔다 오면 여기서도 다시 묻는다)
+                            if (!lock.isOpen(lockState, unlocked)) {
+                                LockedSalaryPage(title = "월급 설정", onBack = navigator::goBack) {
+                                    SalaryLockScreen(
+                                        biometric = lockState.biometric,
+                                        onUnlock = lock::tryUnlock,
+                                        onBiometricSuccess = lock::unlockWithBiometric,
+                                        onForgot = {
+                                            scope.launch { container.clearSalary(SalaryLockReset.PIN) }
+                                            navigator.closeIfTop(key)
+                                        },
+                                    )
+                                }
+                                return@entry
+                            }
+                            HideFromRecents(active = lockState.enabled)
                             val viewModel: SalarySettingsViewModel = viewModel(factory = salarySettingsViewModelFactory(container))
                             val settings by viewModel.settings.collectAsStateWithLifecycle()
+                            val settled = rememberSettled()
                             SalarySettingsScreen(
                                 settings = settings,
                                 onChange = viewModel::update,
@@ -407,7 +459,45 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
                                 onClearAmount = viewModel::clearAmount,
                                 onBack = navigator::goBack,
                                 onReset = viewModel::reset,
+                                lock =
+                                SalaryLockControls(
+                                    enabled = lockState.enabled,
+                                    biometric = lockState.biometric,
+                                    biometricAvailable = biometricAvailable(context),
+                                    onEnable = { if (settled()) navigator.go(SalaryPinSetupKey) },
+                                    onDisable = lock::disable,
+                                    onChangePin = { if (settled()) navigator.go(SalaryPinSetupKey) },
+                                    onBiometricChange = lock::setBiometric,
+                                ),
                             )
+                        }
+
+                        entry<SalaryPinSetupKey> { key ->
+                            val lock = container.salaryLock
+                            val lockState by lock.state.collectAsStateWithLifecycle()
+                            val unlocked by lock.unlocked.collectAsStateWithLifecycle()
+                            // PIN 을 바꾸려면 먼저 풀려 있어야 한다. 바꾸던 중에 앱을 나갔다 오면 다시 묻는다.
+                            LockedSalaryPage(title = if (lockState.enabled) "PIN 바꾸기" else "PIN 정하기", onBack = navigator::goBack) {
+                                if (!lock.isOpen(lockState, unlocked)) {
+                                    SalaryLockScreen(
+                                        biometric = lockState.biometric,
+                                        onUnlock = lock::tryUnlock,
+                                        onBiometricSuccess = lock::unlockWithBiometric,
+                                        onForgot = {
+                                            scope.launch { container.clearSalary(SalaryLockReset.PIN) }
+                                            navigator.closeIfTop(key)
+                                        },
+                                    )
+                                } else {
+                                    SalaryPinSetup(
+                                        onDone = { pin, biometric ->
+                                            lock.setPin(pin)
+                                            lock.setBiometric(biometric)
+                                            navigator.closeIfTop(key)
+                                        },
+                                    )
+                                }
+                            }
                         }
 
                         entry<AdvancedSettingsKey> {
@@ -608,16 +698,27 @@ private fun editorViewModelFactory(container: AppContainer, transactionId: Long?
     }
 }
 
+/** 뒤로 가기가 있는 월급 화면의 틀(월급 설정이 잠겼을 때, PIN 정하기) */
+@Composable
+private fun LockedSalaryPage(title: String, onBack: () -> Unit, content: @Composable () -> Unit) {
+    Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            BudgetTopAppBar(onNavigationClick = onBack, title = title)
+            content()
+        }
+    }
+}
+
 private fun salaryViewModelFactory(container: AppContainer) = viewModelFactory {
     initializer { SalaryViewModel(container.salaryRepository, container.transactionRepository) }
 }
 
 private fun salarySettingsViewModelFactory(container: AppContainer) = viewModelFactory {
-    initializer { SalarySettingsViewModel(container.salaryRepository, container::clearSalary) }
+    initializer { SalarySettingsViewModel(container.salaryRepository) { container.clearSalary(SalaryLockReset.KEEP) } }
 }
 
 private fun transactionDetailViewModelFactory(container: AppContainer, transactionId: Long) = viewModelFactory {
-    initializer { TransactionDetailViewModel(container.transactionRepository, transactionId, container.salaryRepository.settings) }
+    initializer { TransactionDetailViewModel(container.transactionRepository, transactionId) }
 }
 
 private fun settingsViewModelFactory(container: AppContainer) = viewModelFactory {
@@ -643,7 +744,7 @@ private fun advancedSettingsViewModelFactory(container: AppContainer) = viewMode
             container.settingsRepository,
             container.backupRepository,
             container.paymentCapture,
-            container::clearSalary,
+            { container.clearSalary(SalaryLockReset.ALL) },
         )
     }
 }

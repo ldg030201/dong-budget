@@ -68,6 +68,10 @@ class TransactionRepository(private val transactionDao: TransactionDao) {
         date.plusDays(1).atStartOfDay(BudgetTime.ZONE).toInstant(),
     )
 
+    /** [today] 까지(앞으로의 날짜로 적은 거래는 빼고) 최근 지출 [limit] 건. 월급 탭의 최근 내역이 쓴다. */
+    fun observeRecentExpenses(today: LocalDate, limit: Int): Flow<List<TransactionListItem>> =
+        transactionDao.observeRecentExpenses(today.plusDays(1).atStartOfDay(BudgetTime.ZONE).toInstant(), limit)
+
     /**
      * 한 달 치 월급을 등록했는지. 월급날 알림·월급 탭으로 등록한 열쇠([key])가 있거나,
      * 그 월급을 받는 기간([from]~[until] 전날)에 급여 분류([salaryCode])의 수입을 직접 적었으면 등록한 것으로 본다.

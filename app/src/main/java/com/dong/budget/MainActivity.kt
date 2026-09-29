@@ -92,6 +92,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onStop() {
         InstallEvents.appVisible = false
+        // 앱을 나가면 월급 탭을 다시 잠근다. 화면을 돌려 다시 만들어지는 때는 나간 것이 아니다.
+        if (!isChangingConfigurations) (application as BudgetApplication).container.salaryLock.lock()
         super.onStop()
     }
 

@@ -36,17 +36,26 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dong.budget.R
 import com.dong.budget.data.db.BudgetTime
+import com.dong.budget.data.db.TransactionListItem
 import com.dong.budget.data.salary.SalarySettings
 import com.dong.budget.data.salary.WorkStatus
 import com.dong.budget.ui.components.BudgetIconButton
+import com.dong.budget.ui.components.BudgetListItem
 import com.dong.budget.ui.components.BudgetPrimaryButton
+import com.dong.budget.ui.components.CategoryBadge
 import com.dong.budget.ui.components.HintText
 import com.dong.budget.ui.components.IconBadge
 import com.dong.budget.ui.components.RollingText
 import com.dong.budget.ui.components.sectionBlock
+import com.dong.budget.ui.components.transactionAmountColor
+import com.dong.budget.ui.components.transactionTitle
 import com.dong.budget.ui.format.formatAmount
 import com.dong.budget.ui.format.formatClock
 import com.dong.budget.ui.format.formatDayShort
+import com.dong.budget.ui.format.formatNoticeTime
+import com.dong.budget.ui.format.formatSignedAmount
+import com.dong.budget.ui.stats.SectionNote
+import com.dong.budget.ui.stats.StatsSection
 import com.dong.budget.ui.theme.BudgetTheme
 import kotlinx.coroutines.flow.map
 import java.time.Clock
@@ -68,6 +77,7 @@ fun SalaryScreen(
     state: SalaryUiState,
     onOpenSettings: () -> Unit,
     onRegisterSalary: (YearMonth) -> Unit,
+    onOpenTransaction: (Long) -> Unit,
     modifier: Modifier = Modifier,
     clock: Clock = remember { Clock.system(BudgetTime.ZONE) },
 ) {
@@ -82,16 +92,21 @@ fun SalaryScreen(
         }
         val now = rememberNow(clock)
         Column(
-            modifier =
-            Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = BudgetTheme.spacing.screenHorizontal),
+            modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(BudgetTheme.spacing.itemGap),
         ) {
-            TodayCard(settings = settings, now = { now.value }, spentToday = state.spentToday)
-            TotalsCard(settings = settings, now = { now.value })
-            PaydayCard(settings = settings, today = state.today, registerMonth = state.registerMonth, onRegister = onRegisterSalary)
+            // 카드는 화면 여백 안에, 최근 내역 줄은 내역 목록처럼 끝까지 눌리게 여백을 줄이 가진다
+            val card = Modifier.padding(horizontal = BudgetTheme.spacing.screenHorizontal)
+            TodayCard(settings = settings, now = { now.value }, spentToday = state.spentToday, modifier = card)
+            TotalsCard(settings = settings, now = { now.value }, modifier = card)
+            PaydayCard(
+                settings = settings,
+                today = state.today,
+                registerMonth = state.registerMonth,
+                onRegister = onRegisterSalary,
+                modifier = card,
+            )
+            RecentSection(settings = settings, today = state.today, items = state.recent, onOpenTransaction = onOpenTransaction)
             Spacer(Modifier.height(BudgetTheme.spacing.sectionGap))
         }
     }
@@ -105,9 +120,9 @@ private fun rememberNow(clock: Clock): State<LocalDateTime> {
     return ticks.collectAsStateWithLifecycle(initialValue = initial)
 }
 
-/** '전체' 탭과 같은 머리. 오른쪽 톱니로 월급 설정을 연다. */
+/** '전체' 탭과 같은 머리. 오른쪽 톱니로 월급 설정을 연다. 잠겨 있거나 처음 안내 중이면 톱니를 두지 않는다([onOpenSettings] 가 null). */
 @Composable
-private fun SalaryHeader(onOpenSettings: () -> Unit) {
+internal fun SalaryHeader(onOpenSettings: (() -> Unit)?) {
     Row(
         modifier =
         Modifier
@@ -126,11 +141,16 @@ private fun SalaryHeader(onOpenSettings: () -> Unit) {
             color = BudgetTheme.colors.textPrimary,
             modifier = Modifier.weight(1f).semantics { heading() },
         )
-        BudgetIconButton(
-            icon = ImageVector.vectorResource(R.drawable.ic_sym_settings),
-            contentDescription = "월급 설정",
-            onClick = onOpenSettings,
-        )
+        if (onOpenSettings != null) {
+            BudgetIconButton(
+                icon = ImageVector.vectorResource(R.drawable.ic_sym_settings),
+                contentDescription = "월급 설정",
+                onClick = onOpenSettings,
+            )
+        } else {
+            // 톱니가 없어도 머리 높이는 같게 둔다
+            Spacer(Modifier.size(BudgetTheme.size.minTouchTarget))
+        }
     }
 }
 
@@ -171,10 +191,10 @@ private fun EmptySalary(onOpenSettings: () -> Unit) {
  * 쓴 돈은 번 돈과 나란히 놓여서 빨갛게 쓴다(한 자리에 수입·지출이 함께 있을 때만 지출에 색을 쓰는 규칙).
  */
 @Composable
-private fun TodayCard(settings: SalarySettings, now: () -> LocalDateTime, spentToday: Long) {
+private fun TodayCard(settings: SalarySettings, now: () -> LocalDateTime, spentToday: Long, modifier: Modifier = Modifier) {
     val time = now()
     val earnings = settings.earningsAt(time)
-    Column(modifier = Modifier.fillMaxWidth().sectionBlock()) {
+    Column(modifier = modifier.fillMaxWidth().sectionBlock()) {
         StatusRow(status = earnings.status, text = statusLine(settings, time))
         Spacer(Modifier.height(BudgetTheme.spacing.itemGap))
         // 매초 바뀌는 금액은 화면 읽기에서 빼고, 천 원 단위로 끊은 글을 대신 읽힌다
@@ -244,10 +264,10 @@ private fun StatusRow(status: WorkStatus, text: String) {
 
 /** 월급날부터와 올해 번 돈. 초마다 따라 오르지만 글자가 굴러가지는 않는다(움직이는 것은 오늘 번 돈 하나로 둔다). */
 @Composable
-private fun TotalsCard(settings: SalarySettings, now: () -> LocalDateTime) {
+private fun TotalsCard(settings: SalarySettings, now: () -> LocalDateTime, modifier: Modifier = Modifier) {
     val time = now()
     val earnings = settings.earningsAt(time)
-    Column(modifier = Modifier.fillMaxWidth().sectionBlock()) {
+    Column(modifier = modifier.fillMaxWidth().sectionBlock()) {
         TotalRow(label = "월급날부터 번 돈", amount = earnings.period, caption = periodCaption(earnings))
         Spacer(Modifier.height(BudgetTheme.spacing.inlineGap))
         EarnBar(fraction = if (earnings.periodTotal > 0) (earnings.period / earnings.periodTotal).toFloat() else 0f)
@@ -275,9 +295,15 @@ private fun yearCaption(settings: SalarySettings, today: LocalDate): String {
 
 /** 월급날. 막 지났는데 아직 등록하지 않았으면 등록 버튼을 둔다. */
 @Composable
-private fun PaydayCard(settings: SalarySettings, today: LocalDate, registerMonth: YearMonth?, onRegister: (YearMonth) -> Unit) {
+private fun PaydayCard(
+    settings: SalarySettings,
+    today: LocalDate,
+    registerMonth: YearMonth?,
+    onRegister: (YearMonth) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val payday = settings.nextPayday(today)
-    Column(modifier = Modifier.fillMaxWidth().sectionBlock()) {
+    Column(modifier = modifier.fillMaxWidth().sectionBlock()) {
         Row(modifier = Modifier.fillMaxWidth().semantics(mergeDescendants = true) {}, verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(text = "월급날", style = MaterialTheme.typography.bodyMedium, color = BudgetTheme.colors.textSecondary)
@@ -294,6 +320,52 @@ private fun PaydayCard(settings: SalarySettings, today: LocalDate, registerMonth
             BudgetPrimaryButton(text = "${registerMonth.monthValue}월 월급 수입으로 등록하기", onClick = { onRegister(registerMonth) })
         }
     }
+}
+
+/**
+ * 최근 내역. 오늘까지 쓴 돈을 최근 것부터, 그 돈을 벌려면 일해야 하는 시간과 함께 보여 준다.
+ * 일한 시간은 달마다 다르지 않은 평균 시급으로 센다(같은 금액이 달마다 다르게 보이지 않게). 누르면 그 거래의 상세가 열린다.
+ */
+@Composable
+private fun RecentSection(settings: SalarySettings, today: LocalDate, items: List<TransactionListItem>, onOpenTransaction: (Long) -> Unit) {
+    Column(modifier = Modifier.fillMaxWidth().padding(top = BudgetTheme.spacing.itemGap)) {
+        StatsSection(title = "최근 내역", subtitle = "쓴 돈을 벌려면 얼마나 일해야 하는지 평균 시급으로 셌어요") {
+            if (items.isEmpty()) SectionNote("아직 쓴 돈이 없어요")
+        }
+        if (items.isNotEmpty()) Spacer(Modifier.height(BudgetTheme.spacing.inlineGap))
+        items.forEach { item ->
+            val workTime = settings.secondsToEarn(item.amount)?.let { workValue(it, settings.workSecondsPerDay) }
+            RecentRow(item = item, today = today, workTime = workTime, onClick = { onOpenTransaction(item.id) })
+        }
+    }
+}
+
+/** 최근 내역 한 줄. 오른쪽에 금액과 그 아래 일한 시간 */
+@Composable
+private fun RecentRow(item: TransactionListItem, today: LocalDate, workTime: String?, onClick: () -> Unit) {
+    BudgetListItem(
+        title = transactionTitle(item),
+        subtitle = listOfNotNull(formatNoticeTime(item.occurredAt, today), item.categoryName).joinToString(" · "),
+        leading = { CategoryBadge(icon = item.categoryIcon, color = item.categoryColor) },
+        trailing = {
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    text = formatSignedAmount(item.type, item.amount),
+                    style = BudgetTheme.amount.medium,
+                    color = transactionAmountColor(item.type),
+                )
+                if (workTime != null) {
+                    Text(
+                        text = workTime,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = BudgetTheme.colors.textSecondary,
+                        modifier = Modifier.semantics { contentDescription = "일한 시간 $workTime" },
+                    )
+                }
+            }
+        },
+        onClick = onClick,
+    )
 }
 
 /** 얼마나 벌었는지 채워 보여 주는 막대. 번 돈이라 초록으로 채운다. 뜻은 옆 글이 전하므로 화면 읽기에서 뺀다. */
