@@ -67,13 +67,13 @@ fun AdvancedSettingsScreen(
                 SettingsGroup("초기화") {
                     ActionRow(
                         title = "설정 초기화",
-                        description = "화면 테마와 자동 기능을 처음대로 돌려요. 거래는 그대로예요",
+                        description = "화면 테마와 자동 기능을 처음대로 돌려요. 거래와 월급 설정은 그대로예요",
                         onClick = onResetSettings,
                         enabled = !busy,
                     )
                     ActionRow(
                         title = "데이터 초기화",
-                        description = "거래·분류·결제수단·알림 목록을 모두 지우고 처음 설치한 상태로 돌려요",
+                        description = "거래·분류·결제수단·월급 설정·알림 목록을 모두 지우고 처음 설치한 상태로 돌려요",
                         onClick = onResetData,
                         danger = true,
                         enabled = !busy,

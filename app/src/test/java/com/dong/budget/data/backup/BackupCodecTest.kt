@@ -8,6 +8,11 @@ import com.dong.budget.data.db.PaymentMethodEntity
 import com.dong.budget.data.db.TransactionEntity
 import com.dong.budget.data.db.TransactionType
 import com.dong.budget.data.db.toEntity
+import com.dong.budget.data.salary.PayBasis
+import com.dong.budget.data.salary.SalaryRecord
+import com.dong.budget.data.salary.SalarySettings
+import com.dong.budget.data.salary.toRecord
+import com.dong.budget.data.salary.toSettings
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -172,5 +177,21 @@ class BackupCodecTest {
         val entity = odd.toEntity()
         assertEquals(CategoryStyle.FALLBACK_ICON, entity.icon)
         assertEquals(CategoryStyle.FALLBACK_COLOR, entity.color)
+    }
+
+    @Test
+    fun `월급 설정도 담았다가 그대로 읽는다`() {
+        val salary = SalarySettings(basis = PayBasis.YEARLY, amount = 48_000_000, payday = 10).toRecord()
+        val withSalary = backup().copy(salary = salary)
+        assertEquals(withSalary, decodeValid(BackupCodec.encode(withSalary, pretty = true)))
+        // 월급을 정하지 않은 백업에는 칸이 아예 없다
+        assertTrue("salary" !in BackupCodec.encode(backup(), pretty = false))
+    }
+
+    @Test
+    fun `월급 금액이 범위를 벗어나면 망가진 백업이고, 모르는 급여 종류는 월급으로 읽는다`() {
+        assertEquals(BackupCodec.BROKEN, reason(broken { it.copy(salary = SalaryRecord(amount = 1_000_000_000_000)) }))
+        val odd = decodeValid(broken { it.copy(salary = SalaryRecord(basis = "WEEKLY", amount = 3_000_000)) })
+        assertEquals(PayBasis.MONTHLY, odd.salary!!.toSettings().basis)
     }
 }

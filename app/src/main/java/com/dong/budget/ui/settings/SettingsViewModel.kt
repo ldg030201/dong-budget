@@ -13,6 +13,10 @@ import com.dong.budget.data.backup.parseBackupTime
 import com.dong.budget.data.db.BudgetTime
 import com.dong.budget.data.devlog.DevLog
 import com.dong.budget.data.devlog.LogTag
+import com.dong.budget.data.salary.SalaryRepository
+import com.dong.budget.data.salary.SalarySettings
+import com.dong.budget.data.salary.toRecord
+import com.dong.budget.data.salary.toSettings
 import com.dong.budget.data.settings.SettingsRepository
 import com.dong.budget.data.settings.ThemeMode
 import com.dong.budget.data.update.UpdateChecker
@@ -24,6 +28,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
@@ -45,6 +50,7 @@ class SettingsViewModel(
     updateChecker: UpdateChecker,
     private val backupRepository: BackupRepository,
     private val backupStorage: BackupStorage,
+    private val salaryRepository: SalaryRepository,
 ) : ViewModel() {
     val themeMode: StateFlow<ThemeMode> =
         settingsRepository.themeMode.stateIn(
@@ -120,6 +126,8 @@ class SettingsViewModel(
         _backup.update { it.copy(restore = null) }
         runBackup(RESTORE_FAILED_MESSAGE) {
             backupRepository.restore(preview.backup)
+            // 월급 설정은 DB 밖이라 거래를 되살린 뒤에 따로 넣는다. 백업에 없으면(월급을 정하기 전 백업) 지금 설정을 그대로 둔다.
+            preview.backup.salary?.let { salaryRepository.save(it.toSettings()) }
             _messages.send(restoredMessage(preview.backup))
         }
     }
@@ -129,7 +137,9 @@ class SettingsViewModel(
     }
 
     private suspend fun encodeBackup(pretty: Boolean): String {
-        val backup = backupRepository.export(currentVersion)
+        // 월급 설정은 정해 둔 때만 담는다
+        val salary = salaryRepository.settings.first().takeIf { it != SalarySettings() }?.toRecord()
+        val backup = backupRepository.export(currentVersion).copy(salary = salary)
         // 거래가 많으면 글로 바꾸는 데 시간이 걸린다. 화면이 멈추지 않게 뒤에서 한다.
         return withContext(Dispatchers.Default) { BackupCodec.encode(backup, pretty) }
     }

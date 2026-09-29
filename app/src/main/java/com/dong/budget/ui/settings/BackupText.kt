@@ -27,7 +27,7 @@ internal fun restoreMessage(preview: RestorePreview, today: LocalDate): String {
     val made = "${formatDate(preview.exportedAt, today)} ${formatTime(preview.exportedAt)}"
     return "${made}에 만든 백업이에요.\n" +
         "거래 ${formatAmount(backup.transactions.size.toLong())}건 · 분류 ${backup.categories.size}개 · " +
-        "결제수단 ${backup.paymentMethods.size}개\n\n" +
+        "결제수단 ${backup.paymentMethods.size}개${if (backup.salary != null) " · 월급 설정" else ""}\n\n" +
         (if (preview.currentTransactions > 0) "지금 있는 거래 ${formatAmount(preview.currentTransactions.toLong())}건과 " else "지금 있는 ") +
         "분류·결제수단은 모두 지우고 백업 내용으로 바꿔요. 되돌릴 수 없어요."
 }
@@ -36,12 +36,12 @@ internal fun restoredMessage(backup: Backup): String = "백업으로 복원했�
 
 /** 데이터 초기화를 묻는 창의 글 */
 internal fun resetDataMessage(transactionCount: Int): String =
-    "거래 ${formatAmount(transactionCount.toLong())}건과 직접 만든 분류·결제수단, 알림 목록을 모두 지우고 " +
+    "거래 ${formatAmount(transactionCount.toLong())}건과 직접 만든 분류·결제수단, 월급 설정, 알림 목록을 모두 지우고 " +
         "처음 설치한 상태로 돌려요. 되돌릴 수 없으니 먼저 설정의 '파일로 내려받기'로 백업해 두세요.\n\n" +
         "화면 테마와 자동 기능 설정은 그대로예요."
 
 internal const val RESET_SETTINGS_MESSAGE =
-    "화면 테마는 기기 설정으로, 고급 설정의 자동 기능은 모두 켜진 상태로 돌아가요. 거래·분류·결제수단은 그대로예요."
+    "화면 테마는 기기 설정으로, 고급 설정의 자동 기능은 모두 켜진 상태로 돌아가요. 거래·분류·결제수단과 월급 설정은 그대로예요."
 
 internal const val COPIED_MESSAGE = "백업을 복사했어요"
 internal const val COPY_FAILED_MESSAGE = "거래가 많아 복사할 수 없어요. '파일로 내려받기'를 써 주세요"

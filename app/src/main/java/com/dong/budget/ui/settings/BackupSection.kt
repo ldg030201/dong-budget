@@ -23,7 +23,7 @@ data class BackupActions(
 )
 
 /**
- * 백업(내보내기)과 복원(되살리기) 두 묶음. 백업은 거래·분류·결제수단을 담고, 설정(테마·자동 기능)과 알림 목록은 담지 않는다.
+ * 백업(내보내기)과 복원(되살리기) 두 묶음. 백업은 거래·분류·결제수단과 월급 설정을 담고, 화면 테마·자동 기능과 알림 목록은 담지 않는다.
  * 복원은 백업을 읽어 무엇이 담겼는지 보여 주고 한 번 더 물은 뒤에 지금 데이터를 통째로 바꾼다.
  */
 @Composable
@@ -39,7 +39,7 @@ internal fun BackupSection(state: BackupUiState, actions: BackupActions) {
     SettingsGroup("백업") {
         ActionRow(
             title = "JSON으로 복사",
-            description = "거래·분류·결제수단을 글로 복사해요. 메모나 메신저에 붙여 두세요",
+            description = "거래·분류·결제수단과 월급 설정을 글로 복사해요. 메모나 메신저에 붙여 두세요",
             onClick = actions.onCopy,
             enabled = enabled,
         )
