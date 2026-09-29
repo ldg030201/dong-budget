@@ -82,6 +82,22 @@ private fun newMenu(menu: PatchMenu, vararg changes: Change) = MenuChanges(menu,
 val PATCH_NOTES: List<Release> =
     listOf(
         Release(
+            version = "1.5.0",
+            date = null,
+            menus =
+            listOf(
+                menu(
+                    PatchMenu.SETTINGS,
+                    added("백업: 거래·분류·결제수단을 JSON으로 복사하거나 다운로드 폴더에 파일로 내려받을 수 있어요"),
+                    added("복원: 저장해 둔 백업 파일이나 복사한 JSON으로 되살릴 수 있어요. 되살리기 전에 무엇이 담긴 백업인지 보여 줘요"),
+                    added("고급 설정: 설정 초기화(화면 테마·자동 기능)와 데이터 초기화(처음 설치한 상태로)를 할 수 있어요"),
+                    improved("설정을 묶음마다 둥근 판에 담아 정리했어요"),
+                    changed("화면 테마를 '밝게 · 기기 설정 · 어둡게' 한 줄에서 고르게 바꿨어요"),
+                    changed("자동 기능 스위치를 '고급 설정'으로 옮겼어요. 새 버전 자동 확인도 여기로 왔어요"),
+                ),
+            ),
+        ),
+        Release(
             version = "1.4.1",
             date = LocalDate.of(2026, 9, 29),
             menus =
