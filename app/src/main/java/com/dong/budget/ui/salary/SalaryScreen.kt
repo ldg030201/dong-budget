@@ -62,7 +62,6 @@ import java.time.Clock
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.YearMonth
-import java.util.Locale
 
 /**
  * 월급 탭. 일하는 동안 오늘 번 돈이 초마다 오르고, 이번 달·올해 번 돈과 월급날까지 남은 날을 보여 준다.
@@ -198,7 +197,7 @@ private fun TodayCard(settings: SalarySettings, now: () -> LocalDateTime, spentT
         StatusRow(status = earnings.status, text = statusLine(settings, time))
         Spacer(Modifier.height(BudgetTheme.spacing.itemGap))
         // 매초 바뀌는 금액은 화면 읽기에서 빼고, 천 원 단위로 끊은 글을 대신 읽힌다
-        val spoken = "오늘 번 돈 ${spokenEarned(earnings.today)}, 1초에 ${String.format(Locale.KOREA, "%.2f", earnings.perSecond)}원"
+        val spoken = "오늘 번 돈 ${spokenEarned(earnings.today)}, ${spokenRate(earnings.perSecond)}"
         Column(modifier = Modifier.clearAndSetSemantics { contentDescription = spoken }) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
@@ -207,8 +206,8 @@ private fun TodayCard(settings: SalarySettings, now: () -> LocalDateTime, spentT
                     color = BudgetTheme.colors.textSecondary,
                     modifier = Modifier.weight(1f),
                 )
-                // 1초에 버는 돈. 일하지 않는 때에도 이번 월급 기간의 빠르기를 보여 준다.
-                Text(text = perSecondBadge(earnings.perSecond), style = BudgetTheme.amount.tableCell, color = BudgetTheme.colors.income)
+                // 1초·1시간에 버는 돈. 일하지 않는 때에도 이번 월급 기간의 빠르기를 보여 준다.
+                Text(text = rateBadge(earnings.perSecond), style = BudgetTheme.amount.tableCell, color = BudgetTheme.colors.income)
             }
             HeroAmount(text = formatEarned(earnings.today))
         }

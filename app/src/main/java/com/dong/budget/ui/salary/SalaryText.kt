@@ -67,6 +67,16 @@ internal fun paydayLine(payday: LocalDate, today: LocalDate): String = when (val
 /** 1초에 버는 돈. 사용자가 고른 모양이다. "₩4.73/s" */
 internal fun perSecondBadge(perSecond: Double): String = "₩${String.format(Locale.KOREA, "%,.2f", perSecond)}/s"
 
+/** 1시간에 버는 돈. 원 아래는 반올림한다. "₩17,045/h" */
+internal fun perHourBadge(perSecond: Double): String = "₩${formatAmount((perSecond * SECONDS_PER_HOUR).roundToLong())}/h"
+
+/** 오늘 번 돈 옆에 나란히 두는 빠르기. "₩4.73/s · ₩17,045/h" */
+internal fun rateBadge(perSecond: Double): String = "${perSecondBadge(perSecond)} · ${perHourBadge(perSecond)}"
+
+/** 화면 읽기로 읽을 빠르기. "1초에 4.73원, 1시간에 17,045원" */
+internal fun spokenRate(perSecond: Double): String =
+    "1초에 ${String.format(Locale.KOREA, "%.2f", perSecond)}원, 1시간에 ${formatAmount((perSecond * SECONDS_PER_HOUR).roundToLong())}원"
+
 /**
  * 번 돈 카드 밑 안내. 무엇으로 쌓는지와 통상시급(세전 월급 ÷ 한 달 소정근로시간).
  * "실수령 기준으로 쌓여요 · 통상시급 14,354원 (월 209시간 기준)". 세전을 적지 않았으면 통상시급은 뺀다.
@@ -138,6 +148,7 @@ internal fun spokenEarned(amount: Double): String = "약 ${formatAmount((floor(a
 
 private const val SECONDS_PER_MINUTE = 60L
 private const val MINUTES_PER_HOUR = 60L
+private const val SECONDS_PER_HOUR = SECONDS_PER_MINUTE * MINUTES_PER_HOUR
 private const val PERCENT = 100.0
 private const val SPOKEN_STEP = 1_000.0
 
