@@ -125,7 +125,8 @@ object BackupCodec {
     /** 동계부 백업인지, 이 앱이 읽을 수 있는 판인지, 내용이 서로 맞는지 본다. 하나라도 어긋나면 아무것도 되살리지 않는다. */
     fun decode(text: String): BackupRead {
         val root =
-            runCatching { json.parseToJsonElement(text.trim()) }.getOrNull() as? JsonObject
+            // 메모장 같은 편집기로 다시 저장하면 앞에 BOM(U+FEFF)이 붙는다. trim 으로는 안 떨어져서 따로 뗀다.
+            runCatching { json.parseToJsonElement(text.trim().removePrefix(BOM).trim()) }.getOrNull() as? JsonObject
                 ?: return BackupRead.Invalid(NOT_BACKUP)
         if ((root["app"] as? JsonPrimitive)?.contentOrNull != BACKUP_APP) return BackupRead.Invalid(NOT_BACKUP)
         val format = (root["format"] as? JsonPrimitive)?.intOrNull ?: return BackupRead.Invalid(BROKEN, "판(format)이 없어요")
@@ -139,6 +140,8 @@ object BackupCodec {
             }
         return problemOf(backup)?.let { BackupRead.Invalid(BROKEN, it) } ?: BackupRead.Valid(backup)
     }
+
+    private const val BOM = "\uFEFF"
 
     const val NOT_BACKUP = "동계부 백업이 아니에요"
     const val TOO_NEW = "더 새 버전의 동계부에서 만든 백업이에요. 앱을 업데이트한 뒤 다시 해 주세요"

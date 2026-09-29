@@ -12,16 +12,20 @@ import com.dong.budget.data.salary.SalaryRepository
 import com.dong.budget.data.salary.SalaryScheduler
 import com.dong.budget.data.settings.AutoSettings
 import com.dong.budget.data.settings.SettingsRepository
+import com.dong.budget.data.settings.ThemeMode
 import com.dong.budget.data.update.ApkInstaller
 import com.dong.budget.data.update.UpdateChecker
 import com.dong.budget.data.update.UpdateRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.withIndex
 import kotlinx.coroutines.launch
 
 /**
@@ -31,6 +35,11 @@ import kotlinx.coroutines.launch
  * 의존성이 늘어 감당이 안 되는 시점이 오면 그때 도입한다.
  */
 class AppContainer(context: Context) {
+    private companion object {
+        /** 월급 설정을 고친 뒤 월급날 알림을 다시 맞추기까지 기다리는 시간 */
+        const val SALARY_SETTLE_MS = 30_000L
+    }
+
     private val database by lazy { BudgetDatabase.build(context) }
 
     val transactionRepository by lazy { TransactionRepository(database.transactionDao()) }
@@ -68,8 +77,31 @@ class AppContainer(context: Context) {
      * 월급 설정을 따라가며 월급날 알림을 맞춘다. 앱이 켜질 때(강제 종료로 알람이 사라진 뒤 포함)와 설정을 바꿀 때마다 다시 맞춘다.
      * 복원·데이터 초기화로 설정이 바뀌어도 여기서 따라간다.
      */
+    @OptIn(FlowPreview::class)
     fun startSalaryAlarm() {
-        appScope.launch { salaryRepository.settings.collect { salaryScheduler.schedule(it) } }
+        appScope.launch {
+            salaryRepository.settings
+                .withIndex()
+                // 켤 때는 바로 맞춘다. 월급 설정 화면은 숫자 하나 누를 때마다 저장하므로, 고치는 동안에는 손을 멈출 때까지 기다린다.
+                // 기다리지 않으면 월급날 오후에 설정하다 잠깐 멈춘 사이, 반쯤 친 금액으로 '월급 들어왔나요?' 가 뜨고 그달을 알린 달로 적는다.
+                .debounce { (index, _) -> if (index == 0) 0L else SALARY_SETTLE_MS }
+                .collect { (_, settings) -> salaryScheduler.schedule(settings) }
+        }
+    }
+
+    /** 월급 설정을 지운다(데이터 초기화). 월급날 알림 기록과 떠 있는 월급날 알림도 치운다. */
+    suspend fun clearSalary() {
+        salaryRepository.clear()
+        salaryScheduler.reset()
+        salaryNotifier.dismissAll()
+    }
+
+    /**
+     * 화면 테마의 지금 값. 설정을 열 때 한 줄 토글이 '기기 설정' 칸에서 시작했다가 저장된 칸으로 미끄러져 가지 않게,
+     * 앱이 켜질 때부터 따라가 두고 처음 그릴 때 이 값을 쓴다.
+     */
+    val themeMode: StateFlow<ThemeMode> by lazy {
+        settingsRepository.themeMode.stateIn(appScope, SharingStarted.Eagerly, ThemeMode.SYSTEM)
     }
 
     val updateRepository by lazy { UpdateRepository() }

@@ -22,6 +22,7 @@ import com.dong.budget.data.settings.ThemeMode
 import com.dong.budget.data.update.UpdateChecker
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -51,13 +52,10 @@ class SettingsViewModel(
     private val backupRepository: BackupRepository,
     private val backupStorage: BackupStorage,
     private val salaryRepository: SalaryRepository,
+    appThemeMode: StateFlow<ThemeMode> = MutableStateFlow(ThemeMode.SYSTEM),
 ) : ViewModel() {
-    val themeMode: StateFlow<ThemeMode> =
-        settingsRepository.themeMode.stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS),
-            initialValue = ThemeMode.SYSTEM,
-        )
+    /** 앱이 켜질 때부터 따라가는 테마 값이라 처음 그릴 때부터 저장된 칸에 있다 */
+    val themeMode: StateFlow<ThemeMode> = appThemeMode
 
     val currentVersion: String = BuildConfig.VERSION_NAME
 
@@ -125,10 +123,16 @@ class SettingsViewModel(
         val preview = _backup.value.restore ?: return
         _backup.update { it.copy(restore = null) }
         runBackup(RESTORE_FAILED_MESSAGE) {
-            backupRepository.restore(preview.backup)
-            // 월급 설정은 DB 밖이라 거래를 되살린 뒤에 따로 넣는다. 백업에 없으면(월급을 정하기 전 백업) 지금 설정을 그대로 둔다.
-            preview.backup.salary?.let { salaryRepository.save(it.toSettings()) }
-            _messages.send(restoredMessage(preview.backup))
+            // 되살리는 중에 화면을 떠나 뷰모델이 치워져도 끝까지 한다. 멈추면 거래만 바뀌고 월급 설정은 옛것으로 남는다.
+            val salaryRestored =
+                withContext(NonCancellable) {
+                    backupRepository.restore(preview.backup)
+                    // 월급 설정은 DB 밖이라 거래를 되살린 뒤에 따로 넣는다. 백업에 없으면(월급을 정하기 전 백업) 지금 설정을 그대로 둔다.
+                    runCatching { preview.backup.salary?.let { salaryRepository.save(it.toSettings()) } }
+                        .onFailure { DevLog.warn(LogTag.BACKUP, "월급 설정을 되살리지 못했어요", it) }
+                        .isSuccess
+                }
+            _messages.send(if (salaryRestored) restoredMessage(preview.backup) else RESTORE_SALARY_FAILED_MESSAGE)
         }
     }
 

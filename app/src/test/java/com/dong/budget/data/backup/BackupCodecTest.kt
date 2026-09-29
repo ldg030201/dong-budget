@@ -137,6 +137,8 @@ class BackupCodecTest {
     fun `앞뒤 빈칸과 모르는 칸은 넘어간다`() {
         val text = BackupCodec.encode(backup(), pretty = false).replaceFirst("{", "{\"newField\":true,")
         assertEquals(backup(), decodeValid("\n  $text  \n"))
+        // 편집기가 앞에 붙인 BOM 도 뗀다
+        assertEquals(backup(), decodeValid("\uFEFF$text"))
     }
 
     @Test
