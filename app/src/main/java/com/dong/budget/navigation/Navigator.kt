@@ -66,6 +66,7 @@ private fun AppNavKey.logName(): String = when (this) {
     is TransactionEditorKey ->
         when {
             transactionId != null -> "등록창(거래 #$transactionId)"
+            prefill?.source == PrefillSource.PAYDAY -> "등록창(월급날)"
             prefill != null -> "등록창(알림에서)"
             else -> "등록창(새 거래)"
         }

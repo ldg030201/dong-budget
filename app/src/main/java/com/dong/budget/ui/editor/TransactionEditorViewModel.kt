@@ -20,6 +20,7 @@ import com.dong.budget.data.devlog.LogTag
 import com.dong.budget.data.settings.AutoOption
 import com.dong.budget.data.settings.AutoSettings
 import com.dong.budget.navigation.EditorPrefill
+import com.dong.budget.navigation.PrefillSource
 import com.dong.budget.ui.category.AddTarget
 import com.dong.budget.ui.category.message
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -46,6 +47,9 @@ enum class RequiredField { AMOUNT, CATEGORY, PAYMENT, MERCHANT }
 /** 알림에서 읽은 결제가 이미 가계부에 있을 때의 안내. 등록창과 알림을 눌러 들어올 때가 같이 쓴다. */
 const val ALREADY_REGISTERED_MESSAGE = "이미 가계부에 등록한 결제예요"
 
+/** 그달 월급을 이미 등록했을 때의 안내. 등록창과 월급날 알림을 눌러 들어올 때가 같이 쓴다. */
+const val SALARY_ALREADY_REGISTERED_MESSAGE = "이번 달 월급은 이미 등록했어요"
+
 /** 화면이 한 번만 처리할 일. 화면을 돌려 다시 그려져도 다시 일어나지 않는다. */
 sealed interface EditorEffect {
     /** 저장을 눌렀는데 비어 있던 첫 칸으로 옮겨 간다 */
@@ -64,6 +68,8 @@ data class EditorUiState(
     val pendingPaymentName: String? = null,
     /** 알림에서 읽은 결제의 열쇠. 같은 결제를 두 번 등록하지 않게 거래에 함께 저장한다. 직접 입력하면 null */
     val dedupKey: String? = null,
+    /** 채워 연 곳(결제 알림·월급날). 직접 입력하면 null */
+    val prefillSource: PrefillSource? = null,
     /** 저장이 거절된 이유(이미 등록한 결제 등). 없으면 null */
     val saveError: String? = null,
     val type: TransactionType = TransactionType.EXPENSE,
@@ -134,7 +140,7 @@ class TransactionEditorViewModel(
     private val paymentMethodRepository: PaymentMethodRepository,
     private val transactionId: Long?,
     private val prefill: EditorPrefill? = null,
-    /** 알림에서 읽은 결제가 가계부에 들어갔다(방금 등록했거나 이미 있었다). 묻던 알림을 치운다. */
+    /** 알림에서 읽은 결제(월급날이면 그달 월급)가 가계부에 들어갔다(방금 등록했거나 이미 있었다). 묻던 알림을 치운다. */
     private val onCaptureRegistered: (dedupKey: String) -> Unit = {},
     /**
      * 자동 기능 스위치(앱 전체가 따라가는 값). 키패드는 처음 그릴 때의 값만 쓴다. 색은 계속 따라간다.
@@ -188,7 +194,8 @@ class TransactionEditorViewModel(
             )
         val data = prefill?.takeIf { transactionId == null } ?: return base
         return base.copy(
-            type = TransactionType.EXPENSE,
+            type = if (data.source == PrefillSource.PAYDAY) TransactionType.INCOME else TransactionType.EXPENSE,
+            prefillSource = data.source,
             amountDigits = data.amount.takeIf { it > 0 }?.toString()?.take(MAX_AMOUNT_DIGITS).orEmpty(),
             merchant = data.merchant,
             memo = data.memo.orEmpty(),
@@ -228,11 +235,21 @@ class TransactionEditorViewModel(
                         val stillValid = categories.any { it.id == state.categoryId }
                         state.copy(
                             categories = categories,
-                            categoryId = if (stillValid) state.categoryId else null,
+                            categoryId = if (stillValid) state.categoryId else presetCategory(categories, state)?.id,
                         )
                     }
                 }
         }
+    }
+
+    /**
+     * 채워 연 등록창이 미리 고를 기본 분류(월급날이면 급여). 코드로 찾고, 사용자가 지웠으면 비워 둔다.
+     * 지출로 바꿨다가 수입으로 돌아와도 다시 골라 둔다.
+     */
+    private fun presetCategory(categories: List<CategoryEntity>, state: EditorUiState): CategoryEntity? {
+        val code = prefill?.takeIf { transactionId == null }?.categoryCode ?: return null
+        if (prefill.source == PrefillSource.PAYDAY && state.type != TransactionType.INCOME) return null
+        return categories.firstOrNull { it.code == code }
     }
 
     private fun loadExisting(id: Long) {
@@ -376,9 +393,14 @@ class TransactionEditorViewModel(
         _uiState.update { it.copy(saveError = null) }
         viewModelScope.launch {
             if (transactionId == null) {
+                // 월급날로 연 등록창을 지출로 바꿔 저장하면 월급이 아니다. 그달 월급을 등록한 것으로 치지 않게 열쇠를 떼어 낸다.
+                val dedupKey = state.dedupKey.takeUnless {
+                    state.prefillSource == PrefillSource.PAYDAY &&
+                        state.type != TransactionType.INCOME
+                }
                 // 이미 등록한 결제면 카드를 만들기 전에 멈춘다
-                if (state.dedupKey != null && repository.isRegistered(state.dedupKey)) {
-                    rejectAlreadyRegistered(state.dedupKey)
+                if (dedupKey != null && repository.isRegistered(dedupKey)) {
+                    rejectAlreadyRegistered(dedupKey)
                     return@launch
                 }
                 // 알림에서 읽은 카드가 아직 결제수단에 없으면 이때 만든다. 등록을 취소하면 만들지 않는다.
@@ -395,15 +417,15 @@ class TransactionEditorViewModel(
                         paymentMethodId = paymentMethodId,
                         merchant = state.merchant,
                         memo = state.memo,
-                        dedupKey = state.dedupKey,
+                        dedupKey = dedupKey,
                     )
                 } catch (e: SQLiteConstraintException) {
                     // 확인한 사이 같은 알림으로 이미 등록됐다(dedupKey 가 겹침)
-                    DevLog.warn(LogTag.TRANSACTION, "같은 결제가 이미 등록돼 있어 저장하지 않았어요 (${state.dedupKey})", e)
-                    rejectAlreadyRegistered(state.dedupKey ?: throw e)
+                    DevLog.warn(LogTag.TRANSACTION, "같은 결제가 이미 등록돼 있어 저장하지 않았어요 ($dedupKey)", e)
+                    rejectAlreadyRegistered(dedupKey ?: throw e)
                     return@launch
                 }
-                state.dedupKey?.let(onCaptureRegistered)
+                dedupKey?.let(onCaptureRegistered)
             } else {
                 repository.update(
                     id = transactionId,
@@ -422,7 +444,14 @@ class TransactionEditorViewModel(
 
     private fun rejectAlreadyRegistered(dedupKey: String) {
         onCaptureRegistered(dedupKey)
-        _uiState.update { it.copy(saveError = ALREADY_REGISTERED_MESSAGE) }
+        val message = if (_uiState.value.prefillSource ==
+            PrefillSource.PAYDAY
+        ) {
+            SALARY_ALREADY_REGISTERED_MESSAGE
+        } else {
+            ALREADY_REGISTERED_MESSAGE
+        }
+        _uiState.update { it.copy(saveError = message) }
         busy = false
     }
 

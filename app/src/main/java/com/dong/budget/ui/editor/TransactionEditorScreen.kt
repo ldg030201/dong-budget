@@ -41,12 +41,14 @@ import androidx.compose.ui.text.input.ImeAction
 import com.dong.budget.data.PaymentMethodRepository
 import com.dong.budget.data.db.BudgetTime
 import com.dong.budget.data.db.TransactionType
+import com.dong.budget.navigation.PrefillSource
 import com.dong.budget.ui.category.AddItemSheet
 import com.dong.budget.ui.category.AddTarget
 import com.dong.budget.ui.category.PickerGrid
 import com.dong.budget.ui.category.PickerPreview
 import com.dong.budget.ui.components.AnimatedErrorText
 import com.dong.budget.ui.components.AnimatedHintText
+import com.dong.budget.ui.components.AnimatedInputPanel
 import com.dong.budget.ui.components.BudgetPrimaryButton
 import com.dong.budget.ui.components.BudgetTextButton
 import com.dong.budget.ui.components.BudgetTopAppBar
@@ -59,6 +61,7 @@ import com.dong.budget.ui.components.FormPlaceholder
 import com.dong.budget.ui.components.FormTextField
 import com.dong.budget.ui.components.FormValue
 import com.dong.budget.ui.components.HintText
+import com.dong.budget.ui.components.InputPanelBox
 import com.dong.budget.ui.components.NavButtonStyle
 import com.dong.budget.ui.components.NumberKeypad
 import com.dong.budget.ui.components.SegmentedToggle
@@ -245,9 +248,13 @@ fun TransactionEditorScreen(
                     selectedIndex = TYPE_OPTIONS.indexOfFirst { it.first == state.type }.coerceAtLeast(0),
                     onSelect = { onSelectType(TYPE_OPTIONS[it].first) },
                 )
-                if (state.isPrefilled) {
+                state.prefillSource?.let { source ->
                     HintText(
-                        text = "결제 알림에서 가져왔어요. 확인하고 등록해 주세요.",
+                        text =
+                        when (source) {
+                            PrefillSource.PAYMENT_ALERT -> "결제 알림에서 가져왔어요. 확인하고 등록해 주세요."
+                            PrefillSource.PAYDAY -> "월급 설정의 금액으로 채웠어요. 실제로 들어온 금액과 다르면 고쳐 주세요."
+                        },
                         modifier = Modifier.padding(top = BudgetTheme.spacing.inlineGap),
                     )
                 }
@@ -374,33 +381,15 @@ fun TransactionEditorScreen(
                     .imePadding()
                     .navigationBarsPadding(),
             ) {
-                AnimatedContent(
-                    targetState = panel,
-                    transitionSpec = {
-                        when {
-                            // 닫혀 있다가 열리면 아래에서 올라오고, 닫으면 아래로 내려간다
-                            initialState == null ->
-                                slideInVertically(Motion.standard()) { it / PANEL_RISE_DIVISOR } + fadeIn(Motion.standard()) togetherWith
-                                    fadeOut(Motion.quick())
-
-                            targetState == null ->
-                                fadeIn(Motion.quick()) togetherWith
-                                    slideOutVertically(Motion.standard()) { it / PANEL_RISE_DIVISOR } + fadeOut(Motion.quick())
-
-                            // 다른 입력판으로 바꾸면 제자리에서 겹쳐 바뀐다
-                            else -> fadeIn(Motion.standard()) togetherWith fadeOut(Motion.quick())
-                        }.using(SizeTransform(clip = true) { _, _ -> Motion.standard() })
-                    },
-                    label = "editorPanel",
-                ) { current ->
+                AnimatedInputPanel(panel = panel) { current ->
                     when (current) {
                         EditorPanel.AMOUNT ->
-                            PanelBox {
+                            InputPanelBox {
                                 NumberKeypad(onDigit = onDigit, onDelete = onDeleteDigit, onClear = onClearAmount)
                             }
 
                         EditorPanel.CATEGORY ->
-                            PanelBox {
+                            InputPanelBox {
                                 PickerGrid(
                                     items = state.categories,
                                     selectedId = state.categoryId,
@@ -414,7 +403,7 @@ fun TransactionEditorScreen(
                             }
 
                         EditorPanel.PAYMENT ->
-                            PanelBox {
+                            InputPanelBox {
                                 PickerGrid(
                                     items = state.paymentMethods,
                                     selectedId = state.paymentMethodId,
@@ -454,8 +443,6 @@ fun TransactionEditorScreen(
                             val time = BudgetTime.toLocalTime(state.occurredAt)
                             TimePanel(hour = time.hour, minute = time.minute, onChange = onTimeChange)
                         }
-
-                        null -> Box(Modifier.fillMaxWidth())
                     }
                 }
                 AnimatedErrorText(
@@ -477,26 +464,6 @@ fun TransactionEditorScreen(
     }
 }
 
-/**
- * 키패드와 아이콘 표 입력판의 높이를 맞춘다.
- * 둘 사이를 오갈 때 등록 버튼이 위아래로 출렁이지 않게 하기 위함이다.
- * 달력과 시계는 이 높이에 들어가지 않아서 제 크기대로 둔다.
- */
-@Composable
-private fun PanelBox(content: @Composable () -> Unit) {
-    Box(
-        modifier =
-        Modifier
-            .fillMaxWidth()
-            .height(BudgetTheme.size.inputPanelHeight)
-            .padding(horizontal = BudgetTheme.spacing.screenHorizontal)
-            .padding(bottom = BudgetTheme.spacing.ctaTopGap),
-        contentAlignment = Alignment.TopCenter,
-    ) {
-        content()
-    }
-}
-
 /** 되돌릴 수 없는 삭제로 이어지는 버튼이라 최소 터치 크기(48dp)를 지키는 공용 글자 버튼을 쓴다 */
 @Composable
 private fun DeleteAction(onClick: () -> Unit) {
@@ -505,9 +472,6 @@ private fun DeleteAction(onClick: () -> Unit) {
 
 /** 금액 밑에 만·억 단위로 끊어 적기 시작하는 금액. 만 원 아래는 위 숫자와 똑같아 적지 않는다. */
 private const val KOREAN_READING_MIN = 10_000L
-
-/** 입력판이 열리고 닫힐 때 움직이는 거리. 입력판 높이의 1/4 */
-private const val PANEL_RISE_DIVISOR = 4
 
 /** 입력칸 값이 바뀔 때 겹쳐 바뀐다. 글자 길이가 달라져도 칸이 한 번에 튀지 않는다. */
 @Composable
