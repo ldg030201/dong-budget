@@ -1,6 +1,8 @@
 package com.dong.budget.data
 
 import android.content.Context
+import com.dong.budget.data.backup.BackupRepository
+import com.dong.budget.data.backup.BackupStorage
 import com.dong.budget.data.capture.CaptureNotifier
 import com.dong.budget.data.capture.CaptureStore
 import com.dong.budget.data.capture.PaymentCapture
@@ -34,6 +36,10 @@ class AppContainer(context: Context) {
     val paymentMethodRepository by lazy { PaymentMethodRepository(database.paymentMethodDao()) }
 
     val settingsRepository by lazy { SettingsRepository(context) }
+
+    val backupRepository by lazy { BackupRepository(database) }
+
+    val backupStorage by lazy { BackupStorage(context) }
 
     /** 앱이 살아 있는 동안 도는 일(설정 따라가기 등). 화면이나 서비스보다 오래 산다. */
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)

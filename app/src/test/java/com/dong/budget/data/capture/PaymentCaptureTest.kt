@@ -295,6 +295,28 @@ class PaymentCaptureTest {
     }
 
     @Test
+    fun `알림 목록을 비우면 목록과 알림창에서 사라지고, 같은 결제를 다시 묻지 않는다`() = runBlocking {
+        val capture = capture()
+        capture.post(text = "하나카드 | 가게1(일시불)")
+        capture.post(text = "하나카드 | 가게2(일시불)")
+        val keys = prompt.asked.map { it.dedupKey }
+
+        capture.clearInbox()
+
+        assertTrue(capture.records.first().isEmpty())
+        assertEquals(keys.toSet(), prompt.dismissed.toSet())
+        // 알림창에 남은 토스 알림을 다시 훑어도(앱을 다시 열 때) 묻지 않는다
+        assertFalse(capture().post(text = "하나카드 | 가게1(일시불)"))
+        capture.restorePrompts(showing = emptySet())
+        assertTrue(prompt.restored.isEmpty())
+        // 비운 결제는 눌러도 열리지 않는다
+        assertEquals(PaymentCapture.OpenResult.Expired, capture.open(keys.first()))
+        // 비운 뒤에 온 새 결제는 그대로 묻고 목록에 보인다
+        assertTrue(capture.post(text = "하나카드 | 가게3(일시불)"))
+        assertEquals(listOf("가게3"), capture.records.first().map { it.payment.merchant })
+    }
+
+    @Test
     fun `모두 읽음은 목록에 보이던 결제만 처리한다`() = runBlocking {
         val capture = capture()
         capture.post(text = "하나카드 | 가게1(일시불)", at = clock - 1_000)

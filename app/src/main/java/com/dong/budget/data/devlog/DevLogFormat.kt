@@ -34,6 +34,7 @@ object LogTag {
     const val UPDATE = "업데이트"
     const val DEV_MODE = "개발자 모드"
     const val SETTINGS = "설정"
+    const val BACKUP = "백업"
 }
 
 /** 파일 한 줄. 칸은 탭으로 가르고, 글 안의 줄바꿈·탭·역슬래시는 되돌릴 수 있게 바꿔 적는다. */

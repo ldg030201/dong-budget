@@ -236,3 +236,52 @@ interface PaymentMethodDao {
         return deleteById(id) > 0
     }
 }
+
+/**
+ * 백업·복원·데이터 초기화. 표를 통째로 읽고, 비우고, 채운다.
+ * 한 번에 끝나야 하는 묶음(비우고 채우기)은 BackupRepository 가 한 트랜잭션 안에서 부른다.
+ */
+@Dao
+interface BackupDao {
+    @Query("SELECT * FROM categories ORDER BY scope, sortOrder, name")
+    suspend fun categories(): List<CategoryEntity>
+
+    @Query("SELECT * FROM payment_methods ORDER BY sortOrder, name")
+    suspend fun paymentMethods(): List<PaymentMethodEntity>
+
+    @Query("SELECT * FROM transactions ORDER BY occurredAt, id")
+    suspend fun transactions(): List<TransactionEntity>
+
+    @Query("SELECT COUNT(*) FROM transactions")
+    suspend fun transactionCount(): Int
+
+    /** 거래를 먼저 지운다. 분류·결제수단을 먼저 지우면 외래키(SET NULL)가 곧 지울 거래를 하나하나 고친다. */
+    @Transaction
+    suspend fun deleteAll() {
+        deleteTransactions()
+        deleteCategories()
+        deletePaymentMethods()
+    }
+
+    @Query("DELETE FROM transactions")
+    suspend fun deleteTransactions()
+
+    @Query("DELETE FROM categories")
+    suspend fun deleteCategories()
+
+    @Query("DELETE FROM payment_methods")
+    suspend fun deletePaymentMethods()
+
+    @Insert
+    suspend fun insertCategory(category: CategoryEntity): Long
+
+    @Insert
+    suspend fun insertPaymentMethod(paymentMethod: PaymentMethodEntity): Long
+
+    @Insert
+    suspend fun insertTransaction(transaction: TransactionEntity): Long
+
+    /** 환불·이체의 짝. 짝이 될 거래가 먼저 들어가 있어야 번호를 알 수 있어서, 모두 넣은 뒤에 잇는다. */
+    @Query("UPDATE transactions SET relatedTransactionId = :relatedId WHERE id = :id")
+    suspend fun setRelated(id: Long, relatedId: Long)
+}

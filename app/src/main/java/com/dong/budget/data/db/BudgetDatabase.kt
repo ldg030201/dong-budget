@@ -31,6 +31,8 @@ abstract class BudgetDatabase : RoomDatabase() {
 
     abstract fun paymentMethodDao(): PaymentMethodDao
 
+    abstract fun backupDao(): BackupDao
+
     companion object {
         private const val NAME = "dong-budget.db"
 
@@ -58,6 +60,28 @@ abstract class BudgetDatabase : RoomDatabase() {
  * 새 분류가 아예 들어가지 않는다. 그래서 새 목록은 다른 이름공간을 쓴다.
  */
 private fun seedUuid(code: String) = "seed:v2:category:$code"
+
+/** 기본 분류를 DB 줄로. 데이터 초기화가 새로 설치할 때([SeedCallback])와 같은 줄을 넣게 한다. */
+fun DefaultCategory.toEntity(): CategoryEntity = CategoryEntity(
+    uuid = seedUuid(code),
+    scope = scope,
+    name = name,
+    code = code,
+    sortOrder = sortOrder,
+    isSystem = isSystem,
+    icon = icon,
+    color = color,
+)
+
+/** 기본 결제수단을 DB 줄로. [DefaultCategory.toEntity] 와 같은 까닭이다. */
+fun DefaultPaymentMethod.toEntity(): PaymentMethodEntity = PaymentMethodEntity(
+    uuid = uuid,
+    name = name,
+    type = type,
+    sortOrder = sortOrder,
+    icon = icon,
+    color = color,
+)
 
 private fun insertDefaultCategory(db: SupportSQLiteDatabase, c: DefaultCategory, orIgnore: Boolean) {
     db.execSQL(

@@ -51,5 +51,11 @@ class SettingsRepository(private val context: Context) {
         DevLog.info(LogTag.SETTINGS, "${option.name} ${if (on) "켬" else "끔"}")
     }
 
+    /** 설정 초기화. 테마는 기기 설정으로, 자동 기능은 모두 켜진 것으로 돌아간다(이 파일에는 둘만 있다). 거래는 건드리지 않는다. */
+    suspend fun resetAll() {
+        context.settingsDataStore.edit { preferences -> preferences.clear() }
+        DevLog.info(LogTag.SETTINGS, "설정 초기화")
+    }
+
     private val AutoOption.preferenceKey: Preferences.Key<Boolean> get() = booleanPreferencesKey(key)
 }
