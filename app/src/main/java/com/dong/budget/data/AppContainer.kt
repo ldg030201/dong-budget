@@ -7,6 +7,9 @@ import com.dong.budget.data.capture.CaptureNotifier
 import com.dong.budget.data.capture.CaptureStore
 import com.dong.budget.data.capture.PaymentCapture
 import com.dong.budget.data.db.BudgetDatabase
+import com.dong.budget.data.salary.SalaryNotifier
+import com.dong.budget.data.salary.SalaryRepository
+import com.dong.budget.data.salary.SalaryScheduler
 import com.dong.budget.data.settings.AutoSettings
 import com.dong.budget.data.settings.SettingsRepository
 import com.dong.budget.data.update.ApkInstaller
@@ -19,6 +22,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 
 /**
  * 수동 의존성 컨테이너.
@@ -39,6 +43,14 @@ class AppContainer(context: Context) {
 
     val backupRepository by lazy { BackupRepository(database) }
 
+    val salaryRepository by lazy { SalaryRepository(context) }
+
+    val salaryNotifier by lazy { SalaryNotifier(context) }
+
+    val salaryScheduler by lazy {
+        SalaryScheduler(context, context.getSharedPreferences(SalaryScheduler.PREFS_NAME, Context.MODE_PRIVATE))
+    }
+
     val backupStorage by lazy { BackupStorage(context) }
 
     /** 앱이 살아 있는 동안 도는 일(설정 따라가기 등). 화면이나 서비스보다 오래 산다. */
@@ -50,6 +62,14 @@ class AppContainer(context: Context) {
      */
     val autoSettings: StateFlow<AutoSettings> by lazy {
         settingsRepository.autoSettings.stateIn(appScope, SharingStarted.Eagerly, AutoSettings())
+    }
+
+    /**
+     * 월급 설정을 따라가며 월급날 알림을 맞춘다. 앱이 켜질 때(강제 종료로 알람이 사라진 뒤 포함)와 설정을 바꿀 때마다 다시 맞춘다.
+     * 복원·데이터 초기화로 설정이 바뀌어도 여기서 따라간다.
+     */
+    fun startSalaryAlarm() {
+        appScope.launch { salaryRepository.settings.collect { salaryScheduler.schedule(it) } }
     }
 
     val updateRepository by lazy { UpdateRepository() }

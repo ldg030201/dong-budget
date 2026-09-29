@@ -8,6 +8,7 @@ import com.dong.budget.data.db.TransactionType
 import com.dong.budget.data.devlog.DevLog
 import com.dong.budget.data.devlog.LogTag
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
@@ -59,6 +60,28 @@ class TransactionRepository(private val transactionDao: TransactionDao) {
     /** [keys] 중 이미 등록된 결제의 열쇠. 등록하거나 지우면 새로 내보낸다. */
     fun observeRegisteredKeys(keys: List<String>): Flow<Set<String>> =
         if (keys.isEmpty()) flowOf(emptySet()) else transactionDao.observeRegisteredKeys(keys).map { it.toSet() }
+
+    /** [date] 하루(서울 0시~다음 날 0시)의 거래. 월급 탭의 '오늘 쓴 돈' 이 쓴다. */
+    fun observeDay(date: LocalDate): Flow<List<TransactionListItem>> = transactionDao.observeBetween(
+        date.atStartOfDay(BudgetTime.ZONE).toInstant(),
+        date.plusDays(1).atStartOfDay(BudgetTime.ZONE).toInstant(),
+    )
+
+    /**
+     * 한 달 치 월급을 등록했는지. 월급날 알림·월급 탭으로 등록한 열쇠([key])가 있거나,
+     * 그 월급을 받는 기간([from]~[until] 전날)에 급여 분류([salaryCode])의 수입을 직접 적었으면 등록한 것으로 본다.
+     */
+    fun observeSalaryRegistered(key: String, salaryCode: String, from: LocalDate, until: LocalDate): Flow<Boolean> = combine(
+        transactionDao.observeRegisteredKeys(listOf(key)).map { it.isNotEmpty() },
+        transactionDao.observeIncomeWithCategoryCode(salaryCode, from.startInstant(), until.startInstant()),
+    ) { byKey, byCategory -> byKey || byCategory }.distinctUntilChanged()
+
+    /** [observeSalaryRegistered] 를 한 번만 본다(월급날 알림을 띄우기 전) */
+    suspend fun isSalaryRegistered(key: String, salaryCode: String, from: LocalDate, until: LocalDate): Boolean =
+        transactionDao.existsByDedupKey(key) ||
+            transactionDao.hasIncomeWithCategoryCode(salaryCode, from.startInstant(), until.startInstant())
+
+    private fun LocalDate.startInstant(): Instant = atStartOfDay(BudgetTime.ZONE).toInstant()
 
     /**
      * 거래를 저장한다.
