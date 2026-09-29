@@ -40,22 +40,27 @@ class SalarySettingsViewModel(private val repository: SalaryRepository) : ViewMo
         viewModelScope.launch { repository.save(next) }
     }
 
-    /** 금액 키패드. 앞의 0 은 떼고, 12자리를 넘으면 받지 않는다. */
-    fun appendDigit(digit: String) {
+    /** 금액 키패드. 앞의 0 은 떼고, 12자리를 넘으면 받지 않는다. [takeHome] 이면 실수령, 아니면 세전 금액을 고친다. */
+    fun appendDigit(takeHome: Boolean, digit: String) {
         val current = _settings.value ?: return
-        val digits = (current.amount.takeIf { it > 0 }?.toString().orEmpty() + digit).trimStart('0')
+        val now = if (takeHome) current.takeHome else current.amount
+        val digits = (now.takeIf { it > 0 }?.toString().orEmpty() + digit).trimStart('0')
         if (digits.length > MAX_AMOUNT_DIGITS) return
-        update(current.copy(amount = digits.toLongOrNull() ?: 0))
+        setAmount(current, takeHome, digits.toLongOrNull() ?: 0)
     }
 
-    fun deleteDigit() {
+    fun deleteDigit(takeHome: Boolean) {
         val current = _settings.value ?: return
-        update(current.copy(amount = current.amount / DECIMAL))
+        setAmount(current, takeHome, (if (takeHome) current.takeHome else current.amount) / DECIMAL)
     }
 
-    fun clearAmount() {
+    fun clearAmount(takeHome: Boolean) {
         val current = _settings.value ?: return
-        update(current.copy(amount = 0))
+        setAmount(current, takeHome, 0)
+    }
+
+    private fun setAmount(current: SalarySettings, takeHome: Boolean, value: Long) {
+        update(if (takeHome) current.copy(takeHome = value) else current.copy(amount = value))
     }
 
     override fun onCleared() {

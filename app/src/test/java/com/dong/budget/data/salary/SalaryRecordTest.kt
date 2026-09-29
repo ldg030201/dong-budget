@@ -13,6 +13,7 @@ class SalaryRecordTest {
             SalarySettings(
                 basis = PayBasis.YEARLY,
                 amount = 48_000_000,
+                takeHome = 3_300_000,
                 workStart = LocalTime.of(8, 30),
                 workEnd = LocalTime.of(17, 30),
                 skipLunch = false,
