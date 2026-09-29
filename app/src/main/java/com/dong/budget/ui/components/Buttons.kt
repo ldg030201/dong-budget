@@ -60,9 +60,16 @@ fun BudgetPrimaryButton(text: String, onClick: () -> Unit, modifier: Modifier = 
 /**
  * 줄 옆에 붙이는 작은 버튼. 화면 폭을 채우지 않고 글자만큼만 차지한다.
  * 보이는 높이는 테마 칩과 같게 두고, 누를 수 있는 범위는 최소 터치 크기를 지킨다.
+ * @param container 버튼 바탕. 회색 판 위에 둘 때는 판과 같은 색이라 안 보이므로 화면 바탕색을 준다.
  */
 @Composable
-fun BudgetSmallButton(text: String, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
+fun BudgetSmallButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    container: Color = BudgetTheme.colors.sectionBackground,
+) {
     val shape = RoundedCornerShape(BudgetTheme.radius.chip)
     Box(
         modifier =
@@ -70,7 +77,7 @@ fun BudgetSmallButton(text: String, onClick: () -> Unit, modifier: Modifier = Mo
             .minimumInteractiveComponentSize()
             .alpha(enabledAlpha(enabled))
             .pressScaleClickable(shape = shape, enabled = enabled, onClick = onClick)
-            .background(BudgetTheme.colors.sectionBackground, shape)
+            .background(container, shape)
             .padding(horizontal = BudgetTheme.spacing.itemGap, vertical = BudgetTheme.spacing.inlineGap),
         contentAlignment = Alignment.Center,
     ) {
