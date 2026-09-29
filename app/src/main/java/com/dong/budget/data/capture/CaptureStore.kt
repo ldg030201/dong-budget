@@ -22,6 +22,7 @@ import kotlinx.serialization.json.Json
  * - 결제 시각에서 [RETENTION_MS] 가 지난 기록은 지운다. 우리 알림도 그때 저절로 사라진다(CaptureNotifier).
  * - 알림 화면(홈 오른쪽 위 종)도 이 기록을 보여준다. 눌러 본 결제는 [markRead] 로 적어 새 알림 표시를 없앤다.
  *   '답함' 과 '읽음' 은 따로 센다. 알림창에서 밀어 지운 결제는 답한 것이지만, 못 보고 지웠을 수 있어 새 알림으로 남긴다.
+ * - 데이터 초기화는 알림 목록을 비우되 기록은 숨겨 둔다([hideAll]). 비운 결제를 다시 묻지 않기 위함이다.
  *
  * 저장소는 SharedPreferences 다. 자동 백업에 들어가지 않으므로(data_extraction_rules) 다른 기기로 따라가지 않는다.
  */
@@ -56,7 +57,7 @@ class CaptureStore(private val prefs: SharedPreferences, private val now: () -> 
 
     /** 물어본 결제를 찾는다. 기록이 없거나 지났으면 null */
     @Synchronized
-    fun find(dedupKey: String): CapturedPayment? = entry(dedupKey)?.payment
+    fun find(dedupKey: String): CapturedPayment? = entry(dedupKey)?.takeUnless { it.hidden }?.payment
 
     /** 답한 결제로 적는다(사용자가 알림을 지움). 다시 띄우지 않는다. */
     @Synchronized
@@ -99,10 +100,29 @@ class CaptureStore(private val prefs: SharedPreferences, private val now: () -> 
         return changed.filterNot { it.answered }.map { it.payment.dedupKey }
     }
 
+    /**
+     * 알림 목록을 비운다(데이터 초기화). 기록은 지우지 않고 숨긴다. 지워 버리면 처음 보는 결제가 되어,
+     * 알림창에 남은 토스 알림을 다시 훑을 때(앱을 열 때) 비운 결제를 모두 다시 묻는다. 숨긴 기록도 보관 기간이 지나면 지워진다.
+     * @return 숨긴 결제의 열쇠. 그 묻는 알림이 알림창에 떠 있을 수 있어 부르는 쪽이 치운다.
+     */
+    @Synchronized
+    fun hideAll(): List<String> {
+        val shown = liveEntries().filterNot { it.hidden }
+        if (shown.isEmpty()) return emptyList()
+        prefs.edit {
+            shown.forEach {
+                putString(KEY_PREFIX + it.payment.dedupKey, json.encodeToString(it.copy(answered = true, read = true, hidden = true)))
+            }
+        }
+        revision.update { it + 1 }
+        return shown.map { it.payment.dedupKey }
+    }
+
     /** 알림 목록에 보여줄 기록. 최근 결제부터. */
     @Synchronized
-    fun records(): List<CaptureRecord> =
-        liveEntries().sortedByDescending { it.payment.occurredAtMillis }.map { CaptureRecord(it.payment, read = it.read) }
+    fun records(): List<CaptureRecord> = liveEntries().filterNot {
+        it.hidden
+    }.sortedByDescending { it.payment.occurredAtMillis }.map { CaptureRecord(it.payment, read = it.read) }
 
     /** 물어봤지만 아직 답하지 않은 결제. 결제 시각 순. */
     @Synchronized
@@ -145,12 +165,14 @@ class CaptureStore(private val prefs: SharedPreferences, private val now: () -> 
     /**
      * @property answered 답했는지. 0.1.6 에서 'dismissed' 라는 이름으로 저장했으므로 저장 이름은 그대로 둔다.
      * @property read 눌러 봤는지. 1.1.0 에서 생겼다. 그전 기록은 읽지 않은 것으로 읽힌다.
+     * @property hidden 알림 목록에서 숨겼는지(데이터 초기화, [hideAll]). 목록에도 안 보이고 눌러도 열리지 않지만, 다시 묻지는 않는다.
      */
     @Serializable
     private data class Entry(
         val payment: CapturedPayment,
         @SerialName("dismissed") val answered: Boolean = false,
         val read: Boolean = false,
+        val hidden: Boolean = false,
     )
 
     companion object {

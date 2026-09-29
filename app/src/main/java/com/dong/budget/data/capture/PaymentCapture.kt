@@ -227,6 +227,16 @@ class PaymentCapture(
     }
 
     /**
+     * 데이터 초기화. 알림 목록을 비우고 알림창의 묻는 알림도 치운다. 비운 결제는 다시 묻지 않는다([CaptureStore.hideAll]).
+     * 되살리기([restorePrompts])와 겹치면 방금 치운 알림을 도로 띄울 수 있어 같은 자물쇠 안에서 한다.
+     */
+    suspend fun clearInbox() = mutex.withLock {
+        val hidden = store.hideAll()
+        hidden.forEach(prompt::dismiss)
+        DevLog.info(LogTag.CAPTURE, "알림 목록을 비웠어요 · ${hidden.size}건")
+    }
+
+    /**
      * 알림창에 남아 있는 토스 알림을 다시 살피고, 띄우지 못한 묻는 알림을 되살려 달라고 알림 읽기에 부탁한다.
      * 알림을 보낼 수 없던 사이 들어온 결제는 기록하지 않고 넘겼으므로, 알림을 허용한 뒤 여기서 다시 묻는다.
      * 알림 읽기가 연결돼 있지 않으면 아무 일도 없다(연결될 때 어차피 훑는다).
