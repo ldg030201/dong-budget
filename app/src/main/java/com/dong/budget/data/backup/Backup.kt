@@ -10,6 +10,7 @@ import com.dong.budget.data.db.PaymentMethodType
 import com.dong.budget.data.db.TransactionEntity
 import com.dong.budget.data.db.TransactionType
 import com.dong.budget.data.db.etcCodeFor
+import com.dong.budget.data.salary.SalaryRecord
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -37,8 +38,9 @@ const val BACKUP_APP = "dong-budget"
 const val BACKUP_FORMAT = 1
 
 /**
- * 거래·분류·결제수단 전부. 설정(테마·자동 기능)과 알림 목록은 담지 않는다.
+ * 거래·분류·결제수단 전부와 월급 설정. 화면 테마·자동 기능과 알림 목록은 담지 않는다.
  * @property appVersion 만든 앱 버전. 읽을 때 쓰지는 않고, 문제가 생겼을 때 어느 버전에서 만든 것인지 보려고 남긴다.
+ * @property salary 월급 설정. 정한 적 없으면 없다(월급 탭이 생기기 전 백업에도 없다). 없으면 되살릴 때 지금 설정을 그대로 둔다.
  */
 @Serializable
 data class Backup(
@@ -49,6 +51,7 @@ data class Backup(
     val categories: List<BackupCategory>,
     val paymentMethods: List<BackupPaymentMethod>,
     val transactions: List<BackupTransaction>,
+    val salary: SalaryRecord? = null,
 )
 
 @Serializable
@@ -166,6 +169,9 @@ internal fun problemOf(backup: Backup): String? {
     val categoryUuids = categories.mapTo(HashSet()) { it.uuid }
     val paymentUuids = paymentMethods.mapTo(HashSet()) { it.uuid }
     val transactionUuids = transactions.mapTo(HashSet()) { it.uuid }
+    backup.salary?.let { salary ->
+        if (salary.amount !in 0..MAX_AMOUNT) return "월급 금액이 범위를 벗어나요: ${salary.amount}"
+    }
     transactions.forEach { t ->
         val problem =
             when {
