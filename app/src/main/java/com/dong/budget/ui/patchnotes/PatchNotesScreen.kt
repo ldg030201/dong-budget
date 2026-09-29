@@ -314,6 +314,7 @@ private fun MenuSection(menu: MenuChanges) {
 @DrawableRes
 private fun PatchMenu.iconRes(): Int = when (this) {
     PatchMenu.HOME -> R.drawable.ic_sym_home
+    PatchMenu.SALARY -> R.drawable.ic_sym_payments
     PatchMenu.HISTORY -> R.drawable.ic_sym_receipt_long
     PatchMenu.DETAIL -> R.drawable.ic_sym_receipt_long
     PatchMenu.EDITOR -> R.drawable.ic_sym_edit_note
@@ -329,6 +330,9 @@ private fun PatchMenu.iconRes(): Int = when (this) {
 /** 전체 메뉴 화면의 색과 맞춘다(분류 관리는 남색, 패치노트는 보라, 설정은 회색). 나머지는 서로 겹치지 않게 고른다. */
 private fun PatchMenu.color(): String = when (this) {
     PatchMenu.HOME -> "blue"
+
+    // 전체 메뉴의 월급 줄, 기본 수입 분류 '급여' 와 같은 색
+    PatchMenu.SALARY -> "green"
 
     PatchMenu.HISTORY -> "teal"
 
