@@ -406,6 +406,7 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
                                 onDeleteDigit = viewModel::deleteDigit,
                                 onClearAmount = viewModel::clearAmount,
                                 onBack = navigator::goBack,
+                                onReset = viewModel::reset,
                             )
                         }
 
@@ -612,7 +613,7 @@ private fun salaryViewModelFactory(container: AppContainer) = viewModelFactory {
 }
 
 private fun salarySettingsViewModelFactory(container: AppContainer) = viewModelFactory {
-    initializer { SalarySettingsViewModel(container.salaryRepository) }
+    initializer { SalarySettingsViewModel(container.salaryRepository, container::clearSalary) }
 }
 
 private fun transactionDetailViewModelFactory(container: AppContainer, transactionId: Long) = viewModelFactory {

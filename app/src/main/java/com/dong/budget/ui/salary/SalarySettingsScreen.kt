@@ -33,6 +33,7 @@ import com.dong.budget.ui.components.ActionRow
 import com.dong.budget.ui.components.AnimatedInputPanel
 import com.dong.budget.ui.components.BudgetTextButton
 import com.dong.budget.ui.components.BudgetTopAppBar
+import com.dong.budget.ui.components.ConfirmDialog
 import com.dong.budget.ui.components.ErrorText
 import com.dong.budget.ui.components.HintText
 import com.dong.budget.ui.components.InputPanelBox
@@ -70,7 +71,22 @@ fun SalarySettingsScreen(
     onClearAmount: (takeHome: Boolean) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    onReset: () -> Unit = {},
 ) {
+    var askReset by rememberSaveable { mutableStateOf(false) }
+    if (askReset) {
+        ConfirmDialog(
+            title = "월급 설정을 처음대로 돌릴까요?",
+            message = "적은 월급, 근무 시간, 점심, 일하는 요일, 월급날, 입사일을 모두 처음대로 돌려요. 가계부에 등록한 거래는 그대로예요.",
+            confirmLabel = "처음대로",
+            onConfirm = {
+                askReset = false
+                onReset()
+            },
+            onDismiss = { askReset = false },
+        )
+    }
+
     var panel by rememberSaveable { mutableStateOf<SalaryPanel?>(null) }
     fun toggle(target: SalaryPanel) {
         panel = if (panel == target) null else target
@@ -211,6 +227,19 @@ fun SalarySettingsScreen(
                         description = "월급날 출근 시각에 '월급 들어왔나요?' 알림을 띄워요. 누르면 월급을 수입으로 등록해요",
                         checked = settings.paydayNotice,
                         onCheckedChange = { on -> onChange(settings.copy(paydayNotice = on)) },
+                    )
+                }
+
+                // 월급 설정만 지우고 다시 적는다. 앱 전체 초기화는 설정 > 고급 설정에 있다.
+                SettingsGroup("초기화") {
+                    ActionRow(
+                        title = "월급 설정 초기화",
+                        description = "월급 설정만 처음대로 돌려요. 가계부 거래는 그대로예요",
+                        onClick = {
+                            panel = null
+                            askReset = true
+                        },
+                        danger = true,
                     )
                 }
 
