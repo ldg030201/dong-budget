@@ -86,6 +86,14 @@ data class StatsDetailKey(val dimension: StatsDimension, val id: Long?, val year
 @Serializable
 data object SettingsKey : AppNavKey
 
+/** 설정의 '고급 설정'. 자동 기능 스위치와 설정·데이터 초기화 */
+@Serializable
+data object AdvancedSettingsKey : AppNavKey
+
+/** 설정의 '앱 정보'. 지금 버전, 새 버전 확인·내려받기·설치. 홈의 새 버전 알림 줄과 패치노트도 여기로 온다. */
+@Serializable
+data object AppInfoKey : AppNavKey
+
 @Serializable
 data object PatchNotesKey : AppNavKey
 

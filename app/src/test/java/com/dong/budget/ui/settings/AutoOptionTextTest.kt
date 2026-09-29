@@ -7,9 +7,9 @@ import org.junit.Test
 
 class AutoOptionTextTest {
     @Test
-    fun `모든 스위치가 설정 화면에 한 번씩 나온다`() {
-        // 새 스위치를 만들고 설정 화면에 두는 것을 빠뜨리면 여기서 걸린다. 새 버전 확인은 '앱 정보' 에 따로 있다.
-        val shown = AutoGroup.entries.flatMap { it.options } + AutoOption.UPDATE_CHECK
+    fun `모든 스위치가 고급 설정에 한 번씩 나온다`() {
+        // 새 스위치를 만들고 고급 설정에 두는 것을 빠뜨리면 여기서 걸린다
+        val shown = AutoGroup.entries.flatMap { it.options }
         assertEquals(AutoOption.entries.sorted(), shown.sorted())
         assertEquals(shown.size, shown.toSet().size)
     }
