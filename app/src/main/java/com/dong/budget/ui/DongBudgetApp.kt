@@ -51,6 +51,8 @@ import com.dong.budget.data.capture.CaptureStore
 import com.dong.budget.data.capture.PaymentCapture
 import com.dong.budget.data.devlog.DevLog
 import com.dong.budget.data.settings.AutoOption
+import com.dong.budget.navigation.AdvancedSettingsKey
+import com.dong.budget.navigation.AppInfoKey
 import com.dong.budget.navigation.CategoryManageKey
 import com.dong.budget.navigation.DeveloperKey
 import com.dong.budget.navigation.EditorPrefill
@@ -82,6 +84,11 @@ import com.dong.budget.ui.inbox.InboxViewModel
 import com.dong.budget.ui.patchnotes.PatchNotesScreen
 import com.dong.budget.ui.patchnotes.PatchNotesViewModel
 import com.dong.budget.ui.permission.PermissionGate
+import com.dong.budget.ui.settings.AdvancedSettingsScreen
+import com.dong.budget.ui.settings.AdvancedSettingsViewModel
+import com.dong.budget.ui.settings.AppInfoScreen
+import com.dong.budget.ui.settings.AppInfoViewModel
+import com.dong.budget.ui.settings.BackupActions
 import com.dong.budget.ui.settings.SettingsScreen
 import com.dong.budget.ui.settings.SettingsViewModel
 import com.dong.budget.ui.shell.HomeShell
@@ -92,6 +99,7 @@ import com.dong.budget.ui.stats.detail.StatsDetailScreen
 import com.dong.budget.ui.stats.detail.StatsDetailViewModel
 import com.dong.budget.ui.theme.Motion
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -170,7 +178,7 @@ fun DongBudgetApp(container: AppContainer, capturedToOpen: String? = null, onCap
                             val state by viewModel.uiState.collectAsStateWithLifecycle()
 
                             val bannerVersion by container.updateChecker.bannerVersion.collectAsStateWithLifecycle(initialValue = null)
-                            // 새 버전 자동 확인을 껐으면 홈에 알림 줄도 띄우지 않는다(설정에서 직접 확인한 결과는 설정과 패치노트에서 보인다)
+                            // 새 버전 자동 확인을 껐으면 홈에 알림 줄도 띄우지 않는다(앱 정보에서 직접 확인한 결과는 앱 정보와 패치노트에서 보인다)
                             val updateVersion = bannerVersion.takeIf { autoSettings[AutoOption.UPDATE_CHECK] }
                             val hasNewNotice by viewModel.hasNewNotice.collectAsStateWithLifecycle()
                             val devModeOn by DevLog.enabled.collectAsStateWithLifecycle()
@@ -178,7 +186,7 @@ fun DongBudgetApp(container: AppContainer, capturedToOpen: String? = null, onCap
                                 state = state,
                                 updateVersion = updateVersion,
                                 hasNewNotice = hasNewNotice,
-                                onOpenUpdate = { navigator.go(SettingsKey) },
+                                onOpenUpdate = { navigator.go(AppInfoKey) },
                                 onDismissUpdate = container.updateChecker::dismissBanner,
                                 onPreviousMonth = viewModel::showPreviousMonth,
                                 onNextMonth = viewModel::showNextMonth,
@@ -322,22 +330,65 @@ fun DongBudgetApp(container: AppContainer, capturedToOpen: String? = null, onCap
                             val viewModel: SettingsViewModel =
                                 viewModel(factory = settingsViewModelFactory(container))
                             val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
-                            val updateState by viewModel.updateState.collectAsStateWithLifecycle()
-                            val downloadedVersion by viewModel.downloadedVersion.collectAsStateWithLifecycle()
+                            val newerVersion by viewModel.newerVersion.collectAsStateWithLifecycle()
+                            val backup by viewModel.backup.collectAsStateWithLifecycle()
+                            ShowToasts(viewModel.messages)
+                            // 설정은 전체의 톱니에서 들어온다. 들어오는 중에 두 번 누른 탭이 아래 줄(고급 설정·앱 정보)에 떨어지지 않게 한다.
+                            val settled = rememberSettled()
 
                             SettingsScreen(
                                 themeMode = themeMode,
                                 currentVersion = viewModel.currentVersion,
-                                updateState = updateState,
                                 onThemeModeChange = viewModel::selectThemeMode,
+                                onBack = navigator::goBack,
+                                newerVersion = newerVersion,
+                                onOpenAdvanced = { if (settled()) navigator.go(AdvancedSettingsKey) },
+                                onOpenAppInfo = { if (settled()) navigator.go(AppInfoKey) },
+                                backup = backup,
+                                backupActions =
+                                BackupActions(
+                                    onCopy = viewModel::copyBackup,
+                                    onSave = viewModel::saveBackup,
+                                    onRestoreFile = viewModel::readRestoreFile,
+                                    onRestorePasted = viewModel::readRestorePasted,
+                                    onConfirmRestore = viewModel::confirmRestore,
+                                    onDismissRestore = viewModel::dismissRestore,
+                                ),
+                            )
+                        }
+
+                        entry<AppInfoKey> {
+                            val viewModel: AppInfoViewModel = viewModel(factory = appInfoViewModelFactory(container))
+                            val updateState by viewModel.updateState.collectAsStateWithLifecycle()
+                            val downloadedVersion by viewModel.downloadedVersion.collectAsStateWithLifecycle()
+                            AppInfoScreen(
+                                currentVersion = viewModel.currentVersion,
+                                updateState = updateState,
                                 onCheckUpdate = viewModel::checkForUpdate,
                                 onDownloadUpdate = viewModel::downloadAndInstall,
                                 downloadedVersion = downloadedVersion,
                                 onInstallDownloaded = viewModel::installDownloadedManually,
                                 releasePageUrl = viewModel.releasePageUrl,
                                 onBack = navigator::goBack,
+                            )
+                        }
+
+                        entry<AdvancedSettingsKey> {
+                            val viewModel: AdvancedSettingsViewModel =
+                                viewModel(factory = advancedSettingsViewModelFactory(container))
+                            val prompt by viewModel.prompt.collectAsStateWithLifecycle()
+                            val busy by viewModel.busy.collectAsStateWithLifecycle()
+                            ShowToasts(viewModel.messages)
+                            AdvancedSettingsScreen(
                                 autoSettings = autoSettings,
                                 onAutoChange = viewModel::setAuto,
+                                prompt = prompt,
+                                busy = busy,
+                                onResetSettings = viewModel::askResetSettings,
+                                onResetData = viewModel::askResetData,
+                                onConfirmReset = viewModel::confirmReset,
+                                onDismissReset = viewModel::dismissReset,
+                                onBack = navigator::goBack,
                             )
                         }
 
@@ -367,7 +418,7 @@ fun DongBudgetApp(container: AppContainer, capturedToOpen: String? = null, onCap
                                 currentVersion = BuildConfig.VERSION_NAME,
                                 onBack = navigator::goBack,
                                 newer = newer,
-                                onOpenUpdate = { navigator.go(SettingsKey) },
+                                onOpenUpdate = { navigator.go(AppInfoKey) },
                             )
                         }
 
@@ -497,10 +548,26 @@ private fun settingsViewModelFactory(container: AppContainer) = viewModelFactory
     initializer {
         SettingsViewModel(
             settingsRepository = container.settingsRepository,
-            apkInstaller = container.apkInstaller,
             updateChecker = container.updateChecker,
+            backupRepository = container.backupRepository,
+            backupStorage = container.backupStorage,
         )
     }
+}
+
+private fun appInfoViewModelFactory(container: AppContainer) = viewModelFactory {
+    initializer { AppInfoViewModel(container.apkInstaller, container.updateChecker) }
+}
+
+private fun advancedSettingsViewModelFactory(container: AppContainer) = viewModelFactory {
+    initializer { AdvancedSettingsViewModel(container.settingsRepository, container.backupRepository, container.paymentCapture) }
+}
+
+/** 화면 모델이 한 번 알리는 글(복사·저장·복원·초기화 결과)을 토스트로 띄운다 */
+@Composable
+private fun ShowToasts(messages: Flow<String>) {
+    val context = LocalContext.current
+    LaunchedEffect(messages) { messages.collect { Toast.makeText(context, it, Toast.LENGTH_LONG).show() } }
 }
 
 private fun inboxViewModelFactory(container: AppContainer) = viewModelFactory {
