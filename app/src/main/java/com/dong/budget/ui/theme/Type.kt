@@ -101,6 +101,8 @@ val BudgetTypography =
  */
 @Immutable
 data class BudgetAmountTypography(
+    /** 월급 탭의 오늘 번 돈. 앱에서 가장 큰 금액이다. */
+    val hero: TextStyle,
     /** 등록 화면 상단의 큰 금액 */
     val large: TextStyle,
     /** 리스트 항목의 금액 */
@@ -129,6 +131,7 @@ private fun amount(size: Int, lineHeight: Int, weight: FontWeight) = TextStyle(
 
 val DefaultAmountTypography =
     BudgetAmountTypography(
+        hero = amount(40, 48, FontWeight.Bold),
         large = amount(32, 40, FontWeight.Bold),
         medium = amount(17, 24, FontWeight.SemiBold),
         keypadDigit = amount(24, 30, FontWeight.SemiBold),

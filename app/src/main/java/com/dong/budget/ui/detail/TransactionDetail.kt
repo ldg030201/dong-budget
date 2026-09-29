@@ -3,7 +3,9 @@ package com.dong.budget.ui.detail
 import androidx.compose.runtime.Immutable
 import com.dong.budget.data.db.TransactionListItem
 import com.dong.budget.data.db.TransactionType
+import com.dong.budget.data.salary.SalarySettings
 import com.dong.budget.ui.home.localDate
+import com.dong.budget.ui.salary.workValue
 import com.dong.budget.ui.stats.calc.Measure
 import com.dong.budget.ui.stats.calc.averageTicket
 import com.dong.budget.ui.stats.calc.merchantKey
@@ -25,9 +27,11 @@ sealed interface TransactionDetailUiState {
 
     /**
      * @property samePlace 같은 곳 내역. 가게 이름이 없거나 이체면 null 이라 그 섹션이 없다.
+     * @property workTime 이 지출을 벌려면 일해야 하는 시간("약 47분"). 월급을 정하지 않았거나 지출이 아니면 null
      */
     @Immutable
-    data class Shown(val item: TransactionListItem, val today: LocalDate, val samePlace: SamePlace?) : TransactionDetailUiState
+    data class Shown(val item: TransactionListItem, val today: LocalDate, val samePlace: SamePlace?, val workTime: String? = null) :
+        TransactionDetailUiState
 }
 
 /**
@@ -52,9 +56,29 @@ fun samePlaceStart(today: LocalDate): LocalDate = today.minusYears(1).plusDays(1
  * @param item 보는 거래. 없으면(지웠으면) [TransactionDetailUiState.Gone]
  * @param rows [samePlaceStart] 부터 가게 이름이 있는 거래 전부
  */
-fun transactionDetail(item: TransactionListItem?, rows: List<TransactionListItem>, today: LocalDate): TransactionDetailUiState {
+fun transactionDetail(
+    item: TransactionListItem?,
+    rows: List<TransactionListItem>,
+    today: LocalDate,
+    salary: SalarySettings = SalarySettings(),
+): TransactionDetailUiState {
     item ?: return TransactionDetailUiState.Gone
-    return TransactionDetailUiState.Shown(item = item, today = today, samePlace = samePlace(item, rows, samePlaceStart(today)))
+    return TransactionDetailUiState.Shown(
+        item = item,
+        today = today,
+        samePlace = samePlace(item, rows, samePlaceStart(today)),
+        workTime = workTimeOf(item, salary),
+    )
+}
+
+/**
+ * 이 지출을 벌려면 일해야 하는 시간. 달마다 다르지 않은 평균 시급으로 센다(같은 금액이 달마다 다르게 보이지 않게).
+ * 지출만 센다. 환불·수입·이체를 '일한 값' 으로 말하면 어색하다.
+ */
+private fun workTimeOf(item: TransactionListItem, salary: SalarySettings): String? {
+    if (item.type != TransactionType.EXPENSE) return null
+    val seconds = salary.secondsToEarn(item.amount) ?: return null
+    return workValue(seconds, salary.workSecondsPerDay)
 }
 
 /**

@@ -42,10 +42,22 @@ import com.dong.budget.ui.theme.BudgetTheme
 import com.dong.budget.ui.theme.Motion
 import com.dong.budget.ui.theme.pressFeedback
 
-enum class ShellTab(val label: String, val icon: ImageVector) {
+/** 아래 메뉴의 탭. 이름(name)은 탭마다 화면 상태를 보관하는 열쇠라 바꾸지 않는다. */
+enum class ShellTab(val label: String) {
     // 거래 목록은 홈 달력 아래에 있다. 따로 '내역' 탭을 두면 같은 목록이 두 군데 생긴다.
-    HOME("홈", Icons.Filled.Home),
-    MORE("전체", Icons.Filled.Menu),
+    HOME("홈"),
+
+    /** 실시간 월급 */
+    SALARY("월급"),
+    MORE("전체"),
+}
+
+/** 탭 아이콘. 월급은 기본 수입 분류 '급여' 와 같은 아이콘이다(Material Symbols 는 리소스라 여기서 읽는다). */
+@Composable
+private fun ShellTab.icon(): ImageVector = when (this) {
+    ShellTab.HOME -> Icons.Filled.Home
+    ShellTab.SALARY -> ImageVector.vectorResource(R.drawable.ic_sym_payments)
+    ShellTab.MORE -> Icons.Filled.Menu
 }
 
 /**
@@ -58,7 +70,8 @@ enum class ShellTab(val label: String, val icon: ImageVector) {
  * 콘텐츠가 상태바 아래까지 올라가 보이게 하려는 의도다.
  * 하단은 NavigationBar 가 자체적으로 처리한다.
  *
- * @param onOpenStatistics 아래 메뉴 가운데의 '통계'. 탭을 바꾸지 않고 통계 화면을 셸 위에 연다.
+ * @param onOpenStatistics 아래 메뉴의 '통계'. 탭을 바꾸지 않고 통계 화면을 셸 위에 연다.
+ * @param salaryContent 월급 탭 화면. 월급 탭을 처음 열 때 그 화면 모델이 만들어지게 부르는 쪽(DongBudgetApp)이 채운다.
  */
 @Composable
 fun HomeShell(
@@ -79,6 +92,7 @@ fun HomeShell(
     devModeOn: Boolean,
     onOpenDeveloper: () -> Unit,
     modifier: Modifier = Modifier,
+    salaryContent: @Composable () -> Unit = {},
 ) {
     var selectedTab by rememberSaveable { mutableStateOf(ShellTab.HOME) }
     val stateHolder = rememberSaveableStateHolder()
@@ -104,14 +118,14 @@ fun HomeShell(
                     ShellNavItem(
                         selected = tab == selectedTab,
                         onClick = { selectedTab = tab },
-                        icon = { Icon(tab.icon, contentDescription = null) },
+                        icon = { Icon(tab.icon(), contentDescription = null) },
                         label = tab.label,
                         colors = itemColors,
                     )
                     // 통계는 탭이 아니라 입구다. 누르면 통계 화면이 셸 위로 올라오고, 이 칸은 고른 칸이 되지 않는다.
-                    // 그래서 ShellTab 에 넣지 않고 홈 바로 뒤에 끼운다.
+                    // 그래서 ShellTab 에 넣지 않고 월급 바로 뒤에 끼운다(홈 · 월급 · 통계 · 전체).
                     // 통계를 열면 이 칸의 아이콘과 글자가 통계 하위 메뉴의 첫 칸 '통계' 자리로 옮겨 가고, 닫으면 여기로 내려온다.
-                    if (tab == ShellTab.HOME) {
+                    if (tab == ShellTab.SALARY) {
                         ShellNavItem(
                             selected = false,
                             onClick = onOpenStatistics,
@@ -155,9 +169,12 @@ fun HomeShell(
                                 onOpenInbox = onOpenInbox,
                             )
 
+                        ShellTab.SALARY -> salaryContent()
+
                         ShellTab.MORE ->
                             MoreScreen(
                                 devModeOn = devModeOn,
+                                onOpenSalary = { selectedTab = ShellTab.SALARY },
                                 onOpenCategories = onOpenCategories,
                                 onOpenStatistics = onOpenStatistics,
                                 onOpenSettings = onOpenSettings,

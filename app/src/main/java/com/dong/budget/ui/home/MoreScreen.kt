@@ -31,6 +31,7 @@ import com.dong.budget.ui.theme.BudgetTheme
 @Composable
 fun MoreScreen(
     devModeOn: Boolean,
+    onOpenSalary: () -> Unit,
     onOpenCategories: () -> Unit,
     onOpenStatistics: () -> Unit,
     onOpenSettings: () -> Unit,
@@ -65,6 +66,14 @@ fun MoreScreen(
                 onClick = onOpenSettings,
             )
         }
+        // 아래 메뉴에도 있지만 전체는 모든 메뉴를 늘어놓는 곳이라 둔다. 누르면 월급 탭으로 간다.
+        MenuItem(
+            title = "월급",
+            subtitle = "일하는 동안 번 돈이 초마다 쌓여요",
+            iconRes = R.drawable.ic_sym_payments,
+            color = "teal",
+            onClick = onOpenSalary,
+        )
         MenuItem(
             title = "분류 관리",
             subtitle = "분류와 결제수단을 추가하거나 지워요",

@@ -49,7 +49,10 @@ import com.dong.budget.BuildConfig
 import com.dong.budget.data.AppContainer
 import com.dong.budget.data.capture.CaptureStore
 import com.dong.budget.data.capture.PaymentCapture
+import com.dong.budget.data.db.SALARY_CATEGORY_CODE
 import com.dong.budget.data.devlog.DevLog
+import com.dong.budget.data.salary.salaryKey
+import com.dong.budget.data.salary.salaryMonthOf
 import com.dong.budget.data.settings.AutoOption
 import com.dong.budget.navigation.AdvancedSettingsKey
 import com.dong.budget.navigation.AppInfoKey
@@ -59,6 +62,7 @@ import com.dong.budget.navigation.EditorPrefill
 import com.dong.budget.navigation.InboxKey
 import com.dong.budget.navigation.Navigator
 import com.dong.budget.navigation.PatchNotesKey
+import com.dong.budget.navigation.SalarySettingsKey
 import com.dong.budget.navigation.SettingsKey
 import com.dong.budget.navigation.ShellKey
 import com.dong.budget.navigation.StatisticsKey
@@ -75,8 +79,10 @@ import com.dong.budget.ui.devmode.DevModeBadge
 import com.dong.budget.ui.devmode.DeveloperScreen
 import com.dong.budget.ui.devmode.copyLog
 import com.dong.budget.ui.editor.ALREADY_REGISTERED_MESSAGE
+import com.dong.budget.ui.editor.SALARY_ALREADY_REGISTERED_MESSAGE
 import com.dong.budget.ui.editor.TransactionEditorScreen
 import com.dong.budget.ui.editor.TransactionEditorViewModel
+import com.dong.budget.ui.editor.salaryPrefill
 import com.dong.budget.ui.editor.toPrefill
 import com.dong.budget.ui.home.HomeViewModel
 import com.dong.budget.ui.inbox.InboxScreen
@@ -84,6 +90,10 @@ import com.dong.budget.ui.inbox.InboxViewModel
 import com.dong.budget.ui.patchnotes.PatchNotesScreen
 import com.dong.budget.ui.patchnotes.PatchNotesViewModel
 import com.dong.budget.ui.permission.PermissionGate
+import com.dong.budget.ui.salary.SalaryScreen
+import com.dong.budget.ui.salary.SalarySettingsScreen
+import com.dong.budget.ui.salary.SalarySettingsViewModel
+import com.dong.budget.ui.salary.SalaryViewModel
 import com.dong.budget.ui.settings.AdvancedSettingsScreen
 import com.dong.budget.ui.settings.AdvancedSettingsViewModel
 import com.dong.budget.ui.settings.AppInfoScreen
@@ -103,6 +113,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.time.YearMonth
 
 /**
  * 앱 전체 네비게이션.
@@ -111,17 +122,19 @@ import kotlinx.coroutines.withContext
  * 그래서 서브플로우를 쌓으면 탭바가 화면과 함께 밀려나간다.
  */
 @Composable
-fun DongBudgetApp(container: AppContainer, capturedToOpen: String? = null, onCapturedOpened: () -> Unit = {}) {
+fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onOpened: () -> Unit = {}) {
     val backStack = rememberNavBackStack(ShellKey)
     val navigator = remember(backStack) { Navigator(backStack) }
 
-    // 결제 등록 알림을 눌러 들어왔으면 그 결제로 채운 등록창을 연다
+    // 결제 등록·월급날 알림을 눌러 들어왔으면 그 값으로 채운 등록창을 연다
     val context = LocalContext.current
-    LaunchedEffect(capturedToOpen) {
-        val dedupKey = capturedToOpen ?: return@LaunchedEffect
-        openCaptured(dedupKey, container, navigator, context)
+    LaunchedEffect(openRequest) {
+        when (val request = openRequest ?: return@LaunchedEffect) {
+            is OpenRequest.Captured -> openCaptured(request.dedupKey, container, navigator, context)
+            is OpenRequest.Salary -> salaryMonthOf(request.key)?.let { openSalary(it, container, navigator, context) }
+        }
         // 다 연 뒤에 비운다. 먼저 비우면 값이 바뀌면서 이 작업 자체가 취소된다.
-        onCapturedOpened()
+        onOpened()
     }
 
     // 설정에서 켜야 하는 권한이 꺼져 있으면 앱을 켤 때 안내한다
@@ -199,6 +212,16 @@ fun DongBudgetApp(container: AppContainer, capturedToOpen: String? = null, onCap
                                 onOpenPatchNotes = { navigator.go(PatchNotesKey) },
                                 devModeOn = devModeOn,
                                 onOpenDeveloper = { navigator.go(DeveloperKey) },
+                                salaryContent = {
+                                    // 월급 탭을 처음 열 때 만들어지고, 셸과 같이 산다. 탭을 떠나 있으면 구독을 멈춘다(WhileSubscribed).
+                                    val salaryViewModel: SalaryViewModel = viewModel(factory = salaryViewModelFactory(container))
+                                    val salaryState by salaryViewModel.uiState.collectAsStateWithLifecycle()
+                                    SalaryScreen(
+                                        state = salaryState,
+                                        onOpenSettings = { navigator.go(SalarySettingsKey) },
+                                        onRegisterSalary = { month -> scope.launch { openSalary(month, container, navigator, context) } },
+                                    )
+                                },
                             )
                         }
 
@@ -373,6 +396,19 @@ fun DongBudgetApp(container: AppContainer, capturedToOpen: String? = null, onCap
                             )
                         }
 
+                        entry<SalarySettingsKey> {
+                            val viewModel: SalarySettingsViewModel = viewModel(factory = salarySettingsViewModelFactory(container))
+                            val settings by viewModel.settings.collectAsStateWithLifecycle()
+                            SalarySettingsScreen(
+                                settings = settings,
+                                onChange = viewModel::update,
+                                onDigit = viewModel::appendDigit,
+                                onDeleteDigit = viewModel::deleteDigit,
+                                onClearAmount = viewModel::clearAmount,
+                                onBack = navigator::goBack,
+                            )
+                        }
+
                         entry<AdvancedSettingsKey> {
                             val viewModel: AdvancedSettingsViewModel =
                                 viewModel(factory = advancedSettingsViewModelFactory(container))
@@ -522,6 +558,26 @@ private suspend fun openCaptured(dedupKey: String, container: AppContainer, navi
 
 private const val EXPIRED_CAPTURE_MESSAGE = "${CaptureStore.RETENTION_DAYS}일이 지난 알림이라 열 수 없어요"
 
+/**
+ * [month] 월급으로 채운 수입 등록창을 연다. 월급날 알림과 월급 탭이 같이 쓴다.
+ * 금액은 알림에 담지 않고 지금 설정에서 읽는다. 알림을 띄운 뒤 월급을 고쳤을 수 있다.
+ * 이미 등록했으면(알림·탭으로 등록했거나 급여 분류 수입을 직접 적었으면) 등록창 대신 알려 주고 알림을 치운다.
+ */
+private suspend fun openSalary(month: YearMonth, container: AppContainer, navigator: Navigator, context: Context) {
+    val settings = container.salaryRepository.settings.first()
+    val (from, until) = settings.salaryPeriod(month)
+    val registered =
+        withContext(Dispatchers.IO) {
+            container.transactionRepository.isSalaryRegistered(salaryKey(month), SALARY_CATEGORY_CODE, from, until)
+        }
+    if (registered) {
+        container.salaryNotifier.dismiss(salaryKey(month))
+        Toast.makeText(context, SALARY_ALREADY_REGISTERED_MESSAGE, Toast.LENGTH_SHORT).show()
+        return
+    }
+    navigator.go(TransactionEditorKey(prefill = salaryPrefill(settings, month)))
+}
+
 private fun homeViewModelFactory(container: AppContainer) = viewModelFactory {
     initializer { HomeViewModel(container.transactionRepository, container.paymentCapture) }
 }
@@ -534,14 +590,25 @@ private fun editorViewModelFactory(container: AppContainer, transactionId: Long?
             paymentMethodRepository = container.paymentMethodRepository,
             transactionId = transactionId,
             prefill = prefill,
-            onCaptureRegistered = container.paymentCapture::onRegistered,
+            // 월급을 등록하면 월급날 알림을, 결제를 등록하면 묻던 결제 알림을 치운다
+            onCaptureRegistered = { key ->
+                if (salaryMonthOf(key) != null) container.salaryNotifier.dismiss(key) else container.paymentCapture.onRegistered(key)
+            },
             autoSettings = container.autoSettings,
         )
     }
 }
 
+private fun salaryViewModelFactory(container: AppContainer) = viewModelFactory {
+    initializer { SalaryViewModel(container.salaryRepository, container.transactionRepository) }
+}
+
+private fun salarySettingsViewModelFactory(container: AppContainer) = viewModelFactory {
+    initializer { SalarySettingsViewModel(container.salaryRepository) }
+}
+
 private fun transactionDetailViewModelFactory(container: AppContainer, transactionId: Long) = viewModelFactory {
-    initializer { TransactionDetailViewModel(container.transactionRepository, transactionId) }
+    initializer { TransactionDetailViewModel(container.transactionRepository, transactionId, container.salaryRepository.settings) }
 }
 
 private fun settingsViewModelFactory(container: AppContainer) = viewModelFactory {
@@ -551,6 +618,7 @@ private fun settingsViewModelFactory(container: AppContainer) = viewModelFactory
             updateChecker = container.updateChecker,
             backupRepository = container.backupRepository,
             backupStorage = container.backupStorage,
+            salaryRepository = container.salaryRepository,
         )
     }
 }
@@ -560,7 +628,14 @@ private fun appInfoViewModelFactory(container: AppContainer) = viewModelFactory 
 }
 
 private fun advancedSettingsViewModelFactory(container: AppContainer) = viewModelFactory {
-    initializer { AdvancedSettingsViewModel(container.settingsRepository, container.backupRepository, container.paymentCapture) }
+    initializer {
+        AdvancedSettingsViewModel(
+            container.settingsRepository,
+            container.backupRepository,
+            container.paymentCapture,
+            container.salaryRepository,
+        )
+    }
 }
 
 /** 화면 모델이 한 번 알리는 글(복사·저장·복원·초기화 결과)을 토스트로 띄운다 */
