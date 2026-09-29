@@ -558,6 +558,8 @@ private suspend fun openCaptured(dedupKey: String, container: AppContainer, navi
 
 private const val EXPIRED_CAPTURE_MESSAGE = "${CaptureStore.RETENTION_DAYS}일이 지난 알림이라 열 수 없어요"
 
+private const val SALARY_NOT_SET_MESSAGE = "월급 설정이 없어 채울 금액이 없어요. 월급 탭에서 월급을 정해 주세요"
+
 /**
  * [month] 월급으로 채운 수입 등록창을 연다. 월급날 알림과 월급 탭이 같이 쓴다.
  * 금액은 알림에 담지 않고 지금 설정에서 읽는다. 알림을 띄운 뒤 월급을 고쳤을 수 있다.
@@ -565,6 +567,12 @@ private const val EXPIRED_CAPTURE_MESSAGE = "${CaptureStore.RETENTION_DAYS}일�
  */
 private suspend fun openSalary(month: YearMonth, container: AppContainer, navigator: Navigator, context: Context) {
     val settings = container.salaryRepository.settings.first()
+    // 월급 설정을 지운 뒤(데이터 초기화 등) 남은 알림을 누르면 채울 금액이 없다
+    if (!settings.isReady || settings.payFor(month) <= 0) {
+        container.salaryNotifier.dismiss(salaryKey(month))
+        Toast.makeText(context, SALARY_NOT_SET_MESSAGE, Toast.LENGTH_SHORT).show()
+        return
+    }
     val (from, until) = settings.salaryPeriod(month)
     val registered =
         withContext(Dispatchers.IO) {
@@ -619,6 +627,7 @@ private fun settingsViewModelFactory(container: AppContainer) = viewModelFactory
             backupRepository = container.backupRepository,
             backupStorage = container.backupStorage,
             salaryRepository = container.salaryRepository,
+            appThemeMode = container.themeMode,
         )
     }
 }
@@ -633,7 +642,7 @@ private fun advancedSettingsViewModelFactory(container: AppContainer) = viewMode
             container.settingsRepository,
             container.backupRepository,
             container.paymentCapture,
-            container.salaryRepository,
+            container::clearSalary,
         )
     }
 }

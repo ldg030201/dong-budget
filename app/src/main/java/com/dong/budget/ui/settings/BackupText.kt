@@ -55,6 +55,8 @@ internal const val RESET_SETTINGS_DONE = "설정을 처음대로 돌렸어요"
 internal const val RESET_DATA_DONE = "처음 설치한 상태로 돌렸어요"
 internal const val RESET_DATA_FAILED = "데이터를 지우지 못했어요. 지금 데이터는 그대로예요"
 internal const val RESET_SETTINGS_FAILED = "설정을 되돌리지 못했어요"
+internal const val RESET_DATA_PARTLY_FAILED = "거래는 지웠지만 알림 목록이나 월급 설정을 다 지우지 못했어요. 다시 해 주세요"
+internal const val RESTORE_SALARY_FAILED_MESSAGE = "거래는 되살렸지만 월급 설정을 되살리지 못했어요"
 
 /** 다운로드 폴더에 저장했을 때. 파일 관리자에서 찾을 수 있게 이름을 알린다. */
 internal fun savedMessage(fileName: String): String = "다운로드 폴더에 저장했어요 · $fileName"

@@ -6,10 +6,10 @@ import com.dong.budget.data.backup.BackupRepository
 import com.dong.budget.data.capture.PaymentCapture
 import com.dong.budget.data.devlog.DevLog
 import com.dong.budget.data.devlog.LogTag
-import com.dong.budget.data.salary.SalaryRepository
 import com.dong.budget.data.settings.AutoOption
 import com.dong.budget.data.settings.SettingsRepository
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** 초기화 전에 묻는 창 */
 sealed interface ResetPrompt {
@@ -32,7 +33,8 @@ class AdvancedSettingsViewModel(
     private val settingsRepository: SettingsRepository,
     private val backupRepository: BackupRepository,
     private val paymentCapture: PaymentCapture,
-    private val salaryRepository: SalaryRepository,
+    /** 월급 설정과 월급날 알림 기록·떠 있는 알림을 지운다(AppContainer.clearSalary) */
+    private val clearSalary: suspend () -> Unit = {},
 ) : ViewModel() {
     private val _prompt = MutableStateFlow<ResetPrompt?>(null)
     val prompt: StateFlow<ResetPrompt?> = _prompt.asStateFlow()
@@ -70,26 +72,36 @@ class AdvancedSettingsViewModel(
         if (_busy.value) return
         _busy.value = true
         viewModelScope.launch {
+            // 거래를 다 지운 뒤에 멈추면 알림 목록·월급 설정만 남는다. 화면을 떠나 뷰모델이 치워져도 끝까지 한다.
+            var dataCleared = false
             try {
-                when (prompt) {
-                    ResetPrompt.Settings -> {
-                        settingsRepository.resetAll()
-                        _messages.send(RESET_SETTINGS_DONE)
-                    }
+                withContext(NonCancellable) {
+                    when (prompt) {
+                        ResetPrompt.Settings -> settingsRepository.resetAll()
 
-                    is ResetPrompt.Data -> {
-                        backupRepository.resetToDefaults()
-                        // 알림 목록도 비운다. 남겨 두면 지운 거래의 결제가 '등록 안 함' 으로 되살아나 보인다.
-                        paymentCapture.clearInbox()
-                        // 처음 설치한 상태라 월급 설정도 지운다(월급날 알림도 따라서 떨어진다)
-                        salaryRepository.clear()
-                        _messages.send(RESET_DATA_DONE)
+                        is ResetPrompt.Data -> {
+                            backupRepository.resetToDefaults()
+                            dataCleared = true
+                            // 알림 목록도 비운다. 남겨 두면 지운 거래의 결제가 '등록 안 함' 으로 되살아나 보인다.
+                            paymentCapture.clearInbox()
+                            // 처음 설치한 상태라 월급 설정도 지운다(월급날 알림 기록과 떠 있는 알림도)
+                            clearSalary()
+                        }
                     }
                 }
+                _messages.send(if (prompt is ResetPrompt.Data) RESET_DATA_DONE else RESET_SETTINGS_DONE)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                val failure = if (prompt is ResetPrompt.Data) RESET_DATA_FAILED else RESET_SETTINGS_FAILED
+                val failure =
+                    when {
+                        prompt !is ResetPrompt.Data -> RESET_SETTINGS_FAILED
+
+                        // 거래는 이미 지웠다. '그대로예요' 라고 하면 틀린 말이다.
+                        dataCleared -> RESET_DATA_PARTLY_FAILED
+
+                        else -> RESET_DATA_FAILED
+                    }
                 DevLog.warn(LogTag.BACKUP, failure, e)
                 _messages.send(failure)
             } finally {
