@@ -163,6 +163,17 @@ class PaymentCaptureTest {
     }
 
     @Test
+    fun `짧은 본문에 카드 이름이 없으면 카드까지 읽히는 펼친 본문으로 묻는다`() = runBlocking {
+        // 캐시백 알림은 카드 이름이 둘째 줄에 있다. 짧은 본문에 첫 줄만 담겨 와도 카드를 채운다.
+        val paid = "2,300원 결제 | 세븐일레븐 강동열린점"
+        assertTrue(capture().onNotification(listOf("6원 캐시백 🎉", null), listOf(paid, "$paid\n잔액 146,658원(토스뱅크 체크카드)"), clock))
+        val asked = prompt.asked.single()
+        assertEquals(2_300L, asked.amount)
+        assertEquals("토스뱅크 체크카드", asked.paymentName)
+        assertEquals("세븐일레븐 강동열린점", asked.merchant)
+    }
+
+    @Test
     fun `알림을 보낼 수 없으면 기록하지 않고, 허용한 뒤에 다시 들어오면 묻는다`() = runBlocking {
         val capture = capture()
         prompt.allowed = false
