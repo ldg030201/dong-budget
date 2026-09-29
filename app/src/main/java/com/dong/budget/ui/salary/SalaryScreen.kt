@@ -2,6 +2,7 @@ package com.dong.budget.ui.salary
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -30,6 +31,7 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dong.budget.R
@@ -134,11 +136,16 @@ private fun SalaryHeader(onOpenSettings: () -> Unit) {
 
 @Composable
 private fun EmptySalary(onOpenSettings: () -> Unit) {
+    // 가로 화면처럼 높이가 모자라면 버튼이 찌그러지지 않게 스크롤한다. 높이가 넉넉하면 가운데에 둔다.
     Column(
-        modifier = Modifier.fillMaxSize().padding(BudgetTheme.spacing.screenHorizontal),
+        modifier =
+        Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(BudgetTheme.spacing.screenHorizontal),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
     ) {
+        Spacer(Modifier.weight(1f))
         IconBadge(
             iconRes = R.drawable.ic_sym_payments,
             swatch = BudgetTheme.categoryPalette["teal"],
@@ -155,6 +162,7 @@ private fun EmptySalary(onOpenSettings: () -> Unit) {
         )
         Spacer(Modifier.height(BudgetTheme.spacing.sectionGap))
         BudgetPrimaryButton(text = "월급 정하기", onClick = onOpenSettings)
+        Spacer(Modifier.weight(1f))
     }
 }
 
@@ -182,7 +190,7 @@ private fun TodayCard(settings: SalarySettings, now: () -> LocalDateTime, spentT
                 // 1초에 버는 돈. 일하지 않는 때에도 이번 월급 기간의 빠르기를 보여 준다.
                 Text(text = perSecondBadge(earnings.perSecond), style = BudgetTheme.amount.tableCell, color = BudgetTheme.colors.income)
             }
-            RollingText(text = formatEarned(earnings.today), style = BudgetTheme.amount.hero, color = BudgetTheme.colors.income)
+            HeroAmount(text = formatEarned(earnings.today))
         }
         Spacer(Modifier.height(BudgetTheme.spacing.itemGap))
         EarnBar(fraction = earnings.dayProgress)
@@ -307,4 +315,20 @@ private fun EarnBar(fraction: Float) {
                 if (shown > 0f) drawRoundRect(fill, size = Size(size.width * shown, size.height), cornerRadius = radius)
             },
     )
+}
+
+/**
+ * 오늘 번 돈. 가장 큰 글씨로 굴러 오르다가, 월급이 커 자리가 늘어 폭에 안 들어가면(좁은 화면) 한 단계 작은 글씨로 바꾼다.
+ * 굴러 오르는 글은 글자마다 칸이라 넘치면 끝 글자가 잘린다.
+ */
+@Composable
+private fun HeroAmount(text: String) {
+    val measurer = rememberTextMeasurer()
+    val hero = BudgetTheme.amount.hero
+    val fallback = BudgetTheme.amount.large
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+        val maxPx = constraints.maxWidth
+        val fits = measurer.measure(text, hero, maxLines = 1).size.width <= maxPx
+        RollingText(text = text, style = if (fits) hero else fallback, color = BudgetTheme.colors.income)
+    }
 }

@@ -18,6 +18,8 @@ class SalaryTextTest {
     fun `번 돈은 원 아래를 버리고 + 를 붙인다`() {
         assertEquals("+128,340원", formatEarned(128_340.97))
         assertEquals("+0원", formatEarned(0.4))
+        // 계산 오차로 한 원 모자라 보이지 않는다
+        assertEquals("+3,000,000원", formatEarned(2_999_999.9999999995))
     }
 
     @Test
@@ -27,6 +29,9 @@ class SalaryTextTest {
         assertEquals("일하는 중이에요 · 퇴근까지 1분", statusLine(salary, at("2026-09-29T17:59:30")))
         assertEquals("출근 전이에요 · 출근까지 40분", statusLine(salary, at("2026-09-29T08:20:00")))
         assertEquals("점심시간이에요 · 오후 1:00부터 다시 쌓여요", statusLine(salary, at("2026-09-29T12:30:00")))
+        // 점심이 퇴근 뒤까지 이어지면 다시 쌓이는 때가 없다
+        val short = salary.copy(workEnd = LocalTime.of(12, 30))
+        assertEquals("점심시간이에요 · 오늘 몫을 다 벌었어요", statusLine(short, at("2026-09-29T12:10:00")))
         assertEquals("퇴근했어요 · 오늘 몫을 다 벌었어요", statusLine(salary, at("2026-09-29T18:00:00")))
         assertEquals("쉬는 날이에요 · 월요일부터 다시 쌓여요", statusLine(salary, at("2026-09-26T11:00:00")))
         assertEquals("쉬는 날이에요 · 내일부터 다시 쌓여요", statusLine(salary, at("2026-09-27T11:00:00")))
@@ -82,6 +87,8 @@ class SalaryTextTest {
         assertEquals("약 3시간", workValue(180 * 60.0, day))
         assertEquals("약 1일", workValue(day.toDouble(), day))
         assertEquals("약 3일 2시간", workValue(3 * day + 2 * 3600.0, day))
+        // 남은 7시간 45분을 올리면 8시간(하루치)이라 하루로 넘긴다
+        assertEquals("약 4일", workValue(3 * day + 7 * 3600.0 + 45 * 60, day))
     }
 
     @Test

@@ -6,6 +6,7 @@ import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.YearMonth
 import kotlin.math.ceil
+import kotlin.math.floor
 
 // ─────────────────────────────────────────────────────────────────────
 // 실시간 월급. 연봉이나 월급, 출퇴근 시간, 일하는 요일을 정해 두면 일하는 동안 초마다 번 돈이 쌓인다.
@@ -113,7 +114,27 @@ data class SalarySettings(
     }
 
     /** [payMonth] 월급 기간이 다 지나면 번 돈(보통 월급). 시작일이 기간 안이면 그날부터 일한 날만큼(일할 계산), 그 뒤면 0 이다. */
-    fun earnedInPeriod(payMonth: YearMonth): Double = dailyAmount(payMonth) * payPeriod(payMonth).dates().count(::earnsOn)
+    fun earnedInPeriod(payMonth: YearMonth): Double = shareOf(payMonth, payPeriod(payMonth).dates().count(::earnsOn).toDouble())
+
+    /**
+     * [payMonth] 월급 기간에서 [days] 일(하루 몫 소수 포함)을 일하고 번 돈. 월급 × 일한 날 ÷ 기간의 일하는 날로 곱하고 나서 나눈다.
+     * 하루치(월급 ÷ 일하는 날)를 먼저 구해 곱하면 소수 오차로 월급날 퇴근 때 2,999,999.9999… 원이 되어 한 원 모자라 보인다.
+     */
+    private fun shareOf(payMonth: YearMonth, days: Double): Double = workdaysIn(payMonth).let { total ->
+        if (total ==
+            0
+        ) {
+            0.0
+        } else {
+            monthly * days / total
+        }
+    }
+
+    /**
+     * [payMonth] 월급으로 받을 돈(원). 월급날 알림과 등록창이 채우는 금액이다. 입사한 달은 입사일부터 일한 날만큼(일할 계산)이고,
+     * 입사 전 달이면 0 이다(월급날 알림도 띄우지 않는다).
+     */
+    fun payFor(payMonth: YearMonth): Long = floor(earnedInPeriod(payMonth) + ROUNDING_SLACK_WON).toLong()
 
     /**
      * 한 달 소정근로시간(통상시급을 셀 때 나누는 시간). 주 소정근로시간(40시간까지)에 주휴시간을 더해 한 달 평균 주 수를 곱하고 올린다.
@@ -180,16 +201,21 @@ data class SalarySettings(
     fun nextPaydayAlarm(now: LocalDateTime, notified: YearMonth?): Pair<YearMonth, LocalDateTime>? {
         if (!isReady || !paydayNotice) return null
         var month = YearMonth.from(now).minusMonths(1)
-        while (true) {
+        // 입사일이 아주 먼 뒤라도 끝없이 돌지 않게 앞으로 몇 해까지만 본다
+        repeat(MONTHS_TO_LOOK) {
             val at = paydayAlarmAt(month)
             val alreadyNotified = notified != null && !month.isAfter(notified)
             when {
-                alreadyNotified -> Unit
+                // 입사 전 달은 받을 월급이 없다
+                alreadyNotified || payFor(month) <= 0 -> Unit
+
                 at.isAfter(now) -> return month to at
+
                 at.toLocalDate() == now.toLocalDate() -> return month to now
             }
             month = month.plusMonths(1)
         }
+        return null
     }
 
     /**
@@ -225,9 +251,8 @@ data class SalarySettings(
         val daySeconds = workSecondsPerDay.toDouble()
         val worked = workedSeconds(secondOfDay)
         val todayShare = if (earnsOn(today)) worked / daySeconds else 0.0
-        val daily = dailyAmount(payMonth)
-        val earnedToday = daily * todayShare
-        val earnedPeriod = daily * countEarnDays(period.start, today) + earnedToday
+        val earnedToday = shareOf(payMonth, todayShare)
+        val earnedPeriod = shareOf(payMonth, countEarnDays(period.start, today) + todayShare)
 
         // 올해: 1월 1일부터 오늘 전까지 지나간 날들을 그날이 든 월급 기간의 하루치로 더하고 오늘을 더한다
         val newYear = LocalDate.of(today.year, 1, 1)
@@ -237,7 +262,7 @@ data class SalarySettings(
             val range = payPeriod(month)
             val from = maxOf(range.start, newYear)
             val until = minOf(range.endInclusive.plusDays(1), today)
-            earnedYear += dailyAmount(month) * countEarnDays(from, until)
+            earnedYear += shareOf(month, countEarnDays(from, until).toDouble())
             month = month.plusMonths(1)
         }
         return Earnings(
@@ -288,6 +313,12 @@ data class SalarySettings(
         private const val MIN_HOURS_FOR_WEEKLY_REST = 15.0
         private const val DAYS_PER_YEAR = 365.0
         private const val DAYS_PER_WEEK = 7.0
+
+        /** 다음 월급날 알림을 찾아볼 달 수(10년) */
+        private const val MONTHS_TO_LOOK = 120
+
+        /** 3,000,000 이 2,999,999.9999999 로 계산돼 원 아래를 버릴 때 한 원 모자라지 않게 한다 */
+        private const val ROUNDING_SLACK_WON = 1e-6
 
         /** 208.0000001 처럼 계산 오차로 딱 떨어지는 값이 한 시간 올라가지 않게 한다 */
         private const val ROUNDING_SLACK = 1e-9

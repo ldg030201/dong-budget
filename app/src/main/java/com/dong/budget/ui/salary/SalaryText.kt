@@ -22,7 +22,7 @@ import kotlin.math.roundToLong
 // ─────────────────────────────────────────────────────────────────────
 
 /** 번 돈. 원 아래는 버린다(초마다 몇 원씩 쌓이므로 소수가 생긴다). "+128,340원" */
-internal fun formatEarned(amount: Double): String = "+${formatAmount(floor(amount).toLong())}원"
+internal fun formatEarned(amount: Double): String = "+${formatAmount(floor(amount + ROUNDING_SLACK_WON).toLong())}원"
 
 /** 지금 상태 한 줄. "일하는 중 · 퇴근까지 2시간 14분" */
 internal fun statusLine(settings: SalarySettings, now: LocalDateTime): String {
@@ -30,11 +30,23 @@ internal fun statusLine(settings: SalarySettings, now: LocalDateTime): String {
     fun until(target: LocalTime) = formatDuration(Duration.between(time, target).seconds.coerceAtLeast(1))
     return when (settings.statusAt(now)) {
         WorkStatus.NOT_SET -> "월급을 정하면 쌓이기 시작해요"
+
         WorkStatus.NOT_STARTED -> "입사일 ${settings.startDate?.let(::formatDayShort)}부터 쌓여요"
+
         WorkStatus.DAY_OFF -> "쉬는 날이에요 · ${nextWorkdayText(settings, now.toLocalDate())}"
+
         WorkStatus.BEFORE_WORK -> "출근 전이에요 · 출근까지 ${until(settings.workStart)}"
+
         WorkStatus.WORKING -> "일하는 중이에요 · 퇴근까지 ${until(settings.workEnd)}"
-        WorkStatus.LUNCH -> "점심시간이에요 · ${formatClock(settings.lunchEnd)}부터 다시 쌓여요"
+
+        // 점심이 퇴근 때까지 이어지면 다시 쌓이는 때가 없다
+        WorkStatus.LUNCH ->
+            if (settings.lunchEnd.isBefore(settings.workEnd)) {
+                "점심시간이에요 · ${formatClock(settings.lunchEnd)}부터 다시 쌓여요"
+            } else {
+                "점심시간이에요 · 오늘 몫을 다 벌었어요"
+            }
+
         WorkStatus.AFTER_WORK -> "퇴근했어요 · 오늘 몫을 다 벌었어요"
     }
 }
@@ -75,8 +87,8 @@ internal fun periodCaption(earnings: Earnings): String {
     val month = earnings.payMonth ?: return ""
     val from = "${start.monthValue}월 ${start.dayOfMonth}일부터"
     if (earnings.periodTotal <= 0) return "$from · 이번 월급 기간에는 일하는 날이 없어요"
-    val percent = (earnings.period * PERCENT / earnings.periodTotal).toInt().coerceIn(0, PERCENT.toInt())
-    return "$from · ${month.monthValue}월 월급 ${formatAmount(earnings.periodTotal.toLong())}원 중 $percent%"
+    val percent = floor(earnings.period * PERCENT / earnings.periodTotal + ROUNDING_SLACK_WON).toInt().coerceIn(0, PERCENT.toInt())
+    return "$from · ${month.monthValue}월 월급 ${formatAmount(floor(earnings.periodTotal + ROUNDING_SLACK_WON).toLong())}원 중 $percent%"
 }
 
 /**
@@ -101,8 +113,13 @@ internal fun workValue(seconds: Double, secondsPerDay: Long): String {
     if (minutes < 1) return "1분도 안 돼요"
     val minutesPerDay = secondsPerDay / SECONDS_PER_MINUTE
     if (minutesPerDay <= 0 || minutes < minutesPerDay) return "약 ${hoursAndMinutes(minutes)}"
-    val days = minutes / minutesPerDay
-    val hours = ((minutes - days * minutesPerDay) / MINUTES_PER_HOUR.toDouble()).roundToLong()
+    var days = minutes / minutesPerDay
+    var hours = ((minutes - days * minutesPerDay) / MINUTES_PER_HOUR.toDouble()).roundToLong()
+    // 남은 시간을 올리다 하루치가 되면 하루로 넘긴다('3일 8시간' 이 아니라 '4일')
+    if (hours * MINUTES_PER_HOUR >= minutesPerDay) {
+        days += 1
+        hours = 0
+    }
     return if (hours == 0L) "약 ${days}일" else "약 ${days}일 ${hours}시간"
 }
 
@@ -123,6 +140,9 @@ private const val SECONDS_PER_MINUTE = 60L
 private const val MINUTES_PER_HOUR = 60L
 private const val PERCENT = 100.0
 private const val SPOKEN_STEP = 1_000.0
+
+/** 3,000,000 이 2,999,999.9999999 로 계산돼 원 아래를 버릴 때 한 원 모자라지 않게 한다 */
+private const val ROUNDING_SLACK_WON = 1e-6
 
 /** 쉬는 날에 다음 일하는 날을 찾아볼 날 수. 일하는 요일이 하나라도 있으면 일주일 안에 온다. */
 private const val DAYS_TO_LOOK = 14L
