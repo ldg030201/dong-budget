@@ -30,12 +30,13 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.IntOffset
+import com.dong.budget.ui.theme.BudgetColorTokens
 import com.dong.budget.ui.theme.BudgetTheme
 import com.dong.budget.ui.theme.Motion
 import com.dong.budget.ui.theme.pressScaleClickable
 
 /**
- * 지출/수입처럼 둘 이상 중 하나를 고르는 토글. 회색 판 위에 고른 칸만 떠 보인다.
+ * 지출/수입처럼 둘 이상 중 하나를 고르는 토글. 회색 판 위에 고른 칸만 떠 보인다([BudgetColorTokens.raised]).
  * 다른 칸을 고르면 떠 있는 판이 그 칸으로 미끄러져 간다(떠 있는 메뉴와 같은 움직임).
  *
  * @param icons 칸마다 글 앞에 둘 아이콘([options] 와 같은 순서). 뜻은 글이 전하므로 화면 읽기에는 읽히지 않게 둔다.
@@ -75,7 +76,7 @@ fun SegmentedToggle(
                 .offset { IntOffset(indicatorOffset.value.roundToPx(), 0) }
                 .width(cellWidth)
                 .height(cellHeight)
-                .background(MaterialTheme.colorScheme.background, cellShape),
+                .background(BudgetTheme.colors.raised, cellShape),
         )
         Row(
             // 화면 읽기가 칸들을 한 묶음으로 알린다('2개 중 1번째')

@@ -98,6 +98,11 @@ data class BudgetColorTokens(
      */
     val brandText: Color,
     val sectionBackground: Color,
+    /**
+     * 회색 판([sectionBackground]) 위에 떠 있는 칸. 한 줄 토글의 고른 칸, 판 위의 작은 버튼.
+     * 라이트는 화면 바탕과 같은 흰색이지만, 다크는 화면 바탕이 판보다 어두워서 그대로 쓰면 칸이 파여 보인다. 판보다 한 단계 밝게 둔다.
+     */
+    val raised: Color,
     val divider: Color,
     /** 통계 차트용. 빨강-초록 조합은 적녹색맹에서 구분이 불가능해서 쓰지 않는다. */
     val chartExpense: Color,
@@ -132,6 +137,7 @@ internal val LightColorTokens =
         danger = DangerLight,
         brandText = Indigo500, // Gray50 5.11
         sectionBackground = Gray50,
+        raised = Color.White,
         divider = Gray200,
         chartExpense = Indigo500,
         chartIncome = IncomeLight,
@@ -156,6 +162,7 @@ internal val DarkColorTokens =
         danger = DangerDark,
         brandText = Indigo400, // Dark800 4.66 / Dark900 5.06
         sectionBackground = Dark800,
+        raised = Dark600,
         divider = Dark600,
         chartExpense = Indigo550,
         chartIncome = IncomeDark,
