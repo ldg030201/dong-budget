@@ -85,6 +85,17 @@ private fun newMenu(menu: PatchMenu, vararg changes: Change) = MenuChanges(menu,
 val PATCH_NOTES: List<Release> =
     listOf(
         Release(
+            version = "1.5.1",
+            date = LocalDate.of(2026, 9, 30),
+            menus =
+            listOf(
+                menu(
+                    PatchMenu.EDITOR,
+                    fixed("토스뱅크 체크카드 결제에 캐시백이 붙어 'N원 캐시백'으로 오는 토스 알림에는 등록할지 묻지 않던 문제를 고쳤어요"),
+                ),
+            ),
+        ),
+        Release(
             version = "1.5.0",
             date = LocalDate.of(2026, 9, 29),
             menus =
