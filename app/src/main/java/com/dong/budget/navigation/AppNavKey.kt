@@ -110,6 +110,10 @@ data object SalarySettingsKey : AppNavKey
 @Serializable
 data object SalaryPinSetupKey : AppNavKey
 
+/** 앱 잠금의 PIN 정하기(처음 켤 때, 바꿀 때). 설정 > 잠금에서 들어온다. */
+@Serializable
+data object AppPinSetupKey : AppNavKey
+
 /** 설정의 '고급 설정'. 자동 기능 스위치와 설정·데이터 초기화 */
 @Serializable
 data object AdvancedSettingsKey : AppNavKey

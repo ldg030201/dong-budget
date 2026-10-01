@@ -12,7 +12,8 @@ import com.dong.budget.data.capture.CaptureNotifier
 import com.dong.budget.data.capture.CaptureStore
 import com.dong.budget.data.capture.PaymentCapture
 import com.dong.budget.data.db.BudgetDatabase
-import com.dong.budget.data.salary.SalaryLock
+import com.dong.budget.data.devlog.LogTag
+import com.dong.budget.data.lock.PinLock
 import com.dong.budget.data.salary.SalaryLockReset
 import com.dong.budget.data.salary.SalaryNotifier
 import com.dong.budget.data.salary.SalaryRepository
@@ -65,7 +66,12 @@ class AppContainer(context: Context) {
     val salaryNotifier by lazy { SalaryNotifier(context) }
 
     /** 월급 탭 잠금(PIN·지문)과 처음 안내를 확인했는지 */
-    val salaryLock by lazy { SalaryLock(context.getSharedPreferences(SalaryLock.PREFS_NAME, Context.MODE_PRIVATE)) }
+    val salaryLock by lazy {
+        PinLock(context.getSharedPreferences(PinLock.SALARY_PREFS_NAME, Context.MODE_PRIVATE), "월급 잠금", LogTag.SALARY)
+    }
+
+    /** 앱 잠금(PIN·지문). 월급 잠금과 PIN 을 따로 둔다. */
+    val appLock by lazy { PinLock(context.getSharedPreferences(PinLock.APP_PREFS_NAME, Context.MODE_PRIVATE), "앱 잠금", LogTag.SETTINGS) }
 
     val salaryScheduler by lazy {
         SalaryScheduler(context, context.getSharedPreferences(SalaryScheduler.PREFS_NAME, Context.MODE_PRIVATE))
