@@ -143,7 +143,7 @@ class SettingsViewModel(
                             .onFailure { DevLog.warn(LogTag.BACKUP, "월급 설정을 되살리지 못했어요", it) }
                             .isSuccess
                     val result = if (salaryRestored) restoredMessage(preview.backup) else RESTORE_SALARY_FAILED_MESSAGE
-                    listOfNotNull(result, savedAs?.let(::autoBackupSavedNote)).joinToString("\n")
+                    listOfNotNull(result, savedAs?.let { AUTO_BACKUP_SAVED_NOTE }).joinToString("\n")
                 }
             _messages.send(done)
         }
