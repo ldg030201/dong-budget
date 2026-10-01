@@ -69,6 +69,7 @@ fun BudgetSmallButton(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     container: Color = BudgetTheme.colors.sectionBackground,
+    contentColor: Color = BudgetTheme.colors.textPrimary,
 ) {
     val shape = RoundedCornerShape(BudgetTheme.radius.chip)
     Box(
@@ -84,7 +85,7 @@ fun BudgetSmallButton(
         Text(
             text = text,
             style = MaterialTheme.typography.labelLarge,
-            color = BudgetTheme.colors.textPrimary,
+            color = contentColor,
         )
     }
 }
