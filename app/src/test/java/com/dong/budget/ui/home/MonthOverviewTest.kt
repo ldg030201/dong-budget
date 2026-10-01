@@ -6,6 +6,7 @@ import com.dong.budget.data.db.TransactionType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
+import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.YearMonth
@@ -112,6 +113,34 @@ class MonthOverviewTest {
         )
         // 일요일 당일이 주의 첫 칸이다
         assertEquals(LocalDate.of(2026, 9, 20), weekOf(LocalDate.of(2026, 9, 20), YearMonth.of(2026, 9)).first())
+    }
+
+    @Test
+    fun `월요일에 시작하면 달력·한 주 줄·요일 순서가 월요일부터다`() {
+        val monday = DayOfWeek.MONDAY
+        // 2026년 9월 1일(화)은 둘째 칸, 30일(수)은 마지막 줄 셋째 칸
+        val weeks = calendarWeeks(YearMonth.of(2026, 9), monday)
+        assertEquals(5, weeks.size)
+        weeks.forEach { assertEquals(7, it.size) }
+        assertEquals(listOf(null, LocalDate.of(2026, 9, 1)), weeks.first().take(2))
+        assertEquals(LocalDate.of(2026, 9, 30), weeks.last()[2])
+        // 2026년 2월 1일(일)은 첫 줄 마지막 칸이라 한 줄이 늘어난다
+        val february = calendarWeeks(YearMonth.of(2026, 2), monday)
+        assertEquals(5, february.size)
+        assertEquals(LocalDate.of(2026, 2, 1), february.first().last())
+
+        // 2026-09-30(수) 가 든 주: 28 29 30 | 10/1 ~ 10/4
+        assertEquals(
+            listOf(28, 29, 30, null, null, null, null),
+            weekOf(LocalDate.of(2026, 9, 30), YearMonth.of(2026, 9), monday).map {
+                it?.dayOfMonth
+            },
+        )
+        // 일요일은 그 주의 마지막 칸이다
+        assertEquals(LocalDate.of(2026, 9, 20), weekOf(LocalDate.of(2026, 9, 20), YearMonth.of(2026, 9), monday).last())
+
+        assertEquals(DayOfWeek.entries.toList(), weekOrder(monday))
+        assertEquals(WEEK_ORDER, weekOrder(DayOfWeek.SUNDAY))
     }
 
     @Test

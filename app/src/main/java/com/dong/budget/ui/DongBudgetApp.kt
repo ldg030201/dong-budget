@@ -78,6 +78,7 @@ import com.dong.budget.ui.category.CategoryManageScreen
 import com.dong.budget.ui.category.CategoryManageViewModel
 import com.dong.budget.ui.components.BudgetTopAppBar
 import com.dong.budget.ui.components.LocalSharedTransitionScope
+import com.dong.budget.ui.components.LocalWeekStart
 import com.dong.budget.ui.detail.TransactionDetailScreen
 import com.dong.budget.ui.detail.TransactionDetailUiState
 import com.dong.budget.ui.detail.TransactionDetailViewModel
@@ -173,12 +174,14 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
 
     // 자동 기능 스위치의 지금 값. 화면마다 쓰는 스위치만 골라 넘긴다.
     val autoSettings by container.autoSettings.collectAsStateWithLifecycle()
+    // 한 주를 시작하는 요일. 달력·통계가 LocalWeekStart 로 읽는다.
+    val weekStart by container.weekStart.collectAsStateWithLifecycle()
 
     Box(modifier = Modifier.fillMaxSize()) {
         // 화면을 오갈 때 두 화면의 같은 요소를 이어 주는 범위(아래 메뉴의 '통계' 가 통계 하위 메뉴 첫 칸으로 옮겨 가는 연출).
         // NavDisplay 의 sharedTransitionScope 로는 넘기지 않는다. 넘기면 화면 전체를 장면 사이 공유 요소로 감싸는데, 이 앱은 장면이 하나라 쓸 데가 없다.
         SharedTransitionLayout(modifier = Modifier.fillMaxSize()) {
-            CompositionLocalProvider(LocalSharedTransitionScope provides this) {
+            CompositionLocalProvider(LocalSharedTransitionScope provides this, LocalWeekStart provides weekStart) {
                 NavDisplay(
                     backStack = backStack,
                     // 가로 화면에서 옆에 붙는 시스템 버튼 줄이나 카메라 구멍 밑으로 상단 바 버튼과 금액이 들어가지 않게 한다.
@@ -392,6 +395,7 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
                             val backup by viewModel.backup.collectAsStateWithLifecycle()
                             val lastBackup by viewModel.lastBackup.collectAsStateWithLifecycle()
                             val backupSchedule by viewModel.backupSchedule.collectAsStateWithLifecycle()
+                            val settingsWeekStart by viewModel.weekStart.collectAsStateWithLifecycle()
                             ShowToasts(viewModel.messages)
                             // 설정은 전체의 톱니에서 들어온다. 들어오는 중에 두 번 누른 탭이 아래 줄(고급 설정·앱 정보)에 떨어지지 않게 한다.
                             val settled = rememberSettled()
@@ -400,6 +404,8 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
                                 themeMode = themeMode,
                                 currentVersion = viewModel.currentVersion,
                                 onThemeModeChange = viewModel::selectThemeMode,
+                                weekStart = settingsWeekStart,
+                                onWeekStartChange = viewModel::selectWeekStart,
                                 onBack = navigator::goBack,
                                 newerVersion = newerVersion,
                                 onOpenAdvanced = { if (settled()) navigator.go(AdvancedSettingsKey) },
@@ -741,6 +747,7 @@ private fun settingsViewModelFactory(container: AppContainer) = viewModelFactory
             salaryRepository = container.salaryRepository,
             lastBackup = container.backupHistory.last,
             backupSchedule = container.backupSchedule,
+            weekStart = container.weekStart,
             appThemeMode = container.themeMode,
         )
     }

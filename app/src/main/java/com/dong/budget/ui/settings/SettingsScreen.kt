@@ -22,9 +22,10 @@ import com.dong.budget.ui.components.BudgetTopAppBar
 import com.dong.budget.ui.components.SectionLabel
 import com.dong.budget.ui.components.SegmentedToggle
 import com.dong.budget.ui.theme.BudgetTheme
+import java.time.DayOfWeek
 
 /**
- * 설정. 위에서부터 화면 테마, 백업·복원, 권한(켜짐·꺼짐), 고급 설정(자동 기능 스위치·초기화)과 앱 정보(버전·업데이트)로 가는 줄이다.
+ * 설정. 위에서부터 화면 테마, 한 주 시작 요일, 백업·복원, 권한(켜짐·꺼짐), 고급 설정(자동 기능 스위치·초기화)과 앱 정보(버전·업데이트)로 가는 줄이다.
  * 묶음마다 회색 둥근 판에 담는다([SettingsGroup]).
  *
  * @param newerVersion 아직 설치하지 않은 새 버전. 있으면 앱 정보 줄에 알린다.
@@ -36,6 +37,8 @@ fun SettingsScreen(
     onThemeModeChange: (ThemeMode) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    weekStart: DayOfWeek = DayOfWeek.SUNDAY,
+    onWeekStartChange: (DayOfWeek) -> Unit = {},
     newerVersion: String? = null,
     onOpenAdvanced: () -> Unit = {},
     onOpenAppInfo: () -> Unit = {},
@@ -68,6 +71,14 @@ fun SettingsScreen(
                     icons = THEME_ORDER.map { it.iconRes() },
                 )
 
+                // 달력과 통계 요일별 줄이 이 요일부터 시작한다
+                SectionLabel("한 주 시작")
+                SegmentedToggle(
+                    options = WEEK_START_ORDER.map { formatWeekdayLong(it) },
+                    selectedIndex = WEEK_START_ORDER.indexOf(weekStart),
+                    onSelect = { index -> onWeekStartChange(WEEK_START_ORDER[index]) },
+                )
+
                 BackupSection(state = backup, lastBackup = lastBackup, schedule = backupSchedule, actions = backupActions)
 
                 PermissionSection()
@@ -89,6 +100,11 @@ fun SettingsScreen(
         }
     }
 }
+
+/** 한 주 시작 칸 순서 */
+private val WEEK_START_ORDER = listOf(DayOfWeek.SUNDAY, DayOfWeek.MONDAY)
+
+private fun formatWeekdayLong(day: DayOfWeek): String = if (day == DayOfWeek.SUNDAY) "일요일" else "월요일"
 
 /** 테마 칸 순서. 왼쪽 밝게, 가운데 기기 설정, 오른쪽 어둡게 */
 private val THEME_ORDER = listOf(ThemeMode.LIGHT, ThemeMode.SYSTEM, ThemeMode.DARK)

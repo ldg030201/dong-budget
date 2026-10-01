@@ -16,12 +16,14 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import java.time.DayOfWeek
 
 private val Context.settingsDataStore by preferencesDataStore(name = "app_settings")
 
 /** 앱 설정 저장소. 화면 테마와 자동 기능 스위치([AutoOption]), 자동 백업 주기를 다룬다. */
 class SettingsRepository(private val context: Context) {
     private val themeModeKey = stringPreferencesKey("theme_mode")
+    private val weekStartKey = stringPreferencesKey("week_start")
     private val backupOnKey = booleanPreferencesKey("backup_schedule_on")
     private val backupIntervalKey = stringPreferencesKey("backup_schedule_interval")
 
@@ -55,6 +57,23 @@ class SettingsRepository(private val context: Context) {
         DevLog.info(LogTag.SETTINGS, "${option.name} ${if (on) "켬" else "끔"}")
     }
 
+    /** 한 주를 시작하는 요일. 일요일이나 월요일이고, 적힌 적 없으면 일요일이다. */
+    val weekStart: Flow<DayOfWeek> =
+        preferences.map { preferences ->
+            if (preferences[weekStartKey] ==
+                DayOfWeek.MONDAY.name
+            ) {
+                DayOfWeek.MONDAY
+            } else {
+                DayOfWeek.SUNDAY
+            }
+        }.distinctUntilChanged()
+
+    suspend fun setWeekStart(day: DayOfWeek) {
+        require(day == DayOfWeek.SUNDAY || day == DayOfWeek.MONDAY) { "한 주는 일요일이나 월요일에 시작한다." }
+        context.settingsDataStore.edit { preferences -> preferences[weekStartKey] = day.name }
+    }
+
     /** 자동 백업을 할지와 주기. 적힌 적 없으면 기본값(켜짐, 1주마다)이다. */
     val backupSchedule: Flow<BackupSchedule> =
         preferences
@@ -73,7 +92,7 @@ class SettingsRepository(private val context: Context) {
         DevLog.info(LogTag.SETTINGS, "자동 백업 ${if (schedule.on) "켬 · ${schedule.interval.name}" else "끔"}")
     }
 
-    /** 설정 초기화. 테마는 기기 설정으로, 자동 기능은 모두 켜진 것으로, 자동 백업은 기본값으로 돌아간다(이 파일에는 이것들만 있다). 거래는 건드리지 않는다. */
+    /** 설정 초기화. 테마는 기기 설정으로, 한 주 시작은 일요일로, 자동 기능은 모두 켜진 것으로, 자동 백업은 기본값으로 돌아간다(이 파일에는 이것들만 있다). 거래는 건드리지 않는다. */
     suspend fun resetAll() {
         context.settingsDataStore.edit { preferences -> preferences.clear() }
         DevLog.info(LogTag.SETTINGS, "설정 초기화")

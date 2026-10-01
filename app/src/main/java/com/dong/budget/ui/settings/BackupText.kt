@@ -120,7 +120,7 @@ internal fun resetDataMessage(transactionCount: Int, autoBackup: Boolean = false
         "\n\n화면 테마와 자동 기능 설정은 그대로예요."
 
 internal const val RESET_SETTINGS_MESSAGE =
-    "화면 테마는 기기 설정으로, 자동 백업은 켜고 1주마다로, 고급 설정의 자동 기능은 모두 켜진 상태로 돌아가요. " +
+    "화면 테마는 기기 설정으로, 한 주 시작은 일요일로, 자동 백업은 켜고 1주마다로, 고급 설정의 자동 기능은 모두 켜진 상태로 돌아가요. " +
         "거래·분류·결제수단과 월급 설정은 그대로예요."
 
 internal const val COPIED_MESSAGE = "백업을 복사했어요"

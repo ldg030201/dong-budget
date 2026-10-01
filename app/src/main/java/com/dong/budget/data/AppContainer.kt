@@ -34,6 +34,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.withIndex
 import kotlinx.coroutines.launch
+import java.time.DayOfWeek
 
 /**
  * 수동 의존성 컨테이너.
@@ -143,6 +144,11 @@ class AppContainer(context: Context) {
      */
     val themeMode: StateFlow<ThemeMode> by lazy {
         settingsRepository.themeMode.stateIn(appScope, SharingStarted.Eagerly, ThemeMode.SYSTEM)
+    }
+
+    /** 한 주를 시작하는 요일의 지금 값. 달력이 처음 그려질 때 일요일로 그렸다가 바뀌지 않게 미리 따라간다. */
+    val weekStart: StateFlow<DayOfWeek> by lazy {
+        settingsRepository.weekStart.stateIn(appScope, SharingStarted.Eagerly, DayOfWeek.SUNDAY)
     }
 
     /** 자동 백업 설정의 지금 값. 테마처럼 설정을 열 때 스위치·주기가 기본값에서 저장된 값으로 미끄러지지 않게 미리 따라간다. */
