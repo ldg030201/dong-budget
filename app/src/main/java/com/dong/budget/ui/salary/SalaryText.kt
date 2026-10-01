@@ -12,6 +12,7 @@ import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
+import java.time.YearMonth
 import java.time.temporal.ChronoUnit
 import java.util.Locale
 import kotlin.math.floor
@@ -86,6 +87,22 @@ internal fun basisLine(settings: SalarySettings): String {
     val wage = settings.ordinaryHourlyWage
     if (wage <= 0) return basis
     return "$basis · 통상시급 ${formatAmount(floor(wage).toLong())}원 (월 ${settings.standardMonthlyHours}시간 기준)"
+}
+
+/**
+ * 1시간에 버는 돈(₩/h)이 통상시급과 다른 까닭. 통상시급은 주휴 시간까지 넣은 한 달 209시간으로 나누지만,
+ * 쌓이는 빠르기는 이번 월급 기간에 실제로 일하는 시간으로 나눈다. 그래서 일하는 날이 적은 달일수록 ₩/h 가 높다.
+ * "세전 월급을 주휴 시간을 빼고 이번 월급 기간에 실제로 일하는 160시간으로 나누면 시간당 13,481원이에요(₩/h)"
+ * @return 이번 월급 기간에 일하는 날이 없으면 null
+ */
+internal fun hourlyLine(settings: SalarySettings, payMonth: YearMonth?): String? {
+    payMonth ?: return null
+    val days = settings.workdaysIn(payMonth)
+    if (days == 0 || settings.workSecondsPerDay == 0L) return null
+    val hours = hoursAndMinutes(days * settings.workSecondsPerDay / SECONDS_PER_MINUTE)
+    val perHour = formatAmount((settings.perSecond(payMonth) * SECONDS_PER_HOUR).roundToLong())
+    val pay = if (settings.usesTakeHome) "실수령 월급을" else "세전 월급을"
+    return "$pay 주휴 시간을 빼고 이번 월급 기간에 실제로 일하는 ${hours}으로 나누면 시간당 ${perHour}원이에요(₩/h)"
 }
 
 /**

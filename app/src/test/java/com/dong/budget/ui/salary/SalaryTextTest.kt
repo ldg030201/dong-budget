@@ -8,6 +8,7 @@ import org.junit.Test
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
+import java.time.YearMonth
 
 class SalaryTextTest {
     private val salary = SalarySettings(amount = 3_000_000)
@@ -64,6 +65,28 @@ class SalaryTextTest {
         assertEquals("실수령 기준으로 쌓여요 · 통상시급 14,354원 (월 209시간 기준)", basisLine(salary.copy(takeHome = 2_600_000)))
         // 실수령만 적으면 통상시급을 셀 수 없다
         assertEquals("실수령 기준으로 쌓여요", basisLine(SalarySettings(takeHome = 2_600_000)))
+    }
+
+    @Test
+    fun `시간당 버는 돈은 주휴 시간을 빼고 이번 월급 기간에 실제로 일하는 시간으로 나눈다`() {
+        // 10월 월급 기간 9월 26일~10월 23일(25일이 일요일이라 금요일로 당김): 평일 20일 × 8시간 = 160시간
+        val october = YearMonth.of(2026, 10)
+        assertEquals(
+            "세전 월급을 주휴 시간을 빼고 이번 월급 기간에 실제로 일하는 160시간으로 나누면 시간당 18,750원이에요(₩/h)",
+            hourlyLine(salary, october),
+        )
+        assertEquals(
+            "실수령 월급을 주휴 시간을 빼고 이번 월급 기간에 실제로 일하는 160시간으로 나누면 시간당 16,250원이에요(₩/h)",
+            hourlyLine(salary.copy(takeHome = 2_600_000), october),
+        )
+        // 하루 8시간 30분이면 170시간
+        assertEquals(
+            "세전 월급을 주휴 시간을 빼고 이번 월급 기간에 실제로 일하는 170시간으로 나누면 시간당 17,647원이에요(₩/h)",
+            hourlyLine(salary.copy(workEnd = LocalTime.of(18, 30)), october),
+        )
+        // 오늘 번 돈 옆 ₩/h 와 같은 값이다
+        assertEquals("₩18,750/h", perHourBadge(salary.perSecond(october)))
+        assertEquals(null, hourlyLine(salary, null))
     }
 
     @Test
