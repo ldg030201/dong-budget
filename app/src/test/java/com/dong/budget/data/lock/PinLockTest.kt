@@ -144,4 +144,30 @@ class PinLockTest {
         assertFalse(PinLock.isValidPin("12a4"))
         assertFalse(PinLock.isValidPin("١٢٣٤"))
     }
+
+    @Test
+    fun `2중 잠금을 끄면 앱 잠금이 켜져 있는 동안만 따로 묻지 않고, PIN 은 남는다`() {
+        lock.setPin("1234")
+        lock.lock()
+        // 처음에는 2중 잠금이라 앱 잠금이 켜져 있어도 따로 묻는다
+        assertTrue(lock.state.value.double)
+        assertFalse(lock.isOpen(appLockOn = true))
+
+        lock.setDouble(false)
+        assertTrue(lock.isOpen(appLockOn = true))
+        // 앱 잠금을 끄면 다시 이 잠금이 지킨다
+        assertFalse(lock.isOpen(appLockOn = false))
+        assertFalse(PinLock(prefs).state.value.double)
+
+        // 안에서 다시 켜면 그 자리에서 잠기지 않고, 나갔다 오면 다시 묻는다
+        lock.setDouble(true)
+        assertTrue(lock.isOpen(appLockOn = true))
+        lock.lock()
+        assertFalse(lock.isOpen(appLockOn = true))
+
+        // 잠금을 끄면 2중 잠금 선택도 처음대로
+        lock.setDouble(false)
+        lock.disable()
+        assertTrue(lock.state.value.double)
+    }
 }

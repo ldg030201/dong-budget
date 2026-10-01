@@ -75,7 +75,7 @@ import com.dong.budget.ui.theme.Motion
 @Composable
 fun SalaryTabGate(
     state: PinLock.State,
-    unlocked: Boolean,
+    open: Boolean,
     onIntroConfirm: (lock: Boolean) -> Unit,
     onUnlock: (String) -> PinLock.Attempt,
     onBiometricSuccess: () -> Unit,
@@ -89,7 +89,7 @@ fun SalaryTabGate(
                 SalaryIntro(onConfirm = onIntroConfirm)
             }
 
-        state.enabled && !unlocked ->
+        !open ->
             Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
                 SalaryHeader(onOpenSettings = null)
                 SalaryLockScreen(state.biometric, onUnlock, onBiometricSuccess, onForgot)

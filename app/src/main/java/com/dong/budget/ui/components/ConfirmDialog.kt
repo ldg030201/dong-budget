@@ -21,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.dong.budget.ui.theme.BudgetTheme
 import com.dong.budget.ui.theme.pressScaleClickable
 
@@ -50,10 +51,15 @@ fun ConfirmDialog(
     /** 맨 아래에 흐리게 둘 동작('다시 안 보기' 등). 보조 동작보다도 눈에 덜 띈다. 없으면 null */
     footerLabel: String? = null,
     onFooter: () -> Unit = {},
+    /** 바깥을 누르거나 뒤로 가기로 닫을 수 있는지. 두 버튼 중 하나를 꼭 골라야 하는 창은 false 다. */
+    cancelable: Boolean = true,
 ) {
     // 앱이 잠긴 동안에는 잠금 화면 위로 뜨지 않게 그리지 않는다. 묻던 것은 풀린 뒤에 다시 뜬다.
     if (LocalAppLocked.current) return
-    Dialog(onDismissRequest = onDismiss) {
+    Dialog(
+        onDismissRequest = { if (cancelable) onDismiss() },
+        properties = DialogProperties(dismissOnBackPress = cancelable, dismissOnClickOutside = cancelable),
+    ) {
         Surface(
             shape = RoundedCornerShape(BudgetTheme.radius.sheet),
             color = MaterialTheme.colorScheme.surface,

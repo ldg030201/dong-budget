@@ -32,8 +32,15 @@ class PinLock(
      * @property introDone 처음 안내를 확인했는지. 월급 탭만 쓴다(연봉 공개 주의).
      * @property enabled PIN 을 정해 잠가 두었는지
      * @property biometric 지문으로도 열지
+     * @property double 2중 잠금. 앱 잠금이 켜져 있어도 이 잠금을 따로 한 번 더 물을지. 월급 잠금만 쓴다(처음에는 켜짐).
+     *   끄면 앱 잠금이 켜져 있는 동안은 앱 잠금이 대신 지킨다([isOpen]). PIN 은 남아 있어 앱 잠금을 끄면 다시 묻는다.
      */
-    data class State(val introDone: Boolean = false, val enabled: Boolean = false, val biometric: Boolean = false)
+    data class State(
+        val introDone: Boolean = false,
+        val enabled: Boolean = false,
+        val biometric: Boolean = false,
+        val double: Boolean = true,
+    )
 
     private val _state = MutableStateFlow(read())
     val state: StateFlow<State> = _state.asStateFlow()
@@ -46,8 +53,12 @@ class PinLock(
     private var failures = 0
     private var blockedUntil = 0L
 
-    /** 지금 잠긴 것(월급 탭, 앱)을 보여 줘도 되는지 */
-    fun isOpen(state: State = _state.value, unlocked: Boolean = _unlocked.value): Boolean = !state.enabled || unlocked
+    /**
+     * 지금 잠긴 것(월급 탭, 앱)을 보여 줘도 되는지
+     * @param appLockOn 앱 잠금이 켜져 있는지. 켜져 있고 2중 잠금([State.double])을 껐으면 따로 묻지 않는다.
+     */
+    fun isOpen(state: State = _state.value, unlocked: Boolean = _unlocked.value, appLockOn: Boolean = false): Boolean =
+        !state.enabled || unlocked || (appLockOn && !state.double)
 
     fun markIntroDone() {
         prefs.edit { putBoolean(KEY_INTRO, true) }
@@ -69,15 +80,27 @@ class PinLock(
         DevLog.info(logTag, "$label PIN 을 정했어요")
     }
 
-    /** 잠금을 끈다. 지문도 같이 끈다. */
+    /** 잠금을 끈다. 지문과 2중 잠금 선택도 같이 지운다(다시 켜면 처음처럼 2중 잠금이다). */
     fun disable() {
         prefs.edit {
             remove(KEY_HASH)
             remove(KEY_SALT)
             remove(KEY_BIOMETRIC)
+            remove(KEY_DOUBLE)
         }
         _state.value = read()
         DevLog.info(logTag, "${label}을 껐어요")
+    }
+
+    /**
+     * 2중 잠금을 켜고 끈다([State.double]).
+     * 켤 때는 지금 열린 채로 둔다. 월급 설정 안에서 켜는 사람은 이미 앱 잠금을 풀고 들어와 있어, 켜자마자 그 화면을 잠그지 않는다.
+     */
+    fun setDouble(on: Boolean) {
+        prefs.edit { putBoolean(KEY_DOUBLE, on) }
+        if (on) _unlocked.value = true
+        _state.value = read()
+        DevLog.info(logTag, "$label 2중 잠금 ${if (on) "켬" else "끔"}")
     }
 
     fun setBiometric(on: Boolean) {
@@ -132,6 +155,7 @@ class PinLock(
             remove(KEY_HASH)
             remove(KEY_SALT)
             remove(KEY_BIOMETRIC)
+            remove(KEY_DOUBLE)
             if (!keepIntro) remove(KEY_INTRO)
         }
         _state.value = read()
@@ -144,6 +168,7 @@ class PinLock(
         introDone = prefs.getBoolean(KEY_INTRO, false),
         enabled = prefs.contains(KEY_HASH),
         biometric = prefs.contains(KEY_HASH) && prefs.getBoolean(KEY_BIOMETRIC, false),
+        double = prefs.getBoolean(KEY_DOUBLE, true),
     )
 
     /** PIN 으로 풀어 본 결과 */
@@ -169,6 +194,7 @@ class PinLock(
         private const val KEY_HASH = "pin_hash"
         private const val KEY_SALT = "pin_salt"
         private const val KEY_BIOMETRIC = "biometric"
+        private const val KEY_DOUBLE = "double_lock"
         private const val SALT_BYTES = 16
         private const val MAX_FAILURES = 5
         private const val BLOCK_MILLIS = 30_000L
