@@ -108,7 +108,7 @@ class AdvancedSettingsViewModel(
                                 paymentCapture.clearInbox()
                                 // 처음 설치한 상태라 월급 설정도 지운다(월급날 알림 기록과 떠 있는 알림도)
                                 clearSalary()
-                                listOfNotNull(RESET_DATA_DONE, savedAs?.let(::autoBackupSavedNote)).joinToString("\n")
+                                listOfNotNull(RESET_DATA_DONE, savedAs?.let { AUTO_BACKUP_SAVED_NOTE }).joinToString("\n")
                             }
                         }
                     }

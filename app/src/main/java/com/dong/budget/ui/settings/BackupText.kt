@@ -61,8 +61,11 @@ internal enum class AutoBackupReason(val suffix: String) {
 /** 지우기 전 자동 백업의 파일 이름. "동계부-백업-2026-10-01-복원전.json" */
 internal fun autoBackupFileName(today: LocalDate, reason: AutoBackupReason): String = "동계부-백업-$today-${reason.suffix}.json"
 
-/** 지우기 전에 자동으로 저장한 파일을 알린다. 지운 뒤에 알리는 글 아래에 붙인다. */
-internal fun autoBackupSavedNote(fileName: String): String = "지우기 전 데이터는 다운로드 폴더에 저장했어요 · $fileName"
+/**
+ * 지우기 전에 자동으로 저장했다고 알린다. 지운 뒤에 알리는 글 아래 줄에 붙인다.
+ * 토스트는 두 줄까지만 보여서 파일 이름은 넣지 않는다(이름은 날짜와 '복원전·초기화전' 이라 다운로드 폴더에서 바로 보인다).
+ */
+internal const val AUTO_BACKUP_SAVED_NOTE = "지운 데이터는 다운로드 폴더에 있어요"
 
 /** 묻는 창에서 지우기 전에 자동으로 백업한다고 알리는 말 */
 private const val AUTO_BACKUP_NOTICE = "지우기 전에 지금 데이터를 다운로드 폴더에 백업 파일로 저장해 둬요."
@@ -105,10 +108,8 @@ internal const val RESET_DATA_FAILED = "데이터를 지우지 못했어요. 지
 internal const val RESET_SETTINGS_FAILED = "설정을 되돌리지 못했어요"
 internal const val RESET_DATA_PARTLY_FAILED = "거래는 지웠지만 알림 목록이나 월급 설정을 다 지우지 못했어요. 다시 해 주세요"
 internal const val RESTORE_SALARY_FAILED_MESSAGE = "거래는 되살렸지만 월급 설정을 되살리지 못했어요"
-internal const val AUTO_BACKUP_FAILED_RESTORE =
-    "지금 데이터를 백업 파일로 저장하지 못해서 복원하지 않았어요. 고급 설정에서 자동 백업을 끄면 백업 없이 복원할 수 있어요"
-internal const val AUTO_BACKUP_FAILED_RESET =
-    "지금 데이터를 백업 파일로 저장하지 못해서 지우지 않았어요. 고급 설정에서 자동 백업을 끄면 백업 없이 지울 수 있어요"
+internal const val AUTO_BACKUP_FAILED_RESTORE = "백업 파일을 저장하지 못해 복원하지 않았어요"
+internal const val AUTO_BACKUP_FAILED_RESET = "백업 파일을 저장하지 못해 지우지 않았어요"
 
 /** 다운로드 폴더에 저장했을 때. 파일 관리자에서 찾을 수 있게 이름을 알린다. */
 internal fun savedMessage(fileName: String): String = "다운로드 폴더에 저장했어요 · $fileName"
