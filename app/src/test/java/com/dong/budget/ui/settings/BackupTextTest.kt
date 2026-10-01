@@ -2,8 +2,10 @@ package com.dong.budget.ui.settings
 
 import com.dong.budget.data.backup.Backup
 import com.dong.budget.data.backup.BackupCategory
+import com.dong.budget.data.backup.BackupInterval
 import com.dong.budget.data.backup.BackupKind
 import com.dong.budget.data.backup.BackupPaymentMethod
+import com.dong.budget.data.backup.BackupSchedule
 import com.dong.budget.data.backup.BackupTransaction
 import com.dong.budget.data.backup.LastBackup
 import com.dong.budget.data.db.CategoryScope
@@ -39,7 +41,21 @@ class BackupTextTest {
         val lateNight = Instant.parse("2026-09-28T14:00:00Z")
         assertEquals("마지막 백업 · 어제 · JSON 복사", lastBackupText(LastBackup(lateNight, BackupKind.COPY), today))
         val longAgo = Instant.parse("2026-08-01T03:00:00Z")
-        assertEquals("마지막 백업 · 59일 전 · 자동 백업", lastBackupText(LastBackup(longAgo, BackupKind.AUTO), today))
+        assertEquals("마지막 백업 · 59일 전 · 자동 백업", lastBackupText(LastBackup(longAgo, BackupKind.SCHEDULED), today))
+        assertEquals("마지막 백업 · 오늘 · 지우기 전 백업", lastBackupText(LastBackup(morning, BackupKind.BEFORE_REPLACE), today))
+    }
+
+    @Test
+    fun `자동 백업 설명은 주기와 남기는 파일 수를 알린다`() {
+        assertEquals(
+            "앱을 열 때 1주마다 다운로드 폴더에 저장해요. 자동 백업 파일은 최근 3개만 남기고 지워요",
+            scheduleDescription(BackupSchedule.DEFAULT),
+        )
+        assertTrue(scheduleDescription(BackupSchedule(interval = BackupInterval.DAILY)).startsWith("앱을 열 때 하루에 한 번 "))
+        assertEquals("켜면 정한 주기마다 다운로드 폴더에 백업 파일을 저장해요", scheduleDescription(BackupSchedule(on = false)))
+        // 주기 칸은 모든 주기를 한 번씩 담는다
+        assertEquals(BackupInterval.entries.toSet(), INTERVAL_ORDER.toSet())
+        assertEquals(BackupInterval.entries.size, INTERVAL_ORDER.size)
     }
 
     @Test

@@ -1,7 +1,9 @@
 package com.dong.budget.ui.settings
 
 import com.dong.budget.data.backup.Backup
+import com.dong.budget.data.backup.BackupInterval
 import com.dong.budget.data.backup.BackupKind
+import com.dong.budget.data.backup.BackupSchedule
 import com.dong.budget.data.backup.LastBackup
 import com.dong.budget.data.db.BudgetTime
 import com.dong.budget.ui.format.formatAmount
@@ -46,8 +48,34 @@ private val BackupKind.label: String
     get() = when (this) {
         BackupKind.COPY -> "JSON 복사"
         BackupKind.FILE -> "파일로 저장"
-        BackupKind.AUTO -> "자동 백업"
+        BackupKind.BEFORE_REPLACE -> "지우기 전 백업"
+        BackupKind.SCHEDULED -> "자동 백업"
     }
+
+/** 주기를 고르는 칸 순서. 짧은 것부터 */
+internal val INTERVAL_ORDER = listOf(BackupInterval.DAILY, BackupInterval.EVERY_3_DAYS, BackupInterval.WEEKLY, BackupInterval.MONTHLY)
+
+/** 주기 칸 글자 */
+internal val BackupInterval.shortLabel: String
+    get() = when (this) {
+        BackupInterval.DAILY -> "매일"
+        BackupInterval.EVERY_3_DAYS -> "3일"
+        BackupInterval.WEEKLY -> "1주"
+        BackupInterval.MONTHLY -> "1달"
+    }
+
+/** 자동 백업 스위치 아래 설명. 켜져 있으면 주기와 몇 개를 남기는지 알린다. */
+internal fun scheduleDescription(schedule: BackupSchedule): String {
+    if (!schedule.on) return "켜면 정한 주기마다 다운로드 폴더에 백업 파일을 저장해요"
+    val every =
+        when (schedule.interval) {
+            BackupInterval.DAILY -> "하루에 한 번"
+            BackupInterval.EVERY_3_DAYS -> "3일마다"
+            BackupInterval.WEEKLY -> "1주마다"
+            BackupInterval.MONTHLY -> "1달마다"
+        }
+    return "앱을 열 때 $every 다운로드 폴더에 저장해요. 자동 백업 파일은 최근 ${BackupSchedule.KEEP_FILES}개만 남기고 지워요"
+}
 
 /** 다운로드 폴더에 저장할 이름. 같은 날 또 저장하면 시스템이 뒤에 번호를 붙인다. */
 internal fun backupFileName(today: LocalDate): String = "동계부-백업-$today.json"
@@ -92,7 +120,8 @@ internal fun resetDataMessage(transactionCount: Int, autoBackup: Boolean = false
         "\n\n화면 테마와 자동 기능 설정은 그대로예요."
 
 internal const val RESET_SETTINGS_MESSAGE =
-    "화면 테마는 기기 설정으로, 고급 설정의 자동 기능은 모두 켜진 상태로 돌아가요. 거래·분류·결제수단과 월급 설정은 그대로예요."
+    "화면 테마는 기기 설정으로, 자동 백업은 켜고 1주마다로, 고급 설정의 자동 기능은 모두 켜진 상태로 돌아가요. " +
+        "거래·분류·결제수단과 월급 설정은 그대로예요."
 
 internal const val COPIED_MESSAGE = "백업을 복사했어요"
 internal const val COPY_FAILED_MESSAGE = "거래가 많아 복사할 수 없어요. '파일로 내려받기'를 써 주세요"

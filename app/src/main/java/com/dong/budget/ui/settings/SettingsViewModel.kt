@@ -10,6 +10,7 @@ import com.dong.budget.data.backup.BackupExporter
 import com.dong.budget.data.backup.BackupKind
 import com.dong.budget.data.backup.BackupRead
 import com.dong.budget.data.backup.BackupRepository
+import com.dong.budget.data.backup.BackupSchedule
 import com.dong.budget.data.backup.BackupStorage
 import com.dong.budget.data.backup.LastBackup
 import com.dong.budget.data.backup.parseBackupTime
@@ -57,6 +58,8 @@ class SettingsViewModel(
     private val salaryRepository: SalaryRepository,
     /** 마지막으로 백업한 때. 백업 묶음 맨 위에 보인다. */
     val lastBackup: StateFlow<LastBackup?> = MutableStateFlow(null),
+    /** 자동 백업 설정. 앱이 켜질 때부터 따라가는 값이라 스위치가 처음부터 저장된 자리에 있다(AppContainer.backupSchedule). */
+    val backupSchedule: StateFlow<BackupSchedule> = MutableStateFlow(BackupSchedule.DEFAULT),
     appThemeMode: StateFlow<ThemeMode> = MutableStateFlow(ThemeMode.SYSTEM),
 ) : ViewModel() {
     /** 앱이 켜질 때부터 따라가는 테마 값이라 처음 그릴 때부터 저장된 칸에 있다 */
@@ -72,6 +75,10 @@ class SettingsViewModel(
 
     fun selectThemeMode(mode: ThemeMode) {
         viewModelScope.launch { settingsRepository.setThemeMode(mode) }
+    }
+
+    fun setBackupSchedule(schedule: BackupSchedule) {
+        viewModelScope.launch { settingsRepository.setBackupSchedule(schedule) }
     }
 
     private val _backup = MutableStateFlow(BackupUiState())
@@ -201,7 +208,7 @@ class SettingsViewModel(
  * @return 저장한 파일 이름. 저장하지 못했으면 null 이고, 그때는 지우지 않는다.
  */
 internal suspend fun BackupExporter.saveBeforeReplace(reason: AutoBackupReason): String? =
-    saveFile(autoBackupFileName(LocalDate.now(BudgetTime.ZONE), reason), BackupKind.AUTO).fold(
+    saveFile(autoBackupFileName(LocalDate.now(BudgetTime.ZONE), reason), BackupKind.BEFORE_REPLACE).fold(
         onSuccess = { name ->
             DevLog.info(LogTag.BACKUP, "지우기 전 자동 백업 · $name")
             name

@@ -166,6 +166,8 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
         scope.launch {
             if (container.settingsRepository.autoSettings.first()[AutoOption.UPDATE_CHECK]) container.updateChecker.checkIfDue()
         }
+        // 자동 백업 주기가 지났으면 다운로드 폴더에 저장한다(설정 > 백업 > 자동 백업)
+        container.runScheduledBackup()
         onStopOrDispose {}
     }
 
@@ -389,6 +391,7 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
                             val newerVersion by viewModel.newerVersion.collectAsStateWithLifecycle()
                             val backup by viewModel.backup.collectAsStateWithLifecycle()
                             val lastBackup by viewModel.lastBackup.collectAsStateWithLifecycle()
+                            val backupSchedule by viewModel.backupSchedule.collectAsStateWithLifecycle()
                             ShowToasts(viewModel.messages)
                             // 설정은 전체의 톱니에서 들어온다. 들어오는 중에 두 번 누른 탭이 아래 줄(고급 설정·앱 정보)에 떨어지지 않게 한다.
                             val settled = rememberSettled()
@@ -403,6 +406,7 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
                                 onOpenAppInfo = { if (settled()) navigator.go(AppInfoKey) },
                                 backup = backup,
                                 lastBackup = lastBackup,
+                                backupSchedule = backupSchedule,
                                 backupActions =
                                 BackupActions(
                                     onCopy = viewModel::copyBackup,
@@ -411,6 +415,7 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
                                     onRestorePasted = viewModel::readRestorePasted,
                                     onConfirmRestore = viewModel::confirmRestore,
                                     onDismissRestore = viewModel::dismissRestore,
+                                    onScheduleChange = viewModel::setBackupSchedule,
                                 ),
                             )
                         }
@@ -734,6 +739,7 @@ private fun settingsViewModelFactory(container: AppContainer) = viewModelFactory
             backupExporter = container.backupExporter,
             salaryRepository = container.salaryRepository,
             lastBackup = container.backupHistory.last,
+            backupSchedule = container.backupSchedule,
             appThemeMode = container.themeMode,
         )
     }
