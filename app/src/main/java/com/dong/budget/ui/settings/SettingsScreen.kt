@@ -22,7 +22,7 @@ import com.dong.budget.ui.components.SegmentedToggle
 import com.dong.budget.ui.theme.BudgetTheme
 
 /**
- * 설정. 위에서부터 화면 테마, 백업·복원, 고급 설정(자동 기능 스위치·초기화)과 앱 정보(버전·업데이트)로 가는 줄이다.
+ * 설정. 위에서부터 화면 테마, 백업·복원, 권한(켜짐·꺼짐), 고급 설정(자동 기능 스위치·초기화)과 앱 정보(버전·업데이트)로 가는 줄이다.
  * 묶음마다 회색 둥근 판에 담는다([SettingsGroup]).
  *
  * @param newerVersion 아직 설치하지 않은 새 버전. 있으면 앱 정보 줄에 알린다.
@@ -65,6 +65,8 @@ fun SettingsScreen(
                 )
 
                 BackupSection(state = backup, actions = backupActions)
+
+                PermissionSection()
 
                 SettingsGroup(title = null) {
                     ActionRow(title = "고급 설정", onClick = onOpenAdvanced, opensScreen = true)

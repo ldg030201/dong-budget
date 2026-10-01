@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.provider.Settings
+import android.widget.Toast
 import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -31,14 +32,21 @@ import com.dong.budget.ui.components.ConfirmDialog
  * 대부분은 앱 안에서 '허용' 창을 띄울 수 없어 기기 설정 화면으로 보내 켜게 한다.
  * [runtimePermission] 이 있는 것은 처음 한 번은 앱 안에서 시스템 '허용' 창을 띄울 수 있다.
  * 앱을 켤 때 꺼져 있는 것이 있으면 [PermissionGate] 가 안내창을 띄운다. 안내 순서는 여기 적은 순서다.
+ * 설정의 '권한' 묶음은 켜짐·꺼짐을 [label] 과 [summary] 로 보여 준다.
+ *
+ * @property title 안내창 제목
+ * @property label 설정의 권한 줄 이름
+ * @property summary 설정의 권한 줄 아래 한 줄 설명
  */
-enum class AppPermission(val title: String, private val baseMessage: String) {
+enum class AppPermission(val title: String, private val baseMessage: String, val label: String, val summary: String) {
     /** '출처를 알 수 없는 앱 설치'. 앱 안에서 새 버전을 설치할 때 필요하다. */
     INSTALL_UPDATES(
         title = "업데이트 설치를 허용해 주세요",
         baseMessage =
         "새 버전을 앱 안에서 바로 설치하려면 '출처를 알 수 없는 앱 설치'에서 동계부를 허용해야 해요.\n" +
             "설정 화면에서 허용을 켜고 돌아와 주세요.",
+        label = "업데이트 설치",
+        summary = "새 버전을 앱 안에서 바로 설치해요",
     ),
 
     /**
@@ -51,6 +59,8 @@ enum class AppPermission(val title: String, private val baseMessage: String) {
         baseMessage =
         "토스 결제 알림을 읽으면 '가계부에 등록할까요?' 알림을 보내요. 알림을 누르면 결제 내용이 채워진 등록창이 열려요.\n" +
             "월급날에는 '월급 들어왔나요?' 알림도 보내요.",
+        label = "알림 보내기",
+        summary = "'가계부에 등록할까요?'와 월급날 알림을 띄워요",
     ),
 
     /** '알림 읽기'. 토스 결제 알림을 읽는 데 필요하다. */
@@ -63,6 +73,8 @@ enum class AppPermission(val title: String, private val baseMessage: String) {
             "토스 결제 알림만 골라 쓰고, 다른 앱의 알림은 저장하거나 어디로 보내지 않아요.\n\n" +
             "스위치를 눌렀는데 '제한된 설정' 창이 뜨면, 아래 '앱 정보 열기'를 눌러 오른쪽 위 ⋮ 에서 " +
             "'제한된 설정 허용'을 누른 뒤 다시 켜 주세요.",
+        label = "결제 알림 읽기",
+        summary = "토스 결제 알림을 읽어 가계부에 등록할지 물어요",
     ),
     ;
 
@@ -141,8 +153,14 @@ private const val GALAXY_AUTO_BLOCKER_NOTE =
 private fun promptHistory(context: Context) =
     SystemPromptHistory(context.getSharedPreferences(SystemPromptHistory.PREFS_NAME, Context.MODE_PRIVATE))
 
+private fun hiddenPrompts(context: Context) =
+    HiddenPermissionPrompts(context.getSharedPreferences(HiddenPermissionPrompts.PREFS_NAME, Context.MODE_PRIVATE))
+
+/** '다시 안 보기' 를 눌렀을 때. 다시 켜는 곳을 알려 준다. */
+internal const val HIDDEN_PROMPT_MESSAGE = "다시 안내하지 않을게요. 전체 > 설정 > 권한에서 언제든 켤 수 있어요"
+
 /** 설정 화면을 연다. 제조사가 해당 화면을 막아둔 기기에서는 동계부의 앱 정보 화면으로 대신 간다. */
-private fun openSettings(context: Context, permission: AppPermission) {
+internal fun openSettings(context: Context, permission: AppPermission) {
     context.startFirst(permission.settingsIntents(context) + appInfoIntent(context))
 }
 
@@ -156,9 +174,17 @@ private fun appInfoIntent(context: Context) = Intent(Settings.ACTION_APPLICATION
  *
  * 시스템 '허용' 창을 띄울 수 있는 권한이면 [허용하기] 로 그 창을 띄우고([onRequest]),
  * 아니면 [설정으로 가기] 로 그 권한을 켜는 설정 화면으로 바로 간다.
+ *
+ * @param onHide 맨 아래 '다시 안 보기'. 앱을 켤 때 저절로 뜨는 안내([PermissionGate])에만 둔다. 없으면 버튼도 없다.
  */
 @Composable
-fun PermissionDialog(permission: AppPermission, onGoToSettings: () -> Unit, onLater: () -> Unit, onRequest: ((String) -> Unit)? = null) {
+fun PermissionDialog(
+    permission: AppPermission,
+    onGoToSettings: () -> Unit,
+    onLater: () -> Unit,
+    onRequest: ((String) -> Unit)? = null,
+    onHide: (() -> Unit)? = null,
+) {
     val context = LocalContext.current
     val activity = LocalActivity.current
     // 다시 그릴 때마다 저장소를 찾지 않는다
@@ -189,6 +215,8 @@ fun PermissionDialog(permission: AppPermission, onGoToSettings: () -> Unit, onLa
             permission.openExtra(context)
             onGoToSettings()
         },
+        footerLabel = if (onHide != null) "다시 안 보기" else null,
+        onFooter = { onHide?.invoke() },
     )
 }
 
@@ -198,10 +226,12 @@ fun PermissionDialog(permission: AppPermission, onGoToSettings: () -> Unit, onLa
  * [나중에] 를 누른 권한은 앱을 다시 켤 때까지 묻지 않는다. 쓸 때만 필요한 권한을
  * 화면을 오갈 때마다 물으면 성가시다. 설정 화면에 다녀왔는데도 여전히 꺼져 있으면 한 번 더 묻는다.
  * 시스템 '허용' 창에서 거절한 것도 [나중에] 와 같게 본다.
+ * [다시 안 보기] 를 누른 권한은 앱을 다시 켜도 묻지 않는다. 설정의 '권한' 묶음에서 켤 수 있다고 알린다.
  */
 @Composable
 fun PermissionGate() {
     val context = LocalContext.current
+    val hidden = remember(context) { hiddenPrompts(context) }
     // enum 이름으로 저장한다. 화면이 다시 만들어져도 '나중에' 가 유지되게 한다.
     var postponed by rememberSaveable { mutableStateOf(emptySet<String>()) }
     var missing by remember { mutableStateOf<AppPermission?>(null) }
@@ -224,7 +254,7 @@ fun PermissionGate() {
         }
 
     LifecycleResumeEffect(postponed) {
-        missing = AppPermission.entries.firstOrNull { it.name !in postponed && !it.isGranted(context) }
+        missing = AppPermission.entries.firstOrNull { it.name !in postponed && !hidden.isHidden(it) && !it.isGranted(context) }
         onPauseOrDispose {}
     }
 
@@ -242,6 +272,13 @@ fun PermissionGate() {
                 rationaleBefore = activity?.shouldShowRequestPermissionRationale(runtime) ?: false
                 missing = null
                 launcher.launch(runtime)
+            },
+            onHide = {
+                hidden.hide(permission)
+                // 다음 꺼진 권한이 있으면 이어서 묻는다(LifecycleResumeEffect 가 postponed 를 보고 다시 고른다)
+                postponed = postponed + permission.name
+                missing = null
+                Toast.makeText(context, HIDDEN_PROMPT_MESSAGE, Toast.LENGTH_LONG).show()
             },
         )
     }
