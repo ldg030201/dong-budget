@@ -40,6 +40,11 @@ class InboxViewModel(
         viewModelScope.launch(Dispatchers.IO) { capture.markAllRead(dedupKeys) }
     }
 
+    /** '읽은 알림 지우기'. [dedupKeys] 는 화면에 있던 읽은 결제다(PaymentCapture.deleteRead). */
+    fun deleteRead(dedupKeys: List<String>) {
+        viewModelScope.launch(Dispatchers.IO) { capture.deleteRead(dedupKeys) }
+    }
+
     private companion object {
         const val STOP_TIMEOUT_MS = 5_000L
     }

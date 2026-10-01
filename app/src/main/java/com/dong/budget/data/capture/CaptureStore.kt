@@ -118,6 +118,24 @@ class CaptureStore(private val prefs: SharedPreferences, private val now: () -> 
         return shown.map { it.payment.dedupKey }
     }
 
+    /**
+     * 알림 목록에서 [dedupKeys] 를 지운다(읽은 알림 지우기). [hideAll] 처럼 기록은 숨기기만 해서 다시 묻지 않는다.
+     * @return 이번에 답한 것으로 바뀐 결제의 열쇠. 그 묻는 알림이 알림창에 떠 있을 수 있어 부르는 쪽이 치운다.
+     */
+    @Synchronized
+    fun hide(dedupKeys: Collection<String>): List<String> {
+        val keys = dedupKeys.toSet()
+        val shown = liveEntries().filter { it.payment.dedupKey in keys && !it.hidden }
+        if (shown.isEmpty()) return emptyList()
+        prefs.edit {
+            shown.forEach {
+                putString(KEY_PREFIX + it.payment.dedupKey, json.encodeToString(it.copy(answered = true, read = true, hidden = true)))
+            }
+        }
+        revision.update { it + 1 }
+        return shown.filterNot { it.answered }.map { it.payment.dedupKey }
+    }
+
     /** 알림 목록에 보여줄 기록. 최근 결제부터. */
     @Synchronized
     fun records(): List<CaptureRecord> = liveEntries().filterNot {
@@ -165,7 +183,7 @@ class CaptureStore(private val prefs: SharedPreferences, private val now: () -> 
     /**
      * @property answered 답했는지. 0.1.6 에서 'dismissed' 라는 이름으로 저장했으므로 저장 이름은 그대로 둔다.
      * @property read 눌러 봤는지. 1.1.0 에서 생겼다. 그전 기록은 읽지 않은 것으로 읽힌다.
-     * @property hidden 알림 목록에서 숨겼는지(데이터 초기화, [hideAll]). 목록에도 안 보이고 눌러도 열리지 않지만, 다시 묻지는 않는다.
+     * @property hidden 알림 목록에서 숨겼는지(데이터 초기화 [hideAll], 읽은 알림 지우기 [hide]). 목록에도 안 보이고 눌러도 열리지 않지만, 다시 묻지는 않는다.
      */
     @Serializable
     private data class Entry(

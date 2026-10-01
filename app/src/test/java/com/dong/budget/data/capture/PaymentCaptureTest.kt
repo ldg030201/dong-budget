@@ -328,6 +328,25 @@ class PaymentCaptureTest {
     }
 
     @Test
+    fun `읽은 알림을 지우면 목록에서 빠지고, 떠 있던 묻는 알림도 치우고, 다시 묻지 않는다`() = runBlocking {
+        val capture = capture()
+        assertTrue(capture.post(title = "1,000원 결제", text = "하나카드 | 읽은가게", at = clock - 2_000))
+        assertTrue(capture.post(title = "2,000원 결제", text = "하나카드 | 새가게", at = clock - 1_000))
+        val (read, fresh) = prompt.asked.map { it.dedupKey }
+        capture.markRead(read)
+
+        capture.deleteRead(listOf(read))
+
+        assertEquals(listOf(fresh), capture.records.first().map { it.payment.dedupKey })
+        assertEquals(listOf(read), prompt.dismissed)
+        // 지운 결제는 알림창에 토스 알림이 남아 있어도 다시 묻지 않고, 되살리지도 않는다
+        assertFalse(capture.post(title = "1,000원 결제", text = "하나카드 | 읽은가게", at = clock - 2_000))
+        capture.restorePrompts(showing = emptySet())
+        assertTrue(prompt.restored.none { it.dedupKey == read })
+        assertNull(capture.find(read))
+    }
+
+    @Test
     fun `모두 읽음은 목록에 보이던 결제만 처리한다`() = runBlocking {
         val capture = capture()
         capture.post(text = "하나카드 | 가게1(일시불)", at = clock - 1_000)
