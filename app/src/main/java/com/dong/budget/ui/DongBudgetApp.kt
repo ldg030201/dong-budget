@@ -543,6 +543,7 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
                                     if (settled()) scope.launch { openCaptured(dedupKey, container, navigator, context) }
                                 },
                                 onMarkAllRead = { dedupKeys -> if (settled()) viewModel.markAllRead(dedupKeys) },
+                                onDeleteRead = viewModel::deleteRead,
                             )
                         }
 

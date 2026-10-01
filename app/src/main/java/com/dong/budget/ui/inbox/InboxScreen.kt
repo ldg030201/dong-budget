@@ -29,6 +29,9 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -39,6 +42,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import com.dong.budget.data.capture.CaptureStore
 import com.dong.budget.ui.components.BudgetTextButton
 import com.dong.budget.ui.components.BudgetTopAppBar
+import com.dong.budget.ui.components.ConfirmDialog
 import com.dong.budget.ui.components.NoticeDot
 import com.dong.budget.ui.format.formatAmount
 import com.dong.budget.ui.format.formatNoticeTime
@@ -54,6 +58,7 @@ import java.time.LocalDate
  * 아직 눌러 보지 않은 알림은 연한 남색 바탕에 오른쪽 빨간 점, 눌러 본 알림은 바탕도 점도 없이 둔다.
  * 한 줄을 누르면 알림창의 알림을 누른 것과 똑같이 결제 내용이 채워진 등록창이 열린다.
  * '모두 읽음' 은 새 알림 표시를 모두 없애고 알림창에 남은 묻는 알림도 치운다(PaymentCapture.markAllRead).
+ * '읽은 알림 지우기' 는 한 번 더 물은 뒤 눌러 봤거나 등록한 알림을 목록에서 뺀다(PaymentCapture.deleteRead). 새 알림은 남긴다.
  *
  * @param items 최근 것부터. 아직 불러오기 전이면 null
  * @param today 알림이 온 때를 '오늘'·'어제' 로 적을 기준
@@ -68,13 +73,34 @@ fun InboxScreen(
     onOpen: (dedupKey: String) -> Unit,
     onMarkAllRead: (dedupKeys: List<String>) -> Unit,
     modifier: Modifier = Modifier,
+    onDeleteRead: (dedupKeys: List<String>) -> Unit = {},
 ) {
+    // 지울지 묻는 중인 읽은 알림. 물을 때 화면에 있던 것만 지운다.
+    var askDelete by remember { mutableStateOf<List<String>?>(null) }
+    askDelete?.let { keys ->
+        ConfirmDialog(
+            title = "읽은 알림 ${keys.size}개를 지울까요?",
+            message = "눌러 봤거나 등록한 알림을 목록에서 빼요. 지운 알림은 다시 볼 수 없고, 등록한 거래는 그대로예요.",
+            confirmLabel = "지우기",
+            onConfirm = {
+                askDelete = null
+                onDeleteRead(keys)
+            },
+            onDismiss = { askDelete = null },
+        )
+    }
     Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(modifier = Modifier.fillMaxSize()) {
             BudgetTopAppBar(
                 onNavigationClick = onBack,
                 title = "알림",
                 actions = {
+                    BudgetTextButton(
+                        text = "읽은 알림 지우기",
+                        onClick = { askDelete = items.orEmpty().filterNot { it.isNew }.map { it.payment.dedupKey } },
+                        enabled = items.orEmpty().any { !it.isNew },
+                        color = BudgetTheme.colors.textSecondary,
+                    )
                     BudgetTextButton(
                         text = "모두 읽음",
                         onClick = { onMarkAllRead(items.orEmpty().map { it.payment.dedupKey }) },

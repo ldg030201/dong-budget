@@ -226,6 +226,18 @@ class PaymentCapture(
     }
 
     /**
+     * 알림 목록의 '읽은 알림 지우기'. 목록에서 빼고, 아직 알림창에 떠 있는 묻는 알림도 치운다. 지운 결제는 다시 묻지 않는다.
+     * 되살리기([restorePrompts])와 겹치면 방금 치운 알림을 도로 띄울 수 있어 같은 자물쇠 안에서 한다.
+     *
+     * @param dedupKeys 목록에 보이던 읽은 결제. 누르는 사이 새로 온 결제는 건드리지 않는다.
+     */
+    suspend fun deleteRead(dedupKeys: Collection<String>) = mutex.withLock {
+        val dismissed = store.hide(dedupKeys)
+        dismissed.forEach(prompt::dismiss)
+        DevLog.info(LogTag.CAPTURE, "읽은 알림 지우기 · ${dedupKeys.size}건, 알림창에서 ${dismissed.size}건 치움")
+    }
+
+    /**
      * 데이터 초기화. 알림 목록을 비우고 알림창의 묻는 알림도 치운다. 비운 결제는 다시 묻지 않는다([CaptureStore.hideAll]).
      * 되살리기([restorePrompts])와 겹치면 방금 치운 알림을 도로 띄울 수 있어 같은 자물쇠 안에서 한다.
      */
