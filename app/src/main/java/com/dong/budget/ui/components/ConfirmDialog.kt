@@ -47,6 +47,9 @@ fun ConfirmDialog(
     /** 두 버튼 아래에 둘 보조 동작. 없으면 null */
     extraLabel: String? = null,
     onExtra: () -> Unit = {},
+    /** 맨 아래에 흐리게 둘 동작('다시 안 보기' 등). 보조 동작보다도 눈에 덜 띈다. 없으면 null */
+    footerLabel: String? = null,
+    onFooter: () -> Unit = {},
 ) {
     Dialog(onDismissRequest = onDismiss) {
         Surface(
@@ -105,6 +108,16 @@ fun ConfirmDialog(
                         container = Color.Transparent,
                         content = MaterialTheme.colorScheme.primary,
                         onClick = onExtra,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+                if (footerLabel != null) {
+                    if (extraLabel == null) Spacer(Modifier.height(BudgetTheme.spacing.inlineGap))
+                    DialogButton(
+                        label = footerLabel,
+                        container = Color.Transparent,
+                        content = BudgetTheme.colors.textSecondary,
+                        onClick = onFooter,
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
