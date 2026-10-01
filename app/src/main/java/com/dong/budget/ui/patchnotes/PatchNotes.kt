@@ -85,6 +85,26 @@ private fun newMenu(menu: PatchMenu, vararg changes: Change) = MenuChanges(menu,
 val PATCH_NOTES: List<Release> =
     listOf(
         Release(
+            version = "1.6.1",
+            // 아직 내지 않은 버전. 올릴 때 날짜를 적는다.
+            date = null,
+            menus =
+            listOf(
+                menu(
+                    PatchMenu.HOME,
+                    improved("알림 목록의 '읽은 알림 지우기'와 '모두 읽음'이 버튼처럼 보여요"),
+                ),
+                menu(
+                    PatchMenu.SALARY,
+                    added("2중 잠금: 앱 잠금과 월급 잠금을 둘 다 켜면, 앱을 연 뒤 월급 탭에서 월급 PIN을 한 번 더 물을지 고를 수 있어요. 월급 설정 > 잠금에서 바꿔요"),
+                ),
+                menu(
+                    PatchMenu.COMMON,
+                    improved("안정성을 개선했어요"),
+                ),
+            ),
+        ),
+        Release(
             version = "1.6.0",
             date = LocalDate.of(2026, 10, 1),
             menus =
