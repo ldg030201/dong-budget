@@ -101,7 +101,7 @@ fun AdvancedSettingsScreen(
         is ResetPrompt.Data ->
             ConfirmDialog(
                 title = "데이터를 모두 지울까요?",
-                message = resetDataMessage(prompt.transactionCount),
+                message = resetDataMessage(prompt.transactionCount, prompt.autoBackup),
                 confirmLabel = "모두 지우기",
                 onConfirm = onConfirmReset,
                 onDismiss = onDismissReset,

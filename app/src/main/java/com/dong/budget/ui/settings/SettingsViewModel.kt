@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.dong.budget.BuildConfig
 import com.dong.budget.data.backup.BackupCodec
 import com.dong.budget.data.backup.BackupExporter
+import com.dong.budget.data.backup.BackupKind
 import com.dong.budget.data.backup.BackupRead
 import com.dong.budget.data.backup.BackupRepository
 import com.dong.budget.data.backup.BackupStorage
@@ -17,6 +18,7 @@ import com.dong.budget.data.devlog.DevLog
 import com.dong.budget.data.devlog.LogTag
 import com.dong.budget.data.salary.SalaryRepository
 import com.dong.budget.data.salary.toSettings
+import com.dong.budget.data.settings.AutoOption
 import com.dong.budget.data.settings.SettingsRepository
 import com.dong.budget.data.settings.ThemeMode
 import com.dong.budget.data.update.UpdateChecker
@@ -29,6 +31,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
@@ -124,15 +127,25 @@ class SettingsViewModel(
         _backup.update { it.copy(restore = null) }
         runBackup(RESTORE_FAILED_MESSAGE) {
             // 되살리는 중에 화면을 떠나 뷰모델이 치워져도 끝까지 한다. 멈추면 거래만 바뀌고 월급 설정은 옛것으로 남는다.
-            val salaryRestored =
+            val done =
                 withContext(NonCancellable) {
+                    // 지우기 전에 지금 데이터를 파일로 남긴다. 남기지 못하면 되살리지 않는다(지금 데이터는 그대로).
+                    val savedAs =
+                        if (preview.autoBackup) {
+                            backupExporter.saveBeforeReplace(AutoBackupReason.RESTORE) ?: return@withContext AUTO_BACKUP_FAILED_RESTORE
+                        } else {
+                            null
+                        }
                     backupRepository.restore(preview.backup)
                     // 월급 설정은 DB 밖이라 거래를 되살린 뒤에 따로 넣는다. 백업에 없으면(월급을 정하기 전 백업) 지금 설정을 그대로 둔다.
-                    runCatching { preview.backup.salary?.let { salaryRepository.save(it.toSettings()) } }
-                        .onFailure { DevLog.warn(LogTag.BACKUP, "월급 설정을 되살리지 못했어요", it) }
-                        .isSuccess
+                    val salaryRestored =
+                        runCatching { preview.backup.salary?.let { salaryRepository.save(it.toSettings()) } }
+                            .onFailure { DevLog.warn(LogTag.BACKUP, "월급 설정을 되살리지 못했어요", it) }
+                            .isSuccess
+                    val result = if (salaryRestored) restoredMessage(preview.backup) else RESTORE_SALARY_FAILED_MESSAGE
+                    listOfNotNull(result, savedAs?.let(::autoBackupSavedNote)).joinToString("\n")
                 }
-            _messages.send(if (salaryRestored) restoredMessage(preview.backup) else RESTORE_SALARY_FAILED_MESSAGE)
+            _messages.send(done)
         }
     }
 
@@ -149,7 +162,10 @@ class SettingsViewModel(
 
             is BackupRead.Valid -> {
                 val exportedAt = checkNotNull(parseBackupTime(read.backup.exportedAt))
-                _backup.update { it.copy(restore = RestorePreview(read.backup, exportedAt, backupRepository.transactionCount())) }
+                // 지울 것이 없으면(새로 깐 폰에서 처음 복원) 빈 백업 파일을 만들지 않는다
+                val autoBackup = settingsRepository.autoSettings.first()[AutoOption.BACKUP_BEFORE_REPLACE] && backupExporter.hasData()
+                val preview = RestorePreview(read.backup, exportedAt, backupRepository.transactionCount(), autoBackup)
+                _backup.update { it.copy(restore = preview) }
             }
         }
     }
@@ -179,3 +195,19 @@ class SettingsViewModel(
         const val STOP_TIMEOUT_MS = 5_000L
     }
 }
+
+/**
+ * 복원·데이터 초기화로 지우기 전에 지금 데이터를 다운로드 폴더에 저장한다.
+ * @return 저장한 파일 이름. 저장하지 못했으면 null 이고, 그때는 지우지 않는다.
+ */
+internal suspend fun BackupExporter.saveBeforeReplace(reason: AutoBackupReason): String? =
+    saveFile(autoBackupFileName(LocalDate.now(BudgetTime.ZONE), reason), BackupKind.AUTO).fold(
+        onSuccess = { name ->
+            DevLog.info(LogTag.BACKUP, "지우기 전 자동 백업 · $name")
+            name
+        },
+        onFailure = {
+            DevLog.warn(LogTag.BACKUP, "지우기 전 자동 백업을 저장하지 못했어요", it)
+            null
+        },
+    )
