@@ -213,6 +213,7 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
                                 hasNewNotice = hasNewNotice,
                                 onOpenUpdate = { navigator.go(AppInfoKey) },
                                 onDismissUpdate = container.updateChecker::dismissBanner,
+                                onSkipUpdate = container.updateChecker::skipLatest,
                                 onPreviousMonth = viewModel::showPreviousMonth,
                                 onNextMonth = viewModel::showNextMonth,
                                 onAddTransaction = { navigator.go(TransactionEditorKey()) },

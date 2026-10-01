@@ -71,6 +71,7 @@ import com.dong.budget.ui.components.AnimatedNoticeDot
 import com.dong.budget.ui.components.BudgetDivider
 import com.dong.budget.ui.components.BudgetIconButton
 import com.dong.budget.ui.components.CategoryBadge
+import com.dong.budget.ui.components.ConfirmDialog
 import com.dong.budget.ui.components.DayHeader
 import com.dong.budget.ui.components.MonthStepper
 import com.dong.budget.ui.components.NoticeDot
@@ -112,6 +113,7 @@ fun HomeScreen(
     hasNewNotice: Boolean,
     onOpenUpdate: () -> Unit,
     onDismissUpdate: () -> Unit,
+    onSkipUpdate: () -> Unit,
     onPreviousMonth: () -> Unit,
     onNextMonth: () -> Unit,
     onAddTransaction: () -> Unit,
@@ -119,6 +121,8 @@ fun HomeScreen(
     onOpenInbox: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    // 새 버전 알림 줄을 닫을 때 묻는 중인지
+    var askCloseUpdate by rememberSaveable { mutableStateOf(false) }
     // 가로 화면의 좌우 인셋은 앱 전체(DongBudgetApp)에서 한 번에 뺀다
     Box(modifier = modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
@@ -138,7 +142,25 @@ fun HomeScreen(
                 // 사라지는 애니메이션 동안에도 마지막 버전을 보여준다
                 var shownVersion by remember { mutableStateOf(updateVersion.orEmpty()) }
                 if (updateVersion != null) shownVersion = updateVersion
-                UpdateBanner(version = shownVersion, onOpen = onOpenUpdate, onDismiss = onDismissUpdate)
+                UpdateBanner(version = shownVersion, onOpen = onOpenUpdate, onDismiss = { askCloseUpdate = true })
+            }
+            // 알림 줄의 X 를 누르면 이번만 닫을지, 이 버전을 아예 건너뛸지 묻는다
+            if (askCloseUpdate && updateVersion != null) {
+                ConfirmDialog(
+                    title = "새 버전 알림을 닫을까요?",
+                    message = closeUpdateMessage(updateVersion),
+                    confirmLabel = "이 버전 건너뛰기",
+                    dismissLabel = "나중에",
+                    destructive = false,
+                    onConfirm = {
+                        askCloseUpdate = false
+                        onSkipUpdate()
+                    },
+                    onDismiss = {
+                        askCloseUpdate = false
+                        onDismissUpdate()
+                    },
+                )
             }
             // 달이 바뀌면 넘긴 방향으로 한 판이 밀려 바뀌고, 스크롤 위치와 고른 날짜는 처음부터 다시 시작한다(달마다 따로 구성).
             // 나가는 판이 새 달의 내용으로 바뀌지 않게 상태를 통째로 넘기고 달로만 구분한다.
@@ -308,7 +330,12 @@ private fun isCalendarScrolledAway(listState: LazyListState, stripHeightPx: Int)
     }
 }
 
-/** 새 버전 알림 줄. 누르면 설정의 업데이트 화면으로 간다. 닫으면 앱을 다시 켤 때까지 숨긴다. */
+/** 새 버전 알림 줄을 닫을 때 묻는 글. '나중에' 와 '건너뛰기' 가 어떻게 다른지, 업데이트는 어디서 하는지 알린다. */
+internal fun closeUpdateMessage(version: String): String = "'나중에'를 누르면 앱을 다시 열 때 또 알려요.\n" +
+    "건너뛰면 $version 버전은 더 알리지 않고, 더 새 버전이 나오면 다시 알려요.\n\n" +
+    "업데이트는 전체 > 설정 > 앱 정보에서 언제든 할 수 있어요."
+
+/** 새 버전 알림 줄. 누르면 설정의 업데이트 화면으로 간다. X 를 누르면 이번만 닫을지, 이 버전을 건너뛸지 묻는다. */
 @Composable
 private fun UpdateBanner(version: String, onOpen: () -> Unit, onDismiss: () -> Unit) {
     val shape = RoundedCornerShape(BudgetTheme.radius.control)

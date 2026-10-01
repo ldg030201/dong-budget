@@ -23,7 +23,7 @@ import java.time.LocalDate
  *   다만 앱을 빠르게 오가며 여러 번 열면 마지막 확인에서 [INTERVAL_MS] 가 지나기 전까지는 건너뛴다.
  *   GitHub 는 로그인 없이 부를 수 있는 횟수가 시간당 60번으로 정해져 있어서다.
  * - 앱 정보(설정)의 '업데이트 확인' 은 간격과 상관없이 [checkNow] 로 확인한다.
- * - 홈 배너, 설정 화면, 패치노트는 모두 [newer] 를 따라간다.
+ * - 홈 배너, 설정 화면, 패치노트는 모두 [newer] 를 따라간다. 홈 배너만 닫은 버전·건너뛴 버전을 뺀다([bannerVersion]).
  * - 찾은 새 버전들은 저장해 둔다. 앱을 껐다 켜도 확인 간격 안이면 배너와 패치노트가 바로 보인다.
  *
  * 저장소는 SharedPreferences 다. 자동 백업은 데이터베이스와 datastore 폴더만 담으므로
@@ -44,9 +44,14 @@ class UpdateChecker(
     /** 이번 실행에서 배너를 닫은 버전. 앱을 다시 켜면 배너가 다시 보인다. */
     private val dismissed = MutableStateFlow<String?>(null)
 
-    /** 홈 배너에 보여줄 새 버전. 없거나 닫았으면 null */
+    /** '이 버전 건너뛰기' 로 건너뛴 버전. 이 버전까지는 홈에 알리지 않고, 더 새 버전이 나오면 다시 알린다. */
+    private val skipped = MutableStateFlow(prefs.getString(KEY_SKIPPED, null))
+
+    /** 홈 배너에 보여줄 새 버전. 없거나 닫았거나 건너뛴 버전이면 null */
     val bannerVersion: Flow<String?> =
-        combine(releases, dismissed) { list, closed -> list.firstOrNull()?.version?.takeIf { it != closed } }
+        combine(releases, dismissed, skipped) { list, closed, skip ->
+            list.firstOrNull()?.version?.takeIf { it != closed && !isSkipped(it, skip) }
+        }
 
     private val mutex = Mutex()
 
@@ -65,6 +70,17 @@ class UpdateChecker(
         dismissed.value = releases.value.firstOrNull()?.version
     }
 
+    /**
+     * 가장 새 버전을 건너뛴다. 앱을 다시 켜도 그 버전은 홈에 알리지 않는다.
+     * 앱 정보와 패치노트에는 그대로 보여서 마음이 바뀌면 거기서 설치할 수 있다.
+     */
+    fun skipLatest() {
+        val version = releases.value.firstOrNull()?.version ?: return
+        skipped.value = version
+        prefs.edit { putString(KEY_SKIPPED, version) }
+        DevLog.info(LogTag.UPDATE, "$version 건너뛰기")
+    }
+
     // 한 번도 확인한 적이 없거나 시계가 뒤로 갔으면(음수) 지난 것으로 본다
     private fun checkedRecently(): Boolean =
         prefs.contains(KEY_CHECKED_AT) && now() - prefs.getLong(KEY_CHECKED_AT, 0L) in 0 until INTERVAL_MS
@@ -77,6 +93,13 @@ class UpdateChecker(
             // 0.1.7 까지는 가장 새 버전 하나를 칸마다 따로 적었다
             LEGACY_KEYS.forEach(::remove)
         }
+    }
+
+    /** [version] 이 건너뛴 버전([skip])보다 새롭지 않은지. 버전을 읽을 수 없으면 건너뛰지 않은 것으로 본다. */
+    private fun isSkipped(version: String, skip: String?): Boolean {
+        val skippedVersion = AppVersion.parse(skip) ?: return false
+        val shown = AppVersion.parse(version) ?: return false
+        return shown <= skippedVersion
     }
 
     private fun loadSaved(): List<NewerRelease> {
@@ -109,6 +132,7 @@ class UpdateChecker(
 
         private const val KEY_CHECKED_AT = "checked_at"
         private const val KEY_RELEASES = "releases"
+        private const val KEY_SKIPPED = "skipped_version"
         private val LEGACY_KEYS = listOf("version", "notes", "url", "size")
 
         private val json = Json { ignoreUnknownKeys = true }
