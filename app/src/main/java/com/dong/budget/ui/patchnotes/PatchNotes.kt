@@ -85,6 +85,30 @@ private fun newMenu(menu: PatchMenu, vararg changes: Change) = MenuChanges(menu,
 val PATCH_NOTES: List<Release> =
     listOf(
         Release(
+            version = "1.6.0",
+            date = LocalDate.of(2026, 10, 1),
+            menus =
+            listOf(
+                menu(
+                    PatchMenu.HOME,
+                    added("종을 눌러 여는 알림 목록에서 '읽은 알림 지우기'로 눌러 봤거나 등록한 알림만 지울 수 있어요"),
+                    improved("새 버전 알림 줄의 X를 누르면 '나중에'와 '이 버전 건너뛰기' 중에 골라요. 건너뛴 버전은 다시 알리지 않아요"),
+                ),
+                menu(
+                    PatchMenu.SETTINGS,
+                    added("앱 잠금: 앱을 열 때 PIN 4자리나 지문을 물어요. 앱을 나갔다 오면 다시 잠겨요"),
+                    added("자동 백업: 정한 주기(매일·3일·1주·1달)마다 앱을 열 때 다운로드 폴더에 백업 파일을 저장해요. 처음엔 1주마다이고, 최근 3개만 남겨요"),
+                    added("복원이나 데이터 초기화 전에 지금 데이터를 백업 파일로 먼저 저장해요. 백업 묶음 맨 위에는 마지막으로 백업한 때가 보여요"),
+                    added("권한: 결제 알림 읽기·알림 보내기·업데이트 설치가 켜져 있는지 보고 바로 켜러 갈 수 있어요"),
+                    added("한 주 시작: 홈 달력과 통계의 요일별 하루 평균을 일요일이나 월요일부터 볼 수 있어요"),
+                ),
+                menu(
+                    PatchMenu.COMMON,
+                    improved("앱을 켤 때 뜨는 권한 안내에 '다시 안 보기'가 생겼어요. 누르면 그 권한은 다시 묻지 않아요"),
+                ),
+            ),
+        ),
+        Release(
             version = "1.5.1",
             date = LocalDate.of(2026, 9, 30),
             menus =
