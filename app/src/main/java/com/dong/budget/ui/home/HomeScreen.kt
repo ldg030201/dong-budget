@@ -122,8 +122,10 @@ fun HomeScreen(
     onOpenInbox: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    // 새 버전 알림 줄을 닫을 때 묻는 중인지
+    // 새 버전 알림 줄을 닫을 때 묻는 중인지. 묻는 사이 알림 줄이 사라지면(최신이 됨) 묻던 것도 거둔다.
+    // 거두지 않으면 나중에 새 버전 줄이 다시 생기는 순간 누르지도 않은 질문이 뜬다.
     var askCloseUpdate by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(updateVersion) { if (updateVersion == null) askCloseUpdate = false }
     // 가로 화면의 좌우 인셋은 앱 전체(DongBudgetApp)에서 한 번에 뺀다
     Box(modifier = modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {

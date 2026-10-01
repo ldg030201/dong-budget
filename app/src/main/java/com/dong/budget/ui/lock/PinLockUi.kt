@@ -54,6 +54,7 @@ import com.dong.budget.ui.components.AnimatedErrorText
 import com.dong.budget.ui.components.BudgetTextButton
 import com.dong.budget.ui.components.ConfirmDialog
 import com.dong.budget.ui.components.KeypadCorner
+import com.dong.budget.ui.components.LocalAppLocked
 import com.dong.budget.ui.components.NumberKeypad
 import com.dong.budget.ui.components.SwitchRow
 import com.dong.budget.ui.settings.SettingsGroup
@@ -113,8 +114,10 @@ fun PinLockScreen(
             Biometric.prompt(ctx, texts.biometricTitle, texts.biometricSubtitle, success)
         }
 
-    // 지문을 켜 두었으면 열자마자 지문 창을 띄운다
-    LaunchedEffect(canBiometric) { if (canBiometric) promptBiometric() }
+    // 지문을 켜 두었으면 열자마자 지문 창을 띄운다. 앱 잠금 화면 아래에 깔린 잠금(월급)은 앱 잠금이 풀린 뒤에 띄운다.
+    // 같이 띄우면 지문 창 두 개가 겹쳐, 손가락을 댄 지문이 아래 잠금만 풀고 앱 잠금은 그대로 남을 수 있다.
+    val underAppLock = LocalAppLocked.current
+    LaunchedEffect(canBiometric, underAppLock) { if (canBiometric && !underAppLock) promptBiometric() }
 
     val forgot = texts.forgot
     if (askForgot && forgot != null) {
