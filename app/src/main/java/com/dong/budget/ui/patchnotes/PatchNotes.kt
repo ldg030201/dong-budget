@@ -93,14 +93,20 @@ val PATCH_NOTES: List<Release> =
                 menu(
                     PatchMenu.HOME,
                     improved("알림 목록의 '읽은 알림 지우기'와 '모두 읽음'이 버튼처럼 보여요"),
+                    fixed("새 버전 알림과 알림 목록이 더 안정적으로 동작하도록 다듬었어요"),
                 ),
                 menu(
                     PatchMenu.SALARY,
                     added("2중 잠금: 앱 잠금과 월급 잠금을 둘 다 켜면, 앱을 연 뒤 월급 탭에서 월급 PIN을 한 번 더 물을지 고를 수 있어요. 월급 설정 > 잠금에서 바꿔요"),
+                    fixed("월급 잠금이 더 안정적으로 동작하도록 다듬었어요"),
                 ),
                 menu(
-                    PatchMenu.COMMON,
-                    improved("안정성을 개선했어요"),
+                    PatchMenu.EDITOR,
+                    fixed("결제 알림 읽기와 분류 추가 창이 더 안정적으로 동작하도록 다듬었어요"),
+                ),
+                menu(
+                    PatchMenu.SETTINGS,
+                    fixed("앱 잠금·백업·권한 안내가 더 안정적으로 동작하도록 다듬었어요"),
                 ),
             ),
         ),
