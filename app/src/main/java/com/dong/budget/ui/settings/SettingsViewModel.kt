@@ -39,6 +39,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.time.DayOfWeek
 import java.time.LocalDate
 
 /**
@@ -60,6 +61,8 @@ class SettingsViewModel(
     val lastBackup: StateFlow<LastBackup?> = MutableStateFlow(null),
     /** 자동 백업 설정. 앱이 켜질 때부터 따라가는 값이라 스위치가 처음부터 저장된 자리에 있다(AppContainer.backupSchedule). */
     val backupSchedule: StateFlow<BackupSchedule> = MutableStateFlow(BackupSchedule.DEFAULT),
+    /** 한 주를 시작하는 요일(AppContainer.weekStart) */
+    val weekStart: StateFlow<DayOfWeek> = MutableStateFlow(DayOfWeek.SUNDAY),
     appThemeMode: StateFlow<ThemeMode> = MutableStateFlow(ThemeMode.SYSTEM),
 ) : ViewModel() {
     /** 앱이 켜질 때부터 따라가는 테마 값이라 처음 그릴 때부터 저장된 칸에 있다 */
@@ -75,6 +78,10 @@ class SettingsViewModel(
 
     fun selectThemeMode(mode: ThemeMode) {
         viewModelScope.launch { settingsRepository.setThemeMode(mode) }
+    }
+
+    fun selectWeekStart(day: DayOfWeek) {
+        viewModelScope.launch { settingsRepository.setWeekStart(day) }
     }
 
     fun setBackupSchedule(schedule: BackupSchedule) {

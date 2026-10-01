@@ -37,6 +37,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.sp
 import com.dong.budget.ui.components.BudgetDivider
+import com.dong.budget.ui.components.LocalWeekStart
 import com.dong.budget.ui.format.formatAmount
 import com.dong.budget.ui.format.formatDateSpoken
 import com.dong.budget.ui.format.formatSignedTotal
@@ -137,7 +138,7 @@ private fun WeekdayHeader() {
             .clearAndSetSemantics {},
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        WEEK_ORDER.forEach { day ->
+        weekOrder(LocalWeekStart.current).forEach { day ->
             Text(
                 text = formatWeekday(day),
                 style = MaterialTheme.typography.labelSmall,

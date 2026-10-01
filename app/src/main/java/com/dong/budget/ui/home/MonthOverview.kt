@@ -49,24 +49,30 @@ fun dailyTotals(items: List<TransactionListItem>): Map<LocalDate, Totals> = item
     .mapValues { (_, dayItems) -> dayItems.totals() }
 
 /**
- * 달력 한 달치. 한 줄이 한 주(일요일 시작)이고, 이 달이 아닌 칸은 null 이다.
+ * 달력 한 달치. 한 줄이 한 주([weekStart] 부터)이고, 이 달이 아닌 칸은 null 이다.
  * 마지막 주도 7칸을 채워서 모든 줄의 칸 너비가 같게 한다.
  */
-fun calendarWeeks(month: YearMonth): List<List<LocalDate?>> {
-    // DayOfWeek 는 월요일이 1, 일요일이 7 이다. 일요일을 0 칸으로 맞춘다.
-    val leading = month.atDay(1).dayOfWeek.value % DAYS_IN_WEEK
+fun calendarWeeks(month: YearMonth, weekStart: DayOfWeek = DayOfWeek.SUNDAY): List<List<LocalDate?>> {
+    val leading = daysFromWeekStart(month.atDay(1), weekStart)
     val cells = List(leading) { null } + (1..month.lengthOfMonth()).map { month.atDay(it) }
     val trailing = (DAYS_IN_WEEK - cells.size % DAYS_IN_WEEK) % DAYS_IN_WEEK
     return (cells + List(trailing) { null }).chunked(DAYS_IN_WEEK)
 }
 
-/** [date] 가 들어 있는 주(일요일 시작)의 7일. 달이 바뀌는 주라도 이 달 칸만 남기고 나머지는 null 이다. */
-fun weekOf(date: LocalDate, month: YearMonth): List<LocalDate?> {
-    val sunday = date.minusDays((date.dayOfWeek.value % DAYS_IN_WEEK).toLong())
+/** [date] 가 들어 있는 주([weekStart] 부터)의 7일. 달이 바뀌는 주라도 이 달 칸만 남기고 나머지는 null 이다. */
+fun weekOf(date: LocalDate, month: YearMonth, weekStart: DayOfWeek = DayOfWeek.SUNDAY): List<LocalDate?> {
+    val first = date.minusDays(daysFromWeekStart(date, weekStart).toLong())
     return (0 until DAYS_IN_WEEK).map { offset ->
-        sunday.plusDays(offset.toLong()).takeIf { YearMonth.from(it) == month }
+        first.plusDays(offset.toLong()).takeIf { YearMonth.from(it) == month }
     }
 }
+
+/** [weekStart] 부터 센 [date] 의 칸 번호(0~6) */
+private fun daysFromWeekStart(date: LocalDate, weekStart: DayOfWeek): Int =
+    (date.dayOfWeek.value - weekStart.value + DAYS_IN_WEEK) % DAYS_IN_WEEK
+
+/** [weekStart] 부터 시작하는 요일 순서. 달력 머리줄과 통계 요일별 줄에 쓴다. */
+fun weekOrder(weekStart: DayOfWeek): List<DayOfWeek> = (0 until DAYS_IN_WEEK).map { weekStart.plus(it.toLong()) }
 
 /** 비교 기준. 문구가 달라진다. */
 enum class ComparisonScope {
@@ -147,7 +153,7 @@ fun SpendingComparison.sentence(): ComparisonSentence {
 
 private const val DAYS_IN_WEEK = 7
 
-/** 일요일부터 시작하는 요일 순서. 달력 머리줄에 쓴다. */
+/** 일요일부터 시작하는 요일 순서. 통계 계산이 쓰는 기본 순서다(같은 값이면 앞선 요일). 화면은 [weekOrder] 로 다시 늘어놓는다. */
 val WEEK_ORDER: List<DayOfWeek> =
     listOf(
         DayOfWeek.SUNDAY,

@@ -6,8 +6,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import com.dong.budget.ui.components.HintText
+import com.dong.budget.ui.components.LocalWeekStart
 import com.dong.budget.ui.format.formatDayShort
 import com.dong.budget.ui.format.formatNetExpense
+import com.dong.budget.ui.home.weekOrder
 import com.dong.budget.ui.stats.DailyStats
 import com.dong.budget.ui.stats.Period
 import com.dong.budget.ui.stats.SectionNote
@@ -88,10 +90,11 @@ internal fun WeekdaySection(weekday: WeekdayStats?, noPastDays: Boolean, modifie
             // 오지 않은 달은 셀 날이 아직 없고, 지나간 날이 있으면 창이 2주보다 짧은 것이다
             if (noPastDays) SectionNote("아직 지나간 날이 없어요") else HintText("2주 넘게 기록하면 요일별로 보여 드려요")
         } else {
-            // 요일별 평균은 일요일부터 토요일까지(WEEK_ORDER) 온다
-            val topIndex = weekday.averages.indexOfFirst { it.day == weekday.top }.takeIf { it >= 0 }
-            val bars =
-                remember(weekday, topIndex) { weekday.averages.mapIndexed { index, average -> weekdayBar(average, index == topIndex) } }
+            // 요일별 평균은 일요일부터 토요일까지(WEEK_ORDER) 온다. 한 주 시작 요일부터 다시 늘어놓는다.
+            val order = weekOrder(LocalWeekStart.current)
+            val averages = remember(weekday, order) { weekday.averages.sortedBy { order.indexOf(it.day) } }
+            val topIndex = averages.indexOfFirst { it.day == weekday.top }.takeIf { it >= 0 }
+            val bars = remember(averages, topIndex) { averages.mapIndexed { index, average -> weekdayBar(average, index == topIndex) } }
             weekdayHeadline(weekday)?.let {
                 Text(text = it, style = MaterialTheme.typography.titleSmall, color = BudgetTheme.colors.textPrimary)
             }

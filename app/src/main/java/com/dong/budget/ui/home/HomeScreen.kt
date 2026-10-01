@@ -73,6 +73,7 @@ import com.dong.budget.ui.components.BudgetIconButton
 import com.dong.budget.ui.components.CategoryBadge
 import com.dong.budget.ui.components.ConfirmDialog
 import com.dong.budget.ui.components.DayHeader
+import com.dong.budget.ui.components.LocalWeekStart
 import com.dong.budget.ui.components.MonthStepper
 import com.dong.budget.ui.components.NoticeDot
 import com.dong.budget.ui.components.TransactionRow
@@ -233,7 +234,8 @@ private fun MonthBody(state: HomeUiState, onOpenTransaction: (Long) -> Unit, mod
     var selected by rememberSaveable { mutableStateOf<LocalDate?>(null) }
     // 누른 날의 거래를 지우거나 다른 날로 옮기면 그날은 더 이상 누를 수 없는 칸이다. 그런 날은 표시하지 않는다.
     val highlight = selected?.takeIf { it in state.days }
-    val weeks = remember(state.month) { calendarWeeks(state.month) }
+    val weekStart = LocalWeekStart.current
+    val weeks = remember(state.month, weekStart) { calendarWeeks(state.month, weekStart) }
     val dayIndex = remember(state.groups) { DayIndex(state.groups) }
     val density = LocalDensity.current
     val stripHeightPx = with(density) { weekStripHeight().roundToPx() }
@@ -309,7 +311,7 @@ private fun MonthBody(state: HomeUiState, onOpenTransaction: (Long) -> Unit, mod
         ) {
             val shown = anchor ?: highlight ?: state.today
             WeekStrip(
-                week = weekOf(shown, state.month),
+                week = weekOf(shown, state.month, weekStart),
                 days = state.days,
                 today = state.today,
                 highlighted = anchor,
