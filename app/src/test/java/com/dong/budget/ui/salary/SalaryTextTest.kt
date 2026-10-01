@@ -4,6 +4,7 @@ import com.dong.budget.data.salary.SalarySettings
 import com.dong.budget.ui.format.formatClock
 import com.dong.budget.ui.format.formatDuration
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -60,40 +61,31 @@ class SalaryTextTest {
         assertEquals("₩0/h", perHourBadge(0.0))
         assertEquals("₩4.73/s · ₩17,045/h", rateBadge(4.7348))
         assertEquals("1초에 4.73원, 1시간에 17,045원", spokenRate(4.7348))
-        assertEquals("세전 기준으로 쌓여요 · 통상시급 14,354원 (월 209시간 기준)", basisLine(salary))
-        // 실수령을 적으면 쌓이는 돈은 실수령, 통상시급은 그대로 세전이다
-        assertEquals("실수령 기준으로 쌓여요 · 통상시급 14,354원 (월 209시간 기준)", basisLine(salary.copy(takeHome = 2_600_000)))
-        // 실수령만 적으면 통상시급을 셀 수 없다
-        assertEquals("실수령 기준으로 쌓여요", basisLine(SalarySettings(takeHome = 2_600_000)))
+        assertEquals("세전 기준으로 쌓여요", basisLine(salary))
+        assertEquals("실수령 기준으로 쌓여요", basisLine(salary.copy(takeHome = 2_600_000)))
     }
 
     @Test
-    fun `시간당 버는 돈이 통상시급과 다른 까닭을 209시간이 맞아떨어지는 식으로 보여 준다`() {
-        // 주 40시간: 209시간 = 평균 근무 174시간 + 주휴 35시간
-        assertEquals(35, salary.monthlyRestHours)
+    fun `시간당 버는 돈과 통상시급을 식 두 줄로 견준다`() {
         // 10월 월급 기간 9월 26일~10월 23일(25일이 일요일이라 금요일로 당김): 평일 20일 × 8시간 = 160시간
         val october = YearMonth.of(2026, 10)
         assertEquals(
-            "통상시급 기준 209시간 = 이번 월급 기간에 일하는 160시간 + 주휴 35시간 + 평균 달보다 적게 일하는 14시간이라, " +
-                "일한 시간만 치면 1시간에 18,750원이에요(₩/h)",
+            "₩/h 18,750원 = 월급 ÷ 이번 달 근무 160시간 (주휴수당 포함)\n" +
+                "통상시급 14,354원 = 월급 ÷ 209시간 (주휴수당 미포함)",
             hourlyLine(salary, october),
         )
         // 오늘 번 돈 옆 ₩/h 와 같은 값이다
         assertEquals("₩18,750/h", perHourBadge(salary.perSecond(october)))
-        // 2월 월급 기간 1월 24일~2월 25일: 평일 23일 × 8시간 = 184시간. 평균보다 많이 일하는 달은 뺀다
+        // 실수령으로 쌓이면 ₩/h 는 실수령, 통상시급은 세전으로 나눈다
         assertEquals(
-            "통상시급 기준 209시간 = 이번 월급 기간에 일하는 184시간 + 주휴 35시간 − 평균 달보다 더 일하는 10시간이라, " +
-                "일한 시간만 치면 1시간에 16,304원이에요(₩/h)",
-            hourlyLine(salary, YearMonth.of(2026, 2)),
-        )
-        // 실수령으로 쌓이면 세전 시급과 ₩/h(실수령)를 따로 알린다
-        assertEquals(
-            "통상시급 기준 209시간 = 이번 월급 기간에 일하는 160시간 + 주휴 35시간 + 평균 달보다 적게 일하는 14시간이라, " +
-                "일한 시간만 치면 세전 1시간에 18,750원이에요. 쌓이는 건 실수령이라 ₩/h는 16,250원이에요",
+            "₩/h 16,250원 = 실수령 ÷ 이번 달 근무 160시간 (주휴수당 포함)\n" +
+                "통상시급 14,354원 = 세전 월급 ÷ 209시간 (주휴수당 미포함)",
             hourlyLine(salary.copy(takeHome = 2_600_000), october),
         )
-        // 세전을 적지 않으면 통상시급이 없어 알리지 않는다
-        assertEquals(null, hourlyLine(SalarySettings(takeHome = 2_600_000), october))
+        // 세전을 적지 않으면 통상시급 줄은 뺀다
+        assertEquals("₩/h 16,250원 = 실수령 ÷ 이번 달 근무 160시간 (주휴수당 포함)", hourlyLine(SalarySettings(takeHome = 2_600_000), october))
+        // 하루 8시간 30분이면 170시간
+        assertTrue(hourlyLine(salary.copy(workEnd = LocalTime.of(18, 30)), october)!!.startsWith("₩/h 17,647원 = 월급 ÷ 이번 달 근무 170시간"))
         assertEquals(null, hourlyLine(salary, null))
     }
 
