@@ -1,4 +1,4 @@
-package com.dong.budget.data.salary
+package com.dong.budget.data.lock
 
 import com.dong.budget.testing.FakePreferences
 import org.junit.Assert.assertEquals
@@ -7,14 +7,14 @@ import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-class SalaryLockTest {
+class PinLockTest {
     private var nowMillis = 1_000_000L
     private val prefs = FakePreferences()
-    private val lock = SalaryLock(prefs) { nowMillis }
+    private val lock = PinLock(prefs, now = { nowMillis })
 
     @Test
     fun `처음에는 안내 전이고 잠겨 있지 않다`() {
-        assertEquals(SalaryLock.State(introDone = false, enabled = false, biometric = false), lock.state.value)
+        assertEquals(PinLock.State(introDone = false, enabled = false, biometric = false), lock.state.value)
         assertTrue(lock.isOpen())
     }
 
@@ -22,7 +22,7 @@ class SalaryLockTest {
     fun `안내를 확인하면 남는다`() {
         lock.markIntroDone()
         assertTrue(lock.state.value.introDone)
-        assertTrue(SalaryLock(prefs).state.value.introDone)
+        assertTrue(PinLock(prefs).state.value.introDone)
     }
 
     @Test
@@ -31,7 +31,7 @@ class SalaryLockTest {
         assertTrue(lock.state.value.enabled)
         assertTrue(lock.isOpen())
         // 앱을 다시 띄우면 잠겨 있다(풀린 상태는 저장하지 않는다)
-        val reopened = SalaryLock(prefs)
+        val reopened = PinLock(prefs)
         assertTrue(reopened.state.value.enabled)
         assertFalse(reopened.isOpen())
     }
@@ -47,7 +47,7 @@ class SalaryLockTest {
         lock.setPin("1234")
         lock.lock()
         assertFalse(lock.isOpen())
-        assertEquals(SalaryLock.Attempt.Ok, lock.tryUnlock("1234"))
+        assertEquals(PinLock.Attempt.Ok, lock.tryUnlock("1234"))
         assertTrue(lock.isOpen())
     }
 
@@ -56,16 +56,16 @@ class SalaryLockTest {
         lock.setPin("1234")
         lock.lock()
         assertEquals(
-            listOf(4, 3, 2, 1).map { SalaryLock.Attempt.Wrong(remaining = it) },
+            listOf(4, 3, 2, 1).map { PinLock.Attempt.Wrong(remaining = it) },
             List(4) { lock.tryUnlock("0000") },
         )
-        assertEquals(SalaryLock.Attempt.Blocked(seconds = 30), lock.tryUnlock("0000"))
+        assertEquals(PinLock.Attempt.Blocked(seconds = 30), lock.tryUnlock("0000"))
         // 막힌 동안에는 맞는 PIN 도 받지 않는다
         nowMillis += 10_500
-        assertEquals(SalaryLock.Attempt.Blocked(seconds = 20), lock.tryUnlock("1234"))
+        assertEquals(PinLock.Attempt.Blocked(seconds = 20), lock.tryUnlock("1234"))
         assertFalse(lock.isOpen())
         nowMillis += 20_000
-        assertEquals(SalaryLock.Attempt.Ok, lock.tryUnlock("1234"))
+        assertEquals(PinLock.Attempt.Ok, lock.tryUnlock("1234"))
         assertTrue(lock.isOpen())
     }
 
@@ -74,9 +74,9 @@ class SalaryLockTest {
         lock.setPin("1234")
         lock.lock()
         repeat(4) { lock.tryUnlock("0000") }
-        assertEquals(SalaryLock.Attempt.Ok, lock.tryUnlock("1234"))
+        assertEquals(PinLock.Attempt.Ok, lock.tryUnlock("1234"))
         lock.lock()
-        assertEquals(SalaryLock.Attempt.Wrong(remaining = 4), lock.tryUnlock("0000"))
+        assertEquals(PinLock.Attempt.Wrong(remaining = 4), lock.tryUnlock("0000"))
     }
 
     @Test
@@ -84,15 +84,15 @@ class SalaryLockTest {
         lock.setPin("1234")
         lock.setPin("5678")
         lock.lock()
-        assertEquals(SalaryLock.Attempt.Wrong(remaining = 4), lock.tryUnlock("1234"))
-        assertEquals(SalaryLock.Attempt.Ok, lock.tryUnlock("5678"))
+        assertEquals(PinLock.Attempt.Wrong(remaining = 4), lock.tryUnlock("1234"))
+        assertEquals(PinLock.Attempt.Ok, lock.tryUnlock("5678"))
     }
 
     @Test
     fun `같은 PIN 이어도 기기마다 소금이 달라 저장 값이 다르다`() {
         val other = FakePreferences()
         lock.setPin("1234")
-        SalaryLock(other).setPin("1234")
+        PinLock(other).setPin("1234")
         assertNotEquals(prefs.getString("pin_hash", null), other.getString("pin_hash", null))
     }
 
@@ -114,7 +114,7 @@ class SalaryLockTest {
         lock.setBiometric(true)
         lock.lock()
         lock.disable()
-        assertEquals(SalaryLock.State(introDone = false, enabled = false, biometric = false), lock.state.value)
+        assertEquals(PinLock.State(introDone = false, enabled = false, biometric = false), lock.state.value)
         assertTrue(lock.isOpen())
     }
 
@@ -124,7 +124,7 @@ class SalaryLockTest {
         lock.setPin("1234")
         lock.setBiometric(true)
         lock.reset(keepIntro = true)
-        assertEquals(SalaryLock.State(introDone = true, enabled = false, biometric = false), lock.state.value)
+        assertEquals(PinLock.State(introDone = true, enabled = false, biometric = false), lock.state.value)
         assertTrue(lock.isOpen())
     }
 
@@ -133,15 +133,15 @@ class SalaryLockTest {
         lock.markIntroDone()
         lock.setPin("1234")
         lock.reset(keepIntro = false)
-        assertEquals(SalaryLock.State(), lock.state.value)
+        assertEquals(PinLock.State(), lock.state.value)
     }
 
     @Test
     fun `PIN 은 숫자 네 자리만 된다`() {
-        assertTrue(SalaryLock.isValidPin("0000"))
-        assertFalse(SalaryLock.isValidPin("123"))
-        assertFalse(SalaryLock.isValidPin("12345"))
-        assertFalse(SalaryLock.isValidPin("12a4"))
-        assertFalse(SalaryLock.isValidPin("١٢٣٤"))
+        assertTrue(PinLock.isValidPin("0000"))
+        assertFalse(PinLock.isValidPin("123"))
+        assertFalse(PinLock.isValidPin("12345"))
+        assertFalse(PinLock.isValidPin("12a4"))
+        assertFalse(PinLock.isValidPin("١٢٣٤"))
     }
 }

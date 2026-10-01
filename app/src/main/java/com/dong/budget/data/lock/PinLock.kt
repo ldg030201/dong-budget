@@ -1,4 +1,4 @@
-package com.dong.budget.data.salary
+package com.dong.budget.data.lock
 
 import android.content.SharedPreferences
 import androidx.core.content.edit
@@ -12,7 +12,8 @@ import java.security.SecureRandom
 import java.util.Base64
 
 /**
- * 월급 탭 잠금. PIN 4자리와, 원하면 지문. 연봉은 남에게 보이면 곤란할 수 있어(계약서에 비밀 유지가 있기도 하다) 월급 탭만 따로 잠근다.
+ * PIN 4자리와, 원하면 지문으로 여는 잠금. 월급 탭 잠금과 앱 잠금이 저장 파일을 따로 두고 하나씩 쓴다(AppContainer).
+ * 월급은 남에게 보이면 곤란할 수 있어(계약서에 비밀 유지가 있기도 하다) 앱 잠금과 따로 월급 탭만 잠글 수 있다.
  *
  * - PIN 은 그대로 두지 않고 기기마다 다른 소금(salt)을 섞은 SHA-256 으로만 둔다. 4자리라 마음먹고 풀면 풀리지만,
  *   저장 파일을 열어 봐도 바로 보이지는 않는다.
@@ -20,9 +21,15 @@ import java.util.Base64
  * - 다섯 번 연달아 틀리면 30초 동안 받지 않는다.
  * - 저장소는 SharedPreferences 다. 자동 백업(data_extraction_rules)에 들어가지 않아 다른 기기로 따라가지 않는다. 백업 파일에도 넣지 않는다.
  */
-class SalaryLock(private val prefs: SharedPreferences, private val now: () -> Long = System::currentTimeMillis) {
+class PinLock(
+    private val prefs: SharedPreferences,
+    /** 개발자 모드 기록에 적는 이름. "월급 잠금", "앱 잠금" */
+    private val label: String = "잠금",
+    private val logTag: String = LogTag.SETTINGS,
+    private val now: () -> Long = System::currentTimeMillis,
+) {
     /**
-     * @property introDone 월급 탭을 처음 열 때의 안내(연봉 공개 주의)를 확인했는지
+     * @property introDone 처음 안내를 확인했는지. 월급 탭만 쓴다(연봉 공개 주의).
      * @property enabled PIN 을 정해 잠가 두었는지
      * @property biometric 지문으로도 열지
      */
@@ -39,7 +46,7 @@ class SalaryLock(private val prefs: SharedPreferences, private val now: () -> Lo
     private var failures = 0
     private var blockedUntil = 0L
 
-    /** 지금 월급 탭을 보여 줘도 되는지 */
+    /** 지금 잠긴 것(월급 탭, 앱)을 보여 줘도 되는지 */
     fun isOpen(state: State = _state.value, unlocked: Boolean = _unlocked.value): Boolean = !state.enabled || unlocked
 
     fun markIntroDone() {
@@ -59,7 +66,7 @@ class SalaryLock(private val prefs: SharedPreferences, private val now: () -> Lo
         _unlocked.value = true
         failures = 0
         blockedUntil = 0
-        DevLog.info(LogTag.SALARY, "월급 잠금 PIN 을 정했어요")
+        DevLog.info(logTag, "$label PIN 을 정했어요")
     }
 
     /** 잠금을 끈다. 지문도 같이 끈다. */
@@ -70,7 +77,7 @@ class SalaryLock(private val prefs: SharedPreferences, private val now: () -> Lo
             remove(KEY_BIOMETRIC)
         }
         _state.value = read()
-        DevLog.info(LogTag.SALARY, "월급 잠금을 껐어요")
+        DevLog.info(logTag, "${label}을 껐어요")
     }
 
     fun setBiometric(on: Boolean) {
@@ -99,7 +106,7 @@ class SalaryLock(private val prefs: SharedPreferences, private val now: () -> Lo
         if (failures >= MAX_FAILURES) {
             failures = 0
             blockedUntil = now() + BLOCK_MILLIS
-            DevLog.info(LogTag.SALARY, "월급 잠금 PIN 을 $MAX_FAILURES 번 틀려 잠깐 막았어요")
+            DevLog.info(logTag, "$label PIN 을 $MAX_FAILURES 번 틀려 잠깐 막았어요")
             return Attempt.Blocked(seconds = BLOCK_MILLIS / MILLIS_PER_SECOND)
         }
         return Attempt.Wrong(remaining = MAX_FAILURES - failures)
@@ -117,7 +124,7 @@ class SalaryLock(private val prefs: SharedPreferences, private val now: () -> Lo
     }
 
     /**
-     * 잠금을 지운다. PIN 을 잊었을 때(월급 설정과 함께)와 데이터 초기화 때 부른다.
+     * 잠금을 지운다. 월급 잠금은 PIN 을 잊었을 때(월급 설정과 함께)와 데이터 초기화 때 부른다.
      * @param keepIntro 처음 안내를 확인한 것은 남길지. 데이터 초기화는 처음 설치한 상태라 안내부터 다시 본다.
      */
     fun reset(keepIntro: Boolean) {
@@ -151,7 +158,12 @@ class SalaryLock(private val prefs: SharedPreferences, private val now: () -> Lo
     }
 
     companion object {
-        const val PREFS_NAME = "salary_lock"
+        /** 월급 탭 잠금의 SharedPreferences 파일 이름 */
+        const val SALARY_PREFS_NAME = "salary_lock"
+
+        /** 앱 잠금의 SharedPreferences 파일 이름 */
+        const val APP_PREFS_NAME = "app_lock"
+
         const val PIN_LENGTH = 4
         private const val KEY_INTRO = "intro_done"
         private const val KEY_HASH = "pin_hash"
@@ -172,16 +184,4 @@ class SalaryLock(private val prefs: SharedPreferences, private val now: () -> Lo
             return Base64.getEncoder().encodeToString(digest.digest())
         }
     }
-}
-
-/** 월급 설정을 지울 때 잠금을 어떻게 할지(AppContainer.clearSalary) */
-enum class SalaryLockReset {
-    /** 그대로 둔다(월급 설정 초기화) */
-    KEEP,
-
-    /** PIN 과 지문만 지운다(PIN 을 잊었을 때) */
-    PIN,
-
-    /** 처음 안내까지 모두 지운다(데이터 초기화) */
-    ALL,
 }

@@ -35,6 +35,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.LifecycleStartEffect
@@ -60,6 +61,7 @@ import com.dong.budget.data.salary.salaryMonthOf
 import com.dong.budget.data.settings.AutoOption
 import com.dong.budget.navigation.AdvancedSettingsKey
 import com.dong.budget.navigation.AppInfoKey
+import com.dong.budget.navigation.AppPinSetupKey
 import com.dong.budget.navigation.CategoryManageKey
 import com.dong.budget.navigation.DeveloperKey
 import com.dong.budget.navigation.EditorPrefill
@@ -77,6 +79,7 @@ import com.dong.budget.navigation.TransactionEditorKey
 import com.dong.budget.ui.category.CategoryManageScreen
 import com.dong.budget.ui.category.CategoryManageViewModel
 import com.dong.budget.ui.components.BudgetTopAppBar
+import com.dong.budget.ui.components.LocalAppLocked
 import com.dong.budget.ui.components.LocalSharedTransitionScope
 import com.dong.budget.ui.components.LocalWeekStart
 import com.dong.budget.ui.detail.TransactionDetailScreen
@@ -94,11 +97,14 @@ import com.dong.budget.ui.editor.toPrefill
 import com.dong.budget.ui.home.HomeViewModel
 import com.dong.budget.ui.inbox.InboxScreen
 import com.dong.budget.ui.inbox.InboxViewModel
+import com.dong.budget.ui.lock.AppLockScreen
+import com.dong.budget.ui.lock.AppPinSetup
+import com.dong.budget.ui.lock.HideFromRecents
+import com.dong.budget.ui.lock.LockControls
+import com.dong.budget.ui.lock.biometricAvailable
 import com.dong.budget.ui.patchnotes.PatchNotesScreen
 import com.dong.budget.ui.patchnotes.PatchNotesViewModel
 import com.dong.budget.ui.permission.PermissionGate
-import com.dong.budget.ui.salary.HideFromRecents
-import com.dong.budget.ui.salary.SalaryLockControls
 import com.dong.budget.ui.salary.SalaryLockScreen
 import com.dong.budget.ui.salary.SalaryPinSetup
 import com.dong.budget.ui.salary.SalaryScreen
@@ -106,7 +112,6 @@ import com.dong.budget.ui.salary.SalarySettingsScreen
 import com.dong.budget.ui.salary.SalarySettingsViewModel
 import com.dong.budget.ui.salary.SalaryTabGate
 import com.dong.budget.ui.salary.SalaryViewModel
-import com.dong.budget.ui.salary.biometricAvailable
 import com.dong.budget.ui.settings.AdvancedSettingsScreen
 import com.dong.budget.ui.settings.AdvancedSettingsViewModel
 import com.dong.budget.ui.settings.AppInfoScreen
@@ -150,8 +155,15 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
         onOpened()
     }
 
-    // 설정에서 켜야 하는 권한이 꺼져 있으면 앱을 켤 때 안내한다
-    PermissionGate()
+    // 앱 잠금(설정 > 잠금). 잠겨 있으면 잠금 화면이 앱 위를 덮는다. 켜 두면 최근 앱 미리보기에도 남기지 않는다.
+    val appLock = container.appLock
+    val appLockState by appLock.state.collectAsStateWithLifecycle()
+    val appUnlocked by appLock.unlocked.collectAsStateWithLifecycle()
+    val appLocked = !appLock.isOpen(appLockState, appUnlocked)
+    HideFromRecents(active = appLockState.enabled)
+
+    // 설정에서 켜야 하는 권한이 꺼져 있으면 앱을 켤 때 안내한다. 잠금을 푼 뒤에 묻는다.
+    if (!appLocked) PermissionGate()
 
     // 앱이 화면에 나올 때마다 알림창에 남은 토스 결제 알림을 다시 살피게 한다.
     // 알림을 막 허용하고 돌아온 경우, 그전에 들어와 묻지 못한 결제를 이때 묻는다. 이미 물어본 결제는 다시 묻지 않는다.
@@ -180,8 +192,13 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
     Box(modifier = Modifier.fillMaxSize()) {
         // 화면을 오갈 때 두 화면의 같은 요소를 이어 주는 범위(아래 메뉴의 '통계' 가 통계 하위 메뉴 첫 칸으로 옮겨 가는 연출).
         // NavDisplay 의 sharedTransitionScope 로는 넘기지 않는다. 넘기면 화면 전체를 장면 사이 공유 요소로 감싸는데, 이 앱은 장면이 하나라 쓸 데가 없다.
-        SharedTransitionLayout(modifier = Modifier.fillMaxSize()) {
-            CompositionLocalProvider(LocalSharedTransitionScope provides this, LocalWeekStart provides weekStart) {
+        // 앱이 잠긴 동안에도 아래 화면은 그대로 둔다(보던 화면·쓰던 등록창이 풀린 뒤 남아 있게). 화면 읽기와 확인 창만 막는다.
+        SharedTransitionLayout(modifier = Modifier.fillMaxSize().then(if (appLocked) Modifier.clearAndSetSemantics {} else Modifier)) {
+            CompositionLocalProvider(
+                LocalSharedTransitionScope provides this,
+                LocalWeekStart provides weekStart,
+                LocalAppLocked provides appLocked,
+            ) {
                 NavDisplay(
                     backStack = backStack,
                     // 가로 화면에서 옆에 붙는 시스템 버튼 줄이나 카메라 구멍 밑으로 상단 바 버튼과 금액이 들어가지 않게 한다.
@@ -413,6 +430,16 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
                                 backup = backup,
                                 lastBackup = lastBackup,
                                 backupSchedule = backupSchedule,
+                                appLock =
+                                LockControls(
+                                    enabled = appLockState.enabled,
+                                    biometric = appLockState.biometric,
+                                    biometricAvailable = biometricAvailable(context),
+                                    onEnable = { if (settled()) navigator.go(AppPinSetupKey) },
+                                    onDisable = appLock::disable,
+                                    onChangePin = { if (settled()) navigator.go(AppPinSetupKey) },
+                                    onBiometricChange = appLock::setBiometric,
+                                ),
                                 backupActions =
                                 BackupActions(
                                     onCopy = viewModel::copyBackup,
@@ -448,7 +475,7 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
                             val unlocked by lock.unlocked.collectAsStateWithLifecycle()
                             // 월급 설정도 월급이 보이는 곳이라 같이 잠근다(앱을 나갔다 오면 여기서도 다시 묻는다)
                             if (!lock.isOpen(lockState, unlocked)) {
-                                LockedSalaryPage(title = "월급 설정", onBack = navigator::goBack) {
+                                LockPage(title = "월급 설정", onBack = navigator::goBack) {
                                     SalaryLockScreen(
                                         biometric = lockState.biometric,
                                         onUnlock = lock::tryUnlock,
@@ -474,7 +501,7 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
                                 onBack = navigator::goBack,
                                 onReset = viewModel::reset,
                                 lock =
-                                SalaryLockControls(
+                                LockControls(
                                     enabled = lockState.enabled,
                                     biometric = lockState.biometric,
                                     biometricAvailable = biometricAvailable(context),
@@ -486,12 +513,24 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
                             )
                         }
 
+                        entry<AppPinSetupKey> { key ->
+                            LockPage(title = if (appLockState.enabled) "PIN 바꾸기" else "PIN 정하기", onBack = navigator::goBack) {
+                                AppPinSetup(
+                                    onDone = { pin, biometric ->
+                                        appLock.setPin(pin)
+                                        appLock.setBiometric(biometric)
+                                        navigator.closeIfTop(key)
+                                    },
+                                )
+                            }
+                        }
+
                         entry<SalaryPinSetupKey> { key ->
                             val lock = container.salaryLock
                             val lockState by lock.state.collectAsStateWithLifecycle()
                             val unlocked by lock.unlocked.collectAsStateWithLifecycle()
                             // PIN 을 바꾸려면 먼저 풀려 있어야 한다. 바꾸던 중에 앱을 나갔다 오면 다시 묻는다.
-                            LockedSalaryPage(title = if (lockState.enabled) "PIN 바꾸기" else "PIN 정하기", onBack = navigator::goBack) {
+                            LockPage(title = if (lockState.enabled) "PIN 바꾸기" else "PIN 정하기", onBack = navigator::goBack) {
                                 if (!lock.isOpen(lockState, unlocked)) {
                                     SalaryLockScreen(
                                         biometric = lockState.biometric,
@@ -579,6 +618,14 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
                     },
                 )
             }
+        }
+        if (appLocked) {
+            AppLockScreen(
+                state = appLockState,
+                onUnlock = appLock::tryUnlock,
+                onBiometricSuccess = appLock::unlockWithBiometric,
+                onForgotVerified = appLock::disable,
+            )
         }
         // 개발자 모드가 켜져 있으면 어느 화면에서든 오른쪽 아래에 벌레 표시를 띄워 둔다. 보이기만 하고 누름은 아래 화면이 받는다.
         val devModeOn by DevLog.enabled.collectAsStateWithLifecycle()
@@ -713,9 +760,9 @@ private fun editorViewModelFactory(container: AppContainer, transactionId: Long?
     }
 }
 
-/** 뒤로 가기가 있는 월급 화면의 틀(월급 설정이 잠겼을 때, PIN 정하기) */
+/** 뒤로 가기가 있는 잠금 화면의 틀(월급 설정이 잠겼을 때, 월급·앱 잠금의 PIN 정하기) */
 @Composable
-private fun LockedSalaryPage(title: String, onBack: () -> Unit, content: @Composable () -> Unit) {
+private fun LockPage(title: String, onBack: () -> Unit, content: @Composable () -> Unit) {
     Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(modifier = Modifier.fillMaxSize()) {
             BudgetTopAppBar(onNavigationClick = onBack, title = title)

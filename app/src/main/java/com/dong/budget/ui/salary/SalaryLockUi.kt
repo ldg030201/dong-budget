@@ -49,7 +49,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.dong.budget.R
-import com.dong.budget.data.salary.SalaryLock
+import com.dong.budget.data.lock.PinLock
 import com.dong.budget.ui.components.AnimatedErrorText
 import com.dong.budget.ui.components.BudgetPrimaryButton
 import com.dong.budget.ui.components.BudgetTextButton
@@ -58,6 +58,11 @@ import com.dong.budget.ui.components.KeypadCorner
 import com.dong.budget.ui.components.NumberKeypad
 import com.dong.budget.ui.components.SwitchRow
 import com.dong.budget.ui.components.sectionBlock
+import com.dong.budget.ui.lock.ForgotPinTexts
+import com.dong.budget.ui.lock.LockGroupTexts
+import com.dong.budget.ui.lock.PinLockScreen
+import com.dong.budget.ui.lock.PinLockTexts
+import com.dong.budget.ui.lock.PinSetupScreen
 import com.dong.budget.ui.theme.BudgetTheme
 import com.dong.budget.ui.theme.Motion
 
@@ -69,10 +74,10 @@ import com.dong.budget.ui.theme.Motion
  */
 @Composable
 fun SalaryTabGate(
-    state: SalaryLock.State,
+    state: PinLock.State,
     unlocked: Boolean,
     onIntroConfirm: (lock: Boolean) -> Unit,
-    onUnlock: (String) -> SalaryLock.Attempt,
+    onUnlock: (String) -> PinLock.Attempt,
     onBiometricSuccess: () -> Unit,
     onForgot: () -> Unit,
     content: @Composable () -> Unit,
@@ -96,6 +101,7 @@ fun SalaryTabGate(
 
 // ─────────────────────────────────────────────────────────────────────
 // 월급 탭 잠금 화면들. 처음 안내(연봉이 드러날 수 있어요), PIN 으로 풀기, PIN 정하기.
+// PIN·지문 화면 자체는 앱 잠금과 같이 쓴다(ui/lock/PinLockUi.kt).
 // ─────────────────────────────────────────────────────────────────────
 
 /**
@@ -155,285 +161,45 @@ private fun NoticeLine(text: String) {
     }
 }
 
+/** 월급 탭 잠금의 글 */
+internal val SALARY_LOCK_TEXTS =
+    PinLockTexts(
+        lockedTitle = "월급은 잠겨 있어요",
+        biometricTitle = "월급 열기",
+        biometricSubtitle = "지문으로 월급 탭을 열어요",
+        setupHint = "월급 탭을 열 때 물어요\n잊으면 월급 설정부터 다시 해야 해요",
+        biometricOffer = "월급 탭을 열 때 지문 창이 바로 떠요. 지문이 안 되면 PIN으로 열 수 있어요.",
+        forgot =
+        ForgotPinTexts(
+            title = "PIN을 잊으셨나요?",
+            message = "PIN 없이 월급을 볼 수 없게, 적어 둔 월급 설정과 잠금을 함께 지우고 처음부터 다시 정해요. 가계부에 등록한 거래는 그대로예요.",
+            confirmLabel = "지우고 다시 정하기",
+        ),
+    )
+
+/** 월급 설정의 잠금 묶음 글 */
+internal val SALARY_LOCK_GROUP_TEXTS =
+    LockGroupTexts(
+        switchTitle = "월급 잠그기",
+        switchDescription = "월급 탭을 열 때 PIN 4자리를 물어요. 앱을 나갔다 오면 다시 잠겨요",
+        biometricDescription = "월급 탭을 열 때 지문 창이 바로 떠요",
+        offMessage = "월급 탭을 열 때 PIN이나 지문을 묻지 않아요. 폰을 다른 사람이 보면 연봉이 드러날 수 있어요.",
+    )
+
 /**
- * 잠긴 월급. PIN 4자리를 누르면 바로 맞춰 본다. 지문을 켜 두었으면 열자마자 지문 창을 띄우고, 취소하면 PIN 으로 연다.
- * @param onUnlock PIN 으로 풀어 본다
- * @param onBiometricSuccess 지문으로 풀었다
- * @param onForgot 'PIN 을 잊었어요'. 월급 설정과 잠금을 지운다(한 번 더 묻는다).
+ * 잠긴 월급. PIN 4자리나 지문으로 연다.
+ * @param onForgot 'PIN 을 잊었어요'. 한 번 더 물은 뒤 월급 설정과 잠금을 지운다.
  */
 @Composable
 fun SalaryLockScreen(
     biometric: Boolean,
-    onUnlock: (String) -> SalaryLock.Attempt,
+    onUnlock: (String) -> PinLock.Attempt,
     onBiometricSuccess: () -> Unit,
     onForgot: () -> Unit,
     modifier: Modifier = Modifier,
-) {
-    val context = LocalContext.current
-    // PIN 은 화면을 돌려도 남기지 않는다(저장 상태에 PIN 을 두지 않는다)
-    var pin by remember { mutableStateOf("") }
-    var error by remember { mutableStateOf<String?>(null) }
-    var askForgot by remember { mutableStateOf(false) }
-    val canBiometric = biometric && Biometric.isAvailable(context)
-    val promptBiometric = rememberBiometricPrompt(onSuccess = onBiometricSuccess)
+) = PinLockScreen(SALARY_LOCK_TEXTS, biometric, onUnlock, onBiometricSuccess, onForgot, modifier)
 
-    // 지문을 켜 두었으면 열자마자 지문 창을 띄운다
-    LaunchedEffect(canBiometric) { if (canBiometric) promptBiometric() }
-
-    if (askForgot) {
-        ConfirmDialog(
-            title = "PIN을 잊으셨나요?",
-            message = "PIN 없이 월급을 볼 수 없게, 적어 둔 월급 설정과 잠금을 함께 지우고 처음부터 다시 정해요. 가계부에 등록한 거래는 그대로예요.",
-            confirmLabel = "지우고 다시 정하기",
-            onConfirm = {
-                askForgot = false
-                onForgot()
-            },
-            onDismiss = { askForgot = false },
-        )
-    }
-
-    Column(modifier = modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
-        Column(
-            modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = BudgetTheme.spacing.screenHorizontal),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-        ) {
-            Icon(Icons.Filled.Lock, contentDescription = null, tint = BudgetTheme.colors.textSecondary)
-            Spacer(Modifier.height(BudgetTheme.spacing.itemGap))
-            Text(
-                text = "월급은 잠겨 있어요",
-                style = MaterialTheme.typography.titleMedium,
-                color = BudgetTheme.colors.textPrimary,
-                modifier = Modifier.semantics { heading() },
-            )
-            Spacer(Modifier.height(BudgetTheme.spacing.inlineGap))
-            Text(
-                text = if (canBiometric) "PIN 4자리를 누르거나 지문으로 열어 주세요" else "PIN 4자리를 눌러 주세요",
-                style = MaterialTheme.typography.bodyMedium,
-                color = BudgetTheme.colors.textSecondary,
-                textAlign = TextAlign.Center,
-            )
-            Spacer(Modifier.height(BudgetTheme.spacing.sectionPadding))
-            PinDots(count = pin.length)
-            AnimatedErrorText(text = error, modifier = Modifier.padding(top = BudgetTheme.spacing.itemGap))
-            BudgetTextButton(text = "PIN을 잊었어요", onClick = { askForgot = true }, color = BudgetTheme.colors.textSecondary)
-        }
-        PinPad(
-            onDigit = { digit ->
-                if (pin.length >= SalaryLock.PIN_LENGTH) return@PinPad
-                pin += digit
-                if (pin.length == SalaryLock.PIN_LENGTH) {
-                    error =
-                        when (val attempt = onUnlock(pin)) {
-                            SalaryLock.Attempt.Ok -> null
-                            is SalaryLock.Attempt.Wrong -> "PIN이 맞지 않아요 (${attempt.remaining}번 남음)"
-                            is SalaryLock.Attempt.Blocked -> "너무 많이 틀렸어요. ${attempt.seconds}초 뒤에 다시 해 주세요"
-                        }
-                    pin = ""
-                }
-            },
-            onDelete = { pin = pin.dropLast(1) },
-            onClear = { pin = "" },
-            corner = if (canBiometric) KeypadCorner.Action(R.drawable.ic_fingerprint, "지문으로 열기", promptBiometric) else KeypadCorner.Empty,
-        )
-    }
-}
-
-/**
- * PIN 정하기. 4자리를 두 번 눌러 맞으면 [onDone]. 지문을 쓸 수 있는 폰이면 마지막에 지문으로도 열지 묻는다.
- * @param onDone 정한 PIN 과 지문을 쓸지
- */
+/** 월급 잠금의 PIN 정하기 */
 @Composable
-fun SalaryPinSetup(onDone: (pin: String, biometric: Boolean) -> Unit, modifier: Modifier = Modifier) {
-    val context = LocalContext.current
-    var first by remember { mutableStateOf<String?>(null) }
-    var pin by remember { mutableStateOf("") }
-    var error by remember { mutableStateOf<String?>(null) }
-    // 두 번 맞게 누른 PIN. 지문을 물어보는 동안 들고 있다.
-    var confirmed by remember { mutableStateOf<String?>(null) }
-    val canBiometric = remember { Biometric.isAvailable(context) }
-
-    val done = confirmed
-    if (done != null && canBiometric) {
-        ConfirmDialog(
-            title = "지문으로도 열까요?",
-            message = "월급 탭을 열 때 지문 창이 바로 떠요. 지문이 안 되면 PIN으로 열 수 있어요.",
-            confirmLabel = "지문도 쓰기",
-            dismissLabel = "PIN만 쓰기",
-            destructive = false,
-            onConfirm = { onDone(done, true) },
-            onDismiss = { onDone(done, false) },
-        )
-    }
-
-    Column(modifier = modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
-        Column(
-            modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = BudgetTheme.spacing.screenHorizontal),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-        ) {
-            Text(
-                text = if (first == null) "PIN 4자리를 정해 주세요" else "한 번 더 눌러 주세요",
-                style = MaterialTheme.typography.titleMedium,
-                color = BudgetTheme.colors.textPrimary,
-                modifier = Modifier.semantics { heading() },
-            )
-            Spacer(Modifier.height(BudgetTheme.spacing.inlineGap))
-            Text(
-                text = "월급 탭을 열 때 물어요\n잊으면 월급 설정부터 다시 해야 해요",
-                style = MaterialTheme.typography.bodyMedium,
-                color = BudgetTheme.colors.textSecondary,
-                textAlign = TextAlign.Center,
-            )
-            Spacer(Modifier.height(BudgetTheme.spacing.sectionPadding))
-            PinDots(count = pin.length)
-            AnimatedErrorText(text = error, modifier = Modifier.padding(top = BudgetTheme.spacing.itemGap))
-        }
-        PinPad(
-            onDigit = { digit ->
-                if (pin.length >= SalaryLock.PIN_LENGTH || confirmed != null) return@PinPad
-                pin += digit
-                if (pin.length < SalaryLock.PIN_LENGTH) return@PinPad
-                val entered = pin
-                pin = ""
-                val previous = first
-                when {
-                    previous == null -> {
-                        first = entered
-                        error = null
-                    }
-
-                    previous == entered -> if (canBiometric) confirmed = entered else onDone(entered, false)
-
-                    else -> {
-                        first = null
-                        error = "두 번 누른 PIN이 달라요. 처음부터 다시 정해 주세요"
-                    }
-                }
-            },
-            onDelete = { pin = pin.dropLast(1) },
-            onClear = { pin = "" },
-            corner = KeypadCorner.Empty,
-        )
-    }
-}
-
-/** 누른 자리 수만큼 채운 점 네 개. 화면 읽기는 '4자리 중 2자리' 로 읽는다. */
-@Composable
-private fun PinDots(count: Int) {
-    val spoken = "PIN ${SalaryLock.PIN_LENGTH}자리 중 ${count}자리 누름"
-    Row(
-        modifier = Modifier.clearAndSetSemantics { contentDescription = spoken },
-        horizontalArrangement = Arrangement.spacedBy(BudgetTheme.spacing.sectionPadding),
-    ) {
-        repeat(SalaryLock.PIN_LENGTH) { index ->
-            val filled = index < count
-            val fill by animateColorAsState(
-                if (filled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primary.copy(alpha = 0f),
-                Motion.quick(),
-                label = "pinDot",
-            )
-            Box(
-                modifier =
-                Modifier
-                    .size(PIN_DOT)
-                    .background(fill, CircleShape)
-                    .border(
-                        BudgetTheme.size.underline,
-                        if (filled) MaterialTheme.colorScheme.primary else BudgetTheme.colors.divider,
-                        CircleShape,
-                    ),
-            )
-        }
-    }
-}
-
-/** PIN 키패드. 금액 키패드와 같은 모양이고 왼쪽 아래 칸만 다르다(지문이나 빈칸). */
-@Composable
-private fun PinPad(onDigit: (String) -> Unit, onDelete: () -> Unit, onClear: () -> Unit, corner: KeypadCorner) {
-    NumberKeypad(
-        onDigit = onDigit,
-        onDelete = onDelete,
-        onClear = onClear,
-        corner = corner,
-        modifier =
-        Modifier
-            .navigationBarsPadding()
-            .padding(horizontal = BudgetTheme.spacing.screenHorizontal)
-            .padding(bottom = BudgetTheme.spacing.sectionPadding),
-    )
-}
-
-/**
- * 지문 창을 띄우는 함수. 화면에서 사라지면 떠 있던 지문 창을 닫는다.
- * 지문이 맞으면 [onSuccess]. 취소하거나 'PIN 으로 열기' 를 누르면 아무 일 없이 PIN 화면에 남는다.
- */
-@Composable
-private fun rememberBiometricPrompt(onSuccess: () -> Unit): () -> Unit {
-    val context = LocalContext.current
-    val latestOnSuccess by rememberUpdatedState(onSuccess)
-    val cancel = remember { mutableStateOf<CancellationSignal?>(null) }
-    DisposableEffect(Unit) { onDispose { cancel.value?.cancel() } }
-    return remember(context) {
-        {
-            cancel.value?.cancel()
-            cancel.value = Biometric.prompt(context) { latestOnSuccess() }
-        }
-    }
-}
-
-/** 기기 지문(생체 인증). 앱에 라이브러리를 더하지 않고 안드로이드에 들어 있는 것을 쓴다. */
-private object Biometric {
-    private const val AUTHENTICATORS = BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.BIOMETRIC_WEAK
-
-    /** 지문을 쓸 수 있는지. 지문을 등록해 두지 않았으면 쓸 수 없다. */
-    fun isAvailable(context: Context): Boolean =
-        context.getSystemService(BiometricManager::class.java)?.canAuthenticate(AUTHENTICATORS) == BiometricManager.BIOMETRIC_SUCCESS
-
-    /** 지문 창을 띄운다. 닫을 때 쓰는 신호를 돌려준다. 띄울 수 없으면 null */
-    fun prompt(context: Context, onSuccess: () -> Unit): CancellationSignal? {
-        if (!isAvailable(context)) return null
-        val executor = ContextCompat.getMainExecutor(context)
-        val prompt =
-            BiometricPrompt
-                .Builder(context)
-                .setTitle("월급 열기")
-                .setSubtitle("지문으로 월급 탭을 열어요")
-                .setAllowedAuthenticators(AUTHENTICATORS)
-                .setNegativeButton("PIN으로 열기", executor) { _, _ -> }
-                .build()
-        val signal = CancellationSignal()
-        return runCatching {
-            prompt.authenticate(
-                signal,
-                executor,
-                object : BiometricPrompt.AuthenticationCallback() {
-                    override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) = onSuccess()
-                },
-            )
-            signal
-        }.getOrNull()
-    }
-}
-
-/**
- * 월급이 보이는 동안 최근 앱 화면에 이 앱의 모습을 남기지 않는다([active] 일 때, Android 13 부터).
- * 월급 탭에서 바로 앱을 나가면 최근 앱 목록의 미리보기에 번 돈이 그대로 찍혀, 잠가 두어도 목록만 넘기면 보이기 때문이다.
- * 화면 캡처까지 막는 FLAG_SECURE 는 쓰지 않는다. 월급 화면이 사라지면 되돌린다.
- */
-@Composable
-fun HideFromRecents(active: Boolean) {
-    val activity = LocalActivity.current ?: return
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return
-    DisposableEffect(activity, active) {
-        if (active) activity.setRecentsScreenshotEnabled(false)
-        onDispose { if (active) activity.setRecentsScreenshotEnabled(true) }
-    }
-}
-
-/** 잠금을 쓸 수 있는지 설정 화면이 본다 */
-fun biometricAvailable(context: Context): Boolean = Biometric.isAvailable(context)
-
-/** PIN 점 하나의 지름 */
-private val PIN_DOT = 14.dp
+fun SalaryPinSetup(onDone: (pin: String, biometric: Boolean) -> Unit, modifier: Modifier = Modifier) =
+    PinSetupScreen(SALARY_LOCK_TEXTS, onDone, modifier)

@@ -51,6 +51,8 @@ fun ConfirmDialog(
     footerLabel: String? = null,
     onFooter: () -> Unit = {},
 ) {
+    // 앱이 잠긴 동안에는 잠금 화면 위로 뜨지 않게 그리지 않는다. 묻던 것은 풀린 뒤에 다시 뜬다.
+    if (LocalAppLocked.current) return
     Dialog(onDismissRequest = onDismiss) {
         Surface(
             shape = RoundedCornerShape(BudgetTheme.radius.sheet),
