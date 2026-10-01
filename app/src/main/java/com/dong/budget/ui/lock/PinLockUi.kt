@@ -47,6 +47,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import com.dong.budget.R
 import com.dong.budget.data.lock.PinLock
 import com.dong.budget.ui.components.ActionRow
@@ -103,12 +104,11 @@ fun PinLockScreen(
     onForgot: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val context = LocalContext.current
     // PIN 은 화면을 돌려도 남기지 않는다(저장 상태에 PIN 을 두지 않는다)
     var pin by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
     var askForgot by remember { mutableStateOf(false) }
-    val canBiometric = biometric && Biometric.isAvailable(context)
+    val canBiometric = biometric && rememberBiometricAvailable()
     val promptBiometric =
         rememberAuthPrompt(onSuccess = onBiometricSuccess) { ctx, success ->
             Biometric.prompt(ctx, texts.biometricTitle, texts.biometricSubtitle, success)
@@ -190,13 +190,12 @@ fun PinLockScreen(
  */
 @Composable
 fun PinSetupScreen(texts: PinLockTexts, onDone: (pin: String, biometric: Boolean) -> Unit, modifier: Modifier = Modifier) {
-    val context = LocalContext.current
     var first by remember { mutableStateOf<String?>(null) }
     var pin by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
     // 두 번 맞게 누른 PIN. 지문을 물어보는 동안 들고 있다.
     var confirmed by remember { mutableStateOf<String?>(null) }
-    val canBiometric = remember { Biometric.isAvailable(context) }
+    val canBiometric = rememberBiometricAvailable()
 
     val done = confirmed
     if (done != null && canBiometric) {
@@ -264,24 +263,20 @@ fun PinSetupScreen(texts: PinLockTexts, onDone: (pin: String, biometric: Boolean
 }
 
 /**
- * 설정의 잠금 묶음이 부르는 일
- * @property enabled PIN 으로 잠가 두었는지
- * @property biometricAvailable 이 폰에서 지문을 쓸 수 있는지(지문을 등록해 두었는지)
- * @property onEnable 잠금을 켠다. PIN 을 정하러 간다.
+ * 설정의 잠금 묶음이 그리는 값과 부르는 일
+ * @property state 그 잠금의 지금 값(켜짐·지문·2중 잠금)
+ * @property onSetPin 잠금을 켜거나 PIN 을 바꾼다. PIN 정하기 화면으로 간다.
  * @property onDisable 잠금을 끈다(한 번 더 물은 뒤)
+ * @property showDouble 2중 잠금 줄을 둘지(월급 잠금만)
+ * @property appLockOn 앱 잠금이 켜져 있는지. 이 잠금과 앱 잠금이 둘 다 켜져 있어야 2중 잠금을 고를 수 있다.
  */
 @Immutable
 data class LockControls(
-    val enabled: Boolean = false,
-    val biometric: Boolean = false,
-    val biometricAvailable: Boolean = false,
-    val onEnable: () -> Unit = {},
+    val state: PinLock.State = PinLock.State(),
+    val onSetPin: () -> Unit = {},
     val onDisable: () -> Unit = {},
-    val onChangePin: () -> Unit = {},
     val onBiometricChange: (Boolean) -> Unit = {},
-    /** 2중 잠금 스위치 값. null 이면 줄을 두지 않는다(앱 잠금 묶음). */
-    val double: Boolean? = null,
-    /** 앱 잠금이 켜져 있는지. 이 잠금과 앱 잠금이 둘 다 켜져 있어야 2중 잠금을 고를 수 있다. */
+    val showDouble: Boolean = false,
     val appLockOn: Boolean = false,
     val onDoubleChange: (Boolean) -> Unit = {},
 )
@@ -312,15 +307,16 @@ fun LockGroup(controls: LockControls, texts: LockGroupTexts, modifier: Modifier 
             onDismiss = { askOff = false },
         )
     }
+    val state = controls.state
+    val biometricAvailable = rememberBiometricAvailable()
     SettingsGroup("잠금", modifier) {
         SwitchRow(
             title = texts.switchTitle,
             description = texts.switchDescription,
-            checked = controls.enabled,
-            onCheckedChange = { on -> if (on) controls.onEnable() else askOff = true },
+            checked = state.enabled,
+            onCheckedChange = { on -> if (on) controls.onSetPin() else askOff = true },
         )
-        controls.double?.let { double ->
-            val available = controls.enabled && controls.appLockOn
+        if (controls.showDouble) {
             SwitchRow(
                 title = "2중 잠금",
                 description =
@@ -329,19 +325,19 @@ fun LockGroup(controls: LockControls, texts: LockGroupTexts, modifier: Modifier 
                 } else {
                     "앱 잠금(설정 > 잠금)도 켜면 월급을 한 번 더 잠글지 고를 수 있어요"
                 },
-                // 앱 잠금이 꺼져 있으면 월급 잠금 하나뿐이라 늘 따로 묻는다
-                checked = if (controls.appLockOn) double else true,
+                // 앱 잠금이 꺼지면 처음대로(켜짐) 돌아가 있다(AppContainer.disableAppLock)
+                checked = state.double,
                 onCheckedChange = controls.onDoubleChange,
-                enabled = available,
+                enabled = state.enabled && controls.appLockOn,
             )
         }
-        ActionRow(title = "PIN 바꾸기", onClick = controls.onChangePin, enabled = controls.enabled, opensScreen = true)
+        ActionRow(title = "PIN 바꾸기", onClick = controls.onSetPin, enabled = state.enabled, opensScreen = true)
         SwitchRow(
             title = "지문으로 열기",
-            description = if (controls.biometricAvailable) texts.biometricDescription else "이 폰에 지문이 등록돼 있지 않아요",
-            checked = controls.biometric,
+            description = if (biometricAvailable) texts.biometricDescription else "이 폰에 지문이 등록돼 있지 않아요",
+            checked = state.biometric,
             onCheckedChange = controls.onBiometricChange,
-            enabled = controls.enabled && controls.biometricAvailable,
+            enabled = state.enabled && biometricAvailable,
         )
     }
 }
@@ -488,8 +484,20 @@ internal object Biometric {
     }
 }
 
-/** 지문을 쓸 수 있는지 설정 화면이 본다 */
-fun biometricAvailable(context: Context): Boolean = Biometric.isAvailable(context)
+/**
+ * 이 폰에서 지문을 쓸 수 있는지(지문을 등록해 두었는지). 시스템에 묻는 일이라 그릴 때마다 묻지 않고 기억해 두되,
+ * 기기 설정에서 지문을 등록하고 돌아오면 다시 본다.
+ */
+@Composable
+internal fun rememberBiometricAvailable(): Boolean {
+    val context = LocalContext.current
+    var available by remember(context) { mutableStateOf(Biometric.isAvailable(context)) }
+    LifecycleResumeEffect(context) {
+        available = Biometric.isAvailable(context)
+        onPauseOrDispose {}
+    }
+    return available
+}
 
 /** 최근 앱 미리보기를 가리고 있는 곳의 수. 월급 화면과 앱 잠금이 겹쳐 가릴 수 있어, 모두 그만둘 때만 되돌린다. */
 private var recentsHiders = 0

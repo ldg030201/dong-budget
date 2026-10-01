@@ -154,13 +154,4 @@ fun SpendingComparison.sentence(): ComparisonSentence {
 private const val DAYS_IN_WEEK = 7
 
 /** 일요일부터 시작하는 요일 순서. 통계 계산이 쓰는 기본 순서다(같은 값이면 앞선 요일). 화면은 [weekOrder] 로 다시 늘어놓는다. */
-val WEEK_ORDER: List<DayOfWeek> =
-    listOf(
-        DayOfWeek.SUNDAY,
-        DayOfWeek.MONDAY,
-        DayOfWeek.TUESDAY,
-        DayOfWeek.WEDNESDAY,
-        DayOfWeek.THURSDAY,
-        DayOfWeek.FRIDAY,
-        DayOfWeek.SATURDAY,
-    )
+val WEEK_ORDER: List<DayOfWeek> = weekOrder(DayOfWeek.SUNDAY)

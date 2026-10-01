@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import com.dong.budget.data.salary.MAX_PAYDAY
 import com.dong.budget.ui.format.formatWeekday
 import com.dong.budget.ui.format.formatWeekdayFull
+import com.dong.budget.ui.home.weekOrder
 import com.dong.budget.ui.theme.BudgetTheme
 import com.dong.budget.ui.theme.Motion
 import com.dong.budget.ui.theme.pressFeedback
@@ -40,15 +41,7 @@ import com.dong.budget.ui.theme.pressScaleClickable
 import java.time.DayOfWeek
 
 /** 일하는 요일 칸 순서. 출근 요일이라 월요일부터 둔다. */
-private val WORK_WEEK = listOf(
-    DayOfWeek.MONDAY,
-    DayOfWeek.TUESDAY,
-    DayOfWeek.WEDNESDAY,
-    DayOfWeek.THURSDAY,
-    DayOfWeek.FRIDAY,
-    DayOfWeek.SATURDAY,
-    DayOfWeek.SUNDAY,
-)
+private val WORK_WEEK = weekOrder(DayOfWeek.MONDAY)
 
 private val SelectedBorderWidth = 1.5.dp
 private val UnselectedBorderWidth = 1.dp

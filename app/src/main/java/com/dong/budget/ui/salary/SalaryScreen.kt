@@ -40,20 +40,16 @@ import com.dong.budget.data.db.TransactionListItem
 import com.dong.budget.data.salary.SalarySettings
 import com.dong.budget.data.salary.WorkStatus
 import com.dong.budget.ui.components.BudgetIconButton
-import com.dong.budget.ui.components.BudgetListItem
 import com.dong.budget.ui.components.BudgetPrimaryButton
-import com.dong.budget.ui.components.CategoryBadge
 import com.dong.budget.ui.components.HintText
 import com.dong.budget.ui.components.IconBadge
 import com.dong.budget.ui.components.RollingText
+import com.dong.budget.ui.components.TransactionRow
 import com.dong.budget.ui.components.sectionBlock
-import com.dong.budget.ui.components.transactionAmountColor
-import com.dong.budget.ui.components.transactionTitle
 import com.dong.budget.ui.format.formatAmount
 import com.dong.budget.ui.format.formatClock
 import com.dong.budget.ui.format.formatDayShort
 import com.dong.budget.ui.format.formatNoticeTime
-import com.dong.budget.ui.format.formatSignedAmount
 import com.dong.budget.ui.stats.SectionNote
 import com.dong.budget.ui.stats.StatsSection
 import com.dong.budget.ui.theme.BudgetTheme
@@ -334,37 +330,15 @@ private fun RecentSection(settings: SalarySettings, today: LocalDate, items: Lis
         if (items.isNotEmpty()) Spacer(Modifier.height(BudgetTheme.spacing.inlineGap))
         items.forEach { item ->
             val workTime = settings.secondsToEarn(item.amount)?.let { workValue(it, settings.workSecondsPerDay) }
-            RecentRow(item = item, today = today, workTime = workTime, onClick = { onOpenTransaction(item.id) })
+            TransactionRow(
+                item = item,
+                onClick = { onOpenTransaction(item.id) },
+                subtitle = listOfNotNull(formatNoticeTime(item.occurredAt, today), item.categoryName).joinToString(" · "),
+                amountCaption = workTime,
+                amountCaptionSpoken = workTime?.let { "일한 시간 $it" },
+            )
         }
     }
-}
-
-/** 최근 내역 한 줄. 오른쪽에 금액과 그 아래 일한 시간 */
-@Composable
-private fun RecentRow(item: TransactionListItem, today: LocalDate, workTime: String?, onClick: () -> Unit) {
-    BudgetListItem(
-        title = transactionTitle(item),
-        subtitle = listOfNotNull(formatNoticeTime(item.occurredAt, today), item.categoryName).joinToString(" · "),
-        leading = { CategoryBadge(icon = item.categoryIcon, color = item.categoryColor) },
-        trailing = {
-            Column(horizontalAlignment = Alignment.End) {
-                Text(
-                    text = formatSignedAmount(item.type, item.amount),
-                    style = BudgetTheme.amount.medium,
-                    color = transactionAmountColor(item.type),
-                )
-                if (workTime != null) {
-                    Text(
-                        text = workTime,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = BudgetTheme.colors.textSecondary,
-                        modifier = Modifier.semantics { contentDescription = "일한 시간 $workTime" },
-                    )
-                }
-            }
-        },
-        onClick = onClick,
-    )
 }
 
 /** 얼마나 벌었는지 채워 보여 주는 막대. 번 돈이라 초록으로 채운다. 뜻은 옆 글이 전하므로 화면 읽기에서 뺀다. */

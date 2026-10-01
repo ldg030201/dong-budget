@@ -52,8 +52,8 @@ private val BackupKind.label: String
         BackupKind.SCHEDULED -> "자동 백업"
     }
 
-/** 주기를 고르는 칸 순서. 짧은 것부터 */
-internal val INTERVAL_ORDER = listOf(BackupInterval.DAILY, BackupInterval.EVERY_3_DAYS, BackupInterval.WEEKLY, BackupInterval.MONTHLY)
+/** 주기를 고르는 칸 순서. 짧은 것부터(적은 순서 그대로) */
+internal val INTERVAL_ORDER = BackupInterval.entries
 
 /** 주기 칸 글자 */
 internal val BackupInterval.shortLabel: String
@@ -64,17 +64,19 @@ internal val BackupInterval.shortLabel: String
         BackupInterval.MONTHLY -> "1달"
     }
 
+/** 스위치 설명에 들어가는 주기. "1주마다" */
+private val BackupInterval.everyLabel: String
+    get() = when (this) {
+        BackupInterval.DAILY -> "하루에 한 번"
+        BackupInterval.EVERY_3_DAYS -> "3일마다"
+        BackupInterval.WEEKLY -> "1주마다"
+        BackupInterval.MONTHLY -> "1달마다"
+    }
+
 /** 자동 백업 스위치 아래 설명. 켜져 있으면 주기와 몇 개를 남기는지 알린다. */
 internal fun scheduleDescription(schedule: BackupSchedule): String {
     if (!schedule.on) return "켜면 정한 주기마다 다운로드 폴더에 백업 파일을 저장해요"
-    val every =
-        when (schedule.interval) {
-            BackupInterval.DAILY -> "하루에 한 번"
-            BackupInterval.EVERY_3_DAYS -> "3일마다"
-            BackupInterval.WEEKLY -> "1주마다"
-            BackupInterval.MONTHLY -> "1달마다"
-        }
-    return "앱을 열 때 $every 다운로드 폴더에 저장해요. 자동 백업 파일은 최근 ${BackupSchedule.KEEP_FILES}개만 남기고 지워요"
+    return "앱을 열 때 ${schedule.interval.everyLabel} 다운로드 폴더에 저장해요. 자동 백업 파일은 최근 ${BackupSchedule.KEEP_FILES}개만 남기고 지워요"
 }
 
 /** 다운로드 폴더에 저장할 이름. 같은 날 또 저장하면 시스템이 뒤에 번호를 붙인다. */

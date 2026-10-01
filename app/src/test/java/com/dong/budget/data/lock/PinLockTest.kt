@@ -165,7 +165,7 @@ class PinLockTest {
 
         // 월급 설정 안에서(열린 채로) 켜면 그 자리에서 잠기지 않고, 나갔다 오면 다시 묻는다
         lock.setDouble(false)
-        lock.setDouble(true, keepOpen = true)
+        lock.setDouble(true, wasOpen = true)
         assertTrue(lock.isOpen(appLockOn = true))
         lock.lock()
         assertFalse(lock.isOpen(appLockOn = true))

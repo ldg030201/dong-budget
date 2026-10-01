@@ -1,14 +1,6 @@
 package com.dong.budget.ui.salary
 
-import android.content.Context
-import android.hardware.biometrics.BiometricManager
-import android.hardware.biometrics.BiometricPrompt
-import android.os.Build
-import android.os.CancellationSignal
-import androidx.activity.compose.LocalActivity
-import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,7 +9,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -30,41 +21,24 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
-import androidx.core.content.ContextCompat
-import com.dong.budget.R
 import com.dong.budget.data.lock.PinLock
-import com.dong.budget.ui.components.AnimatedErrorText
 import com.dong.budget.ui.components.BudgetPrimaryButton
-import com.dong.budget.ui.components.BudgetTextButton
-import com.dong.budget.ui.components.ConfirmDialog
-import com.dong.budget.ui.components.KeypadCorner
-import com.dong.budget.ui.components.NumberKeypad
 import com.dong.budget.ui.components.SwitchRow
 import com.dong.budget.ui.components.sectionBlock
 import com.dong.budget.ui.lock.ForgotPinTexts
 import com.dong.budget.ui.lock.LockGroupTexts
 import com.dong.budget.ui.lock.PinLockScreen
 import com.dong.budget.ui.lock.PinLockTexts
-import com.dong.budget.ui.lock.PinSetupScreen
 import com.dong.budget.ui.theme.BudgetTheme
-import com.dong.budget.ui.theme.Motion
 
 /**
  * 월급 탭의 문. 처음이면 안내([SalaryIntro]), 잠겨 있으면 잠금 화면([SalaryLockScreen]), 아니면 [content] 를 그린다.
@@ -74,11 +48,10 @@ import com.dong.budget.ui.theme.Motion
  */
 @Composable
 fun SalaryTabGate(
+    lock: PinLock,
     state: PinLock.State,
     open: Boolean,
     onIntroConfirm: (lock: Boolean) -> Unit,
-    onUnlock: (String) -> PinLock.Attempt,
-    onBiometricSuccess: () -> Unit,
     onForgot: () -> Unit,
     content: @Composable () -> Unit,
 ) {
@@ -92,7 +65,7 @@ fun SalaryTabGate(
         !open ->
             Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
                 SalaryHeader(onOpenSettings = null)
-                SalaryLockScreen(state.biometric, onUnlock, onBiometricSuccess, onForgot)
+                SalaryLockScreen(lock = lock, state = state, onForgot = onForgot)
             }
 
         else -> content()
@@ -187,19 +160,9 @@ internal val SALARY_LOCK_GROUP_TEXTS =
     )
 
 /**
- * 잠긴 월급. PIN 4자리나 지문으로 연다.
+ * 잠긴 월급. [lock] 의 PIN 4자리나 지문으로 연다.
  * @param onForgot 'PIN 을 잊었어요'. 한 번 더 물은 뒤 월급 설정과 잠금을 지운다.
  */
 @Composable
-fun SalaryLockScreen(
-    biometric: Boolean,
-    onUnlock: (String) -> PinLock.Attempt,
-    onBiometricSuccess: () -> Unit,
-    onForgot: () -> Unit,
-    modifier: Modifier = Modifier,
-) = PinLockScreen(SALARY_LOCK_TEXTS, biometric, onUnlock, onBiometricSuccess, onForgot, modifier)
-
-/** 월급 잠금의 PIN 정하기 */
-@Composable
-fun SalaryPinSetup(onDone: (pin: String, biometric: Boolean) -> Unit, modifier: Modifier = Modifier) =
-    PinSetupScreen(SALARY_LOCK_TEXTS, onDone, modifier)
+fun SalaryLockScreen(lock: PinLock, state: PinLock.State, onForgot: () -> Unit, modifier: Modifier = Modifier) =
+    PinLockScreen(SALARY_LOCK_TEXTS, state.biometric, lock::tryUnlock, lock::unlockWithBiometric, onForgot, modifier)

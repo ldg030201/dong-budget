@@ -98,7 +98,8 @@ class PaymentNotificationListener : NotificationListenerService() {
         return runCatching {
             Triple(
                 listOf(extras.getCharSequence(Notification.EXTRA_TITLE), extras.getCharSequence(Notification.EXTRA_TITLE_BIG)),
-                listOf(extras.getCharSequence(Notification.EXTRA_TEXT), extras.getCharSequence(Notification.EXTRA_BIG_TEXT)),
+                // 펼친 본문을 먼저 본다. 짧은 본문에는 첫 줄만 담기기도 해서 둘째 줄의 카드 이름(캐시백 알림)이 빠진다.
+                listOf(extras.getCharSequence(Notification.EXTRA_BIG_TEXT), extras.getCharSequence(Notification.EXTRA_TEXT)),
                 PaymentCapture.paymentTime(notification.`when`, sbn.postTime),
             )
         }.onFailure { DevLog.warn(LogTag.CAPTURE, "토스 알림 내용을 꺼내지 못했어요", it) }.getOrNull()

@@ -167,7 +167,8 @@ internal fun openSettings(context: Context, permission: AppPermission) {
 /** 동계부를 가리키는 주소. 설정 화면이 동계부 항목을 바로 열게 한다. */
 private fun packageUri(context: Context) = "package:${context.packageName}".toUri()
 
-private fun appInfoIntent(context: Context) = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, packageUri(context))
+/** 동계부의 앱 정보 화면. 권한 안내와 앱 잠금(PIN 을 잊었을 때)이 같이 쓴다. */
+internal fun appInfoIntent(context: Context) = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, packageUri(context))
 
 /**
  * 권한 안내창.

@@ -46,6 +46,10 @@ class BackupExporter(
         Result.failure(e)
     }
 
-    /** 지울 것이 있는지. 거래가 있거나 월급을 정해 뒀으면 true. 없으면 자동 백업을 건너뛴다(빈 백업만 쌓이므로). */
-    suspend fun hasData(): Boolean = backupRepository.transactionCount() > 0 || salaryRepository.settings.first() != SalarySettings()
+    /**
+     * 지울 것이 있는지. 거래가 있거나 월급을 정해 뒀으면 true. 없으면 자동 백업을 건너뛴다(빈 백업만 쌓이므로).
+     * @param transactionCount 부르는 쪽이 이미 센 거래 수. 없으면 여기서 센다.
+     */
+    suspend fun hasData(transactionCount: Int? = null): Boolean =
+        (transactionCount ?: backupRepository.transactionCount()) > 0 || salaryRepository.settings.first() != SalarySettings()
 }

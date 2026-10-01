@@ -29,6 +29,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.debounce
@@ -48,6 +49,9 @@ class AppContainer(context: Context) {
     private companion object {
         /** 월급 설정을 고친 뒤 월급날 알림을 다시 맞추기까지 기다리는 시간 */
         const val SALARY_SETTLE_MS = 30_000L
+
+        /** 앱을 연 뒤 주기 자동 백업을 확인하기까지 기다리는 시간 */
+        const val SCHEDULED_BACKUP_DELAY_MS = 3_000L
     }
 
     private val database by lazy { BudgetDatabase.build(context) }
@@ -73,6 +77,16 @@ class AppContainer(context: Context) {
 
     /** 앱 잠금(PIN·지문). 월급 잠금과 PIN 을 따로 둔다. */
     val appLock by lazy { PinLock(context.getSharedPreferences(PinLock.APP_PREFS_NAME, Context.MODE_PRIVATE), "앱 잠금", LogTag.SETTINGS) }
+
+    /**
+     * 앱 잠금을 끈다(설정에서 끄기, PIN 을 잊어 기기 화면 잠금으로 확인한 뒤).
+     * 월급의 2중 잠금 선택도 처음대로(켜짐) 돌린다. 앱 잠금이 꺼지면 그 선택은 뜻이 없고, 남겨 두면 나중에 누가 앱 잠금을
+     * 새 PIN 으로 켰을 때 '앱 잠금만' 이 되살아나 월급 PIN 없이 월급이 열린다.
+     */
+    fun disableAppLock() {
+        appLock.disable()
+        salaryLock.setDouble(true)
+    }
 
     val salaryScheduler by lazy {
         SalaryScheduler(context, context.getSharedPreferences(SalaryScheduler.PREFS_NAME, Context.MODE_PRIVATE))
@@ -101,6 +115,8 @@ class AppContainer(context: Context) {
     /** 앱이 화면에 나올 때 부른다. 화면을 오가도 끊기지 않게 앱 범위에서 한다. */
     fun runScheduledBackup() {
         appScope.launch {
+            // 첫 화면이 거래를 읽고 그리는 동안은 비켜 있는다. 백업은 앱을 연 동안에만 데이터가 바뀌어 조금 늦어도 잃는 것이 없다.
+            delay(SCHEDULED_BACKUP_DELAY_MS)
             // 앱이 죽지 않게 받되, 계속 안 되는 까닭을 개발자 모드 기록에서 볼 수 있게 남긴다
             runCatching { scheduledBackup.runIfDue() }.onFailure { DevLog.warn(LogTag.BACKUP, "자동 백업을 하지 못했어요", it) }
         }

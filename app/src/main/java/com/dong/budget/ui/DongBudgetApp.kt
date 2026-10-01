@@ -55,6 +55,7 @@ import com.dong.budget.data.capture.CaptureStore
 import com.dong.budget.data.capture.PaymentCapture
 import com.dong.budget.data.db.SALARY_CATEGORY_CODE
 import com.dong.budget.data.devlog.DevLog
+import com.dong.budget.data.lock.PinLock
 import com.dong.budget.data.salary.SalaryLockReset
 import com.dong.budget.data.salary.salaryKey
 import com.dong.budget.data.salary.salaryMonthOf
@@ -97,17 +98,18 @@ import com.dong.budget.ui.editor.toPrefill
 import com.dong.budget.ui.home.HomeViewModel
 import com.dong.budget.ui.inbox.InboxScreen
 import com.dong.budget.ui.inbox.InboxViewModel
+import com.dong.budget.ui.lock.APP_LOCK_TEXTS
 import com.dong.budget.ui.lock.AppLockScreen
-import com.dong.budget.ui.lock.AppPinSetup
 import com.dong.budget.ui.lock.DoubleLockQuestion
 import com.dong.budget.ui.lock.HideFromRecents
 import com.dong.budget.ui.lock.LockControls
-import com.dong.budget.ui.lock.biometricAvailable
+import com.dong.budget.ui.lock.PinLockTexts
+import com.dong.budget.ui.lock.PinSetupScreen
 import com.dong.budget.ui.patchnotes.PatchNotesScreen
 import com.dong.budget.ui.patchnotes.PatchNotesViewModel
 import com.dong.budget.ui.permission.PermissionGate
+import com.dong.budget.ui.salary.SALARY_LOCK_TEXTS
 import com.dong.budget.ui.salary.SalaryLockScreen
-import com.dong.budget.ui.salary.SalaryPinSetup
 import com.dong.budget.ui.salary.SalaryScreen
 import com.dong.budget.ui.salary.SalarySettingsScreen
 import com.dong.budget.ui.salary.SalarySettingsViewModel
@@ -156,6 +158,8 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
         onOpened()
     }
 
+    val scope = rememberCoroutineScope()
+
     // 앱 잠금(설정 > 잠금). 잠겨 있으면 잠금 화면이 앱 위를 덮는다. 켜 두면 최근 앱 미리보기에도 남기지 않는다.
     val appLock = container.appLock
     val appLockState by appLock.state.collectAsStateWithLifecycle()
@@ -163,9 +167,14 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
     val appLocked = !appLock.isOpen(appLockState, appUnlocked)
     HideFromRecents(active = appLockState.enabled)
 
-    // 설정에서 켜야 하는 권한이 꺼져 있으면 앱을 켤 때 안내한다. 잠긴 동안에는 안내창만 숨기고(풀린 뒤에 묻는다)
-    // 안내 자체는 늘 둔다. 빼 버리면 '나중에' 를 누른 기록이 잠길 때마다 지워져 같은 안내가 다시 뜬다.
-    CompositionLocalProvider(LocalAppLocked provides appLocked) { PermissionGate() }
+    // 월급 잠금. 월급이 보이는 곳(탭·월급 설정·PIN 바꾸기)이 이 값 하나를 같이 쓴다.
+    // 앱 잠금이 켜져 있고 2중 잠금을 껐으면 앱 잠금이 대신 지켜 따로 묻지 않는다.
+    val salaryLock = container.salaryLock
+    val salaryLockState by salaryLock.state.collectAsStateWithLifecycle()
+    val salaryUnlocked by salaryLock.unlocked.collectAsStateWithLifecycle()
+    val salaryOpen = salaryLock.isOpen(salaryLockState, salaryUnlocked, appLockState.enabled)
+    // 월급 PIN 을 잊었다. 월급 설정과 잠금을 함께 지운다(처음 안내는 남긴다).
+    val forgetSalaryPin = { scope.launch { container.clearSalary(SalaryLockReset.PIN) } }
 
     // 앱이 화면에 나올 때마다 알림창에 남은 토스 결제 알림을 다시 살피게 한다.
     // 알림을 막 허용하고 돌아온 경우, 그전에 들어와 묻지 못한 결제를 이때 묻는다. 이미 물어본 결제는 다시 묻지 않는다.
@@ -176,7 +185,6 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
 
     // 앱이 화면에 나올 때마다 새 버전을 확인한다. 10분 안에 다시 열면 건너뛴다(UpdateChecker).
     // '앱을 열 때 새 버전 확인하기' 를 껐으면 확인하지 않는다(설정에서 직접 확인은 된다). 저장소를 다 읽은 값으로 본다.
-    val scope = rememberCoroutineScope()
     LifecycleStartEffect(container) {
         scope.launch {
             if (container.settingsRepository.autoSettings.first()[AutoOption.UPDATE_CHECK]) container.updateChecker.checkIfDue()
@@ -195,12 +203,15 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
         // 화면을 오갈 때 두 화면의 같은 요소를 이어 주는 범위(아래 메뉴의 '통계' 가 통계 하위 메뉴 첫 칸으로 옮겨 가는 연출).
         // NavDisplay 의 sharedTransitionScope 로는 넘기지 않는다. 넘기면 화면 전체를 장면 사이 공유 요소로 감싸는데, 이 앱은 장면이 하나라 쓸 데가 없다.
         // 앱이 잠긴 동안에도 아래 화면은 그대로 둔다(보던 화면·쓰던 등록창이 풀린 뒤 남아 있게). 화면 읽기와 확인 창만 막는다.
+        // 잠금 화면(AppLockScreen)만 이 범위 밖에 두어, 그 화면의 확인 창·지문 창은 잠긴 동안에도 뜬다.
         SharedTransitionLayout(modifier = Modifier.fillMaxSize().then(if (appLocked) Modifier.clearAndSetSemantics {} else Modifier)) {
             CompositionLocalProvider(
                 LocalSharedTransitionScope provides this,
                 LocalWeekStart provides weekStart,
                 LocalAppLocked provides appLocked,
             ) {
+                // 설정에서 켜야 하는 권한이 꺼져 있으면 앱을 켤 때 안내한다. 잠긴 동안에는 안내창만 숨긴다(풀린 뒤에 묻는다).
+                PermissionGate()
                 NavDisplay(
                     backStack = backStack,
                     // 가로 화면에서 옆에 붙는 시스템 버튼 줄이나 카메라 구멍 밑으로 상단 바 버튼과 금액이 들어가지 않게 한다.
@@ -250,23 +261,18 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
                                 devModeOn = devModeOn,
                                 onOpenDeveloper = { navigator.go(DeveloperKey) },
                                 salaryContent = {
-                                    val lock = container.salaryLock
-                                    val lockState by lock.state.collectAsStateWithLifecycle()
-                                    val unlocked by lock.unlocked.collectAsStateWithLifecycle()
                                     // 처음이면 연봉 공개 주의 안내, 잠겨 있으면 PIN·지문, 그 뒤에야 월급을 그린다
                                     SalaryTabGate(
-                                        state = lockState,
-                                        // 앱 잠금이 켜져 있고 2중 잠금을 껐으면 앱 잠금이 대신 지켜 따로 묻지 않는다
-                                        open = lock.isOpen(lockState, unlocked, appLockState.enabled),
+                                        lock = salaryLock,
+                                        state = salaryLockState,
+                                        open = salaryOpen,
                                         onIntroConfirm = { wantsLock ->
-                                            lock.markIntroDone()
+                                            salaryLock.markIntroDone()
                                             if (wantsLock) navigator.go(SalaryPinSetupKey)
                                         },
-                                        onUnlock = lock::tryUnlock,
-                                        onBiometricSuccess = lock::unlockWithBiometric,
-                                        onForgot = { scope.launch { container.clearSalary(SalaryLockReset.PIN) } },
+                                        onForgot = { forgetSalaryPin() },
                                     ) {
-                                        HideFromRecents(active = lockState.enabled)
+                                        HideFromRecents(active = salaryLockState.enabled)
                                         // 월급 탭을 처음 열 때 만들어지고, 셸과 같이 산다. 탭을 떠나 있으면 구독을 멈춘다(WhileSubscribed).
                                         val salaryViewModel: SalaryViewModel = viewModel(factory = salaryViewModelFactory(container))
                                         val salaryState by salaryViewModel.uiState.collectAsStateWithLifecycle()
@@ -413,9 +419,8 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
                             val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
                             val newerVersion by viewModel.newerVersion.collectAsStateWithLifecycle()
                             val backup by viewModel.backup.collectAsStateWithLifecycle()
-                            val lastBackup by viewModel.lastBackup.collectAsStateWithLifecycle()
-                            val backupSchedule by viewModel.backupSchedule.collectAsStateWithLifecycle()
-                            val settingsWeekStart by viewModel.weekStart.collectAsStateWithLifecycle()
+                            val lastBackup by container.backupHistory.last.collectAsStateWithLifecycle()
+                            val backupSchedule by container.backupSchedule.collectAsStateWithLifecycle()
                             ShowToasts(viewModel.messages)
                             // 설정은 전체의 톱니에서 들어온다. 들어오는 중에 두 번 누른 탭이 아래 줄(고급 설정·앱 정보)에 떨어지지 않게 한다.
                             val settled = rememberSettled()
@@ -424,7 +429,7 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
                                 themeMode = themeMode,
                                 currentVersion = viewModel.currentVersion,
                                 onThemeModeChange = viewModel::selectThemeMode,
-                                weekStart = settingsWeekStart,
+                                weekStart = weekStart,
                                 onWeekStartChange = viewModel::selectWeekStart,
                                 onBack = navigator::goBack,
                                 newerVersion = newerVersion,
@@ -435,12 +440,9 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
                                 backupSchedule = backupSchedule,
                                 appLock =
                                 LockControls(
-                                    enabled = appLockState.enabled,
-                                    biometric = appLockState.biometric,
-                                    biometricAvailable = biometricAvailable(context),
-                                    onEnable = { if (settled()) navigator.go(AppPinSetupKey) },
-                                    onDisable = appLock::disable,
-                                    onChangePin = { if (settled()) navigator.go(AppPinSetupKey) },
+                                    state = appLockState,
+                                    onSetPin = { if (settled()) navigator.go(AppPinSetupKey) },
+                                    onDisable = container::disableAppLock,
                                     onBiometricChange = appLock::setBiometric,
                                 ),
                                 backupActions =
@@ -473,123 +475,78 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
                         }
 
                         entry<SalarySettingsKey> { key ->
-                            val lock = container.salaryLock
-                            val lockState by lock.state.collectAsStateWithLifecycle()
-                            val unlocked by lock.unlocked.collectAsStateWithLifecycle()
                             // 월급 설정도 월급이 보이는 곳이라 같이 잠근다(앱을 나갔다 오면 여기서도 다시 묻는다)
-                            if (!lock.isOpen(lockState, unlocked, appLockState.enabled)) {
-                                LockPage(title = "월급 설정", onBack = navigator::goBack) {
-                                    SalaryLockScreen(
-                                        biometric = lockState.biometric,
-                                        onUnlock = lock::tryUnlock,
-                                        onBiometricSuccess = lock::unlockWithBiometric,
-                                        onForgot = {
-                                            scope.launch { container.clearSalary(SalaryLockReset.PIN) }
-                                            navigator.closeIfTop(key)
-                                        },
-                                    )
-                                }
-                                return@entry
-                            }
-                            HideFromRecents(active = lockState.enabled)
-                            val viewModel: SalarySettingsViewModel = viewModel(factory = salarySettingsViewModelFactory(container))
-                            val settings by viewModel.settings.collectAsStateWithLifecycle()
-                            val settled = rememberSettled()
-                            SalarySettingsScreen(
-                                settings = settings,
-                                onChange = viewModel::update,
-                                onDigit = viewModel::appendDigit,
-                                onDeleteDigit = viewModel::deleteDigit,
-                                onClearAmount = viewModel::clearAmount,
+                            SalaryGuard(
+                                open = salaryOpen,
+                                lock = salaryLock,
+                                state = salaryLockState,
+                                lockedTitle = "월급 설정",
                                 onBack = navigator::goBack,
-                                onReset = viewModel::reset,
-                                lock =
-                                LockControls(
-                                    enabled = lockState.enabled,
-                                    biometric = lockState.biometric,
-                                    biometricAvailable = biometricAvailable(context),
-                                    onEnable = { if (settled()) navigator.go(SalaryPinSetupKey) },
-                                    onDisable = lock::disable,
-                                    onChangePin = { if (settled()) navigator.go(SalaryPinSetupKey) },
-                                    onBiometricChange = lock::setBiometric,
-                                    double = lockState.double,
-                                    appLockOn = appLockState.enabled,
-                                    // 월급 설정은 열려 있어야 들어오므로 켜도 이 화면은 열린 채로 둔다
-                                    onDoubleChange = { on -> lock.setDouble(on, keepOpen = true) },
-                                ),
-                            )
+                                onForgot = {
+                                    forgetSalaryPin()
+                                    navigator.closeIfTop(key)
+                                },
+                            ) {
+                                val viewModel: SalarySettingsViewModel = viewModel(factory = salarySettingsViewModelFactory(container))
+                                val settings by viewModel.settings.collectAsStateWithLifecycle()
+                                val settled = rememberSettled()
+                                SalarySettingsScreen(
+                                    settings = settings,
+                                    onChange = viewModel::update,
+                                    onDigit = viewModel::appendDigit,
+                                    onDeleteDigit = viewModel::deleteDigit,
+                                    onClearAmount = viewModel::clearAmount,
+                                    onBack = navigator::goBack,
+                                    onReset = viewModel::reset,
+                                    lock =
+                                    LockControls(
+                                        state = salaryLockState,
+                                        onSetPin = { if (settled()) navigator.go(SalaryPinSetupKey) },
+                                        onDisable = salaryLock::disable,
+                                        onBiometricChange = salaryLock::setBiometric,
+                                        showDouble = true,
+                                        appLockOn = appLockState.enabled,
+                                        onDoubleChange = { on -> salaryLock.setDouble(on, wasOpen = salaryOpen) },
+                                    ),
+                                )
+                            }
                         }
 
                         entry<AppPinSetupKey> { key ->
-                            // 처음 켜는지 바꾸는지는 들어올 때 정해진다. PIN 을 정한 뒤 제목이 바뀌지 않게 붙잡아 둔다.
-                            val changing = remember { appLockState.enabled }
-                            var askDouble by rememberSaveable { mutableStateOf(false) }
-                            LockPage(title = if (changing) "PIN 바꾸기" else "PIN 정하기", onBack = navigator::goBack) {
-                                AppPinSetup(
-                                    onDone = { pin, biometric ->
-                                        appLock.setPin(pin)
-                                        appLock.setBiometric(biometric)
-                                        val salary = container.salaryLock
-                                        when {
-                                            changing || !salary.state.value.enabled -> navigator.closeIfTop(key)
-
-                                            // 월급 잠금이 켜져 있으면 월급을 한 번 더 잠글지 묻는다(처음 켤 때만). 다만 '앱 잠금만 쓰기' 를 고르면
-                                            // 월급 PIN 없이 월급이 열리므로, 이번에 월급 PIN 을 넣어 연 사람에게만 묻는다.
-                                            salary.unlocked.value -> askDouble = true
-
-                                            // 월급이 잠긴 채면 월급 PIN 을 모르는 사람일 수 있어 묻지 않고 2중 잠금으로 둔다(지난번에 꺼 둔 것도 되돌린다)
-                                            else -> {
-                                                salary.setDouble(true)
-                                                navigator.closeIfTop(key)
-                                            }
-                                        }
-                                    },
-                                )
-                            }
-                            if (askDouble) {
-                                DoubleLockQuestion { double ->
-                                    container.salaryLock.setDouble(double)
-                                    askDouble = false
-                                    navigator.closeIfTop(key)
-                                }
-                            }
+                            PinSetupPage(
+                                lock = appLock,
+                                texts = APP_LOCK_TEXTS,
+                                onBack = navigator::goBack,
+                                // 월급 잠금이 켜져 있으면 월급을 한 번 더 잠글지 묻는다. '앱 잠금만 쓰기' 를 고르면 월급 PIN 없이 월급이 열리므로
+                                // 이번에 월급 PIN 을 넣어 연 사람에게만 묻는다. 묻지 않으면 2중 잠금 그대로다(앱 잠금을 끌 때 처음대로 돌려 둔다).
+                                shouldAskDouble = { salaryLockState.enabled && salaryUnlocked },
+                                onDoubleChosen = { double -> salaryLock.setDouble(double, wasOpen = salaryOpen) },
+                                onClose = { navigator.closeIfTop(key) },
+                            )
                         }
 
                         entry<SalaryPinSetupKey> { key ->
-                            val lock = container.salaryLock
-                            val lockState by lock.state.collectAsStateWithLifecycle()
-                            val unlocked by lock.unlocked.collectAsStateWithLifecycle()
-                            val changing = remember { lockState.enabled }
-                            var askDouble by rememberSaveable { mutableStateOf(false) }
-                            if (askDouble) {
-                                DoubleLockQuestion { double ->
-                                    lock.setDouble(double)
-                                    askDouble = false
-                                    navigator.closeIfTop(key)
-                                }
-                            }
                             // PIN 을 바꾸려면 먼저 풀려 있어야 한다. 바꾸던 중에 앱을 나갔다 오면 다시 묻는다.
-                            LockPage(title = if (changing) "PIN 바꾸기" else "PIN 정하기", onBack = navigator::goBack) {
-                                if (!lock.isOpen(lockState, unlocked, appLockState.enabled)) {
-                                    SalaryLockScreen(
-                                        biometric = lockState.biometric,
-                                        onUnlock = lock::tryUnlock,
-                                        onBiometricSuccess = lock::unlockWithBiometric,
-                                        onForgot = {
-                                            scope.launch { container.clearSalary(SalaryLockReset.PIN) }
-                                            navigator.closeIfTop(key)
-                                        },
-                                    )
-                                } else {
-                                    SalaryPinSetup(
-                                        onDone = { pin, biometric ->
-                                            lock.setPin(pin)
-                                            lock.setBiometric(biometric)
-                                            // 앱 잠금이 이미 켜져 있으면 월급을 한 번 더 잠글지 묻는다(처음 켤 때만)
-                                            if (!changing && appLockState.enabled) askDouble = true else navigator.closeIfTop(key)
-                                        },
-                                    )
-                                }
+                            SalaryGuard(
+                                open = salaryOpen,
+                                lock = salaryLock,
+                                state = salaryLockState,
+                                lockedTitle = "PIN 바꾸기",
+                                onBack = navigator::goBack,
+                                onForgot = {
+                                    forgetSalaryPin()
+                                    navigator.closeIfTop(key)
+                                },
+                            ) {
+                                PinSetupPage(
+                                    lock = salaryLock,
+                                    texts = SALARY_LOCK_TEXTS,
+                                    onBack = navigator::goBack,
+                                    // 앱 잠금이 켜져 있으면 월급을 한 번 더 잠글지 묻는다(방금 월급 PIN 을 정한 사람이다)
+                                    shouldAskDouble = { appLockState.enabled },
+                                    onDoubleChosen = { double -> salaryLock.setDouble(double, wasOpen = true) },
+                                    onClose = { navigator.closeIfTop(key) },
+                                )
                             }
                         }
 
@@ -659,14 +616,7 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
                 )
             }
         }
-        if (appLocked) {
-            AppLockScreen(
-                state = appLockState,
-                onUnlock = appLock::tryUnlock,
-                onBiometricSuccess = appLock::unlockWithBiometric,
-                onForgotVerified = appLock::disable,
-            )
-        }
+        if (appLocked) AppLockScreen(lock = appLock, state = appLockState, onForgotVerified = container::disableAppLock)
         // 개발자 모드가 켜져 있으면 어느 화면에서든 오른쪽 아래에 벌레 표시를 띄워 둔다. 보이기만 하고 누름은 아래 화면이 받는다.
         val devModeOn by DevLog.enabled.collectAsStateWithLifecycle()
         DevModeBadge(visible = devModeOn)
@@ -811,6 +761,64 @@ private fun LockPage(title: String, onBack: () -> Unit, content: @Composable () 
     }
 }
 
+/**
+ * 월급이 보이는 화면(월급 설정·월급 PIN 바꾸기)의 문. 잠겨 있으면 뒤로 가기가 있는 틀에 월급 잠금 화면을, 풀려 있으면 [content] 를 그린다.
+ * 월급이 보이는 동안은 최근 앱 미리보기에 남기지 않는다.
+ */
+@Composable
+private fun SalaryGuard(
+    open: Boolean,
+    lock: PinLock,
+    state: PinLock.State,
+    lockedTitle: String,
+    onBack: () -> Unit,
+    onForgot: () -> Unit,
+    content: @Composable () -> Unit,
+) {
+    if (!open) {
+        LockPage(title = lockedTitle, onBack = onBack) { SalaryLockScreen(lock = lock, state = state, onForgot = onForgot) }
+        return
+    }
+    HideFromRecents(active = state.enabled)
+    content()
+}
+
+/**
+ * PIN 정하기(월급·앱 잠금). 처음 켤 때와 바꿀 때 같이 쓴다.
+ * 처음 켤 때 다른 잠금도 켜져 있으면 PIN 을 정한 직후 월급을 한 번 더 잠글지(2중 잠금) 묻는다.
+ * @param shouldAskDouble 처음 켰을 때 2중 잠금을 물을지
+ * @param onDoubleChosen 2중 잠금을 쓸지 골랐다
+ */
+@Composable
+private fun PinSetupPage(
+    lock: PinLock,
+    texts: PinLockTexts,
+    onBack: () -> Unit,
+    shouldAskDouble: () -> Boolean,
+    onDoubleChosen: (Boolean) -> Unit,
+    onClose: () -> Unit,
+) {
+    // 처음 켜는지 바꾸는지는 들어올 때 정해진다. PIN 을 정한 뒤 제목이 바뀌지 않게 붙잡아 둔다.
+    val changing = remember { lock.state.value.enabled }
+    var askDouble by rememberSaveable { mutableStateOf(false) }
+    LockPage(title = if (changing) "PIN 바꾸기" else "PIN 정하기", onBack = onBack) {
+        PinSetupScreen(
+            texts = texts,
+            onDone = { pin, biometric ->
+                lock.setPin(pin, biometric)
+                if (!changing && shouldAskDouble()) askDouble = true else onClose()
+            },
+        )
+    }
+    if (askDouble) {
+        DoubleLockQuestion { double ->
+            onDoubleChosen(double)
+            askDouble = false
+            onClose()
+        }
+    }
+}
+
 private fun salaryViewModelFactory(container: AppContainer) = viewModelFactory {
     initializer { SalaryViewModel(container.salaryRepository, container.transactionRepository) }
 }
@@ -832,9 +840,6 @@ private fun settingsViewModelFactory(container: AppContainer) = viewModelFactory
             backupStorage = container.backupStorage,
             backupExporter = container.backupExporter,
             salaryRepository = container.salaryRepository,
-            lastBackup = container.backupHistory.last,
-            backupSchedule = container.backupSchedule,
-            weekStart = container.weekStart,
             appThemeMode = container.themeMode,
         )
     }
