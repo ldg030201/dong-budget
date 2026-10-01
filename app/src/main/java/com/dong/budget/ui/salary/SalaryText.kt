@@ -82,29 +82,23 @@ internal fun spokenRate(perSecond: Double): String =
 internal fun basisLine(settings: SalarySettings): String = if (settings.usesTakeHome) "실수령 기준으로 쌓여요" else "세전 기준으로 쌓여요"
 
 /**
- * 1시간에 버는 돈(₩/h)과 통상시급을 식 두 줄로 견준다.
- * ₩/h 는 월급(주휴수당이 들어 있다)을 이번 월급 기간에 실제로 일하는 시간으로 나눈 값이고,
+ * 1시간에 버는 돈(₩/h)과 통상시급을 두 줄로 견준다.
+ * ₩/h 는 월급(주휴수당이 들어 있다)을 이번 월급 기간에 실제로 일하는 시간으로 나눈 값이라 주휴수당이 포함돼 있고,
  * 통상시급은 주휴 시간까지 넣은 한 달 209시간으로 나눈, 주휴수당을 뺀 본래 시급이다.
- * "₩/h 13,481원 = 월급 ÷ 이번 달 근무 160시간 (주휴수당 포함)"
- * "통상시급 10,320원 = 월급 ÷ 209시간 (주휴수당 미포함)"
- * 실수령으로 쌓이면 ₩/h 는 실수령, 통상시급은 세전으로 나눈다. 세전을 적지 않았으면 통상시급 줄은 뺀다. 주휴가 없으면(주 15시간 미만) 괄호를 뺀다.
+ * "주휴수당 포함: ₩13,481/h" / "통상시급: ₩10,320/h"
+ * 실수령으로 쌓이면 ₩/h 는 실수령, 통상시급은 세전이라 (실수령)·(세전) 을 붙인다. 세전을 적지 않았으면 통상시급 줄은 뺀다.
+ * 주휴가 없으면(주 15시간 미만) 위 줄은 '실제 근무 기준' 이라 한다.
  * @return 이번 월급 기간에 일하는 날이 없으면 null
  */
 internal fun hourlyLine(settings: SalarySettings, payMonth: YearMonth?): String? {
     payMonth ?: return null
-    val days = settings.workdaysIn(payMonth)
-    if (days == 0 || settings.workSecondsPerDay == 0L) return null
-    val worked = hoursAndMinutes(days * settings.workSecondsPerDay / SECONDS_PER_MINUTE)
-    val perHour = formatAmount((settings.perSecond(payMonth) * SECONDS_PER_HOUR).roundToLong())
+    if (settings.workdaysIn(payMonth) == 0 || settings.workSecondsPerDay == 0L) return null
     val takeHome = settings.usesTakeHome
-    val hasRest = settings.monthlyRestHours > 0
-    val rate = "₩/h ${perHour}원 = ${if (takeHome) "실수령" else "월급"} ÷ 이번 달 근무 $worked${if (hasRest) " (주휴수당 포함)" else ""}"
+    val label = if (settings.monthlyRestHours > 0) "주휴수당 포함" else "실제 근무 기준"
+    val rate = "$label${if (takeHome) "(실수령)" else ""}: ${perHourBadge(settings.perSecond(payMonth))}"
     val wage = settings.ordinaryHourlyWage
     if (wage <= 0) return rate
-    val ordinary =
-        "통상시급 ${formatAmount(floor(wage).toLong())}원 = ${if (takeHome) "세전 월급" else "월급"} ÷ ${settings.standardMonthlyHours}시간" +
-            if (hasRest) " (주휴수당 미포함)" else ""
-    return "$rate\n$ordinary"
+    return "$rate\n통상시급${if (takeHome) "(세전)" else ""}: ₩${formatAmount(floor(wage).toLong())}/h"
 }
 
 /**

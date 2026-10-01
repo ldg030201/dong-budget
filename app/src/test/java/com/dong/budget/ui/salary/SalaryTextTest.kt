@@ -6,6 +6,7 @@ import com.dong.budget.ui.format.formatDuration
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -66,26 +67,24 @@ class SalaryTextTest {
     }
 
     @Test
-    fun `시간당 버는 돈과 통상시급을 식 두 줄로 견준다`() {
-        // 10월 월급 기간 9월 26일~10월 23일(25일이 일요일이라 금요일로 당김): 평일 20일 × 8시간 = 160시간
+    fun `시간당 버는 돈(주휴수당 포함)과 통상시급을 두 줄로 견준다`() {
+        // 10월 월급 기간 9월 26일~10월 23일: 평일 20일 × 8시간 = 160시간 → 3,000,000 ÷ 160 = 18,750
         val october = YearMonth.of(2026, 10)
-        assertEquals(
-            "₩/h 18,750원 = 월급 ÷ 이번 달 근무 160시간 (주휴수당 포함)\n" +
-                "통상시급 14,354원 = 월급 ÷ 209시간 (주휴수당 미포함)",
-            hourlyLine(salary, october),
-        )
+        assertEquals("주휴수당 포함: ₩18,750/h\n통상시급: ₩14,354/h", hourlyLine(salary, october))
         // 오늘 번 돈 옆 ₩/h 와 같은 값이다
         assertEquals("₩18,750/h", perHourBadge(salary.perSecond(october)))
-        // 실수령으로 쌓이면 ₩/h 는 실수령, 통상시급은 세전으로 나눈다
-        assertEquals(
-            "₩/h 16,250원 = 실수령 ÷ 이번 달 근무 160시간 (주휴수당 포함)\n" +
-                "통상시급 14,354원 = 세전 월급 ÷ 209시간 (주휴수당 미포함)",
-            hourlyLine(salary.copy(takeHome = 2_600_000), october),
-        )
+        // 실수령으로 쌓이면 위 줄은 실수령, 통상시급은 세전이다
+        assertEquals("주휴수당 포함(실수령): ₩16,250/h\n통상시급(세전): ₩14,354/h", hourlyLine(salary.copy(takeHome = 2_600_000), october))
         // 세전을 적지 않으면 통상시급 줄은 뺀다
-        assertEquals("₩/h 16,250원 = 실수령 ÷ 이번 달 근무 160시간 (주휴수당 포함)", hourlyLine(SalarySettings(takeHome = 2_600_000), october))
-        // 하루 8시간 30분이면 170시간
-        assertTrue(hourlyLine(salary.copy(workEnd = LocalTime.of(18, 30)), october)!!.startsWith("₩/h 17,647원 = 월급 ÷ 이번 달 근무 170시간"))
+        assertEquals("주휴수당 포함(실수령): ₩16,250/h", hourlyLine(SalarySettings(takeHome = 2_600_000), october))
+        // 주 15시간이 안 되면 주휴가 없다(주 3일 하루 4시간)
+        val partTime = salary.copy(
+            workStart = LocalTime.of(9, 0),
+            workEnd = LocalTime.of(13, 0),
+            skipLunch = false,
+            workdays = setOf(DayOfWeek.MONDAY, DayOfWeek.WEDNESDAY, DayOfWeek.FRIDAY),
+        )
+        assertTrue(hourlyLine(partTime, october)!!.startsWith("실제 근무 기준: "))
         assertEquals(null, hourlyLine(salary, null))
     }
 
