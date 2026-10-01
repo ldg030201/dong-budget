@@ -40,7 +40,7 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import com.dong.budget.data.capture.CaptureStore
-import com.dong.budget.ui.components.BudgetTextButton
+import com.dong.budget.ui.components.BudgetSmallButton
 import com.dong.budget.ui.components.BudgetTopAppBar
 import com.dong.budget.ui.components.ConfirmDialog
 import com.dong.budget.ui.components.NoticeDot
@@ -95,17 +95,21 @@ fun InboxScreen(
                 onNavigationClick = onBack,
                 title = "알림",
                 actions = {
-                    BudgetTextButton(
+                    // 글자만 두면 제목처럼 보여서 바탕을 깐 작은 버튼으로 둔다. 지우기는 회색, 모두 읽음은 알림 줄과 같은 연한 남색이다.
+                    BudgetSmallButton(
                         text = "읽은 알림 지우기",
                         onClick = { askDelete = items.orEmpty().filterNot { it.isNew }.map { it.payment.dedupKey } },
                         enabled = items.orEmpty().any { !it.isNew },
-                        color = BudgetTheme.colors.textSecondary,
                     )
-                    BudgetTextButton(
+                    Spacer(Modifier.width(BudgetTheme.spacing.inlineGap))
+                    BudgetSmallButton(
                         text = "모두 읽음",
                         onClick = { onMarkAllRead(items.orEmpty().map { it.payment.dedupKey }) },
                         enabled = items.orEmpty().any { it.isNew },
+                        container = MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
                     )
+                    Spacer(Modifier.width(BudgetTheme.spacing.tightGap))
                 },
             )
             // 불러오는 동안은 비워 둔다. 빈 목록 안내가 잠깐 보였다 사라지지 않게 한다.
