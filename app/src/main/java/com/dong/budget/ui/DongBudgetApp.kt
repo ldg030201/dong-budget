@@ -99,6 +99,7 @@ import com.dong.budget.ui.inbox.InboxScreen
 import com.dong.budget.ui.inbox.InboxViewModel
 import com.dong.budget.ui.lock.AppLockScreen
 import com.dong.budget.ui.lock.AppPinSetup
+import com.dong.budget.ui.lock.DoubleLockQuestion
 import com.dong.budget.ui.lock.HideFromRecents
 import com.dong.budget.ui.lock.LockControls
 import com.dong.budget.ui.lock.biometricAvailable
@@ -254,7 +255,8 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
                                     // 처음이면 연봉 공개 주의 안내, 잠겨 있으면 PIN·지문, 그 뒤에야 월급을 그린다
                                     SalaryTabGate(
                                         state = lockState,
-                                        unlocked = unlocked,
+                                        // 앱 잠금이 켜져 있고 2중 잠금을 껐으면 앱 잠금이 대신 지켜 따로 묻지 않는다
+                                        open = lock.isOpen(lockState, unlocked, appLockState.enabled),
                                         onIntroConfirm = { wantsLock ->
                                             lock.markIntroDone()
                                             if (wantsLock) navigator.go(SalaryPinSetupKey)
@@ -474,7 +476,7 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
                             val lockState by lock.state.collectAsStateWithLifecycle()
                             val unlocked by lock.unlocked.collectAsStateWithLifecycle()
                             // 월급 설정도 월급이 보이는 곳이라 같이 잠근다(앱을 나갔다 오면 여기서도 다시 묻는다)
-                            if (!lock.isOpen(lockState, unlocked)) {
+                            if (!lock.isOpen(lockState, unlocked, appLockState.enabled)) {
                                 LockPage(title = "월급 설정", onBack = navigator::goBack) {
                                     SalaryLockScreen(
                                         biometric = lockState.biometric,
@@ -509,19 +511,39 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
                                     onDisable = lock::disable,
                                     onChangePin = { if (settled()) navigator.go(SalaryPinSetupKey) },
                                     onBiometricChange = lock::setBiometric,
+                                    double = lockState.double,
+                                    appLockOn = appLockState.enabled,
+                                    onDoubleChange = lock::setDouble,
                                 ),
                             )
                         }
 
                         entry<AppPinSetupKey> { key ->
-                            LockPage(title = if (appLockState.enabled) "PIN 바꾸기" else "PIN 정하기", onBack = navigator::goBack) {
+                            // 처음 켜는지 바꾸는지는 들어올 때 정해진다. PIN 을 정한 뒤 제목이 바뀌지 않게 붙잡아 둔다.
+                            val changing = remember { appLockState.enabled }
+                            var askDouble by rememberSaveable { mutableStateOf(false) }
+                            LockPage(title = if (changing) "PIN 바꾸기" else "PIN 정하기", onBack = navigator::goBack) {
                                 AppPinSetup(
                                     onDone = { pin, biometric ->
                                         appLock.setPin(pin)
                                         appLock.setBiometric(biometric)
-                                        navigator.closeIfTop(key)
+                                        // 월급 잠금이 이미 켜져 있으면 월급을 한 번 더 잠글지 묻는다(처음 켤 때만)
+                                        if (!changing &&
+                                            container.salaryLock.state.value.enabled
+                                        ) {
+                                            askDouble = true
+                                        } else {
+                                            navigator.closeIfTop(key)
+                                        }
                                     },
                                 )
+                            }
+                            if (askDouble) {
+                                DoubleLockQuestion { double ->
+                                    container.salaryLock.setDouble(double)
+                                    askDouble = false
+                                    navigator.closeIfTop(key)
+                                }
                             }
                         }
 
@@ -529,9 +551,18 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
                             val lock = container.salaryLock
                             val lockState by lock.state.collectAsStateWithLifecycle()
                             val unlocked by lock.unlocked.collectAsStateWithLifecycle()
+                            val changing = remember { lockState.enabled }
+                            var askDouble by rememberSaveable { mutableStateOf(false) }
+                            if (askDouble) {
+                                DoubleLockQuestion { double ->
+                                    lock.setDouble(double)
+                                    askDouble = false
+                                    navigator.closeIfTop(key)
+                                }
+                            }
                             // PIN 을 바꾸려면 먼저 풀려 있어야 한다. 바꾸던 중에 앱을 나갔다 오면 다시 묻는다.
-                            LockPage(title = if (lockState.enabled) "PIN 바꾸기" else "PIN 정하기", onBack = navigator::goBack) {
-                                if (!lock.isOpen(lockState, unlocked)) {
+                            LockPage(title = if (changing) "PIN 바꾸기" else "PIN 정하기", onBack = navigator::goBack) {
+                                if (!lock.isOpen(lockState, unlocked, appLockState.enabled)) {
                                     SalaryLockScreen(
                                         biometric = lockState.biometric,
                                         onUnlock = lock::tryUnlock,
@@ -546,7 +577,8 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
                                         onDone = { pin, biometric ->
                                             lock.setPin(pin)
                                             lock.setBiometric(biometric)
-                                            navigator.closeIfTop(key)
+                                            // 앱 잠금이 이미 켜져 있으면 월급을 한 번 더 잠글지 묻는다(처음 켤 때만)
+                                            if (!changing && appLockState.enabled) askDouble = true else navigator.closeIfTop(key)
                                         },
                                     )
                                 }

@@ -276,6 +276,11 @@ data class LockControls(
     val onDisable: () -> Unit = {},
     val onChangePin: () -> Unit = {},
     val onBiometricChange: (Boolean) -> Unit = {},
+    /** 2중 잠금 스위치 값. null 이면 줄을 두지 않는다(앱 잠금 묶음). */
+    val double: Boolean? = null,
+    /** 앱 잠금이 켜져 있는지. 이 잠금과 앱 잠금이 둘 다 켜져 있어야 2중 잠금을 고를 수 있다. */
+    val appLockOn: Boolean = false,
+    val onDoubleChange: (Boolean) -> Unit = {},
 )
 
 /**
@@ -311,6 +316,22 @@ fun LockGroup(controls: LockControls, texts: LockGroupTexts, modifier: Modifier 
             checked = controls.enabled,
             onCheckedChange = { on -> if (on) controls.onEnable() else askOff = true },
         )
+        controls.double?.let { double ->
+            val available = controls.enabled && controls.appLockOn
+            SwitchRow(
+                title = "2중 잠금",
+                description =
+                if (controls.appLockOn) {
+                    "앱 잠금을 풀고 월급 탭을 열 때 월급 PIN을 한 번 더 물어요. 끄면 앱 잠금만으로 열려요"
+                } else {
+                    "앱 잠금(설정 > 잠금)도 켜면 월급을 한 번 더 잠글지 고를 수 있어요"
+                },
+                // 앱 잠금이 꺼져 있으면 월급 잠금 하나뿐이라 늘 따로 묻는다
+                checked = if (controls.appLockOn) double else true,
+                onCheckedChange = controls.onDoubleChange,
+                enabled = available,
+            )
+        }
         ActionRow(title = "PIN 바꾸기", onClick = controls.onChangePin, enabled = controls.enabled, opensScreen = true)
         SwitchRow(
             title = "지문으로 열기",
@@ -320,6 +341,28 @@ fun LockGroup(controls: LockControls, texts: LockGroupTexts, modifier: Modifier 
             enabled = controls.enabled && controls.biometricAvailable,
         )
     }
+}
+
+/**
+ * 앱 잠금과 월급 잠금이 둘 다 켜졌을 때 월급을 한 번 더 잠글지(2중 잠금) 묻는다. 둘 중 하나를 꼭 고른다.
+ * 둘 중 하나의 PIN 을 막 정했을 때(다른 하나는 이미 켜져 있을 때) 띄운다.
+ * @param onChoose 2중 잠금을 쓸지
+ */
+@Composable
+fun DoubleLockQuestion(onChoose: (double: Boolean) -> Unit) {
+    ConfirmDialog(
+        title = "월급 탭도 한 번 더 잠글까요?",
+        message =
+        "앱 잠금과 월급 잠금이 둘 다 켜져 있어요.\n" +
+            "2중 잠금을 쓰면 앱을 연 뒤 월급 탭을 열 때 월급 PIN을 한 번 더 물어요. 앱 잠금만 쓰면 앱을 열 때 한 번만 물어요.\n\n" +
+            "월급 설정 > 잠금에서 언제든 바꿀 수 있어요.",
+        confirmLabel = "2중 잠금 쓰기",
+        dismissLabel = "앱 잠금만 쓰기",
+        destructive = false,
+        cancelable = false,
+        onConfirm = { onChoose(true) },
+        onDismiss = { onChoose(false) },
+    )
 }
 
 /** 누른 자리 수만큼 채운 점 네 개. 화면 읽기는 '4자리 중 2자리' 로 읽는다. */
