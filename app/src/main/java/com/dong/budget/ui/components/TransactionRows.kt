@@ -6,8 +6,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import com.dong.budget.data.db.TransactionListItem
 import com.dong.budget.data.db.TransactionType
 import com.dong.budget.ui.format.formatDayHeader
@@ -67,6 +70,10 @@ fun TransactionRow(
     title: String = transactionTitle(item),
     subtitle: String = transactionSubtitle(item),
     colorExpense: Boolean = false,
+    /** 금액 아래 작은 글(월급 탭의 '일한 시간'). 없으면 금액만 둔다. */
+    amountCaption: String? = null,
+    /** [amountCaption] 을 화면 읽기가 읽을 말. 무엇인지 앞에 붙인다("일한 시간 약 47분"). 없으면 글 그대로 읽는다. */
+    amountCaptionSpoken: String? = null,
 ) {
     BudgetListItem(
         title = title,
@@ -74,11 +81,27 @@ fun TransactionRow(
         leading = { CategoryBadge(icon = item.categoryIcon, color = item.categoryColor) },
         subtitle = subtitle,
         trailing = {
-            Text(
-                text = formatSignedAmount(item.type, item.amount),
-                style = BudgetTheme.amount.medium,
-                color = transactionAmountColor(item.type, colorExpense),
-            )
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    text = formatSignedAmount(item.type, item.amount),
+                    style = BudgetTheme.amount.medium,
+                    color = transactionAmountColor(item.type, colorExpense),
+                )
+                if (amountCaption != null) {
+                    Text(
+                        text = amountCaption,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = BudgetTheme.colors.textSecondary,
+                        modifier = if (amountCaptionSpoken !=
+                            null
+                        ) {
+                            Modifier.semantics { contentDescription = amountCaptionSpoken }
+                        } else {
+                            Modifier
+                        },
+                    )
+                }
+            }
         },
         onClick = onClick,
     )

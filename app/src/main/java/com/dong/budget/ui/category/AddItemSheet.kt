@@ -45,7 +45,6 @@ import com.dong.budget.data.db.CategoryStyle
 import com.dong.budget.ui.components.AnimatedErrorText
 import com.dong.budget.ui.components.BudgetPrimaryButton
 import com.dong.budget.ui.components.CategoryBadge
-import com.dong.budget.ui.components.ErrorText
 import com.dong.budget.ui.components.FormTextField
 import com.dong.budget.ui.components.IconBadge
 import com.dong.budget.ui.components.LocalAppLocked

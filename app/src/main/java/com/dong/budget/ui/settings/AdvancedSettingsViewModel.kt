@@ -16,7 +16,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -67,8 +66,8 @@ class AdvancedSettingsViewModel(
     fun askResetData() {
         if (_busy.value) return
         viewModelScope.launch {
-            val autoBackup = settingsRepository.autoSettings.first()[AutoOption.BACKUP_BEFORE_REPLACE] && backupExporter.hasData()
-            _prompt.value = ResetPrompt.Data(backupRepository.transactionCount(), autoBackup)
+            val count = backupRepository.transactionCount()
+            _prompt.value = ResetPrompt.Data(count, shouldBackupBeforeReplace(settingsRepository, backupExporter, count))
         }
     }
 
@@ -93,23 +92,17 @@ class AdvancedSettingsViewModel(
                                 RESET_SETTINGS_DONE
                             }
 
-                            is ResetPrompt.Data -> {
-                                // 지우기 전에 지금 데이터를 파일로 남긴다. 남기지 못하면 지우지 않는다.
-                                val savedAs =
-                                    if (prompt.autoBackup) {
-                                        backupExporter.saveBeforeReplace(AutoBackupReason.RESET)
-                                            ?: return@withContext AUTO_BACKUP_FAILED_RESET
-                                    } else {
-                                        null
-                                    }
-                                backupRepository.resetToDefaults()
-                                dataCleared = true
-                                // 알림 목록도 비운다. 남겨 두면 지운 거래의 결제가 '등록 안 함' 으로 되살아나 보인다.
-                                paymentCapture.clearInbox()
-                                // 처음 설치한 상태라 월급 설정도 지운다(월급날 알림 기록과 떠 있는 알림도)
-                                clearSalary()
-                                listOfNotNull(RESET_DATA_DONE, savedAs?.let { AUTO_BACKUP_SAVED_NOTE }).joinToString("\n")
-                            }
+                            // 지우기 전에 지금 데이터를 파일로 남긴다. 남기지 못하면 지우지 않는다.
+                            is ResetPrompt.Data ->
+                                backupExporter.replaceWithBackup(prompt.autoBackup, AutoBackupReason.RESET, AUTO_BACKUP_FAILED_RESET) {
+                                    backupRepository.resetToDefaults()
+                                    dataCleared = true
+                                    // 알림 목록도 비운다. 남겨 두면 지운 거래의 결제가 '등록 안 함' 으로 되살아나 보인다.
+                                    paymentCapture.clearInbox()
+                                    // 처음 설치한 상태라 월급 설정도 지운다(월급날 알림 기록과 떠 있는 알림도)
+                                    clearSalary()
+                                    RESET_DATA_DONE
+                                }
                         }
                     }
                 _messages.send(done)

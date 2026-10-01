@@ -7,9 +7,6 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.DragInteraction
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -35,8 +32,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.KeyboardArrowLeft
-import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.FloatingActionButtonDefaults
@@ -65,26 +60,18 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import com.dong.budget.R
-import com.dong.budget.data.db.TransactionListItem
-import com.dong.budget.data.db.TransactionType
 import com.dong.budget.ui.components.AnimatedNoticeDot
 import com.dong.budget.ui.components.BudgetDivider
 import com.dong.budget.ui.components.BudgetIconButton
-import com.dong.budget.ui.components.CategoryBadge
 import com.dong.budget.ui.components.ConfirmDialog
 import com.dong.budget.ui.components.DayHeader
 import com.dong.budget.ui.components.LocalWeekStart
 import com.dong.budget.ui.components.MonthStepper
-import com.dong.budget.ui.components.NoticeDot
 import com.dong.budget.ui.components.TransactionRow
 import com.dong.budget.ui.components.animatedItem
 import com.dong.budget.ui.components.animatedItems
 import com.dong.budget.ui.components.sectionBlock
-import com.dong.budget.ui.format.formatDayHeader
-import com.dong.budget.ui.format.formatMonth
-import com.dong.budget.ui.format.formatSignedAmount
 import com.dong.budget.ui.format.formatSignedTotal
-import com.dong.budget.ui.format.formatTime
 import com.dong.budget.ui.theme.BudgetTheme
 import com.dong.budget.ui.theme.Motion
 import com.dong.budget.ui.theme.pressFeedback
@@ -92,7 +79,6 @@ import com.dong.budget.ui.theme.pressScaleClickable
 import com.dong.budget.ui.theme.slideByDirection
 import kotlinx.coroutines.launch
 import java.time.LocalDate
-import java.time.YearMonth
 
 /**
  * 홈. 위에서부터 이번 달 수입·지출 요약, 달력, 날짜별 거래 목록이 한 화면에 이어진다.
@@ -122,10 +108,8 @@ fun HomeScreen(
     onOpenInbox: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    // 새 버전 알림 줄을 닫을 때 묻는 중인지. 묻는 사이 알림 줄이 사라지면(최신이 됨) 묻던 것도 거둔다.
-    // 거두지 않으면 나중에 새 버전 줄이 다시 생기는 순간 누르지도 않은 질문이 뜬다.
-    var askCloseUpdate by rememberSaveable { mutableStateOf(false) }
-    LaunchedEffect(updateVersion) { if (updateVersion == null) askCloseUpdate = false }
+    // 새 버전 알림 줄을 닫을 때 묻는 중인지. 알리는 버전에 묶어 두어, 줄이 사라지거나 다른 버전으로 바뀌면 묻던 것도 거둔다.
+    var askCloseUpdate by rememberSaveable(updateVersion) { mutableStateOf(false) }
     // 가로 화면의 좌우 인셋은 앱 전체(DongBudgetApp)에서 한 번에 뺀다
     Box(modifier = modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {

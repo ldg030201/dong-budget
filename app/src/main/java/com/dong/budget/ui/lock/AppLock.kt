@@ -1,7 +1,5 @@
 package com.dong.budget.ui.lock
 
-import android.content.Intent
-import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
@@ -18,9 +16,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
-import androidx.core.net.toUri
 import com.dong.budget.data.lock.PinLock
+import com.dong.budget.startFirst
 import com.dong.budget.ui.components.ConfirmDialog
+import com.dong.budget.ui.permission.appInfoIntent
 
 /** 앱 잠금의 글 */
 internal val APP_LOCK_TEXTS =
@@ -43,11 +42,6 @@ val APP_LOCK_GROUP_TEXTS =
         offMessage = "앱을 열 때 PIN이나 지문을 묻지 않아요. 폰을 다른 사람이 보면 가계부가 그대로 보여요.",
     )
 
-/** 앱 잠금의 PIN 정하기 */
-@Composable
-fun AppPinSetup(onDone: (pin: String, biometric: Boolean) -> Unit, modifier: Modifier = Modifier) =
-    PinSetupScreen(APP_LOCK_TEXTS, onDone, modifier)
-
 /** PIN 을 잊어 잠금을 껐을 때 */
 private const val FORGOT_DONE_MESSAGE = "앱 잠금을 껐어요. 설정 > 잠금에서 다시 켤 수 있어요"
 
@@ -61,13 +55,7 @@ private const val FORGOT_DONE_MESSAGE = "앱 잠금을 껐어요. 설정 > 잠�
  * @param onForgotVerified 기기 화면 잠금으로 확인했다. 앱 잠금을 끈다.
  */
 @Composable
-fun AppLockScreen(
-    state: PinLock.State,
-    onUnlock: (String) -> PinLock.Attempt,
-    onBiometricSuccess: () -> Unit,
-    onForgotVerified: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
+fun AppLockScreen(lock: PinLock, state: PinLock.State, onForgotVerified: () -> Unit, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val activity = LocalActivity.current
     BackHandler { activity?.moveTaskToBack(true) }
@@ -91,9 +79,7 @@ fun AppLockScreen(
             destructive = false,
             onConfirm = {
                 noScreenLock = false
-                runCatching {
-                    context.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, "package:${context.packageName}".toUri()))
-                }
+                context.startFirst(listOf(appInfoIntent(context)))
             },
             onDismiss = { noScreenLock = false },
         )
@@ -105,8 +91,8 @@ fun AppLockScreen(
             PinLockScreen(
                 texts = APP_LOCK_TEXTS,
                 biometric = state.biometric,
-                onUnlock = onUnlock,
-                onBiometricSuccess = onBiometricSuccess,
+                onUnlock = lock::tryUnlock,
+                onBiometricSuccess = lock::unlockWithBiometric,
                 onForgot = { if (Biometric.isDeviceSecure(context)) verifyOwner() else noScreenLock = true },
             )
         }

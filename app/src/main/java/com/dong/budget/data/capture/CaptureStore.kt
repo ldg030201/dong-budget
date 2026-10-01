@@ -106,17 +106,7 @@ class CaptureStore(private val prefs: SharedPreferences, private val now: () -> 
      * @return 숨긴 결제의 열쇠. 그 묻는 알림이 알림창에 떠 있을 수 있어 부르는 쪽이 치운다.
      */
     @Synchronized
-    fun hideAll(): List<String> {
-        val shown = liveEntries().filterNot { it.hidden }
-        if (shown.isEmpty()) return emptyList()
-        prefs.edit {
-            shown.forEach {
-                putString(KEY_PREFIX + it.payment.dedupKey, json.encodeToString(it.copy(answered = true, read = true, hidden = true)))
-            }
-        }
-        revision.update { it + 1 }
-        return shown.map { it.payment.dedupKey }
-    }
+    fun hideAll(): List<String> = hideEntries(liveEntries().filterNot { it.hidden }).map { it.payment.dedupKey }
 
     /**
      * 알림 목록에서 [dedupKeys] 를 지운다(읽은 알림 지우기). [hideAll] 처럼 기록은 숨기기만 해서 다시 묻지 않는다.
@@ -125,15 +115,24 @@ class CaptureStore(private val prefs: SharedPreferences, private val now: () -> 
     @Synchronized
     fun hide(dedupKeys: Collection<String>): List<String> {
         val keys = dedupKeys.toSet()
-        val shown = liveEntries().filter { it.payment.dedupKey in keys && !it.hidden }
-        if (shown.isEmpty()) return emptyList()
+        return hideEntries(liveEntries().filter { it.payment.dedupKey in keys && !it.hidden })
+            .filterNot { it.answered }
+            .map { it.payment.dedupKey }
+    }
+
+    /**
+     * 기록을 숨긴다. 답했고 읽은 것으로도 적어 다시 묻거나 새 알림으로 보이지 않게 한다. [hideAll]·[hide] 가 같이 쓴다.
+     * @return 숨긴 기록(숨기기 전 모습). 부르는 쪽이 알림창에서 치울 것을 고른다.
+     */
+    private fun hideEntries(entries: List<Entry>): List<Entry> {
+        if (entries.isEmpty()) return emptyList()
         prefs.edit {
-            shown.forEach {
+            entries.forEach {
                 putString(KEY_PREFIX + it.payment.dedupKey, json.encodeToString(it.copy(answered = true, read = true, hidden = true)))
             }
         }
         revision.update { it + 1 }
-        return shown.filterNot { it.answered }.map { it.payment.dedupKey }
+        return entries
     }
 
     /** 알림 목록에 보여줄 기록. 최근 결제부터. */

@@ -65,13 +65,17 @@ class PinLock(
         _state.value = read()
     }
 
-    /** PIN 을 정한다(처음 켤 때, 바꿀 때). 방금 정한 사람이니 풀린 상태로 둔다. */
-    fun setPin(pin: String) {
+    /**
+     * PIN 을 정한다(처음 켤 때, 바꿀 때). 방금 정한 사람이니 풀린 상태로 둔다.
+     * @param biometric 지문으로도 열지. PIN 을 정하는 화면이 마지막에 함께 고른다.
+     */
+    fun setPin(pin: String, biometric: Boolean = false) {
         require(isValidPin(pin)) { "PIN 은 숫자 $PIN_LENGTH 자리다." }
         val salt = ByteArray(SALT_BYTES).also(SecureRandom()::nextBytes)
         prefs.edit {
             putString(KEY_SALT, Base64.getEncoder().encodeToString(salt))
             putString(KEY_HASH, hashPin(pin, salt))
+            putBoolean(KEY_BIOMETRIC, biometric)
         }
         _state.value = read()
         _unlocked.value = true
@@ -82,24 +86,19 @@ class PinLock(
 
     /** 잠금을 끈다. 지문과 2중 잠금 선택도 같이 지운다(다시 켜면 처음처럼 2중 잠금이다). */
     fun disable() {
-        prefs.edit {
-            remove(KEY_HASH)
-            remove(KEY_SALT)
-            remove(KEY_BIOMETRIC)
-            remove(KEY_DOUBLE)
-        }
+        prefs.edit { clearPin() }
         _state.value = read()
         DevLog.info(logTag, "${label}을 껐어요")
     }
 
     /**
-     * 2중 잠금을 켜고 끈다([State.double]).
-     * @param keepOpen 켠 뒤에도 지금 열린 채로 둘지. 월급 설정 안에서 켜는 사람은 이미 그 화면을 보고 있어 켜자마자 잠그지 않는다.
-     *   그 밖에서는 false 다. 풀지 않은 잠금을 2중 잠금을 켠다는 이유로 열어 주면 PIN 없이 월급이 보인다.
+     * 2중 잠금을 켜고 끈다([State.double]). 바꾸기 전에 열려 있던 것은 그대로 열어 둔다.
+     * 월급 설정 안에서 켜는 사람은 이미 그 화면을 보고 있어 켜자마자 잠그지 않는다. 잠겨 있던 것을 여는 일은 없다.
+     * @param wasOpen 바꾸기 직전에 열려 있었는지([isOpen])
      */
-    fun setDouble(on: Boolean, keepOpen: Boolean = false) {
+    fun setDouble(on: Boolean, wasOpen: Boolean = false) {
         prefs.edit { putBoolean(KEY_DOUBLE, on) }
-        if (on && keepOpen) _unlocked.value = true
+        if (on && wasOpen) _unlocked.value = true
         _state.value = read()
         DevLog.info(logTag, "$label 2중 잠금 ${if (on) "켬" else "끔"}")
     }
@@ -153,16 +152,21 @@ class PinLock(
      */
     fun reset(keepIntro: Boolean) {
         prefs.edit {
-            remove(KEY_HASH)
-            remove(KEY_SALT)
-            remove(KEY_BIOMETRIC)
-            remove(KEY_DOUBLE)
+            clearPin()
             if (!keepIntro) remove(KEY_INTRO)
         }
         _state.value = read()
         _unlocked.value = false
         failures = 0
         blockedUntil = 0
+    }
+
+    /** 잠금에 딸린 값(PIN·지문·2중 잠금 선택)을 지운다. 끄기와 지우기가 같이 쓴다. 처음 안내를 본 것은 남긴다. */
+    private fun SharedPreferences.Editor.clearPin() {
+        remove(KEY_HASH)
+        remove(KEY_SALT)
+        remove(KEY_BIOMETRIC)
+        remove(KEY_DOUBLE)
     }
 
     private fun read(): State = State(

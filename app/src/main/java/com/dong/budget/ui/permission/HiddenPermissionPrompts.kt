@@ -1,5 +1,6 @@
 package com.dong.budget.ui.permission
 
+import android.content.Context
 import android.content.SharedPreferences
 import androidx.core.content.edit
 
@@ -18,6 +19,11 @@ class HiddenPermissionPrompts(private val prefs: SharedPreferences) {
     companion object {
         /** SharedPreferences 파일 이름 */
         const val PREFS_NAME = "permission_prompts"
+
+        /** 파일을 미리 읽어 둔다. 앱을 켤 때 뒤 스레드에서 불러, 첫 화면의 권한 안내가 파일 읽기를 기다리지 않게 한다. */
+        fun warmUp(context: Context) {
+            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).contains(KEY_PREFIX)
+        }
 
         private const val KEY_PREFIX = "hidden:"
     }
