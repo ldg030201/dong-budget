@@ -94,11 +94,12 @@ class PinLock(
 
     /**
      * 2중 잠금을 켜고 끈다([State.double]).
-     * 켤 때는 지금 열린 채로 둔다. 월급 설정 안에서 켜는 사람은 이미 앱 잠금을 풀고 들어와 있어, 켜자마자 그 화면을 잠그지 않는다.
+     * @param keepOpen 켠 뒤에도 지금 열린 채로 둘지. 월급 설정 안에서 켜는 사람은 이미 그 화면을 보고 있어 켜자마자 잠그지 않는다.
+     *   그 밖에서는 false 다. 풀지 않은 잠금을 2중 잠금을 켠다는 이유로 열어 주면 PIN 없이 월급이 보인다.
      */
-    fun setDouble(on: Boolean) {
+    fun setDouble(on: Boolean, keepOpen: Boolean = false) {
         prefs.edit { putBoolean(KEY_DOUBLE, on) }
-        if (on) _unlocked.value = true
+        if (on && keepOpen) _unlocked.value = true
         _state.value = read()
         DevLog.info(logTag, "$label 2중 잠금 ${if (on) "켬" else "끔"}")
     }

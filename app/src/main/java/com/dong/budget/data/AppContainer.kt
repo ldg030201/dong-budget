@@ -12,6 +12,7 @@ import com.dong.budget.data.capture.CaptureNotifier
 import com.dong.budget.data.capture.CaptureStore
 import com.dong.budget.data.capture.PaymentCapture
 import com.dong.budget.data.db.BudgetDatabase
+import com.dong.budget.data.devlog.DevLog
 import com.dong.budget.data.devlog.LogTag
 import com.dong.budget.data.lock.PinLock
 import com.dong.budget.data.salary.SalaryLockReset
@@ -99,7 +100,10 @@ class AppContainer(context: Context) {
 
     /** 앱이 화면에 나올 때 부른다. 화면을 오가도 끊기지 않게 앱 범위에서 한다. */
     fun runScheduledBackup() {
-        appScope.launch { runCatching { scheduledBackup.runIfDue() } }
+        appScope.launch {
+            // 앱이 죽지 않게 받되, 계속 안 되는 까닭을 개발자 모드 기록에서 볼 수 있게 남긴다
+            runCatching { scheduledBackup.runIfDue() }.onFailure { DevLog.warn(LogTag.BACKUP, "자동 백업을 하지 못했어요", it) }
+        }
     }
 
     /** 앱이 살아 있는 동안 도는 일(설정 따라가기 등). 화면이나 서비스보다 오래 산다. */

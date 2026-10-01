@@ -21,6 +21,7 @@ import com.dong.budget.ui.components.ActionRow
 import com.dong.budget.ui.components.BudgetTopAppBar
 import com.dong.budget.ui.components.SectionLabel
 import com.dong.budget.ui.components.SegmentedToggle
+import com.dong.budget.ui.format.formatWeekdayFull
 import com.dong.budget.ui.lock.APP_LOCK_GROUP_TEXTS
 import com.dong.budget.ui.lock.LockControls
 import com.dong.budget.ui.lock.LockGroup
@@ -78,7 +79,7 @@ fun SettingsScreen(
                 // 달력과 통계 요일별 줄이 이 요일부터 시작한다
                 SectionLabel("한 주 시작")
                 SegmentedToggle(
-                    options = WEEK_START_ORDER.map { formatWeekdayLong(it) },
+                    options = WEEK_START_ORDER.map { formatWeekdayFull(it) },
                     selectedIndex = WEEK_START_ORDER.indexOf(weekStart),
                     onSelect = { index -> onWeekStartChange(WEEK_START_ORDER[index]) },
                 )
@@ -109,8 +110,6 @@ fun SettingsScreen(
 
 /** 한 주 시작 칸 순서 */
 private val WEEK_START_ORDER = listOf(DayOfWeek.SUNDAY, DayOfWeek.MONDAY)
-
-private fun formatWeekdayLong(day: DayOfWeek): String = if (day == DayOfWeek.SUNDAY) "일요일" else "월요일"
 
 /** 테마 칸 순서. 왼쪽 밝게, 가운데 기기 설정, 오른쪽 어둡게 */
 private val THEME_ORDER = listOf(ThemeMode.LIGHT, ThemeMode.SYSTEM, ThemeMode.DARK)

@@ -30,7 +30,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -76,7 +76,8 @@ fun InboxScreen(
     onDeleteRead: (dedupKeys: List<String>) -> Unit = {},
 ) {
     // 지울지 묻는 중인 읽은 알림. 물을 때 화면에 있던 것만 지운다.
-    var askDelete by remember { mutableStateOf<List<String>?>(null) }
+    // 화면을 돌려도 묻던 창이 남게 저장한다
+    var askDelete by rememberSaveable { mutableStateOf<List<String>?>(null) }
     askDelete?.let { keys ->
         ConfirmDialog(
             title = "읽은 알림 ${keys.size}개를 지울까요?",

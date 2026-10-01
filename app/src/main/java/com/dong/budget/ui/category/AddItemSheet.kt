@@ -48,6 +48,7 @@ import com.dong.budget.ui.components.CategoryBadge
 import com.dong.budget.ui.components.ErrorText
 import com.dong.budget.ui.components.FormTextField
 import com.dong.budget.ui.components.IconBadge
+import com.dong.budget.ui.components.LocalAppLocked
 import com.dong.budget.ui.components.SectionLabel
 import com.dong.budget.ui.components.categoryIconRes
 import com.dong.budget.ui.theme.BudgetTheme
@@ -118,6 +119,8 @@ private fun AddItemSheetContent(
     var color by rememberSaveable { mutableStateOf(initialColor) }
     var icon by rememberSaveable { mutableStateOf(CategoryStyle.FALLBACK_ICON) }
 
+    // 시트는 따로 뜨는 창이라 앱 잠금 화면 위로 올라온다. 잠긴 동안에는 숨기고, 적던 이름·색·아이콘은 위에서 들고 있다가 풀리면 다시 띄운다.
+    if (LocalAppLocked.current) return
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,

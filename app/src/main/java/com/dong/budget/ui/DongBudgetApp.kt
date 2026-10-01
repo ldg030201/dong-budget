@@ -163,8 +163,9 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
     val appLocked = !appLock.isOpen(appLockState, appUnlocked)
     HideFromRecents(active = appLockState.enabled)
 
-    // 설정에서 켜야 하는 권한이 꺼져 있으면 앱을 켤 때 안내한다. 잠금을 푼 뒤에 묻는다.
-    if (!appLocked) PermissionGate()
+    // 설정에서 켜야 하는 권한이 꺼져 있으면 앱을 켤 때 안내한다. 잠긴 동안에는 안내창만 숨기고(풀린 뒤에 묻는다)
+    // 안내 자체는 늘 둔다. 빼 버리면 '나중에' 를 누른 기록이 잠길 때마다 지워져 같은 안내가 다시 뜬다.
+    CompositionLocalProvider(LocalAppLocked provides appLocked) { PermissionGate() }
 
     // 앱이 화면에 나올 때마다 알림창에 남은 토스 결제 알림을 다시 살피게 한다.
     // 알림을 막 허용하고 돌아온 경우, 그전에 들어와 묻지 못한 결제를 이때 묻는다. 이미 물어본 결제는 다시 묻지 않는다.
@@ -513,7 +514,8 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
                                     onBiometricChange = lock::setBiometric,
                                     double = lockState.double,
                                     appLockOn = appLockState.enabled,
-                                    onDoubleChange = lock::setDouble,
+                                    // 월급 설정은 열려 있어야 들어오므로 켜도 이 화면은 열린 채로 둔다
+                                    onDoubleChange = { on -> lock.setDouble(on, keepOpen = true) },
                                 ),
                             )
                         }
@@ -527,13 +529,19 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
                                     onDone = { pin, biometric ->
                                         appLock.setPin(pin)
                                         appLock.setBiometric(biometric)
-                                        // 월급 잠금이 이미 켜져 있으면 월급을 한 번 더 잠글지 묻는다(처음 켤 때만)
-                                        if (!changing &&
-                                            container.salaryLock.state.value.enabled
-                                        ) {
-                                            askDouble = true
-                                        } else {
-                                            navigator.closeIfTop(key)
+                                        val salary = container.salaryLock
+                                        when {
+                                            changing || !salary.state.value.enabled -> navigator.closeIfTop(key)
+
+                                            // 월급 잠금이 켜져 있으면 월급을 한 번 더 잠글지 묻는다(처음 켤 때만). 다만 '앱 잠금만 쓰기' 를 고르면
+                                            // 월급 PIN 없이 월급이 열리므로, 이번에 월급 PIN 을 넣어 연 사람에게만 묻는다.
+                                            salary.unlocked.value -> askDouble = true
+
+                                            // 월급이 잠긴 채면 월급 PIN 을 모르는 사람일 수 있어 묻지 않고 2중 잠금으로 둔다(지난번에 꺼 둔 것도 되돌린다)
+                                            else -> {
+                                                salary.setDouble(true)
+                                                navigator.closeIfTop(key)
+                                            }
                                         }
                                     },
                                 )
