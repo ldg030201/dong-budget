@@ -1,6 +1,8 @@
 package com.dong.budget.data
 
 import android.content.Context
+import com.dong.budget.data.backup.BackupExporter
+import com.dong.budget.data.backup.BackupHistory
 import com.dong.budget.data.backup.BackupRepository
 import com.dong.budget.data.backup.BackupStorage
 import com.dong.budget.data.capture.CaptureNotifier
@@ -66,6 +68,12 @@ class AppContainer(context: Context) {
     }
 
     val backupStorage by lazy { BackupStorage(context) }
+
+    /** 마지막으로 백업한 때 */
+    val backupHistory by lazy { BackupHistory(context.getSharedPreferences(BackupHistory.PREFS_NAME, Context.MODE_PRIVATE)) }
+
+    /** 백업 글을 만들어 클립보드·다운로드 폴더에 둔다. 설정의 백업과 복원·초기화 전 자동 백업이 같이 쓴다. */
+    val backupExporter by lazy { BackupExporter(backupRepository, salaryRepository, backupStorage, backupHistory) }
 
     /** 앱이 살아 있는 동안 도는 일(설정 따라가기 등). 화면이나 서비스보다 오래 산다. */
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)

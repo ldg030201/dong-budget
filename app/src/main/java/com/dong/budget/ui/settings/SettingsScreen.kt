@@ -14,6 +14,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import com.dong.budget.R
+import com.dong.budget.data.backup.LastBackup
 import com.dong.budget.data.settings.ThemeMode
 import com.dong.budget.ui.components.ActionRow
 import com.dong.budget.ui.components.BudgetTopAppBar
@@ -38,6 +39,7 @@ fun SettingsScreen(
     onOpenAdvanced: () -> Unit = {},
     onOpenAppInfo: () -> Unit = {},
     backup: BackupUiState = BackupUiState(),
+    lastBackup: LastBackup? = null,
     backupActions: BackupActions = BackupActions(),
 ) {
     Surface(
@@ -64,7 +66,7 @@ fun SettingsScreen(
                     icons = THEME_ORDER.map { it.iconRes() },
                 )
 
-                BackupSection(state = backup, actions = backupActions)
+                BackupSection(state = backup, lastBackup = lastBackup, actions = backupActions)
 
                 PermissionSection()
 

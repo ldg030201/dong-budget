@@ -388,6 +388,7 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
                             val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
                             val newerVersion by viewModel.newerVersion.collectAsStateWithLifecycle()
                             val backup by viewModel.backup.collectAsStateWithLifecycle()
+                            val lastBackup by viewModel.lastBackup.collectAsStateWithLifecycle()
                             ShowToasts(viewModel.messages)
                             // 설정은 전체의 톱니에서 들어온다. 들어오는 중에 두 번 누른 탭이 아래 줄(고급 설정·앱 정보)에 떨어지지 않게 한다.
                             val settled = rememberSettled()
@@ -401,6 +402,7 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
                                 onOpenAdvanced = { if (settled()) navigator.go(AdvancedSettingsKey) },
                                 onOpenAppInfo = { if (settled()) navigator.go(AppInfoKey) },
                                 backup = backup,
+                                lastBackup = lastBackup,
                                 backupActions =
                                 BackupActions(
                                     onCopy = viewModel::copyBackup,
@@ -729,7 +731,9 @@ private fun settingsViewModelFactory(container: AppContainer) = viewModelFactory
             updateChecker = container.updateChecker,
             backupRepository = container.backupRepository,
             backupStorage = container.backupStorage,
+            backupExporter = container.backupExporter,
             salaryRepository = container.salaryRepository,
+            lastBackup = container.backupHistory.last,
             appThemeMode = container.themeMode,
         )
     }
