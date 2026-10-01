@@ -77,6 +77,23 @@ class BackupTextTest {
     }
 
     @Test
+    fun `지우기 전에 자동으로 백업하면 묻는 글에 알리고, 파일 이름에 무엇 전인지 붙인다`() {
+        val preview = RestorePreview(backup(3), Instant.parse("2026-09-29T05:03:00Z"), currentTransactions = 60, autoBackup = true)
+        assertTrue(
+            restoreMessage(preview, today).endsWith(
+                "지금 있는 거래 60건과 분류·결제수단은 모두 지우고 백업 내용으로 바꿔요. 지우기 전에 지금 데이터를 다운로드 폴더에 백업 파일로 저장해 둬요.",
+            ),
+        )
+        assertEquals(
+            "거래 1,500건과 직접 만든 분류·결제수단, 월급 설정, 알림 목록을 모두 지우고 처음 설치한 상태로 돌려요. " +
+                "지우기 전에 지금 데이터를 다운로드 폴더에 백업 파일로 저장해 둬요.\n\n화면 테마와 자동 기능 설정은 그대로예요.",
+            resetDataMessage(1_500, autoBackup = true),
+        )
+        assertEquals("동계부-백업-2026-09-29-복원전.json", autoBackupFileName(today, AutoBackupReason.RESTORE))
+        assertEquals("동계부-백업-2026-09-29-초기화전.json", autoBackupFileName(today, AutoBackupReason.RESET))
+    }
+
+    @Test
     fun `월급 설정이 담긴 백업이면 복원 글에 알린다`() {
         val preview = RestorePreview(backup(1).copy(salary = SalaryRecord(amount = 3_000_000)), Instant.parse("2026-09-29T05:03:00Z"), 0)
         assertTrue(restoreMessage(preview, today).contains("결제수단 1개 · 월급 설정\n"))

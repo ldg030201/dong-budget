@@ -20,6 +20,7 @@ internal val AutoOption.title: String
         AutoOption.EDITOR_SELECT_ADDED -> "새로 만든 분류·결제수단 바로 고르기"
         AutoOption.NEW_ITEM_COLOR -> "새 분류·결제수단은 안 쓴 색으로"
         AutoOption.UPDATE_CHECK -> "앱을 열 때 새 버전 확인하기"
+        AutoOption.BACKUP_BEFORE_REPLACE -> "복원·초기화 전에 자동으로 백업하기"
         AutoOption.STATS_DAY -> "일별에서 볼 날 자동으로 고르기"
     }
 
@@ -37,6 +38,7 @@ internal val AutoOption.description: String
         AutoOption.EDITOR_SELECT_ADDED -> "등록하다가 새로 추가하면 바로 그것으로 골라 둬요"
         AutoOption.NEW_ITEM_COLOR -> "추가할 때 아직 안 쓴 색을 미리 골라 둬요. 끄면 회색으로 시작해요"
         AutoOption.UPDATE_CHECK -> "새 버전이 있으면 홈 위에 알려 줘요. 끄면 설정 > 앱 정보에서 직접 확인해요"
+        AutoOption.BACKUP_BEFORE_REPLACE -> "지금 데이터를 지우기 전에 다운로드 폴더에 백업 파일로 저장해요. 저장하지 못하면 지우지 않아요"
         AutoOption.STATS_DAY -> "이번 달은 오늘, 지나간 달은 가장 많이 쓴 날을 먼저 보여 줘요. 끄면 1일부터 보여요"
     }
 
@@ -49,5 +51,6 @@ internal enum class AutoGroup(val label: String, val options: List<AutoOption>) 
     ),
     EDITOR("거래 등록", listOf(AutoOption.EDITOR_KEYPAD, AutoOption.EDITOR_SELECT_ADDED, AutoOption.NEW_ITEM_COLOR)),
     STATISTICS("통계", listOf(AutoOption.STATS_DAY)),
+    BACKUP("백업", listOf(AutoOption.BACKUP_BEFORE_REPLACE)),
     UPDATE("업데이트", listOf(AutoOption.UPDATE_CHECK)),
 }

@@ -749,6 +749,7 @@ private fun advancedSettingsViewModelFactory(container: AppContainer) = viewMode
             container.settingsRepository,
             container.backupRepository,
             container.paymentCapture,
+            container.backupExporter,
             { container.clearSalary(SalaryLockReset.ALL) },
         )
     }

@@ -40,6 +40,9 @@ enum class AutoOption(val key: String, val parent: AutoOption? = null) {
     /** 앱을 열 때 새 버전을 확인하고, 있으면 홈에 알림 줄을 띄운다 */
     UPDATE_CHECK("auto_update_check"),
 
+    /** 복원·데이터 초기화로 지금 데이터를 지우기 전에 다운로드 폴더에 백업 파일로 저장한다. 저장하지 못하면 지우지 않는다. */
+    BACKUP_BEFORE_REPLACE("auto_backup_before_replace"),
+
     /** 통계 일별에서 처음 볼 날을 고른다(이번 달은 오늘, 지나간 달은 가장 많이 쓴 날). 끄면 1일부터 본다. */
     STATS_DAY("auto_stats_day"),
 }
