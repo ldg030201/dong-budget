@@ -3,8 +3,11 @@ package com.dong.budget.data
 import android.content.Context
 import com.dong.budget.data.backup.BackupExporter
 import com.dong.budget.data.backup.BackupHistory
+import com.dong.budget.data.backup.BackupKind
 import com.dong.budget.data.backup.BackupRepository
+import com.dong.budget.data.backup.BackupSchedule
 import com.dong.budget.data.backup.BackupStorage
+import com.dong.budget.data.backup.ScheduledBackup
 import com.dong.budget.data.capture.CaptureNotifier
 import com.dong.budget.data.capture.CaptureStore
 import com.dong.budget.data.capture.PaymentCapture
@@ -72,8 +75,25 @@ class AppContainer(context: Context) {
     /** 마지막으로 백업한 때 */
     val backupHistory by lazy { BackupHistory(context.getSharedPreferences(BackupHistory.PREFS_NAME, Context.MODE_PRIVATE)) }
 
-    /** 백업 글을 만들어 클립보드·다운로드 폴더에 둔다. 설정의 백업과 복원·초기화 전 자동 백업이 같이 쓴다. */
+    /** 백업 글을 만들어 클립보드·다운로드 폴더에 둔다. 설정의 백업과 복원·초기화 전 자동 백업, 주기 자동 백업이 같이 쓴다. */
     val backupExporter by lazy { BackupExporter(backupRepository, salaryRepository, backupStorage, backupHistory) }
+
+    /** 정한 주기마다 앱을 열 때 백업 파일을 저장하고, 자동 백업 파일은 최근 몇 개만 남긴다 */
+    private val scheduledBackup by lazy {
+        ScheduledBackup(
+            // 앱을 열자마자 확인하므로 저장소를 다 읽은 값으로 본다
+            schedule = { settingsRepository.backupSchedule.first() },
+            lastFileBackup = { backupHistory.lastFileAt },
+            hasData = backupExporter::hasData,
+            save = { name -> backupExporter.saveFile(name, BackupKind.SCHEDULED) },
+            deleteOld = { backupStorage.deleteOld(BackupSchedule.FILE_PREFIX, BackupSchedule.KEEP_FILES) },
+        )
+    }
+
+    /** 앱이 화면에 나올 때 부른다. 화면을 오가도 끊기지 않게 앱 범위에서 한다. */
+    fun runScheduledBackup() {
+        appScope.launch { runCatching { scheduledBackup.runIfDue() } }
+    }
 
     /** 앱이 살아 있는 동안 도는 일(설정 따라가기 등). 화면이나 서비스보다 오래 산다. */
     private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -123,6 +143,11 @@ class AppContainer(context: Context) {
      */
     val themeMode: StateFlow<ThemeMode> by lazy {
         settingsRepository.themeMode.stateIn(appScope, SharingStarted.Eagerly, ThemeMode.SYSTEM)
+    }
+
+    /** 자동 백업 설정의 지금 값. 테마처럼 설정을 열 때 스위치·주기가 기본값에서 저장된 값으로 미끄러지지 않게 미리 따라간다. */
+    val backupSchedule: StateFlow<BackupSchedule> by lazy {
+        settingsRepository.backupSchedule.stateIn(appScope, SharingStarted.Eagerly, BackupSchedule.DEFAULT)
     }
 
     val updateRepository by lazy { UpdateRepository() }

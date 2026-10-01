@@ -21,8 +21,23 @@ class BackupHistoryTest {
         assertEquals(LastBackup(clock, BackupKind.FILE), history.last.value)
 
         clock = Instant.parse("2026-10-02T09:30:00Z")
-        history.record(BackupKind.AUTO)
-        assertEquals(LastBackup(clock, BackupKind.AUTO), history().last.value)
+        history.record(BackupKind.SCHEDULED)
+        assertEquals(LastBackup(clock, BackupKind.SCHEDULED), history().last.value)
+    }
+
+    @Test
+    fun `복사는 마지막 백업이지만 파일 백업 때는 바꾸지 않는다`() {
+        val history = history()
+        assertNull(history.lastFileAt)
+        history.record(BackupKind.COPY)
+        assertNull(history.lastFileAt)
+
+        history.record(BackupKind.BEFORE_REPLACE)
+        val fileAt = clock
+        clock = Instant.parse("2026-10-03T00:00:00Z")
+        history.record(BackupKind.COPY)
+        assertEquals(LastBackup(clock, BackupKind.COPY), history.last.value)
+        assertEquals(fileAt, history().lastFileAt)
     }
 
     @Test

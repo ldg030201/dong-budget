@@ -3,6 +3,7 @@ package com.dong.budget.data.backup
 import android.content.ClipData
 import android.content.ClipDescription
 import android.content.ClipboardManager
+import android.content.ContentUris
 import android.content.ContentValues
 import android.content.Context
 import android.net.Uri
@@ -47,6 +48,32 @@ class BackupStorage(private val context: Context) {
             resolver.query(uri, arrayOf(MediaStore.MediaColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
                 if (cursor.moveToFirst()) cursor.getString(0) else null
             } ?: fileName
+        }
+    }
+
+    /**
+     * 다운로드 폴더에서 이름이 [prefix] 로 시작하는 파일 중 최근 [keep] 개만 남기고 지운다. 자동 백업이 쌓이지 않게 한다.
+     * 안드로이드는 앱이 직접 만든 파일만 보여 주고 지우게 해 준다. 다른 앱의 파일이나, 앱을 지웠다 다시 깔기 전에 만든 파일은
+     * 찾지도 지우지도 않는다(그런 파일은 사용자가 지운다).
+     * @return 지운 파일 수
+     */
+    suspend fun deleteOld(prefix: String, keep: Int): Int = withContext(Dispatchers.IO) {
+        val resolver = context.contentResolver
+        val collection = MediaStore.Downloads.EXTERNAL_CONTENT_URI
+        val ids = mutableListOf<Long>()
+        resolver
+            .query(
+                collection,
+                arrayOf(MediaStore.MediaColumns._ID),
+                "${MediaStore.MediaColumns.DISPLAY_NAME} LIKE ?",
+                arrayOf("$prefix%"),
+                // 같은 초에 만든 것은 나중에 들어간 것(번호가 큰 것)이 최근이다
+                "${MediaStore.MediaColumns.DATE_ADDED} DESC, ${MediaStore.MediaColumns._ID} DESC",
+            )?.use { cursor ->
+                while (cursor.moveToNext()) ids += cursor.getLong(0)
+            }
+        ids.drop(keep).count { id ->
+            runCatching { resolver.delete(ContentUris.withAppendedId(collection, id), null, null) > 0 }.getOrDefault(false)
         }
     }
 
