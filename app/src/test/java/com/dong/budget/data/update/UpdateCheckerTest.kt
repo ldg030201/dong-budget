@@ -93,6 +93,29 @@ class UpdateCheckerTest {
     }
 
     @Test
+    fun `건너뛴 버전은 앱을 다시 켜도 배너에 안 보이고, 더 새 버전이 나오면 다시 보인다`() = runBlocking {
+        val checker = checker()
+        checker.checkIfDue()
+        checker.skipLatest()
+        assertNull(checker.bannerVersion.first())
+        assertNull(checker().bannerVersion.first())
+        // 건너뛴 버전도 새 버전 목록(앱 정보·패치노트)에는 남는다
+        assertEquals("0.1.6", checker().newer.value.first().version)
+
+        next = Result.success(listOf(release("0.1.7"), release("0.1.6")))
+        checker.checkNow()
+        assertEquals("0.1.7", checker.bannerVersion.first())
+    }
+
+    @Test
+    fun `새 버전이 없으면 건너뛸 것도 없다`() = runBlocking {
+        val checker = checker()
+        checker.skipLatest()
+        checker.checkIfDue()
+        assertEquals("0.1.6", checker.bannerVersion.first())
+    }
+
+    @Test
     fun `0_1_7 이 칸마다 따로 적던 옛 기록은 읽지 않고 치운다`() = runBlocking {
         prefs.edit().putString("version", "0.1.8").putString("url", "https://example.com/old.apk").apply()
         val checker = checker()
