@@ -7,6 +7,7 @@ import java.time.LocalTime
 import java.time.YearMonth
 import kotlin.math.ceil
 import kotlin.math.floor
+import kotlin.math.roundToInt
 
 // ─────────────────────────────────────────────────────────────────────
 // 실시간 월급. 연봉이나 월급, 출퇴근 시간, 일하는 요일을 정해 두면 일하는 동안 초마다 번 돈이 쌓인다.
@@ -143,10 +144,32 @@ data class SalarySettings(
      */
     val standardMonthlyHours: Int
         get() {
-            val weeklyHours = (workdays.size * workSecondsPerDay / SECONDS_PER_HOUR).coerceAtMost(MAX_WEEKLY_HOURS)
-            if (weeklyHours <= 0) return 0
-            val weeklyRestHours = if (weeklyHours >= MIN_HOURS_FOR_WEEKLY_REST) weeklyHours / MAX_WEEKLY_HOURS * PAID_REST_HOURS else 0.0
-            return ceil((weeklyHours + weeklyRestHours) * DAYS_PER_YEAR / DAYS_PER_WEEK / MONTHS_PER_YEAR - ROUNDING_SLACK).toInt()
+            val weekly = weeklyStandardHours
+            if (weekly <= 0) return 0
+            return ceil((weekly + weeklyRestHours) * DAYS_PER_YEAR / DAYS_PER_WEEK / MONTHS_PER_YEAR - ROUNDING_SLACK).toInt()
+        }
+
+    /**
+     * [standardMonthlyHours] 중 주휴 몫(시간, 반올림). 나머지가 한 달 평균 근무시간이다.
+     * 주 5일 하루 8시간이면 8 × 365 ÷ 7 ÷ 12 = 34.8 → 35시간이고, 209 − 35 = 174시간이 한 달 평균 근무시간이다.
+     */
+    val monthlyRestHours: Int
+        get() = if (weeklyStandardHours <= 0) 0 else (weeklyRestHours * DAYS_PER_YEAR / DAYS_PER_WEEK / MONTHS_PER_YEAR).roundToInt()
+
+    /** 주 소정근로시간. 주 40시간을 넘는 몫은 연장근로라 넣지 않는다. */
+    private val weeklyStandardHours: Double
+        get() = (workdays.size * workSecondsPerDay / SECONDS_PER_HOUR).coerceAtMost(MAX_WEEKLY_HOURS)
+
+    /** 주휴시간. 주 소정근로시간에 비례하고(주 40시간이면 8시간), 주 15시간이 안 되면 없다. */
+    private val weeklyRestHours: Double
+        get() = weeklyStandardHours.let { weekly ->
+            if (weekly >=
+                MIN_HOURS_FOR_WEEKLY_REST
+            ) {
+                weekly / MAX_WEEKLY_HOURS * PAID_REST_HOURS
+            } else {
+                0.0
+            }
         }
 
     /** 통상시급(원). 세전 한 달 월급을 [standardMonthlyHours] 로 나눈다(통상임금은 세전이다). 세전을 적지 않았거나 계산할 수 없으면 0 */

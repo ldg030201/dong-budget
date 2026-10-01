@@ -68,24 +68,32 @@ class SalaryTextTest {
     }
 
     @Test
-    fun `시간당 버는 돈은 주휴 시간을 빼고 이번 월급 기간에 실제로 일하는 시간으로 나눈다`() {
+    fun `시간당 버는 돈이 통상시급과 다른 까닭을 209시간이 맞아떨어지는 식으로 보여 준다`() {
+        // 주 40시간: 209시간 = 평균 근무 174시간 + 주휴 35시간
+        assertEquals(35, salary.monthlyRestHours)
         // 10월 월급 기간 9월 26일~10월 23일(25일이 일요일이라 금요일로 당김): 평일 20일 × 8시간 = 160시간
         val october = YearMonth.of(2026, 10)
         assertEquals(
-            "세전 월급을 주휴 시간을 빼고 이번 월급 기간에 실제로 일하는 160시간으로 나누면 시간당 18,750원이에요(₩/h)",
+            "통상시급 기준 209시간 = 이번 월급 기간에 일하는 160시간 + 주휴 35시간 + 평균 달보다 적게 일하는 14시간이라, " +
+                "일한 시간만 치면 1시간에 18,750원이에요(₩/h)",
             hourlyLine(salary, october),
-        )
-        assertEquals(
-            "실수령 월급을 주휴 시간을 빼고 이번 월급 기간에 실제로 일하는 160시간으로 나누면 시간당 16,250원이에요(₩/h)",
-            hourlyLine(salary.copy(takeHome = 2_600_000), october),
-        )
-        // 하루 8시간 30분이면 170시간
-        assertEquals(
-            "세전 월급을 주휴 시간을 빼고 이번 월급 기간에 실제로 일하는 170시간으로 나누면 시간당 17,647원이에요(₩/h)",
-            hourlyLine(salary.copy(workEnd = LocalTime.of(18, 30)), october),
         )
         // 오늘 번 돈 옆 ₩/h 와 같은 값이다
         assertEquals("₩18,750/h", perHourBadge(salary.perSecond(october)))
+        // 2월 월급 기간 1월 24일~2월 25일: 평일 23일 × 8시간 = 184시간. 평균보다 많이 일하는 달은 뺀다
+        assertEquals(
+            "통상시급 기준 209시간 = 이번 월급 기간에 일하는 184시간 + 주휴 35시간 − 평균 달보다 더 일하는 10시간이라, " +
+                "일한 시간만 치면 1시간에 16,304원이에요(₩/h)",
+            hourlyLine(salary, YearMonth.of(2026, 2)),
+        )
+        // 실수령으로 쌓이면 세전 시급과 ₩/h(실수령)를 따로 알린다
+        assertEquals(
+            "통상시급 기준 209시간 = 이번 월급 기간에 일하는 160시간 + 주휴 35시간 + 평균 달보다 적게 일하는 14시간이라, " +
+                "일한 시간만 치면 세전 1시간에 18,750원이에요. 쌓이는 건 실수령이라 ₩/h는 16,250원이에요",
+            hourlyLine(salary.copy(takeHome = 2_600_000), october),
+        )
+        // 세전을 적지 않으면 통상시급이 없어 알리지 않는다
+        assertEquals(null, hourlyLine(SalarySettings(takeHome = 2_600_000), october))
         assertEquals(null, hourlyLine(salary, null))
     }
 

@@ -90,19 +90,35 @@ internal fun basisLine(settings: SalarySettings): String {
 }
 
 /**
- * 1시간에 버는 돈(₩/h)이 통상시급과 다른 까닭. 통상시급은 주휴 시간까지 넣은 한 달 209시간으로 나누지만,
- * 쌓이는 빠르기는 이번 월급 기간에 실제로 일하는 시간으로 나눈다. 그래서 일하는 날이 적은 달일수록 ₩/h 가 높다.
- * "세전 월급을 주휴 시간을 빼고 이번 월급 기간에 실제로 일하는 160시간으로 나누면 시간당 13,481원이에요(₩/h)"
- * @return 이번 월급 기간에 일하는 날이 없으면 null
+ * 1시간에 버는 돈(₩/h)이 통상시급과 다른 까닭. 통상시급은 월급을 한 달 209시간(주휴 포함 평균)으로 나누고,
+ * 쌓이는 빠르기는 이번 월급 기간에 실제로 일하는 시간으로 나눈다. 둘의 시간이 어떻게 맞아떨어지는지 식으로 보여 준다.
+ * "통상시급 기준 209시간 = 이번 월급 기간에 일하는 160시간 + 주휴 35시간 + 평균 달보다 적게 일하는 14시간이라,
+ *  일한 시간만 치면 1시간에 13,481원이에요(₩/h)"
+ * 실수령으로 쌓이면 세전 시급을 먼저 말하고 ₩/h(실수령)를 따로 알린다.
+ * @return 통상시급을 셀 수 없거나(세전 없음) 이번 월급 기간에 일하는 날이 없으면 null
  */
 internal fun hourlyLine(settings: SalarySettings, payMonth: YearMonth?): String? {
     payMonth ?: return null
+    val standard = settings.standardMonthlyHours
     val days = settings.workdaysIn(payMonth)
-    if (days == 0 || settings.workSecondsPerDay == 0L) return null
-    val hours = hoursAndMinutes(days * settings.workSecondsPerDay / SECONDS_PER_MINUTE)
+    if (settings.ordinaryHourlyWage <= 0 || standard <= 0 || days == 0) return null
+    val workedMinutes = days * settings.workSecondsPerDay / SECONDS_PER_MINUTE
+    val rest = settings.monthlyRestHours
+    // 한 달 평균 근무시간(209 − 주휴)보다 이번 기간이 얼마나 덜(+) 또는 더(−) 일하는지. 이렇게 두면 식이 늘 딱 맞는다.
+    val shortMinutes = (standard - rest) * MINUTES_PER_HOUR - workedMinutes
+    val equation =
+        buildString {
+            append("통상시급 기준 ${standard}시간 = 이번 월급 기간에 일하는 ${hoursAndMinutes(workedMinutes)}")
+            if (rest > 0) append(" + 주휴 ${rest}시간")
+            when {
+                shortMinutes > 0 -> append(" + 평균 달보다 적게 일하는 ${hoursAndMinutes(shortMinutes)}")
+                shortMinutes < 0 -> append(" − 평균 달보다 더 일하는 ${hoursAndMinutes(-shortMinutes)}")
+            }
+        }
+    val grossPerHour = formatAmount((settings.grossMonthly * SECONDS_PER_HOUR / (days * settings.workSecondsPerDay)).roundToLong())
+    if (!settings.usesTakeHome) return "${equation}이라, 일한 시간만 치면 1시간에 ${grossPerHour}원이에요(₩/h)"
     val perHour = formatAmount((settings.perSecond(payMonth) * SECONDS_PER_HOUR).roundToLong())
-    val pay = if (settings.usesTakeHome) "실수령 월급을" else "세전 월급을"
-    return "$pay 주휴 시간을 빼고 이번 월급 기간에 실제로 일하는 ${hours}으로 나누면 시간당 ${perHour}원이에요(₩/h)"
+    return "${equation}이라, 일한 시간만 치면 세전 1시간에 ${grossPerHour}원이에요. 쌓이는 건 실수령이라 ₩/h는 ${perHour}원이에요"
 }
 
 /**
