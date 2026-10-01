@@ -2,8 +2,10 @@ package com.dong.budget.ui.settings
 
 import com.dong.budget.data.backup.Backup
 import com.dong.budget.data.backup.BackupCategory
+import com.dong.budget.data.backup.BackupKind
 import com.dong.budget.data.backup.BackupPaymentMethod
 import com.dong.budget.data.backup.BackupTransaction
+import com.dong.budget.data.backup.LastBackup
 import com.dong.budget.data.db.CategoryScope
 import com.dong.budget.data.db.PaymentMethodType
 import com.dong.budget.data.db.TransactionType
@@ -26,6 +28,19 @@ class BackupTextTest {
             BackupTransaction("t$i", TransactionType.EXPENSE, 1_000, "2026-09-29T12:00:00+09:00", createdAt = "", updatedAt = "")
         },
     )
+
+    @Test
+    fun `마지막 백업은 서울 날짜로 며칠 전인지와 방법을 적는다`() {
+        assertEquals("아직 백업한 적 없어요", lastBackupText(null, today))
+        // 9월 29일 오전 8시(서울)
+        val morning = Instant.parse("2026-09-28T23:00:00Z")
+        assertEquals("마지막 백업 · 오늘 · 파일로 저장", lastBackupText(LastBackup(morning, BackupKind.FILE), today))
+        // 9월 28일 오후 11시(서울)는 UTC 로는 같은 날이지만 서울로는 어제다
+        val lateNight = Instant.parse("2026-09-28T14:00:00Z")
+        assertEquals("마지막 백업 · 어제 · JSON 복사", lastBackupText(LastBackup(lateNight, BackupKind.COPY), today))
+        val longAgo = Instant.parse("2026-08-01T03:00:00Z")
+        assertEquals("마지막 백업 · 59일 전 · 자동 백업", lastBackupText(LastBackup(longAgo, BackupKind.AUTO), today))
+    }
 
     @Test
     fun `파일 이름은 날짜를 붙인다`() {

@@ -6,16 +6,16 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dong.budget.BuildConfig
 import com.dong.budget.data.backup.BackupCodec
+import com.dong.budget.data.backup.BackupExporter
 import com.dong.budget.data.backup.BackupRead
 import com.dong.budget.data.backup.BackupRepository
 import com.dong.budget.data.backup.BackupStorage
+import com.dong.budget.data.backup.LastBackup
 import com.dong.budget.data.backup.parseBackupTime
 import com.dong.budget.data.db.BudgetTime
 import com.dong.budget.data.devlog.DevLog
 import com.dong.budget.data.devlog.LogTag
 import com.dong.budget.data.salary.SalaryRepository
-import com.dong.budget.data.salary.SalarySettings
-import com.dong.budget.data.salary.toRecord
 import com.dong.budget.data.salary.toSettings
 import com.dong.budget.data.settings.SettingsRepository
 import com.dong.budget.data.settings.ThemeMode
@@ -29,7 +29,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
@@ -51,7 +50,10 @@ class SettingsViewModel(
     updateChecker: UpdateChecker,
     private val backupRepository: BackupRepository,
     private val backupStorage: BackupStorage,
+    private val backupExporter: BackupExporter,
     private val salaryRepository: SalaryRepository,
+    /** 마지막으로 백업한 때. 백업 묶음 맨 위에 보인다. */
+    val lastBackup: StateFlow<LastBackup?> = MutableStateFlow(null),
     appThemeMode: StateFlow<ThemeMode> = MutableStateFlow(ThemeMode.SYSTEM),
 ) : ViewModel() {
     /** 앱이 켜질 때부터 따라가는 테마 값이라 처음 그릴 때부터 저장된 칸에 있다 */
@@ -79,17 +81,15 @@ class SettingsViewModel(
 
     /** 백업을 클립보드에 한 줄 JSON 으로 넣는다. 안드로이드 13 부터는 시스템이 복사했다고 알려 주므로 그 아래에서만 직접 알린다. */
     fun copyBackup() = runBackup(EXPORT_FAILED_MESSAGE) {
-        val text = encodeBackup(pretty = false)
         when {
-            !backupStorage.copy(text) -> _messages.send(COPY_FAILED_MESSAGE)
+            !backupExporter.copy() -> _messages.send(COPY_FAILED_MESSAGE)
             Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU -> _messages.send(COPIED_MESSAGE)
         }
     }
 
     /** 백업을 다운로드 폴더에 파일로 저장한다. 사람이 열어 볼 수 있게 줄을 나눈다. */
     fun saveBackup() = runBackup(EXPORT_FAILED_MESSAGE) {
-        val text = encodeBackup(pretty = true)
-        backupStorage.saveToDownloads(backupFileName(LocalDate.now(BudgetTime.ZONE)), text).fold(
+        backupExporter.saveFile(backupFileName(LocalDate.now(BudgetTime.ZONE))).fold(
             onSuccess = { name ->
                 DevLog.info(LogTag.BACKUP, "파일로 저장 · $name")
                 _messages.send(savedMessage(name))
@@ -138,14 +138,6 @@ class SettingsViewModel(
 
     fun dismissRestore() {
         _backup.update { it.copy(restore = null) }
-    }
-
-    private suspend fun encodeBackup(pretty: Boolean): String {
-        // 월급 설정은 정해 둔 때만 담는다
-        val salary = salaryRepository.settings.first().takeIf { it != SalarySettings() }?.toRecord()
-        val backup = backupRepository.export(currentVersion).copy(salary = salary)
-        // 거래가 많으면 글로 바꾸는 데 시간이 걸린다. 화면이 멈추지 않게 뒤에서 한다.
-        return withContext(Dispatchers.Default) { BackupCodec.encode(backup, pretty) }
     }
 
     private suspend fun prepareRestore(text: String) {

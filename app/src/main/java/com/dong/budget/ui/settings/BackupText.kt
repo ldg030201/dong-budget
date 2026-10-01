@@ -1,11 +1,15 @@
 package com.dong.budget.ui.settings
 
 import com.dong.budget.data.backup.Backup
+import com.dong.budget.data.backup.BackupKind
+import com.dong.budget.data.backup.LastBackup
+import com.dong.budget.data.db.BudgetTime
 import com.dong.budget.ui.format.formatAmount
 import com.dong.budget.ui.format.formatDate
 import com.dong.budget.ui.format.formatTime
 import java.time.Instant
 import java.time.LocalDate
+import java.time.temporal.ChronoUnit
 
 // ─────────────────────────────────────────────────────────────────────
 // 설정의 백업·복원·초기화 글자. 무엇이 지워지고 무엇이 남는지 쓰는 사람 눈높이로 적는다.
@@ -17,6 +21,32 @@ import java.time.LocalDate
  * @property currentTransactions 지금 있는 거래 수. 되살리면 이만큼 지워진다는 것을 알린다.
  */
 data class RestorePreview(val backup: Backup, val exportedAt: Instant, val currentTransactions: Int)
+
+/**
+ * 백업 묶음 맨 위의 한 줄. "마지막 백업 · 3일 전 · 파일로 저장"
+ * 날짜는 서울 날짜로 센다. 자정을 넘기면 하루 전이다.
+ */
+internal fun lastBackupText(last: LastBackup?, today: LocalDate): String {
+    if (last == null) return "아직 백업한 적 없어요"
+    val days = ChronoUnit.DAYS.between(BudgetTime.toLocalDate(last.at), today)
+    val ago =
+        when {
+            // 시계가 뒤로 가 미래로 적힌 것도 오늘로 본다
+            days <= 0L -> "오늘"
+
+            days == 1L -> "어제"
+
+            else -> "${formatAmount(days)}일 전"
+        }
+    return "마지막 백업 · $ago · ${last.kind.label}"
+}
+
+private val BackupKind.label: String
+    get() = when (this) {
+        BackupKind.COPY -> "JSON 복사"
+        BackupKind.FILE -> "파일로 저장"
+        BackupKind.AUTO -> "자동 백업"
+    }
 
 /** 다운로드 폴더에 저장할 이름. 같은 날 또 저장하면 시스템이 뒤에 번호를 붙인다. */
 internal fun backupFileName(today: LocalDate): String = "동계부-백업-$today.json"
