@@ -156,4 +156,12 @@ data class PaymentMethodEntity(
     override val isSystem: Boolean = false,
     @ColumnInfo(defaultValue = CategoryStyle.FALLBACK_ICON) override val icon: String = CategoryStyle.FALLBACK_ICON,
     @ColumnInfo(defaultValue = CategoryStyle.FALLBACK_COLOR) override val color: String = CategoryStyle.FALLBACK_COLOR,
+    /**
+     * 카드 실적 구간 금액(원)을 오름차순으로 쉼표로 이은 글("300000,700000"). 실적을 안 적었으면 null.
+     * 읽고 쓰기는 data/card/CardPerformance.kt 의 함수를 거친다(망가진 조각을 버리고 정리한다).
+     * SQL 기본값과 Kotlin 기본값이 같아야 새 설치(SeedCallback)와 데이터 초기화(toEntity)가 같은 줄을 넣는다.
+     */
+    @ColumnInfo(defaultValue = "NULL") val performanceTiers: String? = null,
+    /** 카드 실적을 세기 시작하는 날(매달 N일, 1~31). 그 달에 없는 날이면 말일부터 센다. */
+    @ColumnInfo(defaultValue = "1") val performanceStartDay: Int = 1,
 ) : StyledItem

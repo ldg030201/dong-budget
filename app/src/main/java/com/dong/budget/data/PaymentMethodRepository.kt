@@ -1,6 +1,8 @@
 package com.dong.budget.data
 
 import android.database.sqlite.SQLiteConstraintException
+import com.dong.budget.data.card.encodePerformanceTiers
+import com.dong.budget.data.card.normalizePerformanceStartDay
 import com.dong.budget.data.db.CategoryStyle
 import com.dong.budget.data.db.PaymentMethodDao
 import com.dong.budget.data.db.PaymentMethodEntity
@@ -45,6 +47,16 @@ class PaymentMethodRepository(private val dao: PaymentMethodDao) {
     fun observeAll(): Flow<List<PaymentMethodEntity>> = dao.observeAll()
 
     fun observeWithCount(): Flow<List<PaymentMethodWithCount>> = dao.observeWithCount()
+
+    /** 결제수단 하나. 고치면 새 값을, 지우면 null 을 내보낸다. */
+    fun observe(id: Long): Flow<PaymentMethodEntity?> = dao.observeById(id)
+
+    /**
+     * 카드 실적(구간 금액·시작일)을 저장한다. 구간은 [encodePerformanceTiers] 로 정리하고(비면 실적을 지운 것), 시작일은 1~31 로 맞춘다.
+     * @return 없는 결제수단(그사이 지웠음)이면 false
+     */
+    suspend fun setPerformance(id: Long, tiers: List<Long>, startDay: Int): Boolean =
+        dao.updatePerformance(id, encodePerformanceTiers(tiers), normalizePerformanceStartDay(startDay)) > 0
 
     suspend fun add(rawName: String, icon: String, color: String): AddResult {
         val name = rawName.trim()

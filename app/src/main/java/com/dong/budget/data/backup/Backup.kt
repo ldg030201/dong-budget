@@ -1,6 +1,10 @@
 package com.dong.budget.data.backup
 
 import com.dong.budget.data.MAX_AMOUNT_DIGITS
+import com.dong.budget.data.card.MAX_PERFORMANCE_START_DAY
+import com.dong.budget.data.card.encodePerformanceTiers
+import com.dong.budget.data.card.normalizePerformanceStartDay
+import com.dong.budget.data.card.performanceTierList
 import com.dong.budget.data.db.BudgetTime
 import com.dong.budget.data.db.CategoryEntity
 import com.dong.budget.data.db.CategoryScope
@@ -66,6 +70,10 @@ data class BackupCategory(
     val color: String = CategoryStyle.FALLBACK_COLOR,
 )
 
+/**
+ * @property performanceTiers 카드 실적 구간 금액(원, 오름차순). 안 적었으면 비어 있다(실적 칸이 생기기 전 백업에도 없다).
+ * @property performanceStartDay 카드 실적을 세기 시작하는 날(매달 N일)
+ */
 @Serializable
 data class BackupPaymentMethod(
     val uuid: String,
@@ -74,6 +82,8 @@ data class BackupPaymentMethod(
     val sortOrder: Int = 0,
     val icon: String = CategoryStyle.FALLBACK_ICON,
     val color: String = CategoryStyle.FALLBACK_COLOR,
+    val performanceTiers: List<Long> = emptyList(),
+    val performanceStartDay: Int = 1,
 )
 
 /**
@@ -165,6 +175,11 @@ internal fun problemOf(backup: Backup): String? {
     duplicateOf(paymentMethods.map { it.uuid })?.let { return "결제수단 uuid 가 겹쳐요: $it" }
     duplicateOf(paymentMethods.map { it.name })?.let { return "결제수단 이름이 겹쳐요: $it" }
     paymentMethods.firstOrNull { it.name.isBlank() }?.let { return "이름 없는 결제수단이 있어요: ${it.uuid}" }
+    // 구간 개수는 보지 않는다. 되살릴 때 앞에서부터 잘라 넣으므로, 개수 상한이 늘어난 다음 판의 백업도 거절하지 않는다.
+    paymentMethods.forEach { m ->
+        if (m.performanceTiers.any { it !in 1..MAX_AMOUNT }) return "카드 실적 금액이 범위를 벗어나요: ${m.uuid}"
+        if (m.performanceStartDay !in 1..MAX_PERFORMANCE_START_DAY) return "카드 실적 시작일이 범위를 벗어나요: ${m.uuid}"
+    }
 
     val transactions = backup.transactions
     duplicateOf(transactions.map { it.uuid })?.let { return "거래 uuid 가 겹쳐요: $it" }
@@ -230,7 +245,19 @@ fun backupOf(
         categories.map {
             BackupCategory(it.uuid, it.scope, it.name, it.code, it.sortOrder, it.isSystem, it.icon, it.color)
         },
-        paymentMethods = paymentMethods.map { BackupPaymentMethod(it.uuid, it.name, it.type, it.sortOrder, it.icon, it.color) },
+        paymentMethods =
+        paymentMethods.map {
+            BackupPaymentMethod(
+                uuid = it.uuid,
+                name = it.name,
+                type = it.type,
+                sortOrder = it.sortOrder,
+                icon = it.icon,
+                color = it.color,
+                performanceTiers = it.performanceTierList,
+                performanceStartDay = it.performanceStartDay,
+            )
+        },
         transactions =
         transactions.map { t ->
             BackupTransaction(
@@ -263,6 +290,7 @@ fun BackupCategory.toEntity(): CategoryEntity = CategoryEntity(
     color = CategoryStyle.colorOrFallback(color),
 )
 
+/** 카드 실적은 저장소와 같은 규칙으로 정리해 넣는다(손으로 고친 백업의 순서·중복·개수). */
 fun BackupPaymentMethod.toEntity(): PaymentMethodEntity = PaymentMethodEntity(
     uuid = uuid,
     name = name,
@@ -270,6 +298,8 @@ fun BackupPaymentMethod.toEntity(): PaymentMethodEntity = PaymentMethodEntity(
     sortOrder = sortOrder,
     icon = CategoryStyle.iconOrFallback(icon),
     color = CategoryStyle.colorOrFallback(color),
+    performanceTiers = encodePerformanceTiers(performanceTiers),
+    performanceStartDay = normalizePerformanceStartDay(performanceStartDay),
 )
 
 /**

@@ -182,6 +182,61 @@ class BackupCodecTest {
     }
 
     @Test
+    fun `카드 실적 구간과 시작일도 담았다가 그대로 되살린다`() {
+        // 기본값(실적 없음, 1일)이 아닌 값이어야 내보내기에서 칸이 빠지는 실수를 잡는다
+        val card = check.copy(performanceTiers = "300000,700000", performanceStartDay = 15)
+        val withPerformance = paymentMethods.map { if (it.id == card.id) card else it }
+        val exported =
+            backupOf(categories, withPerformance, listOf(lunch), appVersion = "1.6.1", exportedAt = Instant.parse("2026-10-02T05:03:00Z"))
+        val exportedCheck = exported.paymentMethods.first { it.uuid == check.uuid }
+        assertEquals(listOf(300_000L, 700_000L), exportedCheck.performanceTiers)
+        assertEquals(15, exportedCheck.performanceStartDay)
+
+        val restored = decodeValid(BackupCodec.encode(exported, pretty = true))
+        assertEquals(exported, restored)
+        assertEquals(withPerformance.map { it.copy(id = 0) }, restored.paymentMethods.map { it.toEntity() })
+    }
+
+    @Test
+    fun `카드 실적 칸이 없는 옛 백업은 실적 없이 1일부터로 되살린다`() {
+        val text =
+            BackupCodec.encode(backup(), pretty = false)
+                .replace(Regex(""","performanceTiers":\[[^\]]*\]"""), "")
+                .replace(Regex(""","performanceStartDay":\d+"""), "")
+        assertTrue("performance" !in text)
+        val restored = decodeValid(text).paymentMethods.map { it.toEntity() }
+        assertEquals(paymentMethods.map { it.copy(id = 0) }, restored)
+        restored.forEach {
+            assertEquals(null, it.performanceTiers)
+            assertEquals(1, it.performanceStartDay)
+        }
+    }
+
+    @Test
+    fun `카드 실적이 범위를 벗어나면 망가진 백업이고, 순서·중복은 정리해서 되살린다`() {
+        val cases =
+            listOf(listOf(0L), listOf(-300_000L), listOf(1_000_000_000_000L)).map { tiers ->
+                { b: Backup -> b.copy(paymentMethods = b.paymentMethods.map { it.copy(performanceTiers = tiers) }) }
+            } +
+                listOf(0, 32, -1).map { day ->
+                    { b: Backup -> b.copy(paymentMethods = b.paymentMethods.map { it.copy(performanceStartDay = day) }) }
+                }
+        cases.forEachIndexed { i, edit -> assertEquals("${i}번째", BackupCodec.BROKEN, reason(broken(edit))) }
+
+        val odd = BackupPaymentMethod(
+            uuid = "u",
+            name = "하나카드",
+            type = check.type,
+            performanceTiers = listOf(700_000, 300_000, 300_000),
+            performanceStartDay = 31,
+        )
+        assertEquals("300000,700000", odd.toEntity().performanceTiers)
+        assertEquals(31, odd.toEntity().performanceStartDay)
+        // 12자리 끝까지는 받는다
+        decodeValid(broken { b -> b.copy(paymentMethods = b.paymentMethods.map { it.copy(performanceTiers = listOf(999_999_999_999)) }) })
+    }
+
+    @Test
     fun `월급 설정도 담았다가 그대로 읽는다`() {
         val salary = SalarySettings(basis = PayBasis.YEARLY, amount = 48_000_000, payday = 10).toRecord()
         val withSalary = backup().copy(salary = salary)

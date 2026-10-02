@@ -234,6 +234,10 @@ interface PaymentMethodDao {
     @Query("SELECT * FROM payment_methods WHERE id = :id")
     suspend fun findById(id: Long): PaymentMethodEntity?
 
+    /** 결제수단 하나. 고치면 새 값을, 지우면 null 을 내보낸다. 카드실적 상세·편집이 쓴다. */
+    @Query("SELECT * FROM payment_methods WHERE id = :id")
+    fun observeById(id: Long): Flow<PaymentMethodEntity?>
+
     @Query("SELECT * FROM payment_methods")
     suspend fun getAll(): List<PaymentMethodEntity>
 
@@ -242,6 +246,10 @@ interface PaymentMethodDao {
 
     @Query("UPDATE payment_methods SET sortOrder = :sortOrder WHERE id = :id")
     suspend fun updateSortOrder(id: Long, sortOrder: Int)
+
+    /** 카드 실적 칸만 고친다. 정리는 부르는 쪽(PaymentMethodRepository.setPerformance)이 한다. @return 고친 줄 수 */
+    @Query("UPDATE payment_methods SET performanceTiers = :tiers, performanceStartDay = :startDay WHERE id = :id")
+    suspend fun updatePerformance(id: Long, tiers: String?, startDay: Int): Int
 
     /** 주어진 순서대로 0, 1, 2… 를 매긴다. 한꺼번에 바꿔야 중간에 순서가 섞인 채로 보이지 않는다. */
     @Transaction

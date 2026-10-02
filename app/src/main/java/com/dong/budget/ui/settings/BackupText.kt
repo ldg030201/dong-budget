@@ -116,7 +116,7 @@ internal fun restoredMessage(backup: Backup): String = "백업으로 복원했�
 
 /** 데이터 초기화를 묻는 창의 글. [autoBackup] 이면 지우기 전에 자동으로 백업한다고 알리고, 아니면 먼저 백업해 두라고 권한다. */
 internal fun resetDataMessage(transactionCount: Int, autoBackup: Boolean = false): String =
-    "거래 ${formatAmount(transactionCount.toLong())}건과 직접 만든 분류·결제수단, 월급 설정, 알림 목록을 모두 지우고 " +
+    "거래 ${formatAmount(transactionCount.toLong())}건과 직접 만든 분류·결제수단, 카드 실적, 월급 설정, 알림 목록을 모두 지우고 " +
         "처음 설치한 상태로 돌려요. " +
         (if (autoBackup) AUTO_BACKUP_NOTICE else "되돌릴 수 없으니 먼저 설정의 '파일로 내려받기'로 백업해 두세요.") +
         "\n\n화면 테마와 자동 기능 설정은 그대로예요."

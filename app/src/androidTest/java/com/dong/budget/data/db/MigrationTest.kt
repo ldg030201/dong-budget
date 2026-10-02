@@ -14,9 +14,9 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * 0.1.2 이하(DB 1)에서 올리는 사용자의 가계부가 마이그레이션 뒤에도 그대로 남는지 실제 SQLite 로 확인한다.
+ * 0.1.2 이하(DB 1)·1.6.1 이하(DB 2)에서 올리는 사용자의 가계부가 마이그레이션 뒤에도 그대로 남는지 실제 SQLite 로 확인한다.
  *
- * 옛 앱이 첫 설치 때 넣던 기본 분류·결제수단(v0.1.2 의 SeedCallback)을 그대로 만들고, 거래를 몇 건 넣은 뒤 2 로 올린다.
+ * 옛 앱이 첫 설치 때 넣던 기본 분류·결제수단(v0.1.2 의 SeedCallback)을 그대로 만들고, 거래를 몇 건 넣은 뒤 2·3 으로 올린다.
  * 원칙은 '거래는 하나도 잃지 않는다' 다(Migration1To2).
  *
  * 기기에서 돈다. 테스트용 DB 이름을 따로 써서 기기에 있는 실제 가계부(dong-budget.db)는 건드리지 않는다.
@@ -118,6 +118,65 @@ class MigrationTest {
         // 옛 기본 분류는 '기타' 두 개만 남고 새 기본 분류로 바뀐다
         assertEquals(DEFAULT_CATEGORIES.size, db.count("SELECT COUNT(*) FROM categories"))
         assertEquals(DEFAULT_PAYMENT_METHODS.size, db.count("SELECT COUNT(*) FROM payment_methods"))
+    }
+
+    @Test
+    fun `2 에서 3 으로 올리면 결제수단에 실적 칸이 비어 있는 채로 생기고 거래는 그대로다`() {
+        helper.createDatabase(TEST_DB, 2).apply {
+            // 1.6.1 의 SeedCallback 이 넣던 모양(아이콘·색 포함)과 알림으로 생긴 카드
+            DEFAULT_PAYMENT_METHODS.forEach { m ->
+                execSQL(
+                    "INSERT INTO payment_methods (uuid, name, type, sortOrder, isSystem, icon, color) VALUES (?, ?, ?, ?, 0, ?, ?)",
+                    arrayOf<Any?>(m.uuid, m.name, m.type.name, m.sortOrder, m.icon, m.color),
+                )
+            }
+            execSQL(
+                "INSERT INTO payment_methods (uuid, name, type, sortOrder, isSystem, icon, color) " +
+                    "VALUES ('user:hana', '하나카드', 'OTHER', 10, 0, 'credit_card', 'red')",
+            )
+            execSQL(
+                "INSERT INTO categories (uuid, scope, name, code, sortOrder, isSystem, icon, color) " +
+                    "VALUES ('seed:v2:category:FIXED', 'EXPENSE', '고정지출', 'FIXED', 4, 0, 'event_repeat', 'purple')",
+            )
+            execSQL(
+                "INSERT INTO transactions " +
+                    "(uuid, type, amount, occurredAt, occurredDate, categoryId, paymentMethodId, merchant, createdAt, updatedAt) " +
+                    "VALUES ('t1', 'EXPENSE', 17000, 1758783600000, 20250925, (SELECT id FROM categories WHERE code = 'FIXED'), " +
+                    "(SELECT id FROM payment_methods WHERE uuid = 'user:hana'), '넷플릭스', 0, 0)",
+            )
+            close()
+        }
+
+        val db = helper.runMigrationsAndValidate(TEST_DB, 3, true)
+
+        assertEquals(1, db.count("SELECT COUNT(*) FROM transactions"))
+        assertEquals(DEFAULT_PAYMENT_METHODS.size + 1, db.count("SELECT COUNT(*) FROM payment_methods"))
+        // 거래가 가리키던 결제수단·분류가 그대로 있다
+        db.row(
+            "SELECT p.name, c.code FROM transactions t JOIN payment_methods p ON p.id = t.paymentMethodId " +
+                "JOIN categories c ON c.id = t.categoryId WHERE t.uuid = 't1'",
+        ) {
+            assertEquals("하나카드", it.getString(0))
+            assertEquals(FIXED_CATEGORY_CODE, it.getString(1))
+        }
+        // 모든 결제수단이 실적 없음·1일부터로 시작한다(PaymentMethodEntity 의 Kotlin 기본값과 같다)
+        assertEquals(0, db.count("SELECT COUNT(*) FROM payment_methods WHERE performanceTiers IS NOT NULL OR performanceStartDay != 1"))
+    }
+
+    @Test
+    fun `옛 가계부를 1 에서 3 까지 한 번에 올려도 거래는 그대로다`() {
+        helper.createDatabase(TEST_DB, 1).apply {
+            seedLikeVersion1()
+            insertTransaction("t1", "EXPENSE", 12_000, categoryCode = "FOOD", payment = "CHECK_CARD")
+            close()
+        }
+        val db = helper.runMigrationsAndValidate(TEST_DB, 3, true)
+        assertEquals(1, db.count("SELECT COUNT(*) FROM transactions"))
+        assertEquals("식비", db.categoryNameOf("t1"))
+        assertEquals(
+            DEFAULT_PAYMENT_METHODS.size,
+            db.count("SELECT COUNT(*) FROM payment_methods WHERE performanceTiers IS NULL AND performanceStartDay = 1"),
+        )
     }
 
     /** v0.1.2 의 SeedCallback 이 첫 설치 때 넣던 그대로 */

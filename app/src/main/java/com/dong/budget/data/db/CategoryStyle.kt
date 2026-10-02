@@ -88,6 +88,9 @@ const val ETC_EXPENSE_CODE = "ETC_EXPENSE"
 const val SALARY_CATEGORY_CODE = "SALARY"
 const val ETC_INCOME_CODE = "ETC_INCOME"
 
+/** 기본 지출 분류 '고정지출'. 고정지출 탭이 이 분류의 지출을 모아 보고, '등록하기' 등록창이 미리 고른다. 사용자가 지울 수 있다. */
+const val FIXED_CATEGORY_CODE = "FIXED"
+
 /** '기타' 는 항상 맨 뒤에 오도록 정렬 순서를 크게 둔다. */
 const val ETC_SORT_ORDER = 1000
 
@@ -103,7 +106,7 @@ val DEFAULT_CATEGORIES =
         DefaultCategory(CategoryScope.EXPENSE, "TRANSPORT", "교통/차량", "directions_car", "blue", 1),
         DefaultCategory(CategoryScope.EXPENSE, "CONVENIENCE", "편의점", "storefront", "green", 2),
         DefaultCategory(CategoryScope.EXPENSE, "FASHION", "패션/미용", "checkroom", "pink", 3),
-        DefaultCategory(CategoryScope.EXPENSE, "FIXED", "고정지출", "event_repeat", "purple", 4),
+        DefaultCategory(CategoryScope.EXPENSE, FIXED_CATEGORY_CODE, "고정지출", "event_repeat", "purple", 4),
         DefaultCategory(CategoryScope.EXPENSE, ETC_EXPENSE_CODE, "기타", "interests", "gray", ETC_SORT_ORDER),
         DefaultCategory(CategoryScope.INCOME, SALARY_CATEGORY_CODE, "급여", "payments", "teal", 0),
         DefaultCategory(CategoryScope.INCOME, "ALLOWANCE", "용돈", "redeem", "amber", 1),

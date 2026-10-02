@@ -15,12 +15,14 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         CategoryEntity::class,
         PaymentMethodEntity::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = true,
     autoMigrations = [
         // 1 → 2: 분류에 아이콘·색 칸을 추가하고 기본 분류를 새 목록으로 바꾼다.
         // 칸 추가는 Room 이 스키마 JSON 을 비교해서 만들고, 데이터 정리는 Migration1To2 가 한다.
         AutoMigration(from = 1, to = 2, spec = Migration1To2::class),
+        // 2 → 3: 결제수단에 카드 실적 칸(구간·시작일)을 추가한다. 칸 추가뿐이라 정리할 데이터가 없다(기존 줄은 기본값: 실적 없음, 1일).
+        AutoMigration(from = 2, to = 3),
     ],
 )
 @TypeConverters(Converters::class)
