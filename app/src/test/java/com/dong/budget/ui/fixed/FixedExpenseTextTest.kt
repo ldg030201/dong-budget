@@ -1,0 +1,156 @@
+package com.dong.budget.ui.fixed
+
+import com.dong.budget.data.db.TransactionListItem
+import com.dong.budget.testing.day
+import com.dong.budget.testing.tx
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Test
+import java.time.LocalDate
+import java.time.YearMonth
+
+class FixedExpenseTextTest {
+    private val october = YearMonth.of(2026, 10)
+    private val today = day("2026-10-12")
+
+    private fun item(rows: List<TransactionListItem>, month: YearMonth = october, today: LocalDate = this.today): FixedExpenseItem {
+        val board = buildFixedExpenses(month, today, rows)
+        return (board.due + board.paid + board.notThisMonth + board.stopped).single()
+    }
+
+    private fun paid(vararg dates: String, amount: Long = 17_000, paymentId: Long? = 10) =
+        dates.map { tx(it, amount, categoryId = 4, paymentId = paymentId, merchant = "넷플릭스", paymentName = paymentId?.let { "하나카드" }) }
+
+    @Test
+    fun `주기는 기호 없이 말로 적는다`() {
+        assertEquals("매달", cadenceText(1))
+        assertEquals("2달마다", cadenceText(2))
+        assertEquals("10달마다", cadenceText(10))
+        assertEquals("매년", cadenceText(YEARLY))
+    }
+
+    @Test
+    fun `평소 날은 쯤을 붙이고 31일은 말일이다`() {
+        assertEquals("1일쯤", usualDayText(1))
+        assertEquals("30일쯤", usualDayText(30))
+        assertEquals("말일쯤", usualDayText(31))
+    }
+
+    @Test
+    fun `아직 안 냈어요 줄은 평소 언제 어느 카드로 내는지 적는다`() {
+        val due = item(paid("2026-08-25", "2026-09-25"))
+        assertEquals("매달 25일쯤 · 하나카드", rowSubtitle(due, october))
+        // 결제수단을 지웠으면 언제만 적는다
+        assertEquals("매달 25일쯤", rowSubtitle(item(paid("2026-09-25", paymentId = null)), october))
+    }
+
+    @Test
+    fun `매년 내는 것은 무슨 달인지도 적는다`() {
+        val yearly = item(paid("2025-03-02", "2026-03-02"))
+        assertEquals("매년 3월 2일쯤 · 하나카드", rowSubtitle(yearly, october))
+        assertEquals("다음은 2027년 3월에 내요", rowNote(yearly, october)?.text)
+    }
+
+    @Test
+    fun `몇 달마다 내는 것은 다음 낼 달을 덧붙인다`() {
+        val every2 = item(paid("2026-07-31", "2026-09-30"))
+        assertEquals("2달마다 30일쯤 · 하나카드", rowSubtitle(every2, october))
+        assertEquals(RowNote("다음은 11월에 내요", NoteTone.PLAIN), rowNote(every2, october))
+    }
+
+    @Test
+    fun `냈어요 줄은 낸 날을 적고 한 달에 여러 번이면 몇 번 더 냈는지 붙인다`() {
+        assertEquals("10월 3일 · 하나카드", rowSubtitle(item(paid("2026-10-03")), october))
+        assertEquals("10월 3일 외 2번 · 하나카드", rowSubtitle(item(paid("2026-10-03", "2026-10-03", "2026-10-20")), october))
+    }
+
+    @Test
+    fun `냈어요 줄은 지난번과 금액이 다를 때만 오르내림을 덧붙인다`() {
+        val up = item(paid("2026-09-03") + paid("2026-10-03", amount = 18_000))
+        assertEquals(RowNote("지난번보다 1,000원 올랐어요", NoteTone.PLAIN), rowNote(up, october))
+        val down = item(paid("2026-09-03") + paid("2026-10-03", amount = 13_500))
+        assertEquals("지난번보다 3,500원 내렸어요", rowNote(down, october)?.text)
+        assertNull(rowNote(item(paid("2026-09-03", "2026-10-03")), october))
+        // 처음 낸 달은 견줄 것이 없다
+        assertNull(rowNote(item(paid("2026-10-03")), october))
+    }
+
+    @Test
+    fun `아직 안 냈어요 줄은 평소 날짜가 지났거나 오늘이면 알린다`() {
+        val rows = paid("2026-08-10", "2026-09-10")
+        assertEquals(RowNote("평소보다 2일 지났어요", NoteTone.WARNING), rowNote(item(rows), october))
+        assertEquals(RowNote("오늘 낼 차례예요", NoteTone.TODAY), rowNote(item(rows, today = day("2026-10-10")), october))
+        assertNull(rowNote(item(rows, today = day("2026-10-09")), october))
+    }
+
+    @Test
+    fun `지난 차례도 놓쳤으면 그 달을 알린다`() {
+        val missed = item(paid("2026-07-10", "2026-08-10"))
+        assertEquals(RowNote("9월 차례도 안 냈어요", NoteTone.WARNING), rowNote(missed, october))
+        // 해가 바뀌면 연도를 붙인다
+        val acrossYear = item(paid("2025-10-10", "2025-11-10"), month = YearMonth.of(2026, 1), today = day("2026-01-05"))
+        assertEquals("2025년 12월 차례도 안 냈어요", rowNote(acrossYear, YearMonth.of(2026, 1))?.text)
+    }
+
+    @Test
+    fun `한동안 안 냈어요 줄은 마지막으로 낸 날을 적고 해가 다르면 연도를 붙인다`() {
+        assertEquals("마지막 6월 3일 · 하나카드", rowSubtitle(item(paid("2026-05-03", "2026-06-03")), october))
+        assertEquals("마지막 2025년 12월 3일 · 하나카드", rowSubtitle(item(paid("2025-12-03")), october))
+        assertNull(rowNote(item(paid("2025-12-03")), october))
+    }
+
+    @Test
+    fun `금액은 부호 없이 원까지 적는다`() {
+        assertEquals("1,317,000원", rowAmount(item(paid("2026-09-25", amount = 1_317_000))))
+    }
+
+    @Test
+    fun `등록하기는 화면 읽기에서 가게 이름을 붙여 읽는다`() {
+        assertEquals("넷플릭스 등록하기", registerLabel("넷플릭스"))
+    }
+
+    @Test
+    fun `묶음 제목은 지난 달을 보면 끝난 달에 맞게 적는다`() {
+        assertEquals("아직 안 냈어요", statusTitle(FixedStatus.DUE, october, today))
+        assertEquals("안 냈어요", statusTitle(FixedStatus.DUE, YearMonth.of(2026, 9), today))
+        assertEquals("냈어요", statusTitle(FixedStatus.PAID, october, today))
+        assertEquals("이번 달엔 안 내요", statusTitle(FixedStatus.NOT_THIS_MONTH, october, today))
+        assertEquals("9월엔 낼 차례가 아니었어요", statusTitle(FixedStatus.NOT_THIS_MONTH, YearMonth.of(2026, 9), today))
+        assertEquals("2025년 12월엔 낼 차례가 아니었어요", statusTitle(FixedStatus.NOT_THIS_MONTH, YearMonth.of(2025, 12), today))
+        assertEquals("한동안 안 냈어요", statusTitle(FixedStatus.STOPPED, october, today))
+        assertEquals("3개", countText(3))
+    }
+
+    @Test
+    fun `요약 문장은 낼 차례였던 것 중 몇 개를 냈는지 센다`() {
+        val partial = FixedExpenseBoard(due = listOf(item(paid("2026-09-25"))), paid = listOf(item(paid("2026-10-03"))))
+        assertEquals("2개 중 1개 냈어요", countSentence(partial, october, today))
+        val all = FixedExpenseBoard(paid = listOf(item(paid("2026-10-03")), item(paid("2026-10-03")).copy(key = "다른")))
+        assertEquals("2개 모두 냈어요", countSentence(all, october, today))
+        assertEquals("모두 냈어요", countSentence(FixedExpenseBoard(paid = listOf(item(paid("2026-10-03")))), october, today))
+        val none = FixedExpenseBoard(notThisMonth = listOf(item(paid("2026-07-31", "2026-09-30"))))
+        assertEquals("이번 달에 낼 고정지출이 없어요", countSentence(none, october, today))
+        assertEquals("9월엔 낼 고정지출이 없었어요", countSentence(none, YearMonth.of(2026, 9), today))
+    }
+
+    @Test
+    fun `요약 판은 한 문장으로 읽고 금액은 줄이지 않는다`() {
+        val board =
+            FixedExpenseBoard(
+                due = listOf(item(paid("2026-09-25", amount = 1_317_000))),
+                paid = listOf(item(paid("2026-10-03", amount = 85_000))),
+            )
+        assertEquals("이번 달 고정지출. 2개 중 1개 냈어요. 낸 돈 85,000원, 낼 돈 1,317,000원", summarySpoken(board, october, today))
+        assertEquals(
+            "9월 고정지출. 2개 중 1개 냈어요. 낸 돈 85,000원, 안 낸 돈 1,317,000원",
+            summarySpoken(board, YearMonth.of(2026, 9), today),
+        )
+        assertEquals("이번 달 고정지출. 이번 달에 낼 고정지출이 없어요", summarySpoken(FixedExpenseBoard(), october, today))
+    }
+
+    @Test
+    fun `빈 화면 제목은 지난 달이면 그 달까지는 없었다고 적는다`() {
+        assertEquals("고정지출로 등록한 지출이 없어요", emptyTitle(october, today))
+        assertEquals("8월까지는 고정지출로 등록한 지출이 없어요", emptyTitle(YearMonth.of(2026, 8), today))
+    }
+}
