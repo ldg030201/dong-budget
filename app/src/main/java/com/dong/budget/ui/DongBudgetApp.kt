@@ -63,6 +63,8 @@ import com.dong.budget.data.settings.AutoOption
 import com.dong.budget.navigation.AdvancedSettingsKey
 import com.dong.budget.navigation.AppInfoKey
 import com.dong.budget.navigation.AppPinSetupKey
+import com.dong.budget.navigation.CardPerformanceDetailKey
+import com.dong.budget.navigation.CardPerformanceEditKey
 import com.dong.budget.navigation.CategoryManageKey
 import com.dong.budget.navigation.DeveloperKey
 import com.dong.budget.navigation.EditorPrefill
@@ -77,6 +79,9 @@ import com.dong.budget.navigation.StatisticsKey
 import com.dong.budget.navigation.StatsDetailKey
 import com.dong.budget.navigation.TransactionDetailKey
 import com.dong.budget.navigation.TransactionEditorKey
+import com.dong.budget.ui.card.CardPerformanceDetailScreen
+import com.dong.budget.ui.card.CardPerformanceEditScreen
+import com.dong.budget.ui.card.CardPerformanceScreen
 import com.dong.budget.ui.category.CategoryManageScreen
 import com.dong.budget.ui.category.CategoryManageViewModel
 import com.dong.budget.ui.components.BudgetTopAppBar
@@ -95,6 +100,7 @@ import com.dong.budget.ui.editor.TransactionEditorScreen
 import com.dong.budget.ui.editor.TransactionEditorViewModel
 import com.dong.budget.ui.editor.salaryPrefill
 import com.dong.budget.ui.editor.toPrefill
+import com.dong.budget.ui.fixed.FixedExpenseScreen
 import com.dong.budget.ui.home.HomeViewModel
 import com.dong.budget.ui.inbox.InboxScreen
 import com.dong.budget.ui.inbox.InboxViewModel
@@ -260,6 +266,12 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
                                 onOpenPatchNotes = { navigator.go(PatchNotesKey) },
                                 devModeOn = devModeOn,
                                 onOpenDeveloper = { navigator.go(DeveloperKey) },
+                                // ── 고정지출 탭 ──
+                                // 탭 머리만 있는 자리. 화면 모델은 월급처럼 이 람다 안에서 만들어 셸과 같이 살게 하고,
+                                // '등록하기' 는 TransactionEditorKey(prefill), 줄 누름은 TransactionDetailKey 로 연다.
+                                fixedExpenseContent = {
+                                    FixedExpenseScreen()
+                                },
                                 salaryContent = {
                                     // 처음이면 연봉 공개 주의 안내, 잠겨 있으면 PIN·지문, 그 뒤에야 월급을 그린다
                                     SalaryTabGate(
@@ -285,6 +297,11 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
                                             onOpenTransaction = { id -> navigator.go(TransactionDetailKey(id)) },
                                         )
                                     }
+                                },
+                                // ── 카드실적 ──
+                                // 탭 머리만 있는 자리. 화면 모델은 월급처럼 이 람다 안에서 만들고, 카드를 누르면 아래 '카드실적 상세·편집' 엔트리로 연다.
+                                cardPerformanceContent = {
+                                    CardPerformanceScreen()
                                 },
                             )
                         }
@@ -612,6 +629,18 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
                                 onBack = navigator::goBack,
                             )
                         }
+
+                        // ── 카드실적 상세·편집 ──
+                        // ← 만 있는 자리. 카드실적 탭의 판·'실적 추가'가 연다.
+                        entry<CardPerformanceDetailKey> { key ->
+                            val settled = rememberSettled()
+                            CardPerformanceDetailScreen(onBack = { if (settled()) navigator.closeIfTop(key) })
+                        }
+
+                        entry<CardPerformanceEditKey> { key ->
+                            val settled = rememberSettled()
+                            CardPerformanceEditScreen(onBack = { if (settled()) navigator.closeIfTop(key) })
+                        }
                     },
                 )
             }
@@ -823,6 +852,9 @@ private fun salaryViewModelFactory(container: AppContainer) = viewModelFactory {
     initializer { SalaryViewModel(container.salaryRepository, container.transactionRepository) }
 }
 
+// ── 고정지출 탭 화면 모델 ──
+// 고정지출 탭의 화면 모델 공장을 여기에 둔다(카드실적 것은 파일 맨 끝).
+
 private fun salarySettingsViewModelFactory(container: AppContainer) = viewModelFactory {
     initializer { SalarySettingsViewModel(container.salaryRepository) { container.clearSalary(SalaryLockReset.KEEP) } }
 }
@@ -896,3 +928,6 @@ private fun statsDetailViewModelFactory(container: AppContainer, key: StatsDetai
         )
     }
 }
+
+// ── 카드실적 화면 모델 ──
+// 카드실적 탭·상세·편집의 화면 모델 공장을 여기에 둔다.

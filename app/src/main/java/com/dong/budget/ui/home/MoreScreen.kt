@@ -2,17 +2,11 @@ package com.dong.budget.ui.home
 
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.vectorResource
@@ -20,6 +14,7 @@ import com.dong.budget.R
 import com.dong.budget.ui.components.BudgetIconButton
 import com.dong.budget.ui.components.BudgetListItem
 import com.dong.budget.ui.components.IconBadge
+import com.dong.budget.ui.components.TabHeader
 import com.dong.budget.ui.theme.BudgetTheme
 
 /**
@@ -36,6 +31,8 @@ fun MoreScreen(
     onOpenSalary: () -> Unit,
     onOpenCategories: () -> Unit,
     onOpenStatistics: () -> Unit,
+    onOpenFixedExpenses: () -> Unit,
+    onOpenCardPerformance: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenPatchNotes: () -> Unit,
     onOpenDeveloper: () -> Unit,
@@ -44,31 +41,17 @@ fun MoreScreen(
     // 메뉴가 늘면 가로 화면에서 아래 줄이 하단 메뉴에 가려진다. 스크롤해서 모두 닿게 한다.
     Column(modifier = modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         // 설정은 목록이 아니라 제목 줄 오른쪽 위에 둔다. 메뉴가 늘어나도 자리를 찾기 쉽다.
-        Row(
-            modifier =
-            Modifier
-                .fillMaxWidth()
-                .statusBarsPadding()
-                .padding(
-                    start = BudgetTheme.spacing.screenHorizontal,
-                    end = BudgetTheme.spacing.inlineGap,
-                    top = BudgetTheme.spacing.inlineGap,
-                    bottom = BudgetTheme.spacing.inlineGap,
-                ),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = "전체",
-                style = MaterialTheme.typography.headlineSmall,
-                color = BudgetTheme.colors.textPrimary,
-                modifier = Modifier.weight(1f),
-            )
-            BudgetIconButton(
-                icon = ImageVector.vectorResource(R.drawable.ic_sym_settings),
-                contentDescription = "설정",
-                onClick = onOpenSettings,
-            )
-        }
+        TabHeader(
+            title = "전체",
+            modifier = Modifier.statusBarsPadding(),
+            action = {
+                BudgetIconButton(
+                    icon = ImageVector.vectorResource(R.drawable.ic_sym_settings),
+                    contentDescription = "설정",
+                    onClick = onOpenSettings,
+                )
+            },
+        )
         // 아래 메뉴에도 있지만 전체는 모든 메뉴를 늘어놓는 곳이라 둔다. 누르면 월급 탭으로 간다.
         MenuItem(
             title = "월급",
@@ -91,6 +74,21 @@ fun MoreScreen(
             iconRes = R.drawable.ic_sym_bar_chart,
             color = "orange",
             onClick = onOpenStatistics,
+        )
+        // 고정지출·카드실적도 아래 메뉴에 있지만 같은 까닭으로 둔다. 누르면 그 탭으로 간다.
+        MenuItem(
+            title = "고정지출",
+            subtitle = "매달 나가는 돈을 냈는지 봐요",
+            iconRes = R.drawable.ic_sym_event_repeat,
+            color = "green",
+            onClick = onOpenFixedExpenses,
+        )
+        MenuItem(
+            title = "카드실적",
+            subtitle = "카드마다 실적을 얼마나 채웠는지 봐요",
+            iconRes = R.drawable.ic_sym_credit_card,
+            color = "blue",
+            onClick = onOpenCardPerformance,
         )
         MenuItem(
             title = "패치노트",

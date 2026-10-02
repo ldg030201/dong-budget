@@ -29,7 +29,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
@@ -44,6 +43,7 @@ import com.dong.budget.ui.components.BudgetPrimaryButton
 import com.dong.budget.ui.components.HintText
 import com.dong.budget.ui.components.IconBadge
 import com.dong.budget.ui.components.RollingText
+import com.dong.budget.ui.components.TabHeader
 import com.dong.budget.ui.components.TransactionRow
 import com.dong.budget.ui.components.sectionBlock
 import com.dong.budget.ui.format.formatAmount
@@ -115,38 +115,22 @@ private fun rememberNow(clock: Clock): State<LocalDateTime> {
     return ticks.collectAsStateWithLifecycle(initialValue = initial)
 }
 
-/** '전체' 탭과 같은 머리. 오른쪽 톱니로 월급 설정을 연다. 잠겨 있거나 처음 안내 중이면 톱니를 두지 않는다([onOpenSettings] 가 null). */
+/** 탭 머리. 오른쪽 톱니로 월급 설정을 연다. 잠겨 있거나 처음 안내 중이면 톱니를 두지 않는다([onOpenSettings] 가 null). */
 @Composable
 internal fun SalaryHeader(onOpenSettings: (() -> Unit)?) {
-    Row(
-        modifier =
-        Modifier
-            .fillMaxWidth()
-            .padding(
-                start = BudgetTheme.spacing.screenHorizontal,
-                end = BudgetTheme.spacing.inlineGap,
-                top = BudgetTheme.spacing.inlineGap,
-                bottom = BudgetTheme.spacing.inlineGap,
-            ),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text = "월급",
-            style = MaterialTheme.typography.headlineSmall,
-            color = BudgetTheme.colors.textPrimary,
-            modifier = Modifier.weight(1f).semantics { heading() },
-        )
-        if (onOpenSettings != null) {
-            BudgetIconButton(
-                icon = ImageVector.vectorResource(R.drawable.ic_sym_settings),
-                contentDescription = "월급 설정",
-                onClick = onOpenSettings,
-            )
-        } else {
-            // 톱니가 없어도 머리 높이는 같게 둔다
-            Spacer(Modifier.size(BudgetTheme.size.minTouchTarget))
-        }
-    }
+    TabHeader(
+        title = "월급",
+        action =
+        onOpenSettings?.let { open ->
+            {
+                BudgetIconButton(
+                    icon = ImageVector.vectorResource(R.drawable.ic_sym_settings),
+                    contentDescription = "월급 설정",
+                    onClick = open,
+                )
+            }
+        },
+    )
 }
 
 @Composable

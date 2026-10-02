@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Menu
@@ -32,6 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.vectorResource
+import androidx.compose.ui.unit.sp
 import com.dong.budget.R
 import com.dong.budget.ui.components.STATS_ENTRY_SHARED_KEY
 import com.dong.budget.ui.components.sharedNavElement
@@ -49,14 +51,25 @@ enum class ShellTab(val label: String) {
 
     /** 실시간 월급 */
     SALARY("월급"),
+
+    /** '고정지출' 분류로 적은 지출을 가게별로 묶어 이번 달 냈는지 본다 */
+    FIXED_EXPENSE("고정지출"),
+
+    /** 카드마다 실적 구간을 얼마나 채웠는지 본다 */
+    CARD_PERFORMANCE("카드실적"),
     MORE("전체"),
 }
 
-/** 탭 아이콘. 월급은 기본 수입 분류 '급여' 와 같은 아이콘이다(Material Symbols 는 리소스라 여기서 읽는다). */
+/**
+ * 탭 아이콘. 월급은 기본 수입 분류 '급여', 고정지출은 기본 지출 분류 '고정지출', 카드실적은 기본 카드와 같은 아이콘이다
+ * (Material Symbols 는 리소스라 여기서 읽는다).
+ */
 @Composable
 private fun ShellTab.icon(): ImageVector = when (this) {
     ShellTab.HOME -> Icons.Filled.Home
     ShellTab.SALARY -> ImageVector.vectorResource(R.drawable.ic_sym_payments)
+    ShellTab.FIXED_EXPENSE -> ImageVector.vectorResource(R.drawable.ic_sym_event_repeat)
+    ShellTab.CARD_PERFORMANCE -> ImageVector.vectorResource(R.drawable.ic_sym_credit_card)
     ShellTab.MORE -> Icons.Filled.Menu
 }
 
@@ -72,6 +85,8 @@ private fun ShellTab.icon(): ImageVector = when (this) {
  *
  * @param onOpenStatistics 아래 메뉴의 '통계'. 탭을 바꾸지 않고 통계 화면을 셸 위에 연다.
  * @param salaryContent 월급 탭 화면. 월급 탭을 처음 열 때 그 화면 모델이 만들어지게 부르는 쪽(DongBudgetApp)이 채운다.
+ * @param fixedExpenseContent 고정지출 탭 화면. [salaryContent] 와 같은 까닭으로 부르는 쪽이 채운다.
+ * @param cardPerformanceContent 카드실적 탭 화면. [salaryContent] 와 같은 까닭으로 부르는 쪽이 채운다.
  */
 @Composable
 fun HomeShell(
@@ -94,6 +109,8 @@ fun HomeShell(
     onOpenDeveloper: () -> Unit,
     modifier: Modifier = Modifier,
     salaryContent: @Composable () -> Unit = {},
+    fixedExpenseContent: @Composable () -> Unit = {},
+    cardPerformanceContent: @Composable () -> Unit = {},
 ) {
     var selectedTab by rememberSaveable { mutableStateOf(ShellTab.HOME) }
     val stateHolder = rememberSaveableStateHolder()
@@ -124,7 +141,7 @@ fun HomeShell(
                         colors = itemColors,
                     )
                     // 통계는 탭이 아니라 입구다. 누르면 통계 화면이 셸 위로 올라오고, 이 칸은 고른 칸이 되지 않는다.
-                    // 그래서 ShellTab 에 넣지 않고 월급 바로 뒤에 끼운다(홈 · 월급 · 통계 · 전체).
+                    // 그래서 ShellTab 에 넣지 않고 월급 바로 뒤에 끼운다(홈 · 월급 · 통계 · 고정지출 · 카드실적 · 전체).
                     // 통계를 열면 이 칸의 아이콘과 글자가 통계 하위 메뉴의 첫 칸 '통계' 자리로 옮겨 가고, 닫으면 여기로 내려온다.
                     if (tab == ShellTab.SALARY) {
                         ShellNavItem(
@@ -173,12 +190,18 @@ fun HomeShell(
 
                         ShellTab.SALARY -> salaryContent()
 
+                        ShellTab.FIXED_EXPENSE -> fixedExpenseContent()
+
+                        ShellTab.CARD_PERFORMANCE -> cardPerformanceContent()
+
                         ShellTab.MORE ->
                             MoreScreen(
                                 devModeOn = devModeOn,
                                 onOpenSalary = { selectedTab = ShellTab.SALARY },
                                 onOpenCategories = onOpenCategories,
                                 onOpenStatistics = onOpenStatistics,
+                                onOpenFixedExpenses = { selectedTab = ShellTab.FIXED_EXPENSE },
+                                onOpenCardPerformance = { selectedTab = ShellTab.CARD_PERFORMANCE },
                                 onOpenSettings = onOpenSettings,
                                 onOpenPatchNotes = onOpenPatchNotes,
                                 onOpenDeveloper = onOpenDeveloper,
@@ -209,9 +232,14 @@ private fun RowScope.ShellNavItem(
         onClick = onClick,
         icon = icon,
         label = {
+            // 칸이 여섯이라 좁은 폰(320dp, 칸 너비 약 47dp)에서는 네 글자('고정지출')가 칸보다 넓다.
+            // 두 줄로 꺾이거나 잘리지 않게 한 줄에 들어갈 때까지 글자를 줄인다(아래 떠 있는 메뉴와 같은 방식).
+            val style = MaterialTheme.typography.labelSmall
             Text(
                 label,
-                style = MaterialTheme.typography.labelSmall,
+                style = style,
+                maxLines = 1,
+                autoSize = TextAutoSize.StepBased(minFontSize = MIN_LABEL_SIZE, maxFontSize = style.fontSize),
                 modifier = if (labelSharedKey != null) Modifier.sharedNavElement(labelSharedKey) else Modifier,
             )
         },
@@ -228,3 +256,6 @@ private fun RowScope.ShellNavItem(
 
 /** 하단 탭은 바탕 없이 작은 아이콘과 글자뿐이라 버튼보다 더 줄인다 */
 private const val NAV_PRESSED_SCALE = 0.9f
+
+/** 좁은 화면에서 탭 글자를 줄이는 하한. 이보다 작으면 읽기 어렵다. */
+private val MIN_LABEL_SIZE = 10.sp

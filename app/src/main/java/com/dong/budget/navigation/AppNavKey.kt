@@ -139,3 +139,11 @@ data object InboxKey : AppNavKey
 /** 전체에서 여는 개발자 모드(로그 쌓기·복사) */
 @Serializable
 data object DeveloperKey : AppNavKey
+
+/** 카드실적 탭에서 카드 하나를 눌러 들어가는 상세. 기간마다 쓴 돈·실적 구간·그 기간 거래를 본다. */
+@Serializable
+data class CardPerformanceDetailKey(val paymentMethodId: Long) : AppNavKey
+
+/** 카드 하나의 실적 구간·시작일 고치기. 카드실적 탭의 '실적 추가'와 상세의 '수정'으로 연다. */
+@Serializable
+data class CardPerformanceEditKey(val paymentMethodId: Long) : AppNavKey
