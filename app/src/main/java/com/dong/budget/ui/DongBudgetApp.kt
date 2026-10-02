@@ -101,6 +101,7 @@ import com.dong.budget.ui.editor.TransactionEditorViewModel
 import com.dong.budget.ui.editor.salaryPrefill
 import com.dong.budget.ui.editor.toPrefill
 import com.dong.budget.ui.fixed.FixedExpenseScreen
+import com.dong.budget.ui.fixed.FixedExpenseViewModel
 import com.dong.budget.ui.home.HomeViewModel
 import com.dong.budget.ui.inbox.InboxScreen
 import com.dong.budget.ui.inbox.InboxViewModel
@@ -267,10 +268,21 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
                                 devModeOn = devModeOn,
                                 onOpenDeveloper = { navigator.go(DeveloperKey) },
                                 // ── 고정지출 탭 ──
-                                // 탭 머리만 있는 자리. 화면 모델은 월급처럼 이 람다 안에서 만들어 셸과 같이 살게 하고,
-                                // '등록하기' 는 TransactionEditorKey(prefill), 줄 누름은 TransactionDetailKey 로 연다.
+                                // 화면 모델은 월급처럼 이 람다 안에서 만들어 셸과 같이 살게 한다(탭을 처음 열 때 생기고, 떠나 있으면 구독을 멈춘다).
+                                // '등록하기' 는 지난번 값으로 채운 등록창을, 줄은 그 가게의 가장 최근 거래 상세를 연다.
+                                // 위에 다른 화면이 올라오는 동안 연달아 누른 탭은 받지 않는다(서브플로우와 같은 규칙).
                                 fixedExpenseContent = {
-                                    FixedExpenseScreen()
+                                    val fixedViewModel: FixedExpenseViewModel = viewModel(factory = fixedExpenseViewModelFactory(container))
+                                    val fixedState by fixedViewModel.uiState.collectAsStateWithLifecycle()
+                                    val settled = rememberSettled()
+                                    FixedExpenseScreen(
+                                        state = fixedState,
+                                        onPreviousMonth = fixedViewModel::showPreviousMonth,
+                                        onNextMonth = fixedViewModel::showNextMonth,
+                                        onThisMonth = fixedViewModel::showThisMonth,
+                                        onRegister = { prefill -> if (settled()) navigator.go(TransactionEditorKey(prefill = prefill)) },
+                                        onOpenTransaction = { id -> if (settled()) navigator.go(TransactionDetailKey(id)) },
+                                    )
                                 },
                                 salaryContent = {
                                     // 처음이면 연봉 공개 주의 안내, 잠겨 있으면 PIN·지문, 그 뒤에야 월급을 그린다
@@ -854,6 +866,9 @@ private fun salaryViewModelFactory(container: AppContainer) = viewModelFactory {
 
 // ── 고정지출 탭 화면 모델 ──
 // 고정지출 탭의 화면 모델 공장을 여기에 둔다(카드실적 것은 파일 맨 끝).
+private fun fixedExpenseViewModelFactory(container: AppContainer) = viewModelFactory {
+    initializer { FixedExpenseViewModel(container.transactionRepository, container.categoryRepository) }
+}
 
 private fun salarySettingsViewModelFactory(container: AppContainer) = viewModelFactory {
     initializer { SalarySettingsViewModel(container.salaryRepository) { container.clearSalary(SalaryLockReset.KEEP) } }
