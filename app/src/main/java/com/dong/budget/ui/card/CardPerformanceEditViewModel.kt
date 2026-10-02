@@ -216,6 +216,12 @@ internal fun panelAfterRemoval(panel: Int?, removed: Int): Int? = when {
 }
 
 /**
+ * 구간 줄 [keypad] 의 키패드 누름을 받을지. 누르는 순간 열린 입력판([open])이 그 줄일 때만 받는다.
+ * 닫히며 내려가는 중(null)이거나 다른 줄로 바뀌며 사라지는 키패드는 옛 줄 번호를 들고 있어서, 받으면 엉뚱한 줄 금액이 바뀐다.
+ */
+internal fun keypadAccepts(open: Int?, keypad: Int): Boolean = open == keypad
+
+/**
  * 실적을 바꿨을 때 남길 로그. 카드 이름과 금액은 적지 않고 구간 개수와 시작일만 적는다. 그대로면 null
  * "카드 실적을 바꿨어요 · 구간 2개 · 매달 15일부터" / "카드 실적을 지웠어요"
  */

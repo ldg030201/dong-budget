@@ -204,10 +204,12 @@ fun CardPerformanceEditScreen(
                     }
                 } else {
                     InputPanelBox {
+                        // 닫히며 내려가거나 다른 줄 키패드로 바뀌며 사라지는 키패드도 그동안 누름을 받는다. 누르는 순간 열린 입력판을 읽어
+                        // 이 줄 키패드일 때만 받는다. 열린 줄을 지운 뒤 내려가는 키패드를 누르면 당겨 올라온 다음 줄 금액이 바뀌던 것을 막는다.
                         NumberKeypad(
-                            onDigit = { onDigit(current, it) },
-                            onDelete = { onDeleteDigit(current) },
-                            onClear = { onClearAmount(current) },
+                            onDigit = { if (keypadAccepts(panel, current)) onDigit(current, it) },
+                            onDelete = { if (keypadAccepts(panel, current)) onDeleteDigit(current) },
+                            onClear = { if (keypadAccepts(panel, current)) onClearAmount(current) },
                         )
                     }
                 }

@@ -28,6 +28,18 @@ class CardPerformanceEditTest {
         assertNull(panelAfterRemoval(null, 0))
     }
 
+    @Test
+    fun `닫히며 내려가거나 다른 줄로 바뀐 키패드의 누름은 받지 않는다`() {
+        // 1구간 키패드가 열린 채 1구간을 지우면 입력판은 닫히고(null) 2구간이 1구간 자리로 올라온다.
+        // 내려가는 1구간 키패드(번호 0)를 눌러도 올라온 줄 금액이 바뀌면 안 된다.
+        assertFalse(keypadAccepts(panelAfterRemoval(0, 0), 0))
+        // 위 줄을 지워 열린 키패드가 2구간(1)에서 1구간(0)으로 당겨지면, 사라지는 옛 키패드(1)는 받지 않고 새 키패드(0)만 받는다
+        val moved = panelAfterRemoval(1, 0)
+        assertFalse(keypadAccepts(moved, 1))
+        assertTrue(keypadAccepts(moved, 0))
+        assertFalse(keypadAccepts(START_DAY_PANEL, 0))
+    }
+
     private fun state(rows: List<Long>, startDay: Int = 1) = CardPerformanceEditState(
         card = CardInfo(id = 1, name = "하나카드", icon = "credit_card", color = "blue"),
         rows = rows,
