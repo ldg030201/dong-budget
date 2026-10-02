@@ -3,6 +3,7 @@ package com.dong.budget.ui.editor
 import com.dong.budget.data.db.CategoryStyle
 import com.dong.budget.data.db.PaymentMethodEntity
 import com.dong.budget.data.db.PaymentMethodType
+import com.dong.budget.navigation.PrefillSource
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -35,6 +36,22 @@ class EditorUiStateTest {
     fun `새로 만들 카드의 색은 안 쓴 색이고, 스위치를 끄면 회색이다`() {
         assertEquals(CategoryStyle.firstUnusedColor(setOf(hana.color)), prefilled.pendingPaymentColor)
         assertEquals(CategoryStyle.FALLBACK_COLOR, prefilled.copy(pickUnusedColor = false).pendingPaymentColor)
+    }
+
+    @Test
+    fun `열쇠 없이 채워 연 고정지출도 채워 연 등록창이다`() {
+        assertTrue(EditorUiState(prefillSource = PrefillSource.FIXED_EXPENSE, dedupKey = null).isPrefilled)
+        assertTrue(EditorUiState(prefillSource = PrefillSource.PAYMENT_ALERT, dedupKey = "toss:1").isPrefilled)
+        assertFalse(EditorUiState().isPrefilled)
+    }
+
+    @Test
+    fun `번호로 고른 결제수단을 그사이 지웠으면 비어 있는 것으로 보고 고르게 한다`() {
+        val fixed = EditorUiState(prefillSource = PrefillSource.FIXED_EXPENSE, paymentMethodId = 99, paymentMethods = listOf(hana))
+        assertEquals(null, fixed.selectedPaymentMethod)
+        assertFalse(fixed.isPendingPaymentSelected)
+        assertTrue(RequiredField.PAYMENT in fixed.missingFields)
+        assertEquals(hana, fixed.copy(paymentMethodId = hana.id).selectedPaymentMethod)
     }
 
     @Test

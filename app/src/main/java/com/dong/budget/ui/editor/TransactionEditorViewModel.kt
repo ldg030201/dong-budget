@@ -66,9 +66,9 @@ data class EditorUiState(
      * 다른 결제수단을 골라도 남겨 둔다. 결제수단 표의 맨 뒤에 보여서 다시 고를 수 있다([isPendingPaymentSelected]).
      */
     val pendingPaymentName: String? = null,
-    /** 알림에서 읽은 결제의 열쇠. 같은 결제를 두 번 등록하지 않게 거래에 함께 저장한다. 직접 입력하면 null */
+    /** 알림에서 읽은 결제의 열쇠. 같은 결제를 두 번 등록하지 않게 거래에 함께 저장한다. 직접 입력하거나 고정지출로 채웠으면 null */
     val dedupKey: String? = null,
-    /** 채워 연 곳(결제 알림·월급날). 직접 입력하면 null */
+    /** 채워 연 곳(결제 알림·월급날·고정지출). 직접 입력하면 null */
     val prefillSource: PrefillSource? = null,
     /** 저장이 거절된 이유(이미 등록한 결제 등). 없으면 null */
     val saveError: String? = null,
@@ -98,8 +98,8 @@ data class EditorUiState(
 ) {
     val amount: Long get() = amountDigits.toLongOrNull() ?: 0L
 
-    /** 결제 알림에서 읽은 값으로 채워 연 등록창인지 */
-    val isPrefilled: Boolean get() = dedupKey != null
+    /** 결제 알림·월급날·고정지출에서 채워 연 등록창인지. 금액이 채워져 있어 키패드를 열지 않고 시작한다. 열쇠가 없는 고정지출도 들어간다. */
+    val isPrefilled: Boolean get() = prefillSource != null
 
     /**
      * 아직 비어 있는 필수 칸. 화면에 보이는 것과 같은 기준으로 본다.
@@ -194,7 +194,11 @@ class TransactionEditorViewModel(
             )
         val data = prefill?.takeIf { transactionId == null } ?: return base
         return base.copy(
-            type = if (data.source == PrefillSource.PAYDAY) TransactionType.INCOME else TransactionType.EXPENSE,
+            type =
+            when (data.source) {
+                PrefillSource.PAYDAY -> TransactionType.INCOME
+                PrefillSource.PAYMENT_ALERT, PrefillSource.FIXED_EXPENSE -> TransactionType.EXPENSE
+            },
             prefillSource = data.source,
             amountDigits = data.amount.takeIf { it > 0 }?.toString()?.take(MAX_AMOUNT_DIGITS).orEmpty(),
             merchant = data.merchant,
@@ -202,6 +206,8 @@ class TransactionEditorViewModel(
             occurredAt = Instant.ofEpochMilli(data.occurredAtMillis),
             // 저장할 때 만들 이름과 똑같이 다듬어 둔다. 그래야 이미 있는 결제수단과 맞춰 볼 수 있다.
             pendingPaymentName = data.paymentName?.let(PaymentMethodRepository::normalizeName),
+            // 번호로 고른 결제수단을 그사이 지웠으면 표에 없어 비어 보이고, 저장할 때 빈 칸으로 막혀 사용자가 고른다.
+            paymentMethodId = data.paymentMethodId,
             dedupKey = data.dedupKey,
         )
     }

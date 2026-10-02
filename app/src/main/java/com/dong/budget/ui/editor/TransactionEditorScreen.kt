@@ -254,6 +254,7 @@ fun TransactionEditorScreen(
                         when (source) {
                             PrefillSource.PAYMENT_ALERT -> "결제 알림에서 가져왔어요. 확인하고 등록해 주세요."
                             PrefillSource.PAYDAY -> "월급 설정의 금액으로 채웠어요. 실제로 들어온 금액과 다르면 고쳐 주세요."
+                            PrefillSource.FIXED_EXPENSE -> "지난번 고정지출로 채웠어요. 이번 달 금액이나 날짜가 다르면 고쳐 주세요."
                         },
                         modifier = Modifier.padding(top = BudgetTheme.spacing.inlineGap),
                     )

@@ -89,6 +89,30 @@ interface TransactionDao {
     )
     fun observeBetween(start: Instant, end: Instant): Flow<List<TransactionListItem>>
 
+    /**
+     * 기간 안에 코드가 [code] 인 분류(기본 분류)의 지출을 최신순으로. 고정지출 탭이 쓴다.
+     * 그 분류를 지웠으면 거래가 '기타' 로 옮겨 가서 아무것도 안 나온다. 날짜를 앞으로 적어 둔 거래도 [end] 앞이면 들어온다.
+     */
+    @Query(
+        LIST_ITEM_SELECT +
+            """
+        WHERE c.code = :code AND t.type = 'EXPENSE' AND t.occurredAt >= :start AND t.occurredAt < :end
+        ORDER BY t.occurredAt DESC, t.id DESC
+        """,
+    )
+    fun observeExpensesWithCategoryCode(code: String, start: Instant, end: Instant): Flow<List<TransactionListItem>>
+
+    /** 기간 안에 결제수단 [paymentMethodId] 로 쓴 지출과 환불을 최신순으로. 카드실적 상세가 쓴다(쓴 돈 = 지출 − 환불). */
+    @Query(
+        LIST_ITEM_SELECT +
+            """
+        WHERE t.paymentMethodId = :paymentMethodId AND t.type IN ('EXPENSE', 'REFUND')
+          AND t.occurredAt >= :start AND t.occurredAt < :end
+        ORDER BY t.occurredAt DESC, t.id DESC
+        """,
+    )
+    fun observeByPaymentMethod(paymentMethodId: Long, start: Instant, end: Instant): Flow<List<TransactionListItem>>
+
     /** 거래 한 건(분류·결제수단 이름과 색 포함). 고치면 새 값을, 지우면 null 을 내보낸다. 거래 상세가 쓴다. */
     @Query(LIST_ITEM_SELECT + " WHERE t.id = :id")
     fun observeItem(id: Long): Flow<TransactionListItem?>

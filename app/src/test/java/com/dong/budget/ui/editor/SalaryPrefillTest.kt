@@ -27,7 +27,7 @@ class SalaryPrefillTest {
         assertEquals("월급", prefill.merchant)
         assertEquals("2026년 10월분", prefill.memo)
         assertEquals("salary:2026-10", prefill.dedupKey)
-        assertEquals(YearMonth.of(2026, 10), salaryMonthOf(prefill.dedupKey))
+        assertEquals(YearMonth.of(2026, 10), salaryMonthOf(requireNotNull(prefill.dedupKey)))
         assertEquals(
             LocalDateTime.of(2026, 10, 23, 9, 0),
             Instant.ofEpochMilli(prefill.occurredAtMillis).atZone(BudgetTime.ZONE).toLocalDateTime(),
