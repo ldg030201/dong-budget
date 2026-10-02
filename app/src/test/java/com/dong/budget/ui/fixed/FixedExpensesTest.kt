@@ -69,7 +69,7 @@ class FixedExpensesTest {
     fun `매년 내는 것은 그 앞 해 결제까지 읽어 매년인 줄 안다`() {
         val rows = paid("도메인", 22_000, "2024-10-15", "2025-10-14")
         // 2026년 10월에 낼 차례다. 읽는 범위가 2024년 9월부터라 2024년 결제도 들어온다.
-        assertEquals(YearMonth.of(2024, 9), historyStart(october))
+        assertEquals(YearMonth.of(2024, 9), fixedHistoryStart(october))
         val due = only(rows)
         assertEquals(YEARLY, due.cadence)
         assertEquals(FixedStatus.DUE, due.status)

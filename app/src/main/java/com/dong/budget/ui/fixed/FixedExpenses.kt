@@ -118,7 +118,7 @@ data class FixedExpenseBoard(
  *   gap < 주기면 [FixedStatus.NOT_THIS_MONTH], 주기 ≤ gap < 주기 + [DUE_MONTHS] 면 [FixedStatus.DUE], 그보다 길면 [FixedStatus.STOPPED].
  *
  * @param today 오늘. 고른 달이 이번 달이면 평소 날짜가 며칠 지났는지 센다.
- * @param rows '고정지출' 분류의 지출. [historyStart] 부터 [month] 말일까지 읽은 것이다. 그 밖의 행과 지출이 아닌 행은 거른다.
+ * @param rows '고정지출' 분류의 지출. [fixedHistoryStart] 부터 [month] 말일까지 읽은 것이다. 그 밖의 행과 지출이 아닌 행은 거른다.
  */
 fun buildFixedExpenses(month: YearMonth, today: LocalDate, rows: List<TransactionListItem>): FixedExpenseBoard {
     val end = month.plusMonths(1).atDay(1)
@@ -148,7 +148,7 @@ fun buildFixedExpenses(month: YearMonth, today: LocalDate, rows: List<Transactio
  * [month] 를 계산하려면 읽어야 하는 첫 달. 매년 내는 것이 한 달 늦어진 때(13달 만)에도 그 앞 해의 결제까지 보여야
  * 매년인 줄 알 수 있어서, 고른 달 앞으로 [HISTORY_MONTHS] 달을 읽는다.
  */
-fun historyStart(month: YearMonth): YearMonth = month.minusMonths(HISTORY_MONTHS)
+fun fixedHistoryStart(month: YearMonth): YearMonth = month.minusMonths(HISTORY_MONTHS)
 
 /** 한 가게가 한 달에 낸 것. [firstDate] 는 그 달 첫 결제일, [count] 는 낸 횟수 */
 private data class MonthPayment(val month: YearMonth, val total: Long, val firstDate: LocalDate, val count: Int)

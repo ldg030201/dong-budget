@@ -53,7 +53,7 @@ data class FixedExpenseUiState(
 }
 
 /**
- * 고정지출 탭. 고른 달까지 [historyStart] 부터의 '고정지출' 분류 지출을 읽어 순수 함수([buildFixedExpenses])로 나눈다.
+ * 고정지출 탭. 고른 달까지 [fixedHistoryStart] 부터의 '고정지출' 분류 지출을 읽어 순수 함수([buildFixedExpenses])로 나눈다.
  * 등록창에서 저장하거나 거래를 고치면 조회가 다시 내보내서 '아직 안 냈어요' 가 바로 '냈어요' 로 옮겨 간다.
  * 달을 바꾸면 새 계산이 끝날 때까지 이전 달 화면을 그대로 둔다(빈 화면이 깜빡이지 않게).
  *
@@ -80,14 +80,14 @@ class FixedExpenseViewModel(
     @OptIn(ExperimentalCoroutinesApi::class)
     val uiState: StateFlow<FixedExpenseUiState> =
         combine(pickedMonth, BudgetTime.today(clock)) { picked, today ->
-            // 이번 달보다 뒤는 볼 수 없다. 고른 달이 지나는 사이 이번 달이 되었으면 따라가기로 돌아간다.
+            // 이번 달보다 뒤는 볼 수 없다(고를 때도 막지만, 고른 값이 이번 달 이후면 이번 달로 본다)
             val thisMonth = YearMonth.from(today)
             (picked?.takeIf { it < thisMonth } ?: thisMonth) to today
         }.distinctUntilChanged()
             .flatMapLatest { (month, today) ->
                 combine(
                     hasCategory,
-                    transactions.observeExpensesWithCategoryCode(FIXED_CATEGORY_CODE, historyStart(month), month),
+                    transactions.observeExpensesWithCategoryCode(FIXED_CATEGORY_CODE, fixedHistoryStart(month), month),
                 ) { has, rows ->
                     FixedExpenseUiState(
                         loaded = true,
