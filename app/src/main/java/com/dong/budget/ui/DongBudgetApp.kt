@@ -80,6 +80,7 @@ import com.dong.budget.navigation.StatsDetailKey
 import com.dong.budget.navigation.TransactionDetailKey
 import com.dong.budget.navigation.TransactionEditorKey
 import com.dong.budget.ui.card.CardPerformanceDetailScreen
+import com.dong.budget.ui.card.CardPerformanceDetailViewModel
 import com.dong.budget.ui.card.CardPerformanceEditScreen
 import com.dong.budget.ui.card.CardPerformanceScreen
 import com.dong.budget.ui.card.CardPerformanceViewModel
@@ -655,10 +656,26 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
                         }
 
                         // ── 카드실적 상세·편집 ──
-                        // ← 만 있는 자리. 카드실적 탭의 판·'실적 추가'가 연다.
+                        // 카드실적 탭의 판이 상세를, 탭의 '실적 추가' 와 상세의 '수정' 이 편집을 연다.
                         entry<CardPerformanceDetailKey> { key ->
+                            val viewModel: CardPerformanceDetailViewModel =
+                                viewModel(factory = cardPerformanceDetailViewModelFactory(container, key))
+                            val state by viewModel.uiState.collectAsStateWithLifecycle()
+                            // 결제수단이 없어졌으면 이 화면도 치운다. 앱을 다시 띄웠는데 그사이 지운 카드였을 때 같은 드문 경우다.
+                            LaunchedEffect(state.gone) {
+                                if (state.gone) navigator.remove(key)
+                            }
+                            // 통계 상세와 같은 이유로 자리 잡은 뒤(RESUMED)에만 ←·'수정'·거래 줄 누름을 받는다.
                             val settled = rememberSettled()
-                            CardPerformanceDetailScreen(onBack = { if (settled()) navigator.closeIfTop(key) })
+                            CardPerformanceDetailScreen(
+                                state = state,
+                                onBack = { if (settled()) navigator.closeIfTop(key) },
+                                onEdit = { if (settled()) navigator.go(CardPerformanceEditKey(key.paymentMethodId)) },
+                                onPreviousPeriod = viewModel::showPreviousPeriod,
+                                onNextPeriod = viewModel::showNextPeriod,
+                                onThisPeriod = viewModel::showCurrentPeriod,
+                                onOpenTransaction = { id -> if (settled()) navigator.go(TransactionDetailKey(id)) },
+                            )
                         }
 
                         entry<CardPerformanceEditKey> { key ->
@@ -961,4 +978,8 @@ private fun statsDetailViewModelFactory(container: AppContainer, key: StatsDetai
 
 private fun cardPerformanceViewModelFactory(container: AppContainer) = viewModelFactory {
     initializer { CardPerformanceViewModel(container.paymentMethodRepository, container.transactionRepository) }
+}
+
+private fun cardPerformanceDetailViewModelFactory(container: AppContainer, key: CardPerformanceDetailKey) = viewModelFactory {
+    initializer { CardPerformanceDetailViewModel(container.paymentMethodRepository, container.transactionRepository, key) }
 }
