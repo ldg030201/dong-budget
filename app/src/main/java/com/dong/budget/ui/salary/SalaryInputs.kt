@@ -7,15 +7,11 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.selection.toggleable
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -26,18 +22,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.dong.budget.data.salary.MAX_PAYDAY
 import com.dong.budget.ui.format.formatWeekday
 import com.dong.budget.ui.format.formatWeekdayFull
 import com.dong.budget.ui.home.weekOrder
 import com.dong.budget.ui.theme.BudgetTheme
 import com.dong.budget.ui.theme.Motion
 import com.dong.budget.ui.theme.pressFeedback
-import com.dong.budget.ui.theme.pressScaleClickable
 import java.time.DayOfWeek
 
 /** 일하는 요일 칸 순서. 출근 요일이라 월요일부터 둔다. */
@@ -100,54 +93,3 @@ internal fun WeekdayToggleRow(selected: Set<DayOfWeek>, onToggle: (DayOfWeek) ->
         }
     }
 }
-
-/**
- * 월급날(1~31일) 고르기. 달력처럼 일곱 칸씩 늘어놓는다. 한 번 누르면 바로 반영하고 [onPick] 을 부른다.
- * 31일은 '말일' 로도 쓴다. 31일이 없는 달에는 그 달 말일로 친다.
- */
-@Composable
-internal fun PaydayGrid(selected: Int, onPick: (Int) -> Unit, modifier: Modifier = Modifier) {
-    Column(modifier = modifier.fillMaxWidth().selectableGroup(), verticalArrangement = Arrangement.spacedBy(BudgetTheme.spacing.tightGap)) {
-        (1..MAX_PAYDAY).chunked(DAYS_PER_ROW).forEach { row ->
-            Row(modifier = Modifier.fillMaxWidth()) {
-                row.forEach { day -> PaydayCell(day = day, selected = day == selected, onPick = onPick, modifier = Modifier.weight(1f)) }
-                // 마지막 줄도 칸 폭을 맞춘다
-                repeat(DAYS_PER_ROW - row.size) { Box(Modifier.weight(1f)) }
-            }
-        }
-    }
-}
-
-@Composable
-private fun PaydayCell(day: Int, selected: Boolean, onPick: (Int) -> Unit, modifier: Modifier = Modifier) {
-    val mark by animateColorAsState(
-        if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0f),
-        Motion.quick(),
-        label = "paydayMark",
-    )
-    val shape = RoundedCornerShape(BudgetTheme.radius.chip)
-    Box(
-        modifier =
-        modifier
-            .height(PAYDAY_CELL_HEIGHT)
-            .pressScaleClickable(shape = shape, role = Role.RadioButton, onClick = { onPick(day) })
-            .semantics {
-                this.selected = selected
-                contentDescription = if (day == MAX_PAYDAY) "매달 31일, 없는 달은 말일" else "매달 ${day}일"
-            },
-        contentAlignment = Alignment.Center,
-    ) {
-        Box(Modifier.size(BudgetTheme.size.calendarDayMark).background(mark, CircleShape))
-        Text(
-            text = day.toString(),
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
-            color = if (selected) MaterialTheme.colorScheme.onPrimaryContainer else BudgetTheme.colors.textPrimary,
-        )
-    }
-}
-
-private const val DAYS_PER_ROW = 7
-
-/** 다섯 줄(1~31일)이 키패드 입력판 높이 안에 들어가는 칸 높이 */
-private val PAYDAY_CELL_HEIGHT = 40.dp

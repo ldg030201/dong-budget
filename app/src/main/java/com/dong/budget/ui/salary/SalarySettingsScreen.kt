@@ -34,6 +34,7 @@ import com.dong.budget.ui.components.AnimatedInputPanel
 import com.dong.budget.ui.components.BudgetTextButton
 import com.dong.budget.ui.components.BudgetTopAppBar
 import com.dong.budget.ui.components.ConfirmDialog
+import com.dong.budget.ui.components.DayOfMonthGrid
 import com.dong.budget.ui.components.ErrorText
 import com.dong.budget.ui.components.HintText
 import com.dong.budget.ui.components.InputPanelBox
@@ -274,12 +275,13 @@ fun SalarySettingsScreen(
 
                     SalaryPanel.PAYDAY ->
                         InputPanelBox {
-                            PaydayGrid(
+                            DayOfMonthGrid(
                                 selected = settings.payday,
                                 onPick = { day ->
                                     onChange(settings.copy(payday = day))
                                     panel = null
                                 },
+                                describe = { day -> if (day == MAX_PAYDAY) "매달 31일, 없는 달은 말일" else "매달 ${day}일" },
                             )
                         }
 
