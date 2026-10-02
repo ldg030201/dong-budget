@@ -1,0 +1,237 @@
+package com.dong.budget.ui.fixed
+
+import androidx.compose.runtime.Immutable
+import com.dong.budget.data.db.TransactionListItem
+import com.dong.budget.data.db.TransactionType
+import com.dong.budget.ui.home.localDate
+import com.dong.budget.ui.stats.calc.merchantKey
+import java.time.Instant
+import java.time.LocalDate
+import java.time.YearMonth
+import java.time.temporal.ChronoUnit
+
+// ─────────────────────────────────────────────────────────────────────
+// 고정지출 계산. '고정지출' 분류로 적은 지출을 가게별로 묶고, 고른 달에 냈는지 · 낼 차례인지를 가린다.
+// 가게는 많이 쓴 곳과 같은 열쇠(merchantKey: 띄어쓰기·대소문자 무시)로 묶는다. 이름이 비슷하기만 한 가게는 합치지 않는다.
+// 몇 달마다 · 며칠쯤 · 얼마를 내는지는 따로 적어 두지 않고 지난 기록에서 그때그때 짐작한다.
+// 고른 달 뒤의 기록은 보지 않는다. 지난 달을 보면 그 달까지 알던 대로 보인다.
+// ─────────────────────────────────────────────────────────────────────
+
+/** 고른 달에서 한 가게가 어떤 상태인지 */
+enum class FixedStatus {
+    /** 고른 달에 낼 차례인데 아직 안 냈다 */
+    DUE,
+
+    /** 고른 달에 냈다(날짜를 앞으로 적어 둔 거래도 낸 것으로 본다) */
+    PAID,
+
+    /** 몇 달마다 · 매년 내는 것이라 고른 달은 낼 달이 아니다 */
+    NOT_THIS_MONTH,
+
+    /** 낼 차례가 지나고도 한 달 넘게 안 냈다. 그만둔 것으로 보고 접어 둔다. */
+    STOPPED,
+}
+
+/**
+ * 고정지출 한 가게. 모두 고른 달까지의 기록으로 낸 값이다.
+ *
+ * @property key 묶는 열쇠(merchantKey). 가게 이름 없이 적은 지출(백업으로만 들어온다)은 모두 [NO_MERCHANT_KEY] 하나로 묶는다.
+ * @property name 보이는 이름. 가장 최근 거래의 가게 이름(앞뒤 공백을 뺀다), 이름이 없으면 [NO_MERCHANT_NAME]
+ * @property merchant 등록창에 채울 가게 이름. 이름 없이 묶인 것은 null
+ * @property cadence 몇 달마다 내는지. 1(매달), 2~10(그 달마다), 12(매년)
+ * @property usualDay 평소 내는 날(1~31). 그 달에 없는 날이면 말일로 본다([usualDateIn]).
+ * @property amount 가장 최근에 낸 달에 낸 돈(한 달에 여러 번이면 합). 냈으면 고른 달에 낸 돈이고, 아니면 이번에 낼 것으로 보는 금액이다.
+ * @property previousAmount 그 앞에 낸 달에 낸 돈. 한 달에만 냈으면 null
+ * @property lastPaidOn 가장 최근에 낸 달의 첫 결제일. 냈으면 고른 달에 낸 날이다.
+ * @property lastPaidCount 그 달에 낸 횟수
+ * @property nextMonth [FixedStatus.NOT_THIS_MONTH] 일 때 다음에 낼 달. 그 밖에는 null
+ * @property missedMonth [FixedStatus.DUE] 인데 고른 달 전에 이미 낼 차례가 한 번 지났으면 그 달. 그 밖에는 null
+ * @property daysPastUsual [FixedStatus.DUE] 이고 고른 달이 이번 달일 때, 오늘이 평소 내는 날에서 며칠 지났는지.
+ *   그날이면 0, 아직이면 음수다. 그 밖에는 null
+ * @property latestId 가장 최근 거래. 줄을 누르면 이 거래의 상세가 열리고, 거기서 같은 가게의 최근 1년 내역을 본다.
+ * @property latestAt 가장 최근 거래의 때. '등록하기' 의 시각을 여기서 가져온다.
+ * @property paymentMethodId 가장 최근 거래의 결제수단. 지웠거나 비웠으면 null이고, 이름·아이콘·색도 같다.
+ * @property categoryIcon 가장 최근 거래의 분류 아이콘(결제수단이 없을 때 뱃지에 쓴다)
+ */
+@Immutable
+data class FixedExpenseItem(
+    val key: String,
+    val name: String,
+    val merchant: String?,
+    val status: FixedStatus,
+    val cadence: Int,
+    val usualDay: Int,
+    val amount: Long,
+    val previousAmount: Long?,
+    val lastPaidOn: LocalDate,
+    val lastPaidCount: Int,
+    val nextMonth: YearMonth?,
+    val missedMonth: YearMonth?,
+    val daysPastUsual: Int?,
+    val latestId: Long,
+    val latestAt: Instant,
+    val paymentMethodId: Long?,
+    val paymentMethodName: String?,
+    val paymentMethodIcon: String?,
+    val paymentMethodColor: String?,
+    val categoryIcon: String?,
+    val categoryColor: String?,
+) {
+    /** 이 가게를 [month] 에 평소 내는 날. 그 달에 없는 날(2월 30일 등)이면 그 달 말일이다. */
+    fun usualDateIn(month: YearMonth): LocalDate = month.atDay(minOf(usualDay, month.lengthOfMonth()))
+}
+
+/**
+ * 고른 달의 고정지출을 상태별로 나눈 것. 빈 묶음은 화면에서 숨긴다.
+ * @property due 아직 안 냈어요. 지난 차례도 놓친 것이 먼저, 그다음 평소 날짜가 이른 것부터
+ * @property paid 냈어요. 낸 날 순서
+ * @property notThisMonth 이번 달엔 안 내요. 다음에 낼 달이 이른 것부터
+ * @property stopped 한동안 안 냈어요. 마지막으로 낸 날이 최근인 것부터
+ */
+@Immutable
+data class FixedExpenseBoard(
+    val due: List<FixedExpenseItem> = emptyList(),
+    val paid: List<FixedExpenseItem> = emptyList(),
+    val notThisMonth: List<FixedExpenseItem> = emptyList(),
+    val stopped: List<FixedExpenseItem> = emptyList(),
+) {
+    /** 고른 달에 낸 돈 */
+    val paidTotal: Long get() = paid.sumOf { it.amount }
+
+    /** 고른 달에 아직 안 낸 것들의 평소 금액 합 */
+    val dueTotal: Long get() = due.sumOf { it.amount }
+
+    /** 고른 달에 낼 차례였던 것(냈든 안 냈든)의 수 */
+    val dueCount: Int get() = due.size + paid.size
+
+    val isEmpty: Boolean get() = due.isEmpty() && paid.isEmpty() && notThisMonth.isEmpty() && stopped.isEmpty()
+}
+
+/**
+ * [month] 의 고정지출을 계산한다.
+ *
+ * - 가게별로 묶고, 같은 달에 여러 번 냈으면 합친다. 그 달의 날짜는 첫 결제일이다.
+ * - 주기: 낸 달 사이 간격(달 수)의 가운데 값. 간격이 짝수 개면 둘 중 짧은 쪽이다(늦게 알리는 것보다 일찍 알리는 게 낫다).
+ *   한 달에만 냈으면 매달로 본다. 11달 넘게 벌어지면 매년이다.
+ * - 평소 날짜: 최근에 낸 달(최대 [USUAL_DAY_SAMPLES] 번)의 날짜 가운데 값(짝수 개면 이른 쪽)
+ * - 상태: 고른 달에 냈으면 [FixedStatus.PAID]. 아니면 마지막으로 낸 달에서 몇 달 지났는지(gap)를 주기와 견준다.
+ *   gap < 주기면 [FixedStatus.NOT_THIS_MONTH], 주기 ≤ gap < 주기 + [DUE_MONTHS] 면 [FixedStatus.DUE], 그보다 길면 [FixedStatus.STOPPED].
+ *
+ * @param today 오늘. 고른 달이 이번 달이면 평소 날짜가 며칠 지났는지 센다.
+ * @param rows '고정지출' 분류의 지출. [historyStart] 부터 [month] 말일까지 읽은 것이다. 그 밖의 행과 지출이 아닌 행은 거른다.
+ */
+fun buildFixedExpenses(month: YearMonth, today: LocalDate, rows: List<TransactionListItem>): FixedExpenseBoard {
+    val end = month.plusMonths(1).atDay(1)
+    val items =
+        rows
+            .filter { it.type == TransactionType.EXPENSE && it.localDate().isBefore(end) }
+            .groupBy { merchantKey(it.merchant) ?: NO_MERCHANT_KEY }
+            .map { (key, group) -> fixedItem(key, group, month, today) }
+    return FixedExpenseBoard(
+        due =
+        items
+            .filter { it.status == FixedStatus.DUE }
+            .sortedWith(compareBy<FixedExpenseItem> { it.missedMonth == null }.thenBy { it.usualDateIn(month) }.thenBy { it.name }),
+        paid = items.filter { it.status == FixedStatus.PAID }.sortedWith(compareBy<FixedExpenseItem> { it.lastPaidOn }.thenBy { it.name }),
+        notThisMonth =
+        items
+            .filter { it.status == FixedStatus.NOT_THIS_MONTH }
+            .sortedWith(compareBy<FixedExpenseItem> { it.nextMonth }.thenBy { it.usualDay }.thenBy { it.name }),
+        stopped =
+        items
+            .filter { it.status == FixedStatus.STOPPED }
+            .sortedWith(compareByDescending<FixedExpenseItem> { it.lastPaidOn }.thenBy { it.name }),
+    )
+}
+
+/**
+ * [month] 를 계산하려면 읽어야 하는 첫 달. 매년 내는 것이 한 달 늦어진 때(13달 만)에도 그 앞 해의 결제까지 보여야
+ * 매년인 줄 알 수 있어서, 고른 달 앞으로 [HISTORY_MONTHS] 달을 읽는다.
+ */
+fun historyStart(month: YearMonth): YearMonth = month.minusMonths(HISTORY_MONTHS)
+
+/** 한 가게가 한 달에 낸 것. [firstDate] 는 그 달 첫 결제일, [count] 는 낸 횟수 */
+private data class MonthPayment(val month: YearMonth, val total: Long, val firstDate: LocalDate, val count: Int)
+
+private fun fixedItem(key: String, rows: List<TransactionListItem>, month: YearMonth, today: LocalDate): FixedExpenseItem {
+    val latest = rows.maxWith(compareBy<TransactionListItem> { it.occurredAt }.thenBy { it.id })
+    val payments =
+        rows
+            .groupBy { YearMonth.from(it.localDate()) }
+            .map { (paidMonth, items) -> MonthPayment(paidMonth, items.sumOf { it.amount }, items.minOf { it.localDate() }, items.size) }
+            .sortedBy { it.month }
+    val last = payments.last()
+    val cadence = cadenceOf(payments.map { it.month })
+    val usualDay = lowerMedian(payments.takeLast(USUAL_DAY_SAMPLES).map { it.firstDate.dayOfMonth })
+    val gap = ChronoUnit.MONTHS.between(last.month, month).toInt()
+    val status =
+        when {
+            gap <= 0 -> FixedStatus.PAID
+            gap < cadence -> FixedStatus.NOT_THIS_MONTH
+            gap < cadence + DUE_MONTHS -> FixedStatus.DUE
+            else -> FixedStatus.STOPPED
+        }
+    val name = latest.merchant?.trim()?.takeIf { key != NO_MERCHANT_KEY }
+    val item =
+        FixedExpenseItem(
+            key = key,
+            name = name ?: NO_MERCHANT_NAME,
+            merchant = name,
+            status = status,
+            cadence = cadence,
+            usualDay = usualDay,
+            amount = last.total,
+            previousAmount = payments.getOrNull(payments.lastIndex - 1)?.total,
+            lastPaidOn = last.firstDate,
+            lastPaidCount = last.count,
+            nextMonth = last.month.plusMonths(cadence.toLong()).takeIf { status == FixedStatus.NOT_THIS_MONTH },
+            missedMonth = last.month.plusMonths(cadence.toLong()).takeIf { status == FixedStatus.DUE && gap > cadence },
+            daysPastUsual = null,
+            latestId = latest.id,
+            latestAt = latest.occurredAt,
+            paymentMethodId = latest.paymentMethodId,
+            paymentMethodName = latest.paymentMethodName,
+            paymentMethodIcon = latest.paymentMethodIcon,
+            paymentMethodColor = latest.paymentMethodColor,
+            categoryIcon = latest.categoryIcon,
+            categoryColor = latest.categoryColor,
+        )
+    // 평소 날짜를 넘겼는지는 이번 달에만 센다. 지난 달은 이미 끝났다.
+    if (status != FixedStatus.DUE || month != YearMonth.from(today)) return item
+    return item.copy(daysPastUsual = ChronoUnit.DAYS.between(item.usualDateIn(month), today).toInt())
+}
+
+/** 낸 달들(오래된 것부터)의 간격으로 본 주기. 1(매달), 2~[MAX_EVERY_MONTHS], [YEARLY] */
+private fun cadenceOf(months: List<YearMonth>): Int {
+    if (months.size < 2) return 1
+    val gap = lowerMedian(months.zipWithNext { a, b -> ChronoUnit.MONTHS.between(a, b).toInt() })
+    return when {
+        gap <= 1 -> 1
+        gap <= MAX_EVERY_MONTHS -> gap
+        else -> YEARLY
+    }
+}
+
+/** 가운데 값. 짝수 개면 가운데 둘 중 작은 쪽이다. */
+private fun lowerMedian(values: List<Int>): Int = values.sorted()[(values.size - 1) / 2]
+
+/** 가게 이름 없이 적은 지출을 묶는 열쇠. merchantKey 는 빈 글을 내지 않으므로 어느 가게와도 겹치지 않는다. */
+const val NO_MERCHANT_KEY = ""
+
+/** 가게 이름 없이 적은 지출 묶음의 이름 */
+const val NO_MERCHANT_NAME = "이름 없음"
+
+/** 매년. 11달 넘게 벌어지는 주기는 모두 매년으로 본다. */
+const val YEARLY = 12
+
+/** 'N달마다' 로 보는 가장 긴 주기. 이보다 길면 매년이다. */
+private const val MAX_EVERY_MONTHS = 10
+
+/** 낼 차례가 된 달부터 이만큼(그 달과 다음 달) '아직 안 냈어요' 로 두고, 그 뒤로는 '한동안 안 냈어요' 로 접는다. */
+private const val DUE_MONTHS = 2
+
+/** 평소 날짜를 짐작할 때 보는 최근 결제 수 */
+private const val USUAL_DAY_SAMPLES = 6
+
+/** 고른 달 앞으로 읽는 달 수. 매년(12) + 한 달 늦음(1) + 그 앞 해(12) */
+private const val HISTORY_MONTHS = 25L
