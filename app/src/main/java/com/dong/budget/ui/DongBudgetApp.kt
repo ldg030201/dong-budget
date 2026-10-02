@@ -82,6 +82,7 @@ import com.dong.budget.navigation.TransactionEditorKey
 import com.dong.budget.ui.card.CardPerformanceDetailScreen
 import com.dong.budget.ui.card.CardPerformanceDetailViewModel
 import com.dong.budget.ui.card.CardPerformanceEditScreen
+import com.dong.budget.ui.card.CardPerformanceEditViewModel
 import com.dong.budget.ui.card.CardPerformanceScreen
 import com.dong.budget.ui.card.CardPerformanceViewModel
 import com.dong.budget.ui.category.CategoryManageScreen
@@ -679,8 +680,28 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
                         }
 
                         entry<CardPerformanceEditKey> { key ->
+                            val viewModel: CardPerformanceEditViewModel =
+                                viewModel(factory = cardPerformanceEditViewModelFactory(container, key))
+                            val state by viewModel.state.collectAsStateWithLifecycle()
+                            val closed by viewModel.closed.collectAsStateWithLifecycle()
+                            // 실적을 지웠거나 결제수단이 없어졌으면 닫는다
+                            LaunchedEffect(closed) {
+                                if (closed) navigator.closeIfTop(key)
+                            }
+                            // 자리 잡은 뒤(RESUMED)에만 고침을 받는다. 탭의 '실적 추가' 를 연달아 누른 두 번째 탭이 올라오는 중인
+                            // 키패드 숫자나 구간 지우기 버튼에 떨어져 실적이 바뀌지 않게 한다.
                             val settled = rememberSettled()
-                            CardPerformanceEditScreen(onBack = { if (settled()) navigator.closeIfTop(key) })
+                            CardPerformanceEditScreen(
+                                state = state,
+                                onDigit = { index, pressed -> if (settled()) viewModel.appendDigit(index, pressed) },
+                                onDeleteDigit = { index -> if (settled()) viewModel.deleteDigit(index) },
+                                onClearAmount = { index -> if (settled()) viewModel.clearAmount(index) },
+                                onAddRow = { if (settled()) viewModel.addRow() else null },
+                                onRemoveRow = { index -> settled() && viewModel.removeRow(index) },
+                                onStartDayChange = { day -> if (settled()) viewModel.setStartDay(day) },
+                                onClear = viewModel::clear,
+                                onBack = { if (settled()) navigator.closeIfTop(key) },
+                            )
                         }
                     },
                 )
@@ -982,4 +1003,8 @@ private fun cardPerformanceViewModelFactory(container: AppContainer) = viewModel
 
 private fun cardPerformanceDetailViewModelFactory(container: AppContainer, key: CardPerformanceDetailKey) = viewModelFactory {
     initializer { CardPerformanceDetailViewModel(container.paymentMethodRepository, container.transactionRepository, key) }
+}
+
+private fun cardPerformanceEditViewModelFactory(container: AppContainer, key: CardPerformanceEditKey) = viewModelFactory {
+    initializer { CardPerformanceEditViewModel(container.paymentMethodRepository, key.paymentMethodId) }
 }
