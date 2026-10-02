@@ -47,6 +47,21 @@ fun periodMonthOf(date: LocalDate, startDay: Int): YearMonth {
 /** [today] 가 든 기간 */
 fun currentPeriod(today: LocalDate, startDay: Int): PerformancePeriod = performancePeriod(periodMonthOf(today, startDay), startDay)
 
+/**
+ * 상세에서 ‹ 를 누르면 고를 기간. 고른 기간(null 이면 이번 기간)의 한 기간 앞이다.
+ * 시작일을 바꿔 고른 기간이 이번 기간보다 뒤가 됐으면 화면처럼 이번 기간으로 맞춘 뒤 움직인다.
+ * @param picked 지금 고른 기간의 이름 달. null 이면 이번 기간을 따라가는 중이다.
+ * @param current 오늘이 든 기간의 이름 달
+ */
+internal fun previousPick(picked: YearMonth?, current: YearMonth): YearMonth =
+    (picked?.let { minOf(it, current) } ?: current).minusMonths(1)
+
+/** 상세에서 › 를 누르면 고를 기간. 이번 기간에 닿으면 null(다시 이번 기간 따라가기)이고, 이번 기간을 보고 있으면 그대로 null 이다. */
+internal fun nextPick(picked: YearMonth?, current: YearMonth): YearMonth? {
+    val base = picked?.let { minOf(it, current) } ?: return null
+    return base.plusMonths(1).takeIf { it < current }
+}
+
 /** [month] 까지 최근 [HISTORY_PERIODS] 기간. 오래된 기간이 앞이고 마지막이 [month] 다. */
 fun historyPeriods(month: YearMonth, startDay: Int): List<PerformancePeriod> =
     (HISTORY_PERIODS - 1 downTo 0).map { back -> performancePeriod(month.minusMonths(back.toLong()), startDay) }

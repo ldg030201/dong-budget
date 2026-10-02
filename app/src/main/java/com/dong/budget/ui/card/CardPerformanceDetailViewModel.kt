@@ -63,18 +63,20 @@ class CardPerformanceDetailViewModel(
                 initialValue = CardPerformanceDetailUiState.loading(BudgetTime.toLocalDate(clock.instant())),
             )
 
+    /**
+     * 앞 기간. 그려진 기간(uiState)이 아니라 고른 값에서 바로 움직인다. 그려진 기간은 조회와 계산을 거쳐 한 박자 늦게 바뀌어서,
+     * 그것을 기준으로 하면 ‹ 를 빨리 두 번 누를 때 두 번 다 같은 기간을 골라 한 칸만 간다.
+     * 이번 기간의 이름 달은 오늘과 시작일에만 달려서 잠깐 늦게 바뀌어도 괜찮다.
+     */
     fun showPreviousPeriod() {
-        val period = uiState.value.period ?: return
-        picked.value = period.month.minusMonths(1)
+        val current = uiState.value.currentMonth ?: return
+        picked.value = previousPick(picked.value, current)
     }
 
     /** 다음 기간. 이번 기간에 닿으면 다시 '이번 기간 따라가기' 로 둔다. 이번 기간이면 아무것도 하지 않는다. */
     fun showNextPeriod() {
-        val state = uiState.value
-        val period = state.period ?: return
-        val current = state.currentMonth ?: return
-        if (period.month >= current) return
-        picked.value = period.month.plusMonths(1).takeIf { it < current }
+        val current = uiState.value.currentMonth ?: return
+        picked.value = nextPick(picked.value, current)
     }
 
     /** 기간 줄 오른쪽 '이번 달'. 다시 오늘이 든 기간을 따라간다. */

@@ -203,6 +203,21 @@ class PerformancePeriodsTest {
     }
 
     @Test
+    fun `상세 기간 넘기기는 그려진 기간이 아니라 고른 기간에서 움직여 빨리 두 번 누르면 두 칸 간다`() {
+        // 이번 기간 10월. 화면이 아직 10월을 그리는 동안 ‹ 를 두 번 눌러도 9월에서 멈추지 않고 8월로 간다
+        val once = previousPick(null, october)
+        assertEquals(YearMonth.of(2026, 9), once)
+        assertEquals(YearMonth.of(2026, 8), previousPick(once, october))
+        // › 도 고른 기간에서 움직이고, 이번 기간에 닿으면 다시 이번 기간 따라가기(null)다
+        assertEquals(YearMonth.of(2026, 9), nextPick(YearMonth.of(2026, 8), october))
+        assertNull(nextPick(YearMonth.of(2026, 9), october))
+        assertNull(nextPick(null, october))
+        // 시작일을 바꿔 고른 기간이 이번 기간보다 뒤가 됐으면 이번 기간으로 맞춘 뒤 움직인다
+        assertEquals(YearMonth.of(2026, 9), previousPick(YearMonth.of(2026, 11), october))
+        assertNull(nextPick(YearMonth.of(2026, 11), october))
+    }
+
+    @Test
     fun `현금과 계좌이체만 빼고 모두 카드실적을 본다`() {
         fun method(type: PaymentMethodType) = PaymentMethodEntity(id = 1, uuid = "u", name = "이름", type = type)
         assertFalse(method(PaymentMethodType.CASH).isPerformanceTarget())
