@@ -19,6 +19,8 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
@@ -33,6 +35,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.sp
 import com.dong.budget.data.db.TransactionListItem
 import com.dong.budget.ui.components.BudgetIconButton
 import com.dong.budget.ui.components.BudgetSmallButton
@@ -129,37 +132,25 @@ private fun PeriodStepper(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         BudgetIconButton(icon = Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "이전 기간", onClick = onPrevious)
-        // 기간을 넘기면 제목이 넘긴 방향으로 밀려 바뀐다. 폭이 달라져도 오른쪽 화살표가 따라 움직인다.
-        AnimatedContent(
-            targetState = period,
-            transitionSpec = { slideByDirection(forward = targetState.month > initialState.month).using(SizeTransform(clip = false)) },
-            label = "periodTitle",
-        ) { shown ->
-            val spokenTitle = "${periodName(shown.month, today)}, ${spokenPeriodRange(shown)}"
-            Column(
-                modifier =
-                Modifier
-                    .padding(horizontal = BudgetTheme.spacing.tightGap)
-                    .clearAndSetSemantics {
-                        heading()
-                        contentDescription = spokenTitle
-                    },
-            ) {
-                Text(
-                    text = periodName(shown.month, today),
-                    style = MaterialTheme.typography.titleLarge,
-                    color = BudgetTheme.colors.textPrimary,
-                )
-                Text(text = periodRange(shown), style = MaterialTheme.typography.bodySmall, color = BudgetTheme.colors.textSecondary)
+        // 제목과 › 는 한 덩어리로 ‹ 옆에 붙는다. 다른 해의 기간("2025년 12월 실적")처럼 제목이 길어도 좁은 화면(320dp)에서
+        // › 와 '이번 달' 이 밀려나지 않게, 제목은 남는 폭 안에서 한 줄을 지키며 글자를 줄인다.
+        Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+            // 기간을 넘기면 제목이 넘긴 방향으로 밀려 바뀐다. 폭이 달라져도 오른쪽 화살표가 따라 움직인다.
+            AnimatedContent(
+                targetState = period,
+                modifier = Modifier.weight(1f, fill = false),
+                transitionSpec = { slideByDirection(forward = targetState.month > initialState.month).using(SizeTransform(clip = false)) },
+                label = "periodTitle",
+            ) { shown ->
+                PeriodTitle(period = shown, today = today)
             }
+            BudgetIconButton(
+                icon = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = "다음 기간",
+                onClick = onNext,
+                enabled = !isCurrent,
+            )
         }
-        BudgetIconButton(
-            icon = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-            contentDescription = "다음 기간",
-            onClick = onNext,
-            enabled = !isCurrent,
-        )
-        Spacer(Modifier.weight(1f))
         AnimatedVisibility(
             visible = !isCurrent,
             enter = fadeIn(Motion.quick()) + scaleIn(Motion.standard(), initialScale = HIDDEN_BUTTON_SCALE),
@@ -167,6 +158,31 @@ private fun PeriodStepper(
         ) {
             BudgetTextButton(text = THIS_PERIOD_LABEL, onClick = onThisPeriod)
         }
+    }
+}
+
+/** 기간 줄 가운데. "10월 실적" 아래 "10월 1일 ~ 10월 31일". 화면 읽기는 제목으로 건너뛸 수 있고 "~" 대신 말로 읽는다. */
+@Composable
+private fun PeriodTitle(period: PerformancePeriod, today: LocalDate) {
+    val title = periodName(period.month, today)
+    val spokenTitle = "$title, ${spokenPeriodRange(period)}"
+    val titleStyle = MaterialTheme.typography.titleLarge
+    Column(
+        modifier =
+        Modifier
+            .padding(horizontal = BudgetTheme.spacing.tightGap)
+            .clearAndSetSemantics {
+                heading()
+                contentDescription = spokenTitle
+            },
+    ) {
+        BasicText(
+            text = title,
+            style = titleStyle.copy(color = BudgetTheme.colors.textPrimary),
+            maxLines = 1,
+            autoSize = TextAutoSize.StepBased(minFontSize = MIN_TITLE_SIZE, maxFontSize = titleStyle.fontSize),
+        )
+        Text(text = periodRange(period), style = MaterialTheme.typography.bodySmall, color = BudgetTheme.colors.textSecondary)
     }
 }
 
@@ -325,6 +341,9 @@ private const val EDIT_LABEL = "수정"
 
 /** 지난 기간에서 오늘이 든 기간으로 돌아가는 버튼. 통계의 달 줄과 같은 말이다. */
 private const val THIS_PERIOD_LABEL = "이번 달"
+
+/** 기간 줄 제목이 좁은 화면에서 줄어드는 가장 작은 글자 크기 */
+private val MIN_TITLE_SIZE = 14.sp
 
 /** '이번 달' 버튼이 나타나고 사라질 때 이 크기에서 커지고 여기까지 줄어든다(통계와 같다) */
 private const val HIDDEN_BUTTON_SCALE = 0.8f

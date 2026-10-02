@@ -116,9 +116,12 @@ private fun CardList(state: CardPerformanceUiState, onOpenDetail: (Long) -> Unit
             animatedItem(key = FOOTNOTE_KEY) {
                 HintText(
                     text = FOOTNOTE_TEXT,
-                    modifier = Modifier.padding(
-                        horizontal = BudgetTheme.spacing.screenHorizontal,
-                    ).padding(top = BudgetTheme.spacing.itemGap),
+                    modifier =
+                    Modifier.padding(
+                        start = BudgetTheme.spacing.screenHorizontal,
+                        end = BudgetTheme.spacing.screenHorizontal,
+                        top = BudgetTheme.spacing.itemGap,
+                    ),
                 )
             }
         }
