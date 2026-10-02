@@ -82,6 +82,7 @@ import com.dong.budget.navigation.TransactionEditorKey
 import com.dong.budget.ui.card.CardPerformanceDetailScreen
 import com.dong.budget.ui.card.CardPerformanceEditScreen
 import com.dong.budget.ui.card.CardPerformanceScreen
+import com.dong.budget.ui.card.CardPerformanceViewModel
 import com.dong.budget.ui.category.CategoryManageScreen
 import com.dong.budget.ui.category.CategoryManageViewModel
 import com.dong.budget.ui.components.BudgetTopAppBar
@@ -311,9 +312,20 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
                                     }
                                 },
                                 // ── 카드실적 ──
-                                // 탭 머리만 있는 자리. 화면 모델은 월급처럼 이 람다 안에서 만들고, 카드를 누르면 아래 '카드실적 상세·편집' 엔트리로 연다.
+                                // 화면 모델은 월급처럼 이 람다 안에서 만들어 셸과 같이 살게 한다. 카드 판은 아래 '카드실적 상세',
+                                // '실적 추가' 는 '카드실적 편집' 엔트리로 연다. 셸이 자리 잡은 뒤(RESUMED)에만 받아, 다른 카드 판을 연달아 눌러
+                                // 상세가 두 겹 쌓이거나 나가는 상세의 ← 를 연달아 누른 탭이 막 드러난 판에 떨어지지 않게 한다.
                                 cardPerformanceContent = {
-                                    CardPerformanceScreen()
+                                    val cardViewModel: CardPerformanceViewModel =
+                                        viewModel(factory = cardPerformanceViewModelFactory(container))
+                                    val cardState by cardViewModel.uiState.collectAsStateWithLifecycle()
+                                    val cardSettled = rememberSettled()
+                                    CardPerformanceScreen(
+                                        state = cardState,
+                                        onOpenDetail = { id -> if (cardSettled()) navigator.go(CardPerformanceDetailKey(id)) },
+                                        onAddPerformance = { id -> if (cardSettled()) navigator.go(CardPerformanceEditKey(id)) },
+                                        onOpenCategories = { if (cardSettled()) navigator.go(CategoryManageKey) },
+                                    )
                                 },
                             )
                         }
@@ -946,3 +958,7 @@ private fun statsDetailViewModelFactory(container: AppContainer, key: StatsDetai
 
 // ── 카드실적 화면 모델 ──
 // 카드실적 탭·상세·편집의 화면 모델 공장을 여기에 둔다.
+
+private fun cardPerformanceViewModelFactory(container: AppContainer) = viewModelFactory {
+    initializer { CardPerformanceViewModel(container.paymentMethodRepository, container.transactionRepository) }
+}
