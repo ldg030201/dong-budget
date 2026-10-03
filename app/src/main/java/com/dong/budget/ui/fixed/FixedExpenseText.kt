@@ -172,7 +172,11 @@ internal fun summarySpoken(board: FixedExpenseBoard, month: YearMonth, today: Lo
 
 internal const val NO_CATEGORY_TITLE = "고정지출 분류가 없어요"
 
-/** 분류를 지웠을 때. 같은 이름으로 다시 만들면 저장소가 기본 분류로 알아본다(지울 때 '기타' 로 옮겨 간 지출은 돌아오지 않는다). */
+/**
+ * 분류를 지웠을 때. 같은 이름으로 다시 만들면 저장소가 기본 분류로 알아본다(지울 때 '기타' 로 옮겨 간 지출은 돌아오지 않는다).
+ * 코드 없이 같은 이름(띄어쓰기 무시)으로 만들어 둔 분류는 DB 를 열 때 · 백업을 되살린 뒤 · 분류를 지운 뒤에 알아보므로,
+ * 이 안내는 그런 분류가 정말 없을 때만 뜬다(분류 관리에서 만들면 '이미 있는 이름이에요' 로 막히지 않는다).
+ */
 internal const val NO_CATEGORY_BODY = "분류 관리에서 '고정지출' 분류를 다시 만들면, 그 분류로 등록한 지출을 여기서 볼 수 있어요."
 
 internal const val OPEN_CATEGORIES_TEXT = "분류 관리 열기"

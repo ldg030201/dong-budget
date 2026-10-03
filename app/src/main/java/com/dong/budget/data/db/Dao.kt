@@ -74,6 +74,12 @@ data class CategoryWithCount(@Embedded val category: CategoryEntity, val transac
 /** 결제수단 하나를 지출·환불에 처음 쓴 시각. 카드실적이 그 카드로 기록하기 전 기간을 가릴 때 쓴다. */
 data class PaymentMethodFirstUse(val paymentMethodId: Long, val firstAt: Instant)
 
+/** 기본 분류 코드를 돌려줄지 볼 분류 한 줄([reclaimedCodes]) */
+data class CategoryCodeRow(val id: Long, val scope: CategoryScope, val name: String, val code: String?)
+
+/** [CategoryCodeRow] 를 읽는 SELECT. 같은 이름이 여럿이면 id 가 작은 것을 고르게 id 순서다. DB 를 열 때도 같은 글로 읽는다. */
+internal const val CATEGORY_CODE_ROWS_SQL = "SELECT id, scope, name, code FROM categories ORDER BY id"
+
 @Dao
 interface TransactionDao {
     /**
@@ -249,11 +255,29 @@ interface CategoryDao {
     /**
      * 거래를 먼저 옮기고 분류를 지운다. 둘 중 하나만 되는 일이 없도록 한 트랜잭션으로 묶는다.
      * 옮기기 전에 지우면 외래키 설정 때문에 거래의 분류가 빈 값이 된다.
+     * 지운 것이 '고정지출'·'급여' 였고 띄어쓰기만 다른 같은 이름의 분류가 남아 있으면 그 분류가 코드를 잇는다(DB 를 다시 열 때와 같게).
      */
     @Transaction
     suspend fun deleteMovingTransactions(id: Long, fallbackId: Long, now: Instant): Boolean {
         moveTransactions(fromId = id, toId = fallbackId, now = now)
-        return deleteUserCategory(id) > 0
+        val deleted = deleteUserCategory(id) > 0
+        if (deleted) reclaimDefaultCodes()
+        return deleted
+    }
+
+    @Query(CATEGORY_CODE_ROWS_SQL)
+    suspend fun codeRows(): List<CategoryCodeRow>
+
+    @Query("UPDATE categories SET code = :code WHERE id = :id AND code IS NULL")
+    suspend fun setCodeIfMissing(id: Long, code: String)
+
+    /**
+     * 지운 뒤 코드 없이 다시 만든 기본 분류('고정지출'·'급여')에 코드를 돌려준다([reclaimedCodes]).
+     * 백업을 되살린 뒤 · 분류를 지운 뒤에 부른다. DB 를 열 때는 같은 일을 reclaimDefaultCodes(db) 가 한다.
+     */
+    @Transaction
+    suspend fun reclaimDefaultCodes() {
+        reclaimedCodes(codeRows()).forEach { (id, code) -> setCodeIfMissing(id, code) }
     }
 }
 

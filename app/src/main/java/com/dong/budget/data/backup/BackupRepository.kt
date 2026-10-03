@@ -34,6 +34,8 @@ class BackupRepository(private val database: BudgetDatabase) {
             backup.transactions.forEach { t ->
                 t.related?.let { dao.setRelated(transactionIds.getValue(t.uuid), transactionIds.getValue(it)) }
             }
+            // 기본 분류를 지우고 코드 없이 다시 만든 때의 백업이면 그 분류에 코드를 돌려준다(고정지출 탭·월급 등록이 알아보게)
+            database.categoryDao().reclaimDefaultCodes()
         }
         DevLog.info(
             LogTag.BACKUP,

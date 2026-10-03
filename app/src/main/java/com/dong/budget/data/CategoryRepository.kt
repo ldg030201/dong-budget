@@ -6,10 +6,9 @@ import com.dong.budget.data.db.CategoryEntity
 import com.dong.budget.data.db.CategoryScope
 import com.dong.budget.data.db.CategoryStyle
 import com.dong.budget.data.db.CategoryWithCount
-import com.dong.budget.data.db.DEFAULT_CATEGORIES
-import com.dong.budget.data.db.FIXED_CATEGORY_CODE
-import com.dong.budget.data.db.SALARY_CATEGORY_CODE
+import com.dong.budget.data.db.RECLAIMABLE_DEFAULTS
 import com.dong.budget.data.db.etcCodeFor
+import com.dong.budget.data.db.withoutSpaces
 import kotlinx.coroutines.flow.Flow
 import java.time.Instant
 import java.util.UUID
@@ -52,7 +51,7 @@ class CategoryRepository(private val dao: CategoryDao) {
 
     /**
      * 분류를 지운다. 그 분류로 적힌 거래는 같은 종류의 '기타' 로 옮긴다.
-     * '기타' 자체는 지울 수 없다.
+     * '기타' 자체는 지울 수 없다. '고정지출'·'급여' 를 지웠는데 띄어쓰기만 다른 같은 이름의 분류가 있으면 그 분류가 코드를 잇는다.
      */
     suspend fun delete(id: Long): Boolean {
         val category = dao.findById(id) ?: return false
@@ -70,13 +69,8 @@ class CategoryRepository(private val dao: CategoryDao) {
 internal inline fun defaultCodeFor(scope: CategoryScope, name: String, isTaken: (code: String) -> Boolean): String? =
     reclaimableCode(scope, name)?.takeUnless(isTaken)
 
-/** [name] 이 다시 만들면 코드를 돌려줄 기본 분류의 이름이면 그 코드 */
+/** [name] 이 다시 만들면 코드를 돌려줄 기본 분류의 이름이면 그 코드. 이미 있는 분류에 코드를 돌려줄 때(reclaimedCodes)와 같은 이름 규칙이다. */
 internal fun reclaimableCode(scope: CategoryScope, name: String): String? {
     val compact = name.withoutSpaces()
     return RECLAIMABLE_DEFAULTS.firstOrNull { it.scope == scope && it.name.withoutSpaces() == compact }?.code
 }
-
-private fun String.withoutSpaces(): String = filterNot { it.isWhitespace() }
-
-/** 다시 만들면 코드를 돌려줄 기본 분류. 기능이 코드로 찾는 것만 둔다. */
-private val RECLAIMABLE_DEFAULTS = DEFAULT_CATEGORIES.filter { it.code == FIXED_CATEGORY_CODE || it.code == SALARY_CATEGORY_CODE }

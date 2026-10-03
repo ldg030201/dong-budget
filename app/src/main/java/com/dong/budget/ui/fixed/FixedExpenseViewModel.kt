@@ -28,7 +28,7 @@ import java.time.YearMonth
  * 고정지출 탭의 상태.
  * @property loaded 첫 계산이 끝났는지. 끝나기 전에는 탭 머리만 그린다(빈 상태 안내가 잠깐 비치지 않게).
  * @property month 보고 있는 달. 이번 달보다 뒤로는 가지 않는다.
- * @property hasCategory '고정지출'(코드 FIXED) 분류가 있는지. 분류 관리에서 지웠으면 false
+ * @property hasCategory '고정지출'(코드 FIXED) 분류가 있는지. 분류 관리에서 지웠고 같은 이름(띄어쓰기 무시)의 분류도 없으면 false
  */
 @Immutable
 data class FixedExpenseUiState(

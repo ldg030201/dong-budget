@@ -93,7 +93,14 @@ private fun insertDefaultCategory(db: SupportSQLiteDatabase, c: DefaultCategory,
     )
 }
 
-/** 첫 설치 때 기본 분류와 결제수단을 넣는다. 옛 DB 를 올리는 경우에는 불리지 않는다. */
+/**
+ * 첫 설치 때 기본 분류와 결제수단을 넣는다(onCreate, 옛 DB 를 올리는 경우에는 불리지 않는다).
+ * DB 를 열 때마다 지운 뒤 코드 없이 다시 만든 '고정지출'·'급여' 에 코드를 돌려준다(onOpen, 마이그레이션 뒤에 불린다).
+ *
+ * 주의: 둘 다 SupportSQLiteDatabase 버전이다. Room 은 onCreate/onOpen(SQLiteConnection) 을 부르고, 그 기본 구현은 연결이
+ * SupportSQLiteConnection 일 때만 이 버전으로 넘긴다. 지금은 드라이버를 따로 지정하지 않아서(호환 모드) 넘어오지만,
+ * setDriver(...) 를 더하면 에러 없이 조용히 건너뛰어진다([Migration1To2] 와 같은 함정). 드라이버를 바꿀 때는 SQLiteConnection 버전으로 옮긴다.
+ */
 private object SeedCallback : RoomDatabase.Callback() {
     override fun onCreate(db: SupportSQLiteDatabase) {
         DEFAULT_CATEGORIES.forEach { insertDefaultCategory(db, it, orIgnore = false) }
@@ -103,6 +110,10 @@ private object SeedCallback : RoomDatabase.Callback() {
                 arrayOf<Any?>(m.uuid, m.name, m.type.name, m.sortOrder, m.icon, m.color),
             )
         }
+    }
+
+    override fun onOpen(db: SupportSQLiteDatabase) {
+        reclaimDefaultCodes(db)
     }
 }
 
