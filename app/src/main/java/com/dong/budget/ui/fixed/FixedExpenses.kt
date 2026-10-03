@@ -23,7 +23,7 @@ import kotlin.math.abs
 //   말일 자동이체가 휴일로 다음 달 초에 밀렸으면 앞 달 몫이다. 그래서 다음 달 초 며칠까지는 읽는다.
 //   오래된 달부터 옮긴 뒤의 몫으로 차례로 본다(두 달 이어 밀리거나 미리 내도 맞게). 보통 두 번 내면 두 건씩 옮긴다.
 //   말일 것은 앞 달 평소 날짜에서 며칠 안에 낸 것만, 미리 낸 것은 그 달 몫과 금액이 비슷한 것만 옮긴다.
-//   매달 내는 것만 옮긴다(매년 내는 것을 일찍 냈으면 낸 달 몫 그대로다).
+//   매년 · 몇 달마다 내는 것은 옮겨 갈 달이 낼 차례일 때만 옮긴다(일찍 냈으면 낸 달 몫, 휴일로 밀렸으면 앞 달 몫).
 // - 주기는 최근 간격 몇 개로만 본다. 내는 주기가 바뀌면 금방 따라간다. 밀린 몫을 함께 낸 달은 빈 달을 메운 것으로 센다.
 // - 다음에 낼 금액은 마지막 몫의 합이지만, 밀린 몫을 함께 낸 뒤(빈 달 다음에 보통보다 많이 냈고 한 건 한 건이 앞 몫과 비슷함)에는 한 달 치다.
 // ─────────────────────────────────────────────────────────────────────
@@ -130,7 +130,8 @@ data class FixedExpenseBoard(
  * 2. 평소 날짜([usualDayOf]): 최근 결제일(같은 날은 한 번, 최대 [USUAL_DAY_SAMPLES] 번)의 가운데 값(짝수 개면 이른 쪽).
  *    31일에 낸 적이 있으면 짧은 달 말일도 말일로 센다. 보통 한 번 내는데 달 초와 달 말에 낸 날이 섞여 있으면 달 경계를 이어 센다.
  * 3. 몇 월 몫인지([shareMonths]): 달 말 납부가 다음 달 초로 밀렸거나 달 초 납부를 전달 말에 미리 낸 것을 보통 건수만큼 옆 달 몫으로 옮긴다.
- *    오래된 달부터 차례로, 옆 달이 비었는지는 앞에서 옮긴 뒤의 몫으로 보고, 옮겨 센 몫이 매달일 때만 옮긴다. 고른 달 뒤의 몫은 뺀다.
+ *    오래된 달부터 차례로, 옆 달이 비었는지는 앞에서 옮긴 뒤의 몫으로 본다. 옮겨 센 몫이 매달이 아니면 옮겨 갈 달이 낼 차례(직전 몫 + 주기)일 때만
+ *    옮긴다. 고른 달 뒤의 몫은 뺀다.
  * 4. 같은 몫끼리 합친다. 그 몫의 날짜는 첫 결제일이다(실제로 낸 날 그대로).
  * 5. 주기([cadenceOf]): 최근 [CADENCE_GAPS] 개까지의 낸 몫 사이 간격(달 수)의 가운데 값. 간격이 짝수 개면 둘 중 짧은 쪽이다
  *    (늦게 알리는 것보다 일찍 알리는 게 낫다). 옛 간격은 보지 않아서 2달마다 내다 매달 내게 바뀌어도 금방 따라간다.
@@ -196,7 +197,7 @@ private fun fixedItem(key: String, rows: List<TransactionListItem>, month: YearM
     if (known.isEmpty()) return null
     val usualCount = usualCountOf(known)
     val usualDay = usualDayOf(known.map { it.localDate() }.distinct().sorted().takeLast(USUAL_DAY_SAMPLES), usualCount)
-    val shares = shareMonths(rows, month, usualDay, usualCount)
+    val shares = shareMonths(rows, known, month, usualDay, usualCount)
     val kept = rows.filter { shares.getValue(it.id) <= month }
     if (kept.isEmpty()) return null
     val latest = kept.maxWith(byTime)
@@ -287,9 +288,31 @@ private fun usualDayOf(dates: List<LocalDate>, usualCount: Int): Int {
 }
 
 /**
- * 결제([rows])마다 몇 월 몫인지(거래 id → 몫의 달). 보통은 낸 달의 몫이고, 달 끝과 다음 달 초 사이에서만 옮긴다.
- * 오래된 달부터 차례로 본다. 앞 달 몫이 비었는지 · 그 달 몫을 냈는지는 앞에서 옮긴 뒤의 몫으로 보므로, 두 달 이어 휴일로 밀리거나
- * 두 달 이어 미리 내도 한 달씩 맞게 센다. 한 달에 보통 [usualCount] 번 내므로 옮길 때도 그만큼 옮긴다(나눠 내는 월세는 두 건 함께).
+ * 결제([rows])마다 몇 월 몫인지(거래 id → 몫의 달). 보통은 낸 달의 몫이고, 달 끝과 다음 달 초 사이에서만 옮긴다([assignShares]).
+ * 옮겨서 센 몫이 매달이면 그대로 쓴다. 아니면(매년 · 몇 달마다) 옮겨 갈 달이 낼 차례(직전 몫 + 주기)일 때만 옮긴다.
+ * 그때 주기는 옮기기 전의 낸 달(달력 달)로 짐작한다. 매년 3월 28일쯤 내던 것을 3월 2일에 일찍 냈으면 2월은 낼 차례가 아니라 3월 몫 그대로이고,
+ * 매년 10월 말일에 내던 것이 11월 1일로 밀렸으면 10월이 낼 차례라 10월 몫이다(부제 '매년 10월 말일쯤' 과 다음 낼 달이 서로 맞는다).
+ *
+ * @param known 고른 달 말일까지 낸 것. 옮기기 전의 주기를 여기서 짐작한다.
+ * @param month 고른 달. 매달인지는 이 달까지의 몫으로 본다.
+ */
+private fun shareMonths(
+    rows: List<TransactionListItem>,
+    known: List<TransactionListItem>,
+    month: YearMonth,
+    usualDay: Int,
+    usualCount: Int,
+): Map<Long, YearMonth> {
+    val monthly = assignShares(rows, usualDay, usualCount, cadence = 1)
+    if (cadenceOf(paymentsOf(rows.filter { monthly.getValue(it.id) <= month }, monthly), usualCount) == 1) return monthly
+    val calendar = cadenceOf(paymentsOf(known, known.associate { it.id to YearMonth.from(it.localDate()) }), usualCount)
+    return assignShares(rows, usualDay, usualCount, calendar)
+}
+
+/**
+ * [shareMonths] 의 옮기기. 오래된 달부터 차례로 본다. 앞 달 몫이 비었는지 · 그 달 몫을 냈는지는 앞에서 옮긴 뒤의 몫으로 보므로,
+ * 두 달 이어 휴일로 밀리거나 두 달 이어 미리 내도 한 달씩 맞게 센다. 한 달에 보통 [usualCount] 번 내므로 옮길 때도 그만큼 옮긴다(나눠 내는 월세는 두 건 함께).
+ * 옮겨 갈 달은 직전 몫에서 [cadence] 달이 지나 낼 차례여야 한다(매달이면 늘 낼 차례다).
  * - 말일 납부(평소 날짜 [LATE_PAY_FROM] 일 이후): 앞 달 몫이 비었으면, 앞 달 평소 날짜에서 [MAX_LATE_DAYS] 일 안에 낸 것 중 이른 것부터
  *   보통 건수만큼은 앞 달 몫이다(말일 자동이체가 휴일로 밀림). 밀린 몫과 그 달 몫을 한날 함께 냈으면 나머지는 그 달 몫이다.
  *   그보다 늦게 낸 것은 결제일이 바뀐 것으로 보고 옮기지 않는다(28일에 내던 것이 다음 달 3일로 바뀜).
@@ -297,47 +320,48 @@ private fun usualDayOf(dates: List<LocalDate>, usualCount: Int): Int {
  *   달 끝 [SHIFT_DAYS] 일 안에 낸 것으로 먼저 채운다(늦게 낸 그 달 몫). 남은 달 끝 결제가 꼭 보통 건수이고, 다음 달에 달 끝 말고는 낸 것이 없고,
  *   금액이 그 달 몫과 비슷하면(±[SIMILAR_AMOUNT_PERCENT]%) 다음 달 몫이다(월세를 전달 말에 미리 냄).
  *   3일 구독 가게에 28일 결제가 새로 생겼으면 금액이 달라 그 달에 낸 것이고, 한 가게에 3일 · 28일 두 번 내는 것은 28일 것으로 그 달 몫을 채운다.
- * 옮겨서 센 몫이 매달일 때만 옮긴다. 매년 · 몇 달마다 내는 것은 앞뒤 달이 원래 비어 있어서, 일찍 낸 것을 앞 달로 끌어가면 낸 달이 '안 내요' 가 된다.
- *
- * @param month 고른 달. 매달인지는 이 달까지의 몫으로 본다.
  */
-private fun shareMonths(rows: List<TransactionListItem>, month: YearMonth, usualDay: Int, usualCount: Int): Map<Long, YearMonth> {
+private fun assignShares(rows: List<TransactionListItem>, usualDay: Int, usualCount: Int, cadence: Int): Map<Long, YearMonth> {
     val own = rows.associate { it.id to YearMonth.from(it.localDate()) }
     val paysLate = usualDay >= LATE_PAY_FROM
     if (!paysLate && usualDay > SHIFT_DAYS) return own
     val byMonth = rows.sortedWith(byTime).groupBy { own.getValue(it.id) }.toSortedMap()
+    // 몫의 달 → 그 몫으로 낸 결제. 빈 몫은 넣지 않는다.
     val shares = TreeMap<YearMonth, MutableList<TransactionListItem>>()
-    fun shareOf(share: YearMonth) = shares.getOrPut(share) { mutableListOf() }
+
+    fun add(share: YearMonth, items: List<TransactionListItem>) {
+        if (items.isNotEmpty()) shares.getOrPut(share) { mutableListOf() } += items
+    }
+
+    // 직전 몫에서 주기만큼 지났으면 낼 차례다. 앞에 낸 몫이 없으면 낼 차례로 본다.
+    fun isDue(share: YearMonth) = shares.lowerKey(share)?.let { !it.plusMonths(cadence.toLong()).isAfter(share) } ?: true
     byMonth.forEach { (paidMonth, items) ->
         if (paysLate) {
             val previous = paidMonth.minusMonths(1)
             val usualDate = previous.atDay(minOf(usualDay, previous.lengthOfMonth()))
             val late = items.filter { ChronoUnit.DAYS.between(usualDate, it.localDate()) <= MAX_LATE_DAYS }
-            val moving = if (shares[previous].isNullOrEmpty() && late.size >= usualCount) late.take(usualCount) else emptyList()
-            shareOf(previous) += moving
-            shareOf(paidMonth) += items - moving.toSet()
+            val moving = if (previous !in shares && isDue(previous) && late.size >= usualCount) late.take(usualCount) else emptyList()
+            add(previous, moving)
+            add(paidMonth, items - moving.toSet())
         } else {
             val (tail, body) = items.partition { it.localDate().isInLastDays() }
-            // 그 달 몫으로 낸 것: 전달 말에 미리 낸 것 + 그 달 초에 낸 것 + 늦게 낸 그 달 몫(달 끝)
-            val paid = shareOf(paidMonth).toMutableList()
-            paid += body.filter { it.localDate().dayOfMonth <= usualDay + SHIFT_DAYS }
-            val fill = (usualCount - paid.size).coerceIn(0, tail.size)
-            paid += tail.take(fill)
-            val rest = tail.drop(fill)
+            // 그 달 몫으로 낸 것: 전달 말에 미리 낸 것 + 그 달 초에 낸 것 + 모자라면 달 끝에 늦게 낸 것
+            val onTime = shares[paidMonth].orEmpty() + body.filter { it.localDate().dayOfMonth <= usualDay + SHIFT_DAYS }
+            val late = tail.take((usualCount - onTime.size).coerceAtLeast(0))
+            val paid = onTime + late
+            add(paidMonth, body + late)
+            val rest = tail - late.toSet()
             val next = paidMonth.plusMonths(1)
             val prepaid =
                 rest.size == usualCount &&
                     byMonth[next].orEmpty().all { it.localDate().isInLastDays() } &&
+                    isDue(next) &&
                     // 한 달 치끼리 견준다
                     isNear(rest.sumOf { it.amount } * paid.size, paid.sumOf { it.amount } * usualCount, 1)
-            shareOf(paidMonth) += body + tail.take(fill)
-            if (prepaid) shareOf(next) += rest else shareOf(paidMonth) += rest
+            add(if (prepaid) next else paidMonth, rest)
         }
     }
-    val moved = shares.flatMap { (share, items) -> items.map { it.id to share } }.toMap()
-    if (moved == own) return own
-    val shifted = paymentsOf(rows.filter { moved.getValue(it.id) <= month }, moved)
-    return if (cadenceOf(shifted, usualCount) == 1) moved else own
+    return shares.flatMap { (share, items) -> items.map { it.id to share } }.toMap()
 }
 
 /** 달 끝 [SHIFT_DAYS] 일 안인지 */

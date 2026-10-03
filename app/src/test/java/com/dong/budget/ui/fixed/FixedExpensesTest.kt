@@ -91,13 +91,57 @@ class FixedExpensesTest {
 
     @Test
     fun `직전 간격이 13달인 매년 결제도 한 달 늦은 달까지 앞 해 결제를 읽어 매년으로 본다`() {
-        // 2024년 10월 31일, 2025년 11월 1일에 냈다. 2026년 12월은 11월 차례를 놓친 달이지 그만둔 것이 아니다.
+        // 2024년 10월 31일, 2025년 11월 1일(10월 몫이 휴일로 밀림)에 냈다. 2026년 11월은 10월 차례를 놓친 달이지 그만둔 것이 아니다.
         val rows = paid("도메인", 22_000, "2024-10-31", "2025-11-01")
-        val december = YearMonth.of(2026, 12)
-        val item = only(readFor(rows, december), month = december, today = day("2026-12-10"))
+        val november = YearMonth.of(2026, 11)
+        val item = only(readFor(rows, november), month = november, today = day("2026-11-10"))
         assertEquals(YEARLY, item.cadence)
         assertEquals(FixedStatus.DUE, item.status)
-        assertEquals(YearMonth.of(2026, 11), item.missedMonth)
+        assertEquals(YearMonth.of(2026, 10), item.missedMonth)
+        // 2025년 11월 1일은 10월 몫이라 2026년 12월은 차례가 지나고 두 달째다. 다른 주기처럼 한동안 안 냈어요로 접는다.
+        // (11월 몫으로 세던 때는 12월에 '11월 차례를 아직 안 냈어요' 였다)
+        val december = YearMonth.of(2026, 12)
+        assertEquals(FixedStatus.STOPPED, only(readFor(rows, december), month = december, today = day("2026-12-10")).status)
+    }
+
+    @Test
+    fun `매년 말일에 내던 것이 휴일로 다음 달 1일에 밀렸으면 앞 달 몫이라 평소 날짜가 다음 달 말일이 되지 않는다`() {
+        // 11월 몫으로 세면 부제가 한 번도 낸 적 없는 '매년 11월 말일쯤' 이 되어 11월 29일까지 지났다는 알림이 없었다.
+        val rows = paid("도메인", 22_000, "2024-10-31", "2025-11-01")
+        val november = YearMonth.of(2026, 11)
+        listOf("2026-11-03", "2026-11-29").forEach { date ->
+            val today = day(date)
+            val item = only(readFor(rows, november), month = november, today = today)
+            assertEquals(FixedStatus.DUE, item.status)
+            assertEquals(YearMonth.of(2025, 10), item.lastShareMonth)
+            assertEquals("매년 10월 말일쯤", scheduleText(item))
+            assertEquals(RowNote("10월 차례를 아직 안 냈어요", NoteTone.WARNING), rowNote(item, november, today))
+        }
+        // 10월 말일에는 오늘 낼 차례다(전에는 '이번 달엔 안 내요 · 다음은 11월에 내요')
+        val october31 = day("2026-10-31")
+        val inOctober = only(readFor(rows, october), today = october31)
+        assertEquals(FixedStatus.DUE, inOctober.status)
+        assertEquals(0, inOctober.daysPastUsual)
+    }
+
+    @Test
+    fun `2달마다 말일에 내는 것이 휴일로 다음 달 1일에 밀렸으면 앞 달 몫이다`() {
+        // 3월 · 5월 · 7월 말일에 내고 9월 몫이 10월 1일에 나갔다. 10월 몫으로 세면 9월은 '안 냈어요', 11월 말일에도 '이번 달엔 안 내요' 였다.
+        val rows = paid("수도", 30_000, "2026-03-31", "2026-05-31", "2026-07-31", "2026-10-01")
+        val september = YearMonth.of(2026, 9)
+        val october5 = day("2026-10-05")
+        val inSeptember = only(readFor(rows, september), month = september, today = october5)
+        assertEquals(FixedStatus.PAID, inSeptember.status)
+        assertEquals(day("2026-10-01"), inSeptember.lastPaidOn)
+        val inOctober = only(readFor(rows, october), today = october5)
+        assertEquals(FixedStatus.NOT_THIS_MONTH, inOctober.status)
+        assertEquals(YearMonth.of(2026, 11), inOctober.nextMonth)
+        val november = YearMonth.of(2026, 11)
+        assertEquals(FixedStatus.DUE, only(readFor(rows, november), month = november, today = day("2026-11-10")).status)
+        val november30 = day("2026-11-30")
+        val due = only(readFor(rows, november), month = november, today = november30)
+        assertEquals(2, due.cadence)
+        assertEquals(RowNote("오늘 낼 차례예요", NoteTone.TODAY), rowNote(due, november, november30))
     }
 
     @Test
