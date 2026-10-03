@@ -256,6 +256,18 @@ class FixedExpensesTest {
     }
 
     @Test
+    fun `기록이 짧아도 밀린 몫을 함께 낸 달은 빈 달을 메운 것으로 보아 매달이다`() {
+        // 7월 25일에 내고 8월을 건너뛰어 9월 5일(8월 몫)·9월 25일에 냈다. 몫 달 간격 2만 보면 2달마다라 10월이 숨었다.
+        val rows = paid("넷플릭스", 17_000, "2026-07-25", "2026-09-05", "2026-09-25")
+        val board = board(readFor(rows, october), today = day("2026-10-03"))
+        val item = board.due.single()
+        assertEquals(1, item.cadence)
+        assertNull(item.missedMonth)
+        assertEquals(17_000L, item.amount)
+        assertEquals(17_000L, board.dueTotal)
+    }
+
+    @Test
     fun `나눠 내는 것처럼 달마다 같은 횟수로 냈으면 낼 돈은 그 달 합이다`() {
         val rows =
             paid("월세", 300_000, "2026-08-01T09:00", "2026-09-01T09:00") +

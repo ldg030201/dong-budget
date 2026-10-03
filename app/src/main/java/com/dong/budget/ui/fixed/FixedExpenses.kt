@@ -18,7 +18,7 @@ import java.time.temporal.ChronoUnit
 // - 평소 날짜를 먼저 짐작한다. 31일에 낸 적이 있으면 짧은 달 말일(9월 30일 등)도 말일로 센다.
 // - 결제는 낸 달이 아니라 '몇 월 몫인지' 로 센다. 1일에 내는 월세를 전달 말에 미리 냈으면 다음 달 몫이고,
 //   말일 자동이체가 휴일로 다음 달 초에 밀렸으면 앞 달 몫이다. 그래서 다음 달 초 며칠까지는 읽는다.
-// - 주기는 최근 간격 몇 개로만 본다. 내는 주기가 바뀌면 금방 따라간다.
+// - 주기는 최근 간격 몇 개로만 본다. 내는 주기가 바뀌면 금방 따라간다. 밀린 몫을 함께 낸 달은 빈 달을 메운 것으로 센다.
 // - 다음에 낼 금액은 마지막 몫의 합이지만, 밀린 몫을 함께 내 앞 몫보다 많이 낸 뒤에는 가장 최근 한 건이다.
 // ─────────────────────────────────────────────────────────────────────
 
@@ -122,6 +122,7 @@ data class FixedExpenseBoard(
  * 3. 같은 달 몫은 합친다. 그 몫의 날짜는 첫 결제일이다(실제로 낸 날 그대로).
  * 4. 주기: 최근 [CADENCE_GAPS] 개까지의 낸 몫 사이 간격(달 수)의 가운데 값. 간격이 짝수 개면 둘 중 짧은 쪽이다
  *    (늦게 알리는 것보다 일찍 알리는 게 낫다). 옛 간격은 보지 않아서 2달마다 내다 매달 내게 바뀌어도 금방 따라간다.
+ *    한 달에 보통([usualCountOf]) 보다 k 번 더 낸 몫은 밀린 몫을 함께 낸 것이라 그 앞 간격을 k 달 줄여 센다.
  *    한 달에만 냈으면 매달로 본다. 11달 넘게 벌어지면 매년이다.
  * 5. 상태: 고른 달 몫을 냈으면 [FixedStatus.PAID]. 아니면 마지막으로 낸 몫에서 몇 달 지났는지(gap)를 주기와 견준다.
  *    gap < 주기면 [FixedStatus.NOT_THIS_MONTH], 주기 ≤ gap < 주기 + [DUE_MONTHS] 면 [FixedStatus.DUE], 그보다 길면 [FixedStatus.STOPPED].
@@ -173,10 +174,12 @@ private val byTime = compareBy<TransactionListItem> { it.occurredAt }.thenBy { i
 
 /** 한 가게를 [month] 에서 본 것. 고른 달까지 낸 몫이 없으면(첫 결제 전 달) null */
 private fun fixedItem(key: String, rows: List<TransactionListItem>, month: YearMonth, today: LocalDate): FixedExpenseItem? {
+    // 평소 날짜·보통 건수는 고른 달까지 낸 것으로만 짐작한다
+    val known = rows.filter { !it.localDate().isAfter(month.atEndOfMonth()) }
+    if (known.isEmpty()) return null
     val dates = rows.map { it.localDate() }.distinct().sorted()
-    val usualSamples = dates.filter { !it.isAfter(month.atEndOfMonth()) }.takeLast(USUAL_DAY_SAMPLES)
-    if (usualSamples.isEmpty()) return null
-    val usualDay = usualDayOf(usualSamples)
+    val usualDay = usualDayOf(known.map { it.localDate() }.distinct().sorted().takeLast(USUAL_DAY_SAMPLES))
+    val usualCount = usualCountOf(known)
     val shares = shareMonths(dates, usualDay)
     val kept = rows.filter { shares.getValue(it.localDate()) <= month }
     if (kept.isEmpty()) return null
@@ -195,7 +198,7 @@ private fun fixedItem(key: String, rows: List<TransactionListItem>, month: YearM
             }.sortedBy { it.month }
     val last = payments.last()
     val previous = payments.getOrNull(payments.lastIndex - 1)
-    val cadence = cadenceOf(payments.takeLast(CADENCE_GAPS + 1).map { it.month })
+    val cadence = cadenceOf(payments, usualCount)
     val gap = ChronoUnit.MONTHS.between(last.month, month).toInt()
     val status =
         when {
@@ -275,10 +278,33 @@ private fun shareMonths(dates: List<LocalDate>, usualDay: Int): Map<LocalDate, Y
     }
 }
 
-/** 낸 달들(오래된 것부터)의 간격으로 본 주기. 1(매달), 2~[MAX_EVERY_MONTHS], [YEARLY] */
-private fun cadenceOf(months: List<YearMonth>): Int {
-    if (months.size < 2) return 1
-    val gap = lowerMedian(months.zipWithNext { a, b -> ChronoUnit.MONTHS.between(a, b).toInt() })
+/**
+ * 한 달에 보통 몇 번 내는지. 결제가 있었던 최근 [USUAL_COUNT_MONTHS] 달(달력 달)의 결제 수의 가운데 값(짝수 개면 적은 쪽)이다.
+ * 나눠 내는 월세나 한 가게에 두 번 내는 것은 2, 대부분은 1이다.
+ */
+private fun usualCountOf(rows: List<TransactionListItem>): Int = lowerMedian(
+    rows
+        .groupBy { YearMonth.from(it.localDate()) }
+        .toSortedMap()
+        .values
+        .map { it.size }
+        .takeLast(USUAL_COUNT_MONTHS),
+)
+
+/**
+ * 낸 몫들(오래된 것부터)의 최근 [CADENCE_GAPS] 개까지의 간격으로 본 주기. 1(매달), 2~[MAX_EVERY_MONTHS], [YEARLY]
+ * 보통([usualCount])보다 k 번 더 낸 몫은 밀린 몫을 함께 낸 것으로 보고, 그 몫으로 들어오는 간격에서 k 달을 뺀다(1달보다 짧게는 안 센다).
+ * 7월 25일 다음 9월 5일(8월 몫)·25일에 냈으면 간격 2가 아니라 1이다.
+ */
+private fun cadenceOf(payments: List<MonthPayment>, usualCount: Int): Int {
+    val recent = payments.takeLast(CADENCE_GAPS + 1)
+    if (recent.size < 2) return 1
+    val gaps =
+        recent.zipWithNext { a, b ->
+            val extra = (b.count - usualCount).coerceAtLeast(0)
+            (ChronoUnit.MONTHS.between(a.month, b.month).toInt() - extra).coerceAtLeast(1)
+        }
+    val gap = lowerMedian(gaps)
     return when {
         gap <= 1 -> 1
         gap <= MAX_EVERY_MONTHS -> gap
@@ -312,6 +338,9 @@ private const val CADENCE_GAPS = 5
 
 /** 평소 날짜를 짐작할 때 보는 최근 결제일 수 */
 private const val USUAL_DAY_SAMPLES = 6
+
+/** 한 달에 보통 몇 번 내는지 짐작할 때 보는 최근 결제 달 수 */
+private const val USUAL_COUNT_MONTHS = 6
 
 /** 달 끝·다음 달 초의 이만큼(일) 안에 낸 것은 옆 달 몫일 수 있다([shareMonths]) */
 private const val SHIFT_DAYS = 5
