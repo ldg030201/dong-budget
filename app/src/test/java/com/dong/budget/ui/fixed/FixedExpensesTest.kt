@@ -347,6 +347,33 @@ class FixedExpensesTest {
     }
 
     @Test
+    fun `기록이 짧은 말일 납부는 다음 달 1일로 밀린 결제 하나로 평소 날짜가 1일이 되지 않는다`() {
+        // 8월 31일 다음 9월 몫이 휴일로 10월 1일에 나갔다. 10월을 보면 평소 날짜가 1일로 잡혀 같은 거래로 10월도 냈다고 했다.
+        val rows = paid("관리비", 120_000, "2026-08-31", "2026-10-01")
+        val october15 = day("2026-10-15")
+        val september = YearMonth.of(2026, 9)
+        val inSeptember = only(readFor(rows, september), month = september, today = october15)
+        assertEquals(FixedStatus.PAID, inSeptember.status)
+        assertEquals(day("2026-10-01"), inSeptember.lastPaidOn)
+        val inOctober = only(readFor(rows, october), today = october15)
+        assertEquals(FixedStatus.DUE, inOctober.status)
+        assertEquals(LAST_DAY, inOctober.usualDay)
+        assertEquals("매달 말일쯤", scheduleText(inOctober))
+        assertNull(inOctober.missedMonth)
+        // 표본 넷 중 둘이 밀렸어도(5월 31일·7월 1일·7월 31일·9월 1일) 말일 납부다. 9월 1일은 8월 몫이고 9월은 아직이다.
+        val half = paid("관리비", 120_000, "2026-05-31", "2026-07-01", "2026-07-31", "2026-09-01")
+        val september10 = day("2026-09-10")
+        val august = YearMonth.of(2026, 8)
+        val inAugust = only(readFor(half, august), month = august, today = september10)
+        assertEquals(FixedStatus.PAID, inAugust.status)
+        assertEquals(day("2026-09-01"), inAugust.lastPaidOn)
+        val dueSeptember = only(readFor(half, september), month = september, today = september10)
+        assertEquals(FixedStatus.DUE, dueSeptember.status)
+        assertEquals(LAST_DAY, dueSeptember.usualDay)
+        assertNull(dueSeptember.missedMonth)
+    }
+
+    @Test
     fun `앞 달 몫을 이미 냈으면 다음 달 초에 낸 것은 그 달 몫이다`() {
         val rows = paid("관리비", 120_000, "2026-07-31", "2026-08-31", "2026-09-30", "2026-10-02")
         val october = only(rows)
