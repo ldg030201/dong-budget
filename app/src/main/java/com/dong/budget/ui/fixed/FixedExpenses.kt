@@ -154,8 +154,8 @@ fun buildFixedExpenses(month: YearMonth, today: LocalDate, rows: List<Transactio
 }
 
 /**
- * [month] 를 계산하려면 읽어야 하는 첫 달. 매년 내는 것이 한 달 늦어진 때(13달 만)에도 그 앞 해의 결제까지 보여야
- * 매년인 줄 알 수 있어서, 고른 달 앞으로 [HISTORY_MONTHS] 달을 읽는다.
+ * [month] 를 계산하려면 읽어야 하는 첫 달. 매년 내는 것이 한 달 늦어진 때에도 그 앞 해의 결제까지 보여야 매년인 줄 알 수 있어서,
+ * 고른 달 앞으로 [HISTORY_MONTHS] 달을 읽는다. 매년은 간격 11달 이상을 모두 받으므로, 말일과 1일을 오가 직전 간격이 13달인 것까지 센다.
  */
 fun fixedHistoryStart(month: YearMonth): YearMonth = month.minusMonths(HISTORY_MONTHS)
 
@@ -316,5 +316,5 @@ private const val SHIFT_DAYS = 5
 /** 평소 날짜가 이날 이후(말일 포함)면 다음 달 초에 낸 것을 밀린 앞 달 몫으로 볼 수 있다 */
 private const val LATE_PAY_FROM = 26
 
-/** 고른 달 앞으로 읽는 달 수. 매년(12) + 한 달 늦음(1) + 그 앞 해(12) */
-private const val HISTORY_MONTHS = 25L
+/** 고른 달 앞으로 읽는 달 수. 매년(직전 간격 최대 13) + 한 달 늦음(1) + 그 앞 해(12) */
+private const val HISTORY_MONTHS = 26L

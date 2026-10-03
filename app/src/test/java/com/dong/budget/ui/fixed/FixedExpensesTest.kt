@@ -4,6 +4,7 @@ import com.dong.budget.data.db.TransactionListItem
 import com.dong.budget.data.db.TransactionType.REFUND
 import com.dong.budget.testing.day
 import com.dong.budget.testing.tx
+import com.dong.budget.ui.home.localDate
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -25,6 +26,10 @@ class FixedExpensesTest {
         assertEquals(1, all.size)
         return all.single()
     }
+
+    /** 화면 모델처럼 [month] 를 볼 때 읽는 범위([fixedHistoryStart] ~ [fixedHistoryEnd])의 행만 */
+    private fun readFor(rows: List<TransactionListItem>, month: YearMonth) =
+        rows.filter { YearMonth.from(it.localDate()) in fixedHistoryStart(month)..fixedHistoryEnd(month) }
 
     /** [dates] 마다 같은 가게에 [amount] 를 낸 기록 */
     private fun paid(merchant: String, amount: Long, vararg dates: String, paymentId: Long? = 10) =
@@ -68,8 +73,8 @@ class FixedExpensesTest {
     @Test
     fun `매년 내는 것은 그 앞 해 결제까지 읽어 매년인 줄 안다`() {
         val rows = paid("도메인", 22_000, "2024-10-15", "2025-10-14")
-        // 2026년 10월에 낼 차례다. 읽는 범위가 2024년 9월부터라 2024년 결제도 들어온다.
-        assertEquals(YearMonth.of(2024, 9), fixedHistoryStart(october))
+        // 2026년 10월에 낼 차례다. 읽는 범위가 2024년 8월부터라 2024년 결제도 들어온다.
+        assertEquals(YearMonth.of(2024, 8), fixedHistoryStart(october))
         val due = only(rows)
         assertEquals(YEARLY, due.cadence)
         assertEquals(FixedStatus.DUE, due.status)
@@ -82,6 +87,17 @@ class FixedExpensesTest {
         val between = only(rows, month = YearMonth.of(2026, 3), today = day("2026-03-01"))
         assertEquals(FixedStatus.NOT_THIS_MONTH, between.status)
         assertEquals(YearMonth.of(2026, 10), between.nextMonth)
+    }
+
+    @Test
+    fun `직전 간격이 13달인 매년 결제도 한 달 늦은 달까지 앞 해 결제를 읽어 매년으로 본다`() {
+        // 2024년 10월 31일, 2025년 11월 1일에 냈다. 2026년 12월은 11월 차례를 놓친 달이지 그만둔 것이 아니다.
+        val rows = paid("도메인", 22_000, "2024-10-31", "2025-11-01")
+        val december = YearMonth.of(2026, 12)
+        val item = only(readFor(rows, december), month = december, today = day("2026-12-10"))
+        assertEquals(YEARLY, item.cadence)
+        assertEquals(FixedStatus.DUE, item.status)
+        assertEquals(YearMonth.of(2026, 11), item.missedMonth)
     }
 
     @Test
