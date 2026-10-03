@@ -99,9 +99,15 @@ internal fun previousLine(month: YearMonth, today: LocalDate, progress: TierProg
     return "$head · $status"
 }
 
-/** 상세 머리의 남은 날 한 줄. "29일 남았어요 · 하루에 6,088원씩 쓰면 돼요". 다 채웠으면 남은 날만 */
-internal fun daysLeftLine(daysLeft: Int, need: Long?): String =
-    if (need == null) daysLeftText(daysLeft) else "${daysLeftText(daysLeft)} · 하루에 ${formatAmount(need)}원씩 쓰면 돼요"
+/**
+ * 상세 머리의 남은 날 한 줄. "29일 남았어요 · 하루에 6,088원씩 쓰면 돼요". 다 채웠으면 남은 날만.
+ * 마지막 날은 나눌 날이 없어 "오늘이 마지막 날이에요 · 오늘 176,550원 더 쓰면 돼요" 다.
+ */
+internal fun daysLeftLine(daysLeft: Int, need: Long?): String = when {
+    need == null -> daysLeftText(daysLeft)
+    daysLeft <= 1 -> "${daysLeftText(daysLeft)} · 오늘 ${formatAmount(need)}원 더 쓰면 돼요"
+    else -> "${daysLeftText(daysLeft)} · 하루에 ${formatAmount(need)}원씩 쓰면 돼요"
+}
 
 /** 화면 읽기는 보이는 글의 ' · ' 를 쉼표로 읽는다 */
 internal fun spoken(text: String): String = text.replace(" · ", ", ")

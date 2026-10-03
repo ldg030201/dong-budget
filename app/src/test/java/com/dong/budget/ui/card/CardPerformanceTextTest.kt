@@ -29,6 +29,15 @@ class CardPerformanceTextTest {
     }
 
     @Test
+    fun `마지막 날은 하루에 얼마씩이 아니라 오늘 얼마 더 쓰면 되는지 알린다`() {
+        // 전에는 "오늘이 마지막 날이에요 · 하루에 176,550원씩 쓰면 돼요" 였다
+        val need = dailyNeed(TierProgress(123_450, tiers), daysLeft = 1)
+        assertEquals("오늘이 마지막 날이에요 · 오늘 176,550원 더 쓰면 돼요", daysLeftLine(1, need))
+        assertEquals("오늘이 마지막 날이에요", daysLeftLine(1, null))
+        assertEquals("2일 남았어요 · 하루에 88,275원씩 쓰면 돼요", daysLeftLine(2, dailyNeed(TierProgress(123_450, tiers), daysLeft = 2)))
+    }
+
+    @Test
     fun `쓴 돈은 1원까지, 환불이 더 많으면 그렇게 읽는다`() {
         assertEquals("123,450원", spentText(123_450))
         assertEquals("-1,000원", spentText(-1_000))
