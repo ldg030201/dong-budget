@@ -445,6 +445,29 @@ class FixedExpensesTest {
     }
 
     @Test
+    fun `결제가 있었던 달이 하나뿐이어도 밀린 몫이나 미리 낸 몫을 가려 다음 달 낼 돈이 두 배가 되지 않는다`() {
+        // 새로 적기 시작한 관리비가 12월 1일(11월 몫이 밀림) · 12월 31일 두 건뿐이다. 1월 낼 돈이 240,000원이었다.
+        val utility = paid("관리비", 120_000, "2026-12-01", "2026-12-31")
+        val january = YearMonth.of(2027, 1)
+        val january10 = day("2027-01-10")
+        val inJanuary = board(readFor(utility, january), month = january, today = january10)
+        assertEquals(FixedStatus.DUE, inJanuary.due.single().status)
+        assertEquals(120_000L, inJanuary.dueTotal)
+        val december = YearMonth.of(2026, 12)
+        val inDecember = only(readFor(utility, december), month = december, today = january10)
+        assertEquals(day("2026-12-31"), inDecember.lastPaidOn)
+        assertEquals(1, inDecember.lastPaidCount)
+        // 새 월세를 9월 1일 · 9월 30일에 냈다. 1,000,000원 등록하기가 뜨지 않는다.
+        // (9월 30일이 10월 몫을 미리 낸 것인지 평소 말일에 내는 것인지 두 건으로는 가를 수 없어 10월은 '아직 안 냈어요' 다)
+        val rent = paid("월세", 500_000, "2026-09-01", "2026-09-30")
+        val rentOctober = board(readFor(rent, october), today = day("2026-10-05"))
+        assertEquals(500_000L, rentOctober.dueTotal + rentOctober.paidTotal)
+        // 처음부터 나눠 낸 월세는 합 그대로다
+        val split = paid("월세", 300_000, "2026-09-01") + paid("월세", 200_000, "2026-09-15")
+        assertEquals(500_000L, only(readFor(split, october), today = day("2026-10-05")).amount)
+    }
+
+    @Test
     fun `앞 달 몫을 이미 냈으면 다음 달 초에 낸 것은 그 달 몫이다`() {
         val rows = paid("관리비", 120_000, "2026-07-31", "2026-08-31", "2026-09-30", "2026-10-02")
         val october = only(rows)

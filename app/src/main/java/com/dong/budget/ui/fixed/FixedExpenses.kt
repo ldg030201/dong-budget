@@ -340,15 +340,18 @@ private fun paymentsOf(rows: List<TransactionListItem>, shares: Map<Long, YearMo
 /**
  * 한 달에 보통 몇 번 내는지. 결제가 있었던 최근 [USUAL_COUNT_MONTHS] 달(달력 달)의 결제 수의 가운데 값(짝수 개면 적은 쪽)이다.
  * 나눠 내는 월세나 한 가게에 두 번 내는 것은 2, 대부분은 1이다.
+ * 결제가 있었던 달이 하나뿐이면 1로 본다. 새로 적기 시작한 관리비가 12월 1일(밀린 11월 몫) · 12월 31일 두 건뿐일 때 2로 보면
+ * 밀린 몫도 미리 냄도 가르지 못해 다음 달 낼 돈이 두 배가 된다. 처음부터 나눠 낸 월세는 앞 몫이 없어 합 그대로다.
  */
-private fun usualCountOf(rows: List<TransactionListItem>): Int = lowerMedian(
-    rows
-        .groupBy { YearMonth.from(it.localDate()) }
-        .toSortedMap()
-        .values
-        .map { it.size }
-        .takeLast(USUAL_COUNT_MONTHS),
-)
+private fun usualCountOf(rows: List<TransactionListItem>): Int {
+    val counts =
+        rows
+            .groupBy { YearMonth.from(it.localDate()) }
+            .toSortedMap()
+            .values
+            .map { it.size }
+    return if (counts.size < 2) 1 else lowerMedian(counts.takeLast(USUAL_COUNT_MONTHS))
+}
 
 /**
  * 낸 몫들(오래된 것부터)의 최근 [CADENCE_GAPS] 개까지의 간격으로 본 주기. 1(매달), 2~[MAX_EVERY_MONTHS], [YEARLY]
