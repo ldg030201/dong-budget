@@ -268,6 +268,30 @@ class FixedExpensesTest {
     }
 
     @Test
+    fun `처음 나눠 낸 달이나 구독이 하나 는 달 뒤에는 한 건이 아니라 그 달 합을 낼 돈으로 본다`() {
+        // 월세 500,000원을 한 번에 내다 9월부터 300,000원·200,000원으로 나눠 냈다. 10월 낼 돈은 200,000원이 아니다.
+        val split = paid("월세", 500_000, "2026-07-01", "2026-08-01") + paid("월세", 300_000, "2026-09-01") + paid("월세", 200_000, "2026-09-15")
+        val board = board(readFor(split, october), today = day("2026-10-03"))
+        assertEquals(500_000L, board.due.single().amount)
+        assertEquals(500_000L, board.dueTotal)
+        // 같은 가게에 구독이 하나 늘었다(8월 10,000원 → 9월 10,000원 + 5,000원). 10월 낼 돈은 5,000원이 아니다.
+        val added = paid("음악", 10_000, "2026-08-10", "2026-09-10") + paid("음악", 5_000, "2026-09-20")
+        assertEquals(15_000L, only(readFor(added, october), today = day("2026-10-03")).amount)
+    }
+
+    @Test
+    fun `나눠 내는 것의 밀린 몫을 함께 냈으면 한 달 치(보통 낸 횟수만큼)를 낼 돈으로 본다`() {
+        // 260,000원·240,000원으로 나눠 내다 8월을 건너뛰고 9월에 두 달 치 네 번을 냈다. 10월 낼 돈은 마지막 한 건(240,000원)이 아니라 500,000원이다.
+        val rows =
+            paid("월세", 260_000, "2026-07-01", "2026-09-01", "2026-09-15") +
+                paid("월세", 240_000, "2026-07-02", "2026-09-02", "2026-09-16")
+        val item = only(readFor(rows, october), today = day("2026-10-03"))
+        assertEquals(FixedStatus.DUE, item.status)
+        assertEquals(1, item.cadence)
+        assertEquals(500_000L, item.amount)
+    }
+
+    @Test
     fun `나눠 내는 것처럼 달마다 같은 횟수로 냈으면 낼 돈은 그 달 합이다`() {
         val rows =
             paid("월세", 300_000, "2026-08-01T09:00", "2026-09-01T09:00") +
