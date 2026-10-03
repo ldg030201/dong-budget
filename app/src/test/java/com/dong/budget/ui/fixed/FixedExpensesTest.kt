@@ -385,14 +385,46 @@ class FixedExpensesTest {
     }
 
     @Test
-    fun `같은 날 나눠 낸 것은 함께 옆 달 몫으로 옮긴다`() {
+    fun `한 달에 두 번 내는 가게는 옆 달 몫으로 옮기지 않는다`() {
+        // 보험에 매달 3일 50,000원, 28일 30,000원을 낸다. 28일 것을 다음 달 몫으로 옮기면 새 달 1~2일에 3일 것을 안 냈는데도 '냈어요' 였다.
+        val monthly = (6..9).flatMap { paid("보험", 50_000, "2026-0$it-03") + paid("보험", 30_000, "2026-0$it-28") }
+        val october1 = board(readFor(monthly, october), today = day("2026-10-01"))
+        val due = october1.due.single()
+        assertEquals(80_000L, due.amount)
+        assertEquals(80_000L, october1.dueTotal)
+        assertTrue(october1.paid.isEmpty())
+        // 10월에도 두 번 냈으면 10월 화면에 둘 다 보이고, 11월 2일에도 11월은 아직이다
+        val withOctober = monthly + paid("보험", 50_000, "2026-10-03") + paid("보험", 30_000, "2026-10-28")
+        val inOctober = only(readFor(withOctober, october), today = day("2026-11-02"))
+        assertEquals(FixedStatus.PAID, inOctober.status)
+        assertEquals(day("2026-10-03"), inOctober.lastPaidOn)
+        assertEquals(2, inOctober.lastPaidCount)
+        assertEquals(80_000L, inOctober.amount)
+        val november = YearMonth.of(2026, 11)
+        val inNovember = only(readFor(withOctober, november), month = november, today = day("2026-11-02"))
+        assertEquals(FixedStatus.DUE, inNovember.status)
+        assertEquals(80_000L, inNovember.amount)
+        // 9월을 통째로 건너뛰고 10월 3일에 냈으면 10월 3일은 9월 몫이 아니라 10월에 낸 것이다
+        val skipped = (6..8).flatMap { paid("보험", 50_000, "2026-0$it-03") + paid("보험", 30_000, "2026-0$it-28") } +
+            paid("보험", 50_000, "2026-10-03")
+        val october10 = day("2026-10-10")
+        assertEquals(FixedStatus.PAID, only(readFor(skipped, october), today = october10).status)
+        val september = YearMonth.of(2026, 9)
+        assertEquals(FixedStatus.DUE, only(readFor(skipped, september), month = september, today = october10).status)
+    }
+
+    @Test
+    fun `나눠 내는 월세가 휴일로 다음 달 초에 밀리면 옮기지 않고 그 달에 낸 것으로 본다`() {
+        // 300,000원·200,000원을 말일에 나눠 내다 9월 몫이 10월 1일에 나갔다. 한 달에 두 번 내는 것은 위의 3일·28일 가게와
+        // 가를 수 없어서 옆 달로 옮기지 않는다. 그래서 9월은 안 냈어요, 10월은 냈어요로 보인다(전에는 둘 다 9월 몫으로 옮겼다).
         val dates = arrayOf("2026-07-31", "2026-08-31", "2026-10-01")
         val rows = paid("월세", 300_000, *dates) + paid("월세", 200_000, *dates, paymentId = 11)
         val september = only(rows, month = YearMonth.of(2026, 9), today = day("2026-10-15"))
+        assertEquals(FixedStatus.DUE, september.status)
         assertEquals(500_000L, september.amount)
         assertEquals(2, september.lastPaidCount)
         val october = only(rows, today = day("2026-10-15"))
-        assertEquals(FixedStatus.DUE, october.status)
+        assertEquals(FixedStatus.PAID, october.status)
         assertEquals(500_000L, october.amount)
     }
 
