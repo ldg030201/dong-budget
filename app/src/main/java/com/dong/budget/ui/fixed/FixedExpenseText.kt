@@ -180,6 +180,3 @@ private fun dateText(date: LocalDate, month: YearMonth): String {
 /** 보고 있는 달과 같은 해면 "12월", 다른 해면 "2027년 3월" */
 private fun monthName(target: YearMonth, month: YearMonth): String =
     if (target.year == month.year) "${target.monthValue}월" else "${target.year}년 ${target.monthValue}월"
-
-/** 이 날을 평소 날로 내면 달마다 말일로 본다 */
-private const val LAST_DAY = 31

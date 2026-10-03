@@ -139,6 +139,36 @@ class FixedExpensesTest {
     }
 
     @Test
+    fun `말일에 내면 짧은 달의 말일도 말일로 세어 평소 날짜가 그 달 말일이다`() {
+        // 8월 31일 · 9월 30일 → 10월 31일에 '평소보다 1일 지났어요' 가 아니라 오늘이 그날이다
+        val october31 = only(paid("가", 1_000, "2026-08-31", "2026-09-30"), today = day("2026-10-31"))
+        assertEquals(LAST_DAY, october31.usualDay)
+        assertEquals(day("2026-10-31"), october31.usualDateIn(october))
+        assertEquals(0, october31.daysPastUsual)
+        // 1월 31일 · 2월 28일 → 3월 31일도 그날이다(28일이 아니다)
+        val march = only(paid("가", 1_000, "2026-01-31", "2026-02-28"), month = YearMonth.of(2026, 3), today = day("2026-03-31"))
+        assertEquals(LAST_DAY, march.usualDay)
+        assertEquals(0, march.daysPastUsual)
+        // 말일만 6번 냈어도(28·30·30·31·31·31) 말일이다
+        val sixTimes =
+            only(
+                paid("가", 1_000, "2025-09-30", "2025-10-31", "2025-11-30", "2025-12-31", "2026-01-31", "2026-02-28"),
+                month = YearMonth.of(2026, 3),
+                today = day("2026-03-31"),
+            )
+        assertEquals(LAST_DAY, sixTimes.usualDay)
+    }
+
+    @Test
+    fun `31일에 낸 적이 없으면 짧은 달의 말일도 날짜 그대로 센다`() {
+        // 매달 30일에 내고 2월만 28일에 냈으면 30일이다(말일로 밀지 않는다)
+        val item =
+            only(paid("가", 1_000, "2025-12-30", "2026-01-30", "2026-02-28"), month = YearMonth.of(2026, 3), today = day("2026-03-02"))
+        assertEquals(30, item.usualDay)
+        assertEquals(day("2026-03-30"), item.usualDateIn(YearMonth.of(2026, 3)))
+    }
+
+    @Test
     fun `평소 날짜를 넘겼으면 며칠 지났는지 센다`() {
         val item = only(paid("가", 1_000, "2026-08-05", "2026-09-05"))
         assertEquals(7, item.daysPastUsual)

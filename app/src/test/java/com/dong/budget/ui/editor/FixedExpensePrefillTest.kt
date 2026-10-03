@@ -79,6 +79,18 @@ class FixedExpensePrefillTest {
     }
 
     @Test
+    fun `말일에 내면 30일에 낸 달이 섞여도 이번 달 말일로 채운다`() {
+        val rows =
+            listOf(
+                tx("2026-08-31T09:00", 120_000, categoryId = 4, merchant = "관리비"),
+                tx("2026-09-30T09:00", 120_000, categoryId = 4, merchant = "관리비"),
+            )
+        val today = day("2026-10-31")
+        val prefill = fixedExpensePrefill(item(rows, today), today)
+        assertEquals(LocalDateTime.of(2026, 10, 31, 9, 0), at(prefill.occurredAtMillis))
+    }
+
+    @Test
     fun `같은 날 몇 번을 눌러도 같은 값이다`() {
         val today = day("2026-10-27")
         assertEquals(fixedExpensePrefill(item(netflix, today), today), fixedExpensePrefill(item(netflix, today), today))

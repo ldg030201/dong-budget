@@ -53,9 +53,17 @@ class FixedExpenseTextTest {
 
     @Test
     fun `몇 달마다 내는 것은 다음 낼 달을 덧붙인다`() {
+        // 7월 31일 · 9월 30일은 둘 다 말일이다
         val every2 = item(paid("2026-07-31", "2026-09-30"))
-        assertEquals("2달마다 30일쯤 · 하나카드", rowSubtitle(every2, october))
+        assertEquals("2달마다 말일쯤 · 하나카드", rowSubtitle(every2, october))
         assertEquals(RowNote("다음은 11월에 내요", NoteTone.PLAIN), rowNote(every2, october))
+    }
+
+    @Test
+    fun `말일에 내면 30일에 낸 달이 섞여도 말일쯤이고 그달 말일이 오늘이면 지났다고 하지 않는다`() {
+        val lastDay = item(paid("2026-08-31", "2026-09-30"), today = day("2026-10-31"))
+        assertEquals("매달 말일쯤 · 하나카드", rowSubtitle(lastDay, october))
+        assertEquals(RowNote("오늘 낼 차례예요", NoteTone.TODAY), rowNote(lastDay, october))
     }
 
     @Test

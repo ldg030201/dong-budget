@@ -113,7 +113,7 @@ data class FixedExpenseBoard(
  * - 가게별로 묶고, 같은 달에 여러 번 냈으면 합친다. 그 달의 날짜는 첫 결제일이다.
  * - 주기: 낸 달 사이 간격(달 수)의 가운데 값. 간격이 짝수 개면 둘 중 짧은 쪽이다(늦게 알리는 것보다 일찍 알리는 게 낫다).
  *   한 달에만 냈으면 매달로 본다. 11달 넘게 벌어지면 매년이다.
- * - 평소 날짜: 최근에 낸 달(최대 [USUAL_DAY_SAMPLES] 번)의 날짜 가운데 값(짝수 개면 이른 쪽)
+ * - 평소 날짜: 최근에 낸 달(최대 [USUAL_DAY_SAMPLES] 번)의 날짜 가운데 값(짝수 개면 이른 쪽). 31일에 낸 적이 있으면 짧은 달 말일도 말일로 센다.
  * - 상태: 고른 달에 냈으면 [FixedStatus.PAID]. 아니면 마지막으로 낸 달에서 몇 달 지났는지(gap)를 주기와 견준다.
  *   gap < 주기면 [FixedStatus.NOT_THIS_MONTH], 주기 ≤ gap < 주기 + [DUE_MONTHS] 면 [FixedStatus.DUE], 그보다 길면 [FixedStatus.STOPPED].
  *
@@ -162,7 +162,7 @@ private fun fixedItem(key: String, rows: List<TransactionListItem>, month: YearM
             .sortedBy { it.month }
     val last = payments.last()
     val cadence = cadenceOf(payments.map { it.month })
-    val usualDay = lowerMedian(payments.takeLast(USUAL_DAY_SAMPLES).map { it.firstDate.dayOfMonth })
+    val usualDay = usualDayOf(payments.takeLast(USUAL_DAY_SAMPLES).map { it.firstDate })
     val gap = ChronoUnit.MONTHS.between(last.month, month).toInt()
     val status =
         when {
@@ -201,6 +201,16 @@ private fun fixedItem(key: String, rows: List<TransactionListItem>, month: YearM
     return item.copy(daysPastUsual = ChronoUnit.DAYS.between(item.usualDateIn(month), today).toInt())
 }
 
+/**
+ * 평소 내는 날. [dates] 의 날짜 가운데 값(짝수 개면 이른 쪽)이다.
+ * 31일에 낸 적이 있으면 말일에 내는 것으로 보고, 짧은 달의 말일(2월 28일·9월 30일 등)도 31(말일)로 센다.
+ * 31일에 낸 적이 없으면(매달 30일에 내는 등) 날짜 그대로 센다.
+ */
+private fun usualDayOf(dates: List<LocalDate>): Int {
+    val paysOnLastDay = dates.any { it.dayOfMonth == LAST_DAY }
+    return lowerMedian(dates.map { if (paysOnLastDay && it.dayOfMonth == it.lengthOfMonth()) LAST_DAY else it.dayOfMonth })
+}
+
 /** 낸 달들(오래된 것부터)의 간격으로 본 주기. 1(매달), 2~[MAX_EVERY_MONTHS], [YEARLY] */
 private fun cadenceOf(months: List<YearMonth>): Int {
     if (months.size < 2) return 1
@@ -220,6 +230,9 @@ const val NO_MERCHANT_KEY = ""
 
 /** 가게 이름 없이 적은 지출 묶음의 이름 */
 const val NO_MERCHANT_NAME = "이름 없음"
+
+/** 평소 날이 이 날이면 달마다 그 달 말일에 낸다고 본다([FixedExpenseItem.usualDateIn] 이 그 달 말일로 자른다) */
+internal const val LAST_DAY = 31
 
 /** 매년. 11달 넘게 벌어지는 주기는 모두 매년으로 본다. */
 const val YEARLY = 12
