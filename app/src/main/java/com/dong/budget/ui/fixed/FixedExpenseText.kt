@@ -57,17 +57,17 @@ internal data class RowNote(val text: String, val tone: NoteTone)
 
 /**
  * 줄 부제 아래에 덧붙일 한 줄. 없으면 null
- * - 아직 안 냈어요: 지난 차례도 놓쳤으면 "9월 차례도 안 냈어요", 이번 달 평소 날짜가 지났으면 "평소보다 3일 지났어요",
+ * - 아직 안 냈어요: 지난 차례를 놓쳤으면 [missedText], 이번 달 평소 날짜가 지났으면 "평소보다 3일 지났어요",
  *   오늘이면 "오늘 낼 차례예요"
  * - 냈어요: 지난번과 금액이 다르면 "지난번보다 1,000원 올랐어요" / "내렸어요"
  * - 이번 달엔 안 내요: "다음은 12월에 내요"
  */
-internal fun rowNote(item: FixedExpenseItem, month: YearMonth): RowNote? = when (item.status) {
+internal fun rowNote(item: FixedExpenseItem, month: YearMonth, today: LocalDate): RowNote? = when (item.status) {
     FixedStatus.DUE -> {
         val missed = item.missedMonth
         val past = item.daysPastUsual
         when {
-            missed != null -> RowNote("${monthName(missed, month)} 차례도 안 냈어요", NoteTone.WARNING)
+            missed != null -> RowNote(missedText(item, missed, month, today), NoteTone.WARNING)
             past != null && past > 0 -> RowNote("평소보다 ${past}일 지났어요", NoteTone.WARNING)
             past == 0 -> RowNote("오늘 낼 차례예요", NoteTone.TODAY)
             else -> null
@@ -86,6 +86,20 @@ internal fun rowNote(item: FixedExpenseItem, month: YearMonth): RowNote? = when 
     FixedStatus.NOT_THIS_MONTH -> item.nextMonth?.let { RowNote("다음은 ${monthName(it, month)}에 내요", NoteTone.PLAIN) }
 
     FixedStatus.STOPPED -> null
+}
+
+/**
+ * 놓친 차례. 매달 내는 것은 보는 달도 낼 차례라 "9월 차례도 안 냈어요".
+ * 몇 달마다·매년 내는 것은 보는 달이 낼 차례가 아니라(놓친 차례 다음 달이다) '도' 없이 "10월 차례를 아직 안 냈어요",
+ * 지난 달로 보면 그 달까지의 일이라 "10월 차례를 안 냈어요".
+ */
+private fun missedText(item: FixedExpenseItem, missed: YearMonth, month: YearMonth, today: LocalDate): String {
+    val name = monthName(missed, month)
+    return when {
+        item.cadence <= 1 -> "$name 차례도 안 냈어요"
+        month == YearMonth.from(today) -> "$name 차례를 아직 안 냈어요"
+        else -> "$name 차례를 안 냈어요"
+    }
 }
 
 /** 줄 오른쪽 금액. 냈으면 낸 돈, 아니면 지난번에 낸 돈. 부호 없이 "17,000원" */

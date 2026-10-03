@@ -285,7 +285,7 @@ private fun FixedRow(
     onRegister: (EditorPrefill) -> Unit,
     onOpenTransaction: (Long) -> Unit,
 ) {
-    val note = rowNote(item, state.month)
+    val note = rowNote(item, state.month, state.today)
     val status = statusTitle(item.status, state.month, state.today)
     val canRegister = item.status == FixedStatus.DUE && state.isThisMonth && item.merchant != null
     // 이번 달 돈이 아닌 줄(안 내는 달, 그만둔 것)은 금액을 흐리게 둔다
