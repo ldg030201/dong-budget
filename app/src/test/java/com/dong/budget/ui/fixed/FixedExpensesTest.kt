@@ -561,18 +561,105 @@ class FixedExpensesTest {
     }
 
     @Test
-    fun `나눠 내는 월세가 휴일로 다음 달 초에 밀리면 옮기지 않고 그 달에 낸 것으로 본다`() {
-        // 300,000원·200,000원을 말일에 나눠 내다 9월 몫이 10월 1일에 나갔다. 한 달에 두 번 내는 것은 위의 3일·28일 가게와
-        // 가를 수 없어서 옆 달로 옮기지 않는다. 그래서 9월은 안 냈어요, 10월은 냈어요로 보인다(전에는 둘 다 9월 몫으로 옮겼다).
+    fun `나눠 내는 월세가 휴일로 다음 달 초에 밀리면 두 건 함께 앞 달 몫으로 센다`() {
+        // 300,000원 · 200,000원을 말일에 나눠 내다 9월 몫이 10월 1일에 나갔다. 한 달에 보통 두 번 내므로 두 건을 함께 옮긴다.
+        // (전에는 한 달에 두 번 내는 것을 옮기지 않아 9월은 '안 냈어요', 10월은 '냈어요' 였다)
         val dates = arrayOf("2026-07-31", "2026-08-31", "2026-10-01")
         val rows = paid("월세", 300_000, *dates) + paid("월세", 200_000, *dates, paymentId = 11)
         val september = only(rows, month = YearMonth.of(2026, 9), today = day("2026-10-15"))
-        assertEquals(FixedStatus.DUE, september.status)
+        assertEquals(FixedStatus.PAID, september.status)
+        assertEquals(day("2026-10-01"), september.lastPaidOn)
         assertEquals(500_000L, september.amount)
         assertEquals(2, september.lastPaidCount)
         val october = only(rows, today = day("2026-10-15"))
-        assertEquals(FixedStatus.PAID, october.status)
+        assertEquals(FixedStatus.DUE, october.status)
+        assertNull(october.missedMonth)
         assertEquals(500_000L, october.amount)
+    }
+
+    @Test
+    fun `나눠 내는 1일 월세를 전달 말에 미리 냈으면 두 건 함께 다음 달 몫이다`() {
+        // 300,000원 · 200,000원을 매달 1일에 나눠 내다 9월 30일에 10월 몫 두 건을 냈다. 10월에 '평소보다 4일 지났어요' 와 등록하기가 떴다.
+        val rows =
+            paid("월세", 300_000, "2026-07-01T09:00", "2026-08-01T09:00", "2026-09-01T09:00", "2026-09-30T09:00") +
+                paid("월세", 200_000, "2026-07-01T09:05", "2026-08-01T09:05", "2026-09-01T09:05", "2026-09-30T09:05", paymentId = 11)
+        val october5 = board(readFor(rows, october), today = day("2026-10-05"))
+        val item = october5.paid.single()
+        assertEquals(500_000L, item.amount)
+        assertEquals(day("2026-09-30"), item.lastPaidOn)
+        assertTrue(october5.due.isEmpty())
+        val september = YearMonth.of(2026, 9)
+        assertEquals(500_000L, only(readFor(rows, september), month = september, today = day("2026-10-05")).amount)
+    }
+
+    @Test
+    fun `말일 납부가 두 달 이어 휴일로 밀려도 한 달씩 앞 달 몫으로 센다`() {
+        // 말일 자동이체 관리비. 10월 31일(토) → 11월 2일, 2027년 1월 31일(일) → 2월 1일, 2월 28일(일)·3월 1일(삼일절) → 3월 2일에 나갔다.
+        // 2월 1일이 2월 달력에 있다고 3월 2일을 3월 몫으로 세면 3월이 3월 2일부터 '냈어요' 이고 3월 31일 낼 것을 알리지 않았다.
+        val all =
+            paid("관리비", 150_000, "2026-08-31", "2026-09-30", "2026-11-02", "2026-11-30") +
+                paid("관리비", 150_000, "2026-12-31", "2027-02-01", "2027-03-02", "2027-03-31")
+        fun upTo(date: LocalDate) = all.filter { !it.localDate().isAfter(date) }
+        val march = YearMonth.of(2027, 3)
+        val march5 = day("2027-03-05")
+        listOf(march5, day("2027-03-20")).forEach { date ->
+            val inMarch = only(readFor(upTo(date), march), month = march, today = date)
+            assertEquals(FixedStatus.DUE, inMarch.status)
+            assertEquals(LAST_DAY, inMarch.usualDay)
+            assertNull(inMarch.missedMonth)
+        }
+        val february = YearMonth.of(2027, 2)
+        val inFebruary = only(readFor(upTo(march5), february), month = february, today = march5)
+        assertEquals(FixedStatus.PAID, inFebruary.status)
+        assertEquals(day("2027-03-02"), inFebruary.lastPaidOn)
+        assertEquals(150_000L, inFebruary.amount)
+        // 3월 31일에 내면 3월은 그 한 건이다('3월 2일 외 1번' 300,000원이 아니다)
+        val march31 = day("2027-03-31")
+        val paidMarch = only(readFor(upTo(march31), march), month = march, today = march31)
+        assertEquals(FixedStatus.PAID, paidMarch.status)
+        assertEquals(march31, paidMarch.lastPaidOn)
+        assertEquals(1, paidMarch.lastPaidCount)
+        assertEquals(150_000L, paidMarch.amount)
+    }
+
+    @Test
+    fun `1일 월세를 두 달 이어 전달 말에 미리 내도 한 달씩 다음 달 몫으로 센다`() {
+        // 9월 30일에 10월 몫, 10월 30일에 11월 몫을 미리 냈다. 10월 30일을 10월 몫으로 세면 11월에 '평소보다 2일 지났어요' 와
+        // 500,000원 등록하기가 떴고, 9월 30일 결제는 9월에도 10월에도 안 보였다.
+        val rows = paid("월세", 500_000, "2026-05-01", "2026-06-01", "2026-07-01", "2026-08-01", "2026-09-01", "2026-09-30", "2026-10-30")
+        val november = YearMonth.of(2026, 11)
+        listOf("2026-11-03", "2026-11-10").forEach { date ->
+            val board = board(readFor(rows, november), month = november, today = day(date))
+            assertTrue(board.due.isEmpty())
+            assertEquals(day("2026-10-30"), board.paid.single().lastPaidOn)
+        }
+        val inOctober = only(readFor(rows, october), today = day("2026-11-03"))
+        assertEquals(FixedStatus.PAID, inOctober.status)
+        assertEquals(day("2026-09-30"), inOctober.lastPaidOn)
+        assertEquals(1, inOctober.lastPaidCount)
+        val september = YearMonth.of(2026, 9)
+        assertEquals(day("2026-09-01"), only(readFor(rows, september), month = september, today = day("2026-11-03")).lastPaidOn)
+        // 10월 1일을 놓치고 10월 28일에 10월 몫과 11월 몫을 함께 냈으면 하나는 10월 몫, 하나는 11월 몫이다
+        val together = paid("월세", 500_000, "2026-07-01", "2026-08-01", "2026-09-01", "2026-10-28", "2026-10-28")
+        val october28 = only(readFor(together, october), today = day("2026-10-28"))
+        assertEquals(1, october28.lastPaidCount)
+        assertEquals(500_000L, october28.amount)
+        val november3 = board(readFor(together, november), month = november, today = day("2026-11-03"))
+        assertTrue(november3.due.isEmpty())
+        assertEquals(500_000L, november3.paidTotal)
+    }
+
+    @Test
+    fun `결제일이 28일에서 3일로 바뀐 첫 달은 앞 달 몫으로 옮기지 않는다`() {
+        // 9월을 건너뛰고 10월 3일에 냈다. 앞 달 평소 날짜(9월 28일)에서 5일 뒤라 휴일로 밀린 것이 아니다.
+        // 9월 몫으로 세면 10월이 '아직 안 냈어요' 와 등록하기로 남았다.
+        val rows = paid("통신비", 45_000, "2026-06-28", "2026-07-28", "2026-08-28", "2026-10-03")
+        val october10 = day("2026-10-10")
+        val inOctober = only(readFor(rows, october), today = october10)
+        assertEquals(FixedStatus.PAID, inOctober.status)
+        assertEquals(day("2026-10-03"), inOctober.lastPaidOn)
+        val september = YearMonth.of(2026, 9)
+        assertEquals(FixedStatus.DUE, only(readFor(rows, september), month = september, today = october10).status)
     }
 
     @Test
