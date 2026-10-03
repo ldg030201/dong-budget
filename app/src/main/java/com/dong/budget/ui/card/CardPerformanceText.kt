@@ -57,6 +57,13 @@ internal fun spokenPeriodRange(period: PerformancePeriod): String = "${monthDay(
 
 private fun monthDay(date: LocalDate): String = "${date.monthValue}월 ${date.dayOfMonth}일"
 
+/**
+ * 상세 기간 줄에서 오늘이 든 기간으로 돌아가는 버튼. 시작일이 1일이면 기간이 달력 달과 같아 통계처럼 "이번 달" 이다.
+ * 아니면 "이번 기간" 이다. 10월 3일에 시작일이 15일인 카드의 이번 기간은 '9월 실적' 이라, '이번 달' 을 눌러 9월이 나오지 않게 한다.
+ * 같은 줄의 화살표도 '이전 기간'·'다음 기간' 이라고 읽힌다.
+ */
+internal fun thisPeriodLabel(period: PerformancePeriod): String = if (period.start.dayOfMonth == 1) "이번 달" else "이번 기간"
+
 /** 이번 기간에 남은 날. 마지막 날이면 "오늘이 마지막 날이에요" */
 internal fun daysLeftText(days: Int): String = if (days <= 1) "오늘이 마지막 날이에요" else "${days}일 남았어요"
 

@@ -21,6 +21,15 @@ class CardPerformanceTextTest {
     }
 
     @Test
+    fun `이번 기간으로 돌아가는 버튼은 시작일이 1일일 때만 이번 달이라고 부른다`() {
+        assertEquals("이번 달", thisPeriodLabel(performancePeriod(october, 1)))
+        // 시작일이 15일이면 10월 3일의 이번 기간은 9월 실적이다. 전에는 '이번 달' 을 누르면 9월 실적이 나왔다
+        assertEquals("이번 기간", thisPeriodLabel(currentPeriod(today, 15)))
+        // 시작일이 말일(31)이면 2월 기간은 28일에 시작한다
+        assertEquals("이번 기간", thisPeriodLabel(performancePeriod(YearMonth.of(2026, 2), 31)))
+    }
+
+    @Test
     fun `남은 날은 기호 없이 말로 적는다`() {
         assertEquals("29일 남았어요", daysLeftText(29))
         assertEquals("오늘이 마지막 날이에요", daysLeftText(1))

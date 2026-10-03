@@ -79,7 +79,7 @@ class CardPerformanceDetailViewModel(
         picked.value = nextPick(picked.value, current)
     }
 
-    /** 기간 줄 오른쪽 '이번 달'. 다시 오늘이 든 기간을 따라간다. */
+    /** 기간 줄 오른쪽 '이번 달'(시작일이 1일이 아니면 '이번 기간'). 다시 오늘이 든 기간을 따라간다. */
     fun showCurrentPeriod() {
         picked.value = null
     }

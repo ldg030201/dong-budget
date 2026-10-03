@@ -73,7 +73,7 @@ import java.time.LocalDate
  * - ④ 그 기간 거래. 날짜별로 묶고, 누르면 거래 상세가 열린다.
  *
  * @param onEdit 상단 바 '수정'(실적을 지웠으면 머리의 '실적 추가'). 실적 구간·시작일을 고치는 화면
- * @param onThisPeriod 지난 기간을 보고 있을 때 기간 줄 오른쪽에 나오는 '이번 달'
+ * @param onThisPeriod 지난 기간을 보고 있을 때 기간 줄 오른쪽에 나오는 '이번 달'(시작일이 1일이 아니면 '이번 기간')
  * @param onOpenTransaction 거래 줄을 누르면 그 거래의 상세
  */
 @Composable
@@ -112,7 +112,7 @@ fun CardPerformanceDetailScreen(
 }
 
 /**
- * 기간 고르기. ‹ 10월 실적 › 와 그 아래 날짜, 지난 기간을 보고 있으면 오른쪽 끝에 '이번 달'.
+ * 기간 고르기. ‹ 10월 실적 › 와 그 아래 날짜, 지난 기간을 보고 있으면 오른쪽 끝에 '이번 달'(시작일이 1일이 아니면 '이번 기간').
  * 달 줄(MonthStepper)과 같은 모양이고, 앞으로의 기간은 볼 수 없어 이번 기간에서는 › 가 막힌다.
  */
 @Composable
@@ -133,7 +133,7 @@ private fun PeriodStepper(
     ) {
         BudgetIconButton(icon = Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "이전 기간", onClick = onPrevious)
         // 제목과 › 는 한 덩어리로 ‹ 옆에 붙는다. 다른 해의 기간("2025년 12월 실적")처럼 제목이 길어도 좁은 화면(320dp)에서
-        // › 와 '이번 달' 이 밀려나지 않게, 제목은 남는 폭 안에서 한 줄을 지키며 글자를 줄인다.
+        // › 와 '이번 달'·'이번 기간' 이 밀려나지 않게, 제목은 남는 폭 안에서 한 줄을 지키며 글자를 줄인다.
         Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
             // 기간을 넘기면 제목이 넘긴 방향으로 밀려 바뀐다. 폭이 달라져도 오른쪽 화살표가 따라 움직인다.
             AnimatedContent(
@@ -156,7 +156,7 @@ private fun PeriodStepper(
             enter = fadeIn(Motion.quick()) + scaleIn(Motion.standard(), initialScale = HIDDEN_BUTTON_SCALE),
             exit = fadeOut(Motion.quick()) + scaleOut(Motion.standard(), targetScale = HIDDEN_BUTTON_SCALE),
         ) {
-            BudgetTextButton(text = THIS_PERIOD_LABEL, onClick = onThisPeriod)
+            BudgetTextButton(text = thisPeriodLabel(period), onClick = onThisPeriod)
         }
     }
 }
@@ -339,13 +339,10 @@ private fun TierRow(order: String, amount: String, status: String, reached: Bool
 
 private const val EDIT_LABEL = "수정"
 
-/** 지난 기간에서 오늘이 든 기간으로 돌아가는 버튼. 통계의 달 줄과 같은 말이다. */
-private const val THIS_PERIOD_LABEL = "이번 달"
-
 /** 기간 줄 제목이 좁은 화면에서 줄어드는 가장 작은 글자 크기 */
 private val MIN_TITLE_SIZE = 14.sp
 
-/** '이번 달' 버튼이 나타나고 사라질 때 이 크기에서 커지고 여기까지 줄어든다(통계와 같다) */
+/** '이번 달'·'이번 기간' 버튼이 나타나고 사라질 때 이 크기에서 커지고 여기까지 줄어든다(통계와 같다) */
 private const val HIDDEN_BUTTON_SCALE = 0.8f
 
 private const val HEADER_KEY = "header"
