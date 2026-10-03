@@ -6,6 +6,9 @@ import com.dong.budget.data.db.CategoryEntity
 import com.dong.budget.data.db.CategoryScope
 import com.dong.budget.data.db.CategoryStyle
 import com.dong.budget.data.db.CategoryWithCount
+import com.dong.budget.data.db.DEFAULT_CATEGORIES
+import com.dong.budget.data.db.FIXED_CATEGORY_CODE
+import com.dong.budget.data.db.SALARY_CATEGORY_CODE
 import com.dong.budget.data.db.etcCodeFor
 import kotlinx.coroutines.flow.Flow
 import java.time.Instant
@@ -25,6 +28,8 @@ class CategoryRepository(private val dao: CategoryDao) {
                 uuid = UUID.randomUUID().toString(),
                 scope = scope,
                 name = name,
+                // 지운 '고정지출'·'급여' 를 같은 이름으로 다시 만들면 고정지출 탭·월급 등록이 다시 알아보게 코드를 돌려준다
+                code = defaultCodeFor(scope, name) { dao.findByCode(scope, it) != null },
                 icon = CategoryStyle.iconOrFallback(icon),
                 color = CategoryStyle.colorOrFallback(color),
                 // '기타' 바로 앞에 붙인다
@@ -56,3 +61,22 @@ class CategoryRepository(private val dao: CategoryDao) {
         return dao.deleteMovingTransactions(id = id, fallbackId = fallback.id, now = Instant.now())
     }
 }
+
+/**
+ * 새로 만드는 분류에 붙일 기본 분류 코드. 기능이 코드로 찾는 기본 분류('고정지출'·'급여')를 지운 뒤 같은 종류에 같은 이름으로
+ * 다시 만들면 그 코드를 돌려준다. 이름은 앞뒤·가운데 띄어쓰기를 무시하고 견준다('고정 지출' 도 같다).
+ * 그 코드를 가진 분류가 아직 있으면([isTaken]) 붙이지 않는다(코드는 종류마다 하나다). 그 밖에는 null(사용자가 만든 분류)이다.
+ */
+internal inline fun defaultCodeFor(scope: CategoryScope, name: String, isTaken: (code: String) -> Boolean): String? =
+    reclaimableCode(scope, name)?.takeUnless(isTaken)
+
+/** [name] 이 다시 만들면 코드를 돌려줄 기본 분류의 이름이면 그 코드 */
+internal fun reclaimableCode(scope: CategoryScope, name: String): String? {
+    val compact = name.withoutSpaces()
+    return RECLAIMABLE_DEFAULTS.firstOrNull { it.scope == scope && it.name.withoutSpaces() == compact }?.code
+}
+
+private fun String.withoutSpaces(): String = filterNot { it.isWhitespace() }
+
+/** 다시 만들면 코드를 돌려줄 기본 분류. 기능이 코드로 찾는 것만 둔다. */
+private val RECLAIMABLE_DEFAULTS = DEFAULT_CATEGORIES.filter { it.code == FIXED_CATEGORY_CODE || it.code == SALARY_CATEGORY_CODE }

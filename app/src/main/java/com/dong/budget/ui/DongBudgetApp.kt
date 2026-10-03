@@ -273,6 +273,7 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
                                 // ── 고정지출 탭 ──
                                 // 화면 모델은 월급처럼 이 람다 안에서 만들어 셸과 같이 살게 한다(탭을 처음 열 때 생기고, 떠나 있으면 구독을 멈춘다).
                                 // '등록하기' 는 지난번 값으로 채운 등록창을, 줄은 그 가게의 가장 최근 거래 상세를 연다.
+                                // '고정지출' 분류를 지웠으면 다시 만들러 분류 관리를 연다.
                                 // 위에 다른 화면이 올라오는 동안 연달아 누른 탭은 받지 않는다(서브플로우와 같은 규칙).
                                 fixedExpenseContent = {
                                     val fixedViewModel: FixedExpenseViewModel = viewModel(factory = fixedExpenseViewModelFactory(container))
@@ -285,6 +286,7 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
                                         onThisMonth = fixedViewModel::showThisMonth,
                                         onRegister = { prefill -> if (settled()) navigator.go(TransactionEditorKey(prefill = prefill)) },
                                         onOpenTransaction = { id -> if (settled()) navigator.go(TransactionDetailKey(id)) },
+                                        onOpenCategories = { if (settled()) navigator.go(CategoryManageKey) },
                                     )
                                 },
                                 salaryContent = {

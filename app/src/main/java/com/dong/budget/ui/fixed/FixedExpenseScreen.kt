@@ -53,6 +53,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import com.dong.budget.R
 import com.dong.budget.navigation.EditorPrefill
 import com.dong.budget.ui.components.BudgetIconButton
+import com.dong.budget.ui.components.BudgetPrimaryButton
 import com.dong.budget.ui.components.BudgetSmallButton
 import com.dong.budget.ui.components.BudgetTextButton
 import com.dong.budget.ui.components.CategoryBadge
@@ -87,6 +88,7 @@ import java.time.YearMonth
  *
  * @param onRegister '등록하기'. 채울 값을 넘긴다. 사용자가 확인하고 저장해야 거래가 된다.
  * @param onOpenTransaction 줄을 누르면 그 가게의 가장 최근 고정지출 거래
+ * @param onOpenCategories '고정지출' 분류를 지웠을 때 다시 만들러 분류 관리로
  */
 @Composable
 fun FixedExpenseScreen(
@@ -96,6 +98,7 @@ fun FixedExpenseScreen(
     onThisMonth: () -> Unit,
     onRegister: (EditorPrefill) -> Unit,
     onOpenTransaction: (Long) -> Unit,
+    onOpenCategories: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     // '한동안 안 냈어요' 를 펼쳤는지. 그만둔 것들이라 접은 채 시작하고, 달을 넘겨도 사용자가 고른 대로 둔다.
@@ -105,7 +108,9 @@ fun FixedExpenseScreen(
         // 첫 계산 전에는 비워 둔다. 빈 상태 안내가 잠깐 보였다 사라지지 않게 한다.
         if (!state.loaded) return@Column
         if (!state.hasCategory) {
-            FixedEmpty(title = NO_CATEGORY_TITLE, body = NO_CATEGORY_BODY)
+            FixedEmpty(title = NO_CATEGORY_TITLE, body = NO_CATEGORY_BODY) {
+                BudgetPrimaryButton(text = OPEN_CATEGORIES_TEXT, onClick = onOpenCategories)
+            }
             return@Column
         }
         FixedMonthStepper(
@@ -452,11 +457,11 @@ private fun FixedMonthStepper(
 }
 
 /**
- * 보여 줄 것이 없을 때(분류를 지웠거나 고정지출이 없을 때). 큰 뱃지 아래에 제목과 설명을 가운데에 둔다.
- * 가로 화면처럼 높이가 모자라면 스크롤한다(월급 탭의 빈 화면과 같은 모양).
+ * 보여 줄 것이 없을 때(분류를 지웠거나 고정지출이 없을 때). 큰 뱃지 아래에 제목과 설명을 가운데에 두고, [action] 이 있으면 그 아래에 둔다.
+ * 가로 화면처럼 높이가 모자라면 버튼이 찌그러지지 않게 스크롤한다(월급 탭의 빈 화면과 같은 모양).
  */
 @Composable
-private fun FixedEmpty(title: String, body: String) {
+private fun FixedEmpty(title: String, body: String, action: (@Composable () -> Unit)? = null) {
     Column(
         modifier =
         Modifier
@@ -486,6 +491,10 @@ private fun FixedEmpty(title: String, body: String) {
             color = BudgetTheme.colors.textSecondary,
             textAlign = TextAlign.Center,
         )
+        if (action != null) {
+            Spacer(Modifier.height(BudgetTheme.spacing.sectionGap))
+            action()
+        }
         Spacer(Modifier.weight(1f))
     }
 }

@@ -169,7 +169,10 @@ internal fun summarySpoken(board: FixedExpenseBoard, month: YearMonth, today: Lo
 
 internal const val NO_CATEGORY_TITLE = "고정지출 분류가 없어요"
 
-internal const val NO_CATEGORY_BODY = "기본 분류 '고정지출'로 등록한 지출을 가게별로 모아 보여 주는 곳이에요. 그 분류를 지우면 여기서 모아 볼 수 없어요."
+/** 분류를 지웠을 때. 같은 이름으로 다시 만들면 저장소가 기본 분류로 알아본다(지울 때 '기타' 로 옮겨 간 지출은 돌아오지 않는다). */
+internal const val NO_CATEGORY_BODY = "분류 관리에서 '고정지출' 분류를 다시 만들면, 그 분류로 등록한 지출을 여기서 볼 수 있어요."
+
+internal const val OPEN_CATEGORIES_TEXT = "분류 관리 열기"
 
 /** 고른 달까지 고정지출이 하나도 없을 때. 지난 달이면 그 달까지는 없었다는 뜻이다. */
 internal fun emptyTitle(month: YearMonth, today: LocalDate): String = if (month == YearMonth.from(today)) {

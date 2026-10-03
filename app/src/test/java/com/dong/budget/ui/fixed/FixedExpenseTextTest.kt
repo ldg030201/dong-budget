@@ -195,6 +195,13 @@ class FixedExpenseTextTest {
     }
 
     @Test
+    fun `고정지출 분류를 지웠으면 분류 관리에서 다시 만들면 된다고 알린다`() {
+        assertEquals("고정지출 분류가 없어요", NO_CATEGORY_TITLE)
+        assertEquals("분류 관리에서 '고정지출' 분류를 다시 만들면, 그 분류로 등록한 지출을 여기서 볼 수 있어요.", NO_CATEGORY_BODY)
+        assertEquals("분류 관리 열기", OPEN_CATEGORIES_TEXT)
+    }
+
+    @Test
     fun `빈 화면 제목은 지난 달이면 그 달까지는 없었다고 적는다`() {
         assertEquals("고정지출로 등록한 지출이 없어요", emptyTitle(october, today))
         assertEquals("8월까지는 고정지출로 등록한 지출이 없어요", emptyTitle(YearMonth.of(2026, 8), today))
