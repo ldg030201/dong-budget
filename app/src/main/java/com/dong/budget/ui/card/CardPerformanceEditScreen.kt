@@ -37,6 +37,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.vectorResource
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.dong.budget.R
 import com.dong.budget.data.card.MAX_PERFORMANCE_TIERS
 import com.dong.budget.ui.components.ActionRow
@@ -54,11 +56,12 @@ import com.dong.budget.ui.theme.Motion
 import com.dong.budget.ui.theme.pressScaleClickable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.first
 
 /**
  * 카드 실적 정하기. 카드실적 탭의 '실적 추가' 나 상세의 '수정' 으로 들어온다. 월급 설정과 같은 모양이다.
  * 구간 줄을 누르면 화면 아래에 금액 키패드가, 시작일 줄을 누르면 1~31일 날짜판이 열린다. 바꾸는 대로 바로 저장한다.
- * 실적이 없는 카드로 처음 열면 빈 1구간 줄의 키패드를 연 채 시작한다.
+ * 실적이 없는 카드로 처음 열면 화면이 다 밀려 들어온 뒤 빈 1구간 줄의 키패드를 연다.
  *
  * @param state 지금 값. 결제수단을 다 읽기 전에는 null 이다.
  * @param onAddRow 빈 구간 줄을 더한다. 더한 줄의 번호를 돌려주면 그 키패드를 연다.
@@ -96,11 +99,19 @@ fun CardPerformanceEditScreen(
     var panel by rememberSaveable { mutableStateOf<Int?>(null) }
     // 실적이 없는 카드로 처음 열었으면 빈 1구간 줄의 키패드를 연다. 화면을 돌린 뒤에는 다시 열지 않는다.
     var started by rememberSaveable { mutableStateOf(false) }
+    // 첫 그림에 값이 없었으면 화면 모델을 새로 만든 것이다(처음 열었거나, 프로세스가 죽었다 돌아와 화면 상태만 되살아났다).
+    // 화면을 돌린 경우는 화면 모델이 남아 첫 그림부터 값이 있다.
+    val recreated = remember { state == null }
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
     val loaded = state != null
     LaunchedEffect(loaded) {
-        if (state == null || started) return@LaunchedEffect
+        val first = state ?: return@LaunchedEffect
+        panel =
+            startPanel(panel = { panel }, started = started, recreated = recreated, startWithKeypad = first.startWithKeypad) {
+                // 화면이 다 밀려 들어와야(RESUMED) 고침을 받는다(DongBudgetApp 의 settled). 그 전에 연 키패드를 누르면 숫자가 버려진다.
+                lifecycle.currentStateFlow.first { it.isAtLeast(Lifecycle.State.RESUMED) }
+            }
         started = true
-        if (state.startWithKeypad) panel = 0
     }
     val rows = state?.rows.orEmpty()
     // 줄을 지워 줄 수가 줄었으면 없는 줄의 입력판은 닫힌 것으로 본다

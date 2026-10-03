@@ -216,6 +216,28 @@ internal fun panelAfterRemoval(panel: Int?, removed: Int): Int? = when {
 }
 
 /**
+ * 편집 화면이 값을 처음 받았을 때 열어 둘 입력판.
+ * - 처음 연 화면([started] 가 false): 입력을 받을 수 있을 때([awaitReady], 화면이 다 밀려 들어와 RESUMED)까지 기다린 뒤,
+ *   실적이 없는 카드면 빈 1구간 키패드를 연다. 밀려 들어오는 동안은 키패드 누름을 받지 않아서, 먼저 열면 그동안 친 숫자가
+ *   말없이 버려지고 남은 숫자로 저장된다(1,500,000 을 빨리 치면 500,000). 기다리는 동안 사용자가 연 입력판이 있으면 그대로 둔다.
+ * - 화면 상태만 되살아난 화면([recreated], 프로세스가 죽었다 돌아왔다): 구간 줄을 저장된 정렬 순서로 새로 읽어서 남아 있던
+ *   키패드 번호가 다른 줄을 가리킬 수 있다. 그래서 구간 키패드는 닫는다. 시작일 판은 줄 번호와 상관없어 그대로 둔다.
+ * - 화면을 돌린 화면(화면 모델이 남아 있다)은 그대로 둔다.
+ * @param panel 지금 입력판. 기다린 뒤의 값을 읽도록 함수로 받는다.
+ */
+internal suspend fun startPanel(
+    panel: () -> Int?,
+    started: Boolean,
+    recreated: Boolean,
+    startWithKeypad: Boolean,
+    awaitReady: suspend () -> Unit,
+): Int? {
+    if (started) return panel().takeIf { !recreated || it == START_DAY_PANEL }
+    awaitReady()
+    return panel() ?: 0.takeIf { startWithKeypad }
+}
+
+/**
  * 구간 줄 [keypad] 의 키패드 누름을 받을지. 누르는 순간 열린 입력판([open])이 그 줄일 때만 받는다.
  * 닫히며 내려가는 중(null)이거나 다른 줄로 바뀌며 사라지는 키패드는 옛 줄 번호를 들고 있어서, 받으면 엉뚱한 줄 금액이 바뀐다.
  */

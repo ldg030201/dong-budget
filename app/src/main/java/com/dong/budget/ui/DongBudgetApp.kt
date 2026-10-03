@@ -691,7 +691,7 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
                                 if (closed) navigator.closeIfTop(key)
                             }
                             // 자리 잡은 뒤(RESUMED)에만 고침을 받는다. 탭의 '실적 추가' 를 연달아 누른 두 번째 탭이 올라오는 중인
-                            // 키패드 숫자나 구간 지우기 버튼에 떨어져 실적이 바뀌지 않게 한다.
+                            // 구간 지우기 버튼 등에 떨어져 실적이 바뀌지 않게 한다. 그래서 빈 1구간 키패드도 화면이 자리 잡은 뒤에 연다.
                             val settled = rememberSettled()
                             CardPerformanceEditScreen(
                                 state = state,
