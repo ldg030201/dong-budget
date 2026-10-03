@@ -49,7 +49,11 @@ class CardPerformanceTextTest {
     @Test
     fun `쓴 돈은 1원까지, 환불이 더 많으면 그렇게 읽는다`() {
         assertEquals("123,450원", spentText(123_450))
-        assertEquals("-1,000원", spentText(-1_000))
+        // 앱의 다른 곳처럼 돌려받은 쪽은 + 다. 전에는 "-1,000원" 이라 같은 화면의 결제 줄(-)과 부호가 겹쳤다
+        assertEquals("+1,000원", spentText(-1_000))
+        assertEquals("0원", spentText(0))
+        assertEquals("12.3만", historyValueLabel(123_450))
+        assertEquals("+1,000", historyValueLabel(-1_000))
         assertEquals("123,450원", spokenSpent(123_450))
         assertEquals("환불받은 돈이 1,000원 더 많아요", spokenSpent(-1_000))
     }
@@ -90,6 +94,7 @@ class CardPerformanceTextTest {
         assertEquals("9월 실적 523,000원 · 30만원 구간을 채웠어요", previousLine(september, today, TierProgress(523_000, tiers)))
         assertEquals("9월 실적 120,000원 · 30만원까지 180,000원 모자랐어요", previousLine(september, today, TierProgress(120_000, tiers)))
         assertEquals("9월 실적 0원 · 30만원까지 300,000원 모자랐어요", previousLine(september, today, TierProgress(0, tiers)))
+        assertEquals("9월 실적 +1,000원 · 30만원까지 301,000원 모자랐어요", previousLine(september, today, TierProgress(-1_000, tiers)))
     }
 
     @Test
@@ -106,6 +111,12 @@ class CardPerformanceTextTest {
             "하나카드, 10월 실적 123,450원, 10월 1일부터 10월 31일까지, 29일 남았어요. " +
                 "첫 구간 30만원까지 176,550원 남았어요. 9월 실적 523,000원, 30만원 구간을 채웠어요",
             trackedCardDescription(item, today),
+        )
+        // 지난 기간도 이번 기간처럼 환불이 더 많으면 부호 대신 말로 읽는다. 전에는 '9월 실적 -1,000원' 을 그대로 읽었다
+        assertEquals(
+            "하나카드, 10월 실적 123,450원, 10월 1일부터 10월 31일까지, 29일 남았어요. " +
+                "첫 구간 30만원까지 176,550원 남았어요. 9월 실적 환불받은 돈이 1,000원 더 많아요, 30만원까지 301,000원 모자랐어요",
+            trackedCardDescription(item.copy(previous = TierProgress(-1_000, tiers)), today),
         )
     }
 

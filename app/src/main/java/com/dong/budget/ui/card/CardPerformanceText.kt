@@ -5,6 +5,8 @@ import com.dong.budget.data.card.MAX_PERFORMANCE_TIERS
 import com.dong.budget.ui.format.formatAmount
 import com.dong.budget.ui.format.formatKoreanWon
 import com.dong.budget.ui.format.formatMonth
+import com.dong.budget.ui.format.formatSpentAmount
+import com.dong.budget.ui.stats.chart.formatAxisWon
 import java.time.LocalDate
 import java.time.YearMonth
 
@@ -67,8 +69,14 @@ internal fun thisPeriodLabel(period: PerformancePeriod): String = if (period.sta
 /** 이번 기간에 남은 날. 마지막 날이면 "오늘이 마지막 날이에요" */
 internal fun daysLeftText(days: Int): String = if (days <= 1) "오늘이 마지막 날이에요" else "${days}일 남았어요"
 
-/** 쓴 돈. "123,450원", 환불받은 돈이 더 많으면 "-1,000원" */
-internal fun spentText(spent: Long): String = if (spent < 0) "-${formatAmount(-spent)}원" else "${formatAmount(spent)}원"
+/**
+ * 쓴 돈. "123,450원", 환불받은 돈이 더 많으면 앱의 다른 곳처럼 돌려받은 쪽 부호로 "+1,000원" 이다.
+ * 같은 화면의 거래 줄도 결제는 '-', 환불은 '+' 라서 '-' 를 쓰면 쓴 돈과 돌려받은 돈이 같은 부호로 보인다.
+ */
+internal fun spentText(spent: Long): String = formatSpentAmount(spent)
+
+/** 상세 막대 위에 적는 줄인 쓴 돈. "12.3만", 환불받은 돈이 더 많으면 머리 금액과 같은 부호로 "+1,000" */
+internal fun historyValueLabel(spent: Long): String = if (spent < 0) "+${formatAxisWon(-spent)}" else formatAxisWon(spent)
 
 /** 화면 읽기용 쓴 돈. "123,450원", 환불받은 돈이 더 많으면 "환불받은 돈이 1,000원 더 많아요" */
 internal fun spokenSpent(spent: Long): String = if (spent < 0) "환불받은 돈이 ${formatAmount(-spent)}원 더 많아요" else "${formatAmount(spent)}원"
@@ -97,13 +105,18 @@ internal fun tierSentence(progress: TierProgress, past: Boolean): String {
 }
 
 /** 지난 기간 한 줄. "9월 실적 523,000원 · 30만원 구간을 채웠어요" / "9월 실적 120,000원 · 30만원까지 180,000원 모자랐어요" */
-internal fun previousLine(month: YearMonth, today: LocalDate, progress: TierProgress): String {
-    val head = "${periodName(month, today)} ${spentText(progress.spent)}"
-    val first = progress.tiers.firstOrNull() ?: return head
+internal fun previousLine(month: YearMonth, today: LocalDate, progress: TierProgress): String =
+    listOfNotNull("${periodName(month, today)} ${spentText(progress.spent)}", previousStatus(progress)).joinToString(" · ")
+
+/** 화면 읽기용 지난 기간 한 줄. 환불받은 돈이 더 많으면 부호 대신 "9월 실적 환불받은 돈이 1,000원 더 많아요, …" 로 읽는다. */
+private fun spokenPreviousLine(month: YearMonth, today: LocalDate, progress: TierProgress): String =
+    listOfNotNull("${periodName(month, today)} ${spokenSpent(progress.spent)}", previousStatus(progress)).joinToString(", ")
+
+/** 지난 기간에 구간을 채웠는지. "30만원 구간을 채웠어요" / "30만원까지 180,000원 모자랐어요". 구간이 없으면 null */
+private fun previousStatus(progress: TierProgress): String? {
+    val first = progress.tiers.firstOrNull() ?: return null
     val reached = progress.reached
-    val status =
-        if (reached != null) "${tierName(reached)} 구간을 채웠어요" else "${tierName(first)}까지 ${formatAmount(progress.remaining)}원 모자랐어요"
-    return "$head · $status"
+    return if (reached != null) "${tierName(reached)} 구간을 채웠어요" else "${tierName(first)}까지 ${formatAmount(progress.remaining)}원 모자랐어요"
 }
 
 /**
@@ -127,7 +140,7 @@ internal fun trackedCardDescription(item: TrackedCard, today: LocalDate): String
     "${item.card.name}, ${periodName(item.period.month, today)} ${spokenSpent(item.progress.spent)}, " +
         "${spokenPeriodRange(item.period)}, ${daysLeftText(item.daysLeft)}",
     spoken(tierSentence(item.progress, past = false)),
-    spoken(previousLine(item.previousMonth, today, item.previous)),
+    spokenPreviousLine(item.previousMonth, today, item.previous),
 ).joinToString(". ")
 
 /** 실적을 안 적은 카드 줄의 부제. "이번 달 123,000원 썼어요", 시작일을 바꿨으면 "9월 15일부터 …" */

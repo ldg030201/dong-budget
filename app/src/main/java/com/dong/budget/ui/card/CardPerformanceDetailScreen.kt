@@ -54,7 +54,6 @@ import com.dong.budget.ui.stats.chart.AxisLabel
 import com.dong.budget.ui.stats.chart.AxisLabelStyle
 import com.dong.budget.ui.stats.chart.ColumnChart
 import com.dong.budget.ui.stats.chart.ColumnSlot
-import com.dong.budget.ui.stats.chart.formatAxisWon
 import com.dong.budget.ui.stats.detail.transactionsTitle
 import com.dong.budget.ui.theme.BudgetTheme
 import com.dong.budget.ui.theme.Motion
@@ -286,7 +285,7 @@ private fun HistorySection(state: CardPerformanceDetailUiState) {
                 values = listOf(entry.progress.spent),
                 label = AxisLabel("${entry.period.month.monthValue}월", if (selected) AxisLabelStyle.STRONG else AxisLabelStyle.NORMAL),
                 description = historySlotDescription(entry, past = entry.period.month != state.currentMonth),
-                valueLabel = formatAxisWon(entry.progress.spent),
+                valueLabel = historyValueLabel(entry.progress.spent),
                 colors = listOf(if (selected) highlight else context),
             )
         }
