@@ -16,8 +16,8 @@ import kotlin.math.abs
 // 가게는 많이 쓴 곳과 같은 열쇠(merchantKey: 띄어쓰기·대소문자 무시)로 묶는다. 이름이 비슷하기만 한 가게는 합치지 않는다.
 // 몇 달마다 · 며칠쯤 · 얼마를 내는지는 따로 적어 두지 않고 지난 기록에서 그때그때 짐작한다(차례는 buildFixedExpenses).
 // 고른 달 뒤의 기록은 보지 않는다. 지난 달을 보면 그 달까지 알던 대로 보인다.
-// - 평소 날짜와 한 달에 보통 몇 번 내는지를 먼저 짐작한다. 31일에 낸 적이 있으면 짧은 달 말일(9월 30일 등)도 말일로 센다.
-//   달 초와 달 말에 낸 날이 섞여 있으면 달 경계를 이어 센다(말일 것이 1일로 밀린 날이 평소 날짜가 되지 않게).
+// - 한 달에 보통 몇 번 내는지와 평소 날짜를 먼저 짐작한다. 31일에 낸 적이 있으면 짧은 달 말일(9월 30일 등)도 말일로 센다.
+//   보통 한 번 내는데 달 초와 달 말에 낸 날이 섞여 있으면 달 경계를 이어 센다(말일 것이 1일로 밀린 날이 평소 날짜가 되지 않게).
 // - 결제는 낸 달이 아니라 '몇 월 몫인지' 로 센다. 1일에 내는 월세를 전달 말에 미리 냈으면 다음 달 몫이고,
 //   말일 자동이체가 휴일로 다음 달 초에 밀렸으면 앞 달 몫이다. 그래서 다음 달 초 며칠까지는 읽는다.
 //   한 달에 한 번 · 매달 내는 것만 옮긴다(매년 내는 것을 일찍 냈거나 한 가게에 달 초 · 달 말 두 번 내는 것은 낸 달 몫 그대로다).
@@ -122,9 +122,10 @@ data class FixedExpenseBoard(
 /**
  * [month] 의 고정지출을 계산한다. 가게별로 묶고, 가게마다 아래 차례로 센다. 1·2는 고른 달 말일까지 낸 것만 본다.
  *
- * 1. 평소 날짜([usualDayOf]): 최근 결제일(같은 날은 한 번, 최대 [USUAL_DAY_SAMPLES] 번)의 가운데 값(짝수 개면 이른 쪽).
- *    31일에 낸 적이 있으면 짧은 달 말일도 말일로 센다. 달 초와 달 말에 낸 날이 섞여 있으면 달 경계를 이어 센다.
- * 2. 보통 건수([usualCountOf]): 결제가 있었던 최근 [USUAL_COUNT_MONTHS] 달(달력 달)에 낸 횟수의 가운데 값(짝수 개면 적은 쪽).
+ * 1. 보통 건수([usualCountOf]): 결제가 있었던 최근 [USUAL_COUNT_MONTHS] 달(달력 달)에 낸 횟수의 가운데 값(짝수 개면 적은 쪽).
+ *    결제가 있었던 달이 하나뿐이면 1이다.
+ * 2. 평소 날짜([usualDayOf]): 최근 결제일(같은 날은 한 번, 최대 [USUAL_DAY_SAMPLES] 번)의 가운데 값(짝수 개면 이른 쪽).
+ *    31일에 낸 적이 있으면 짧은 달 말일도 말일로 센다. 보통 한 번 내는데 달 초와 달 말에 낸 날이 섞여 있으면 달 경계를 이어 센다.
  * 3. 몇 월 몫인지([shareMonths]): 한 달에 보통 한 번 내는 것만, 달 말 납부가 다음 달 초로 밀렸거나 달 초 납부를 전달 말에 미리 낸
  *    한 건을 옆 달 몫으로 옮긴다. 옆 달이 비었는지는 낸 달(달력 달)로 보고, 옮겨 센 몫이 매달일 때만 옮긴다. 고른 달 뒤의 몫은 뺀다.
  * 4. 같은 몫끼리 합친다. 그 몫의 날짜는 첫 결제일이다(실제로 낸 날 그대로).
@@ -187,11 +188,11 @@ private val byTime = compareBy<TransactionListItem> { it.occurredAt }.thenBy { i
 
 /** 한 가게를 [month] 에서 본 것. 고른 달까지 낸 몫이 없으면(첫 결제 전 달) null */
 private fun fixedItem(key: String, rows: List<TransactionListItem>, month: YearMonth, today: LocalDate): FixedExpenseItem? {
-    // 평소 날짜·보통 건수는 고른 달까지 낸 것으로만 짐작한다
+    // 보통 건수·평소 날짜는 고른 달까지 낸 것으로만 짐작한다
     val known = rows.filter { !it.localDate().isAfter(month.atEndOfMonth()) }
     if (known.isEmpty()) return null
-    val usualDay = usualDayOf(known.map { it.localDate() }.distinct().sorted().takeLast(USUAL_DAY_SAMPLES))
     val usualCount = usualCountOf(known)
+    val usualDay = usualDayOf(known.map { it.localDate() }.distinct().sorted().takeLast(USUAL_DAY_SAMPLES), usualCount)
     val shares = shareMonths(rows, month, usualDay, usualCount)
     val kept = rows.filter { shares.getValue(it.id) <= month }
     if (kept.isEmpty()) return null
@@ -269,14 +270,15 @@ private fun isCatchUp(previous: MonthPayment, current: MonthPayment, usualCount:
  * 31일에 낸 적이 있으면 말일에 내는 것으로 보고, 짧은 달의 말일(2월 28일·9월 30일 등)도 31(말일)로 센다.
  * 31일에 낸 적이 없으면(매달 30일에 내는 등) 날짜 그대로 센다.
  *
- * 달 초(1~[SHIFT_DAYS] 일)와 달 말([LATE_PAY_FROM] 일 이후)에 낸 날이 섞여 있으면 달 경계를 이어 센다. 달 초 날짜를 말일 뒤(31 + 날짜)로 놓고
- * 가운데 값을 구해, 말일을 넘으면 달 초 납부(1일에 내는 월세를 가끔 전달 말에 미리 냄), 아니면 달 말 납부(말일 것이 가끔 다음 달 초로 밀림)다.
- * 그냥 가운데 값을 쓰면 말일 것 하나가 1일로 밀린 두 건(8월 31일·10월 1일)에서 평소 날짜가 1일이 된다.
+ * 한 달에 보통 한 번([usualCount]) 내는데 달 초(1~[SHIFT_DAYS] 일)와 달 말([LATE_PAY_FROM] 일 이후)에 낸 날이 섞여 있으면 달 경계를 이어 센다.
+ * 달 초 날짜를 말일 뒤(31 + 날짜)로 놓고 가운데 값을 구해, 말일을 넘으면 달 초 납부(1일에 내는 월세를 가끔 전달 말에 미리 냄),
+ * 아니면 달 말 납부(말일 것이 가끔 다음 달 초로 밀림)다. 그냥 가운데 값을 쓰면 말일 것 하나가 1일로 밀린 두 건(8월 31일·10월 1일)에서
+ * 평소 날짜가 1일이 된다. 한 달에 두 번 내는 가게(3일 · 28일)는 이어 세지 않는다. 이어 세면 28일이 평소 날짜가 되어 3일 것을 놓쳐도 28일까지 알리지 않는다.
  */
-private fun usualDayOf(dates: List<LocalDate>): Int {
+private fun usualDayOf(dates: List<LocalDate>, usualCount: Int): Int {
     val paysOnLastDay = dates.any { it.dayOfMonth == LAST_DAY }
     val days = dates.map { if (paysOnLastDay && it.dayOfMonth == it.lengthOfMonth()) LAST_DAY else it.dayOfMonth }
-    if (days.none { it <= SHIFT_DAYS } || days.none { it >= LATE_PAY_FROM }) return lowerMedian(days)
+    if (usualCount != 1 || days.none { it <= SHIFT_DAYS } || days.none { it >= LATE_PAY_FROM }) return lowerMedian(days)
     val wrapped = lowerMedian(days.map { if (it <= SHIFT_DAYS) LAST_DAY + it else it })
     return if (wrapped > LAST_DAY) wrapped - LAST_DAY else wrapped
 }

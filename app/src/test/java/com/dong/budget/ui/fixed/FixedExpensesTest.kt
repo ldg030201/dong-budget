@@ -487,6 +487,12 @@ class FixedExpensesTest {
         assertEquals(80_000L, due.amount)
         assertEquals(80_000L, october1.dueTotal)
         assertTrue(october1.paid.isEmpty())
+        // 평소 날짜는 앞 결제(3일)다. 달 경계를 이어 세 28일로 잡으면 3일 것을 놓쳐도 28일까지 알리지 않았다.
+        val october10 = day("2026-10-10")
+        val late = only(readFor(monthly, october), today = october10)
+        assertEquals(3, late.usualDay)
+        assertEquals(7, late.daysPastUsual)
+        assertEquals(RowNote("평소보다 7일 지났어요", NoteTone.WARNING), rowNote(late, october, october10))
         // 10월에도 두 번 냈으면 10월 화면에 둘 다 보이고, 11월 2일에도 11월은 아직이다
         val withOctober = monthly + paid("보험", 50_000, "2026-10-03") + paid("보험", 30_000, "2026-10-28")
         val inOctober = only(readFor(withOctober, october), today = day("2026-11-02"))
@@ -501,7 +507,6 @@ class FixedExpensesTest {
         // 9월을 통째로 건너뛰고 10월 3일에 냈으면 10월 3일은 9월 몫이 아니라 10월에 낸 것이다
         val skipped = (6..8).flatMap { paid("보험", 50_000, "2026-0$it-03") + paid("보험", 30_000, "2026-0$it-28") } +
             paid("보험", 50_000, "2026-10-03")
-        val october10 = day("2026-10-10")
         assertEquals(FixedStatus.PAID, only(readFor(skipped, october), today = october10).status)
         val september = YearMonth.of(2026, 9)
         assertEquals(FixedStatus.DUE, only(readFor(skipped, september), month = september, today = october10).status)
