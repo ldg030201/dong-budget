@@ -95,6 +95,9 @@ class CardPerformanceTextTest {
         assertEquals("9월 실적 120,000원 · 30만원까지 180,000원 모자랐어요", previousLine(september, today, TierProgress(120_000, tiers)))
         assertEquals("9월 실적 0원 · 30만원까지 300,000원 모자랐어요", previousLine(september, today, TierProgress(0, tiers)))
         assertEquals("9월 실적 +1,000원 · 30만원까지 301,000원 모자랐어요", previousLine(september, today, TierProgress(-1_000, tiers)))
+        // 카드를 쓰기 전 기간
+        assertEquals("9월 실적은 기록이 없어요", previousLine(september, today, null))
+        assertEquals("2025년 12월 실적은 기록이 없어요", previousLine(YearMonth.of(2025, 12), today, null))
     }
 
     @Test
@@ -149,15 +152,26 @@ class CardPerformanceTextTest {
         fun history(vararg spent: Long, tiers: List<Long> = this.tiers) = spent.mapIndexed { index, amount ->
             PeriodSpent(performancePeriod(YearMonth.of(2026, 5 + index), 1), TierProgress(amount, tiers))
         }
-        assertEquals("최근 6개월 중 2번 가장 높은 구간을 채웠어요", historySummary(history(0, 800_000, 0, 700_000, 10, 20), tiers))
-        assertEquals("최근 6개월에는 가장 높은 구간을 채운 적이 없어요", historySummary(history(0, 0, 0, 0, 0, 0), tiers))
-        assertEquals("최근 6개월 모두 실적을 채웠어요", historySummary(history(1, 1, 1, 1, 1, 1, tiers = listOf(1L)), listOf(1L)))
-        assertNull(historySummary(history(0, 0, 0, 0, 0, 0), emptyList()))
+        assertEquals("최근 6개월 중 2번 가장 높은 구간을 채웠어요", historySummary(history(0, 800_000, 0, 700_000, 10, 20), tiers, october))
+        assertEquals("최근 6개월에는 가장 높은 구간을 채운 적이 없어요", historySummary(history(0, 0, 0, 0, 0, 0), tiers, october))
+        assertEquals("최근 6개월 모두 실적을 채웠어요", historySummary(history(1, 1, 1, 1, 1, 1, tiers = listOf(1L)), listOf(1L), october))
+        assertNull(historySummary(history(0, 0, 0, 0, 0, 0), emptyList(), october))
+
+        // 기록이 없는 기간(카드를 쓰기 전)은 세지 않는다
+        val partly = history(0, 0, 0, 800_000, 0, 20).mapIndexed { index, entry -> entry.copy(recorded = index >= 3) }
+        assertEquals("기록한 3개월 중 1번 가장 높은 구간을 채웠어요", historySummary(partly, tiers, october))
+        val reachedAll = history(0, 0, 0, 800_000, 900_000, 700_000).mapIndexed { index, entry -> entry.copy(recorded = index >= 3) }
+        assertEquals("기록한 3개월 모두 가장 높은 구간을 채웠어요", historySummary(reachedAll, tiers, october))
+        val onlyNow = history(0, 0, 0, 0, 0, 20).mapIndexed { index, entry -> entry.copy(recorded = index == 5) }
+        assertEquals("아직 지난 기록이 없어요", historySummary(onlyNow, tiers, october))
+        assertNull(historySummary(onlyNow.map { it.copy(recorded = false) }, tiers, YearMonth.of(2026, 11)))
 
         val entry = PeriodSpent(performancePeriod(october, 1), TierProgress(523_000, tiers))
         assertEquals("2026년 10월 실적, 523,000원, 30만원 구간을 채웠어요, 70만원까지 177,000원 남았어요", historySlotDescription(entry, past = false))
         val bare = PeriodSpent(performancePeriod(october, 1), TierProgress(523_000, emptyList()))
         assertEquals("2026년 10월 실적, 523,000원", historySlotDescription(bare, past = true))
+        val before = PeriodSpent(performancePeriod(YearMonth.of(2026, 5), 1), TierProgress(0, tiers), recorded = false)
+        assertEquals("2026년 5월 실적, 기록이 없어요", historySlotDescription(before, past = true))
     }
 
     @Test

@@ -71,6 +71,9 @@ data class PaymentMethodWithCount(@Embedded val paymentMethod: PaymentMethodEnti
 /** 분류 목록에 거래 건수를 붙인 것. 지울 때 '몇 건이 옮겨진다' 를 알려주는 데 쓴다. */
 data class CategoryWithCount(@Embedded val category: CategoryEntity, val transactionCount: Int)
 
+/** 결제수단 하나를 지출·환불에 처음 쓴 시각. 카드실적이 그 카드로 기록하기 전 기간을 가릴 때 쓴다. */
+data class PaymentMethodFirstUse(val paymentMethodId: Long, val firstAt: Instant)
+
 @Dao
 interface TransactionDao {
     /**
@@ -160,6 +163,19 @@ interface TransactionDao {
     /** 통계의 기록 시작 시각. 이체는 통계에서 빼므로 여기서도 뺀다. 거래가 없으면 null */
     @Query("SELECT MIN(occurredAt) FROM transactions WHERE type != 'TRANSFER'")
     fun observeFirstOccurredAt(): Flow<Instant?>
+
+    /**
+     * 결제수단마다 지출·환불을 처음 쓴 시각. 카드실적의 쓴 돈과 같은 거래만 센다(이체·수입은 뺀다).
+     * 한 번도 안 쓴 결제수단과 결제수단이 없는 거래는 들어 있지 않다. 날짜를 앞으로 적어 둔 거래도 센다.
+     */
+    @Query(
+        """
+        SELECT paymentMethodId, MIN(occurredAt) AS firstAt FROM transactions
+        WHERE paymentMethodId IS NOT NULL AND type IN ('EXPENSE', 'REFUND')
+        GROUP BY paymentMethodId
+        """,
+    )
+    fun observeFirstUseByPaymentMethod(): Flow<List<PaymentMethodFirstUse>>
 
     /** 알림에서 읽은 결제가 이미 등록됐는지 */
     @Query("SELECT EXISTS(SELECT 1 FROM transactions WHERE dedupKey = :key)")

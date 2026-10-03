@@ -26,6 +26,7 @@ internal fun PaymentMethodEntity.toCardInfo(): CardInfo = CardInfo(id = id, name
  * @property progress 이번 기간에 구간을 얼마나 채웠는지
  * @property previousMonth 바로 앞 기간의 이름 달
  * @property previous 바로 앞 기간. 카드 혜택은 보통 전월 실적으로 정해져서 함께 보여 준다.
+ *   그 카드를 처음 쓴 날 전에 끝난 기간이면 기록이 없어 null 이다([hasRecord]).
  */
 data class TrackedCard(
     val card: CardInfo,
@@ -33,7 +34,7 @@ data class TrackedCard(
     val daysLeft: Int,
     val progress: TierProgress,
     val previousMonth: YearMonth,
-    val previous: TierProgress,
+    val previous: TierProgress?,
 )
 
 /**
@@ -69,8 +70,14 @@ data class CardPerformanceUiState(
  * 탭의 상태를 만든다.
  * @param methods 결제수단 전부(결제수단 순서). 현금·계좌이체는 여기서 뺀다([isPerformanceTarget]).
  * @param rows 모든 결제수단의 거래([tabReadRange] 범위)
+ * @param firstUse 결제수단마다 지출·환불을 처음 쓴 날. 한 번도 안 쓴 결제수단은 없다.
  */
-fun buildCardPerformance(methods: List<PaymentMethodEntity>, rows: List<TransactionListItem>, today: LocalDate): CardPerformanceUiState {
+fun buildCardPerformance(
+    methods: List<PaymentMethodEntity>,
+    rows: List<TransactionListItem>,
+    today: LocalDate,
+    firstUse: Map<Long, LocalDate>,
+): CardPerformanceUiState {
     val tracked = mutableListOf<TrackedCard>()
     val untracked = mutableListOf<UntrackedCard>()
     methods.filter { it.isPerformanceTarget() }.forEach { method ->
@@ -81,6 +88,7 @@ fun buildCardPerformance(methods: List<PaymentMethodEntity>, rows: List<Transact
             untracked += UntrackedCard(card = method.toCardInfo(), period = period, spent = spent)
         } else {
             val previous = performancePeriod(period.month.minusMonths(1), method.performanceStartDay)
+            val recorded = hasRecord(previous, effectiveFirstUse(rows, method.id, firstUse[method.id]), period.month)
             tracked +=
                 TrackedCard(
                     card = method.toCardInfo(),
@@ -88,7 +96,7 @@ fun buildCardPerformance(methods: List<PaymentMethodEntity>, rows: List<Transact
                     daysLeft = daysLeft(period, today),
                     progress = TierProgress(spent, tiers),
                     previousMonth = previous.month,
-                    previous = TierProgress(spentIn(rows, method.id, previous), tiers),
+                    previous = if (recorded) TierProgress(spentIn(rows, method.id, previous), tiers) else null,
                 )
         }
     }
@@ -96,8 +104,11 @@ fun buildCardPerformance(methods: List<PaymentMethodEntity>, rows: List<Transact
     return CardPerformanceUiState(loaded = true, today = today, tracked = tracked, untracked = untracked.sortedByDescending { it.spent })
 }
 
-/** 상세 막대 차트의 한 칸. 한 기간에 쓴 돈과 구간을 얼마나 채웠는지 */
-data class PeriodSpent(val period: PerformancePeriod, val progress: TierProgress)
+/**
+ * 상세 막대 차트의 한 칸. 한 기간에 쓴 돈과 구간을 얼마나 채웠는지
+ * @property recorded 그 기간에 기록이 있는지([hasRecord]). 없으면 막대를 비우고 채웠는지 따지지 않는다.
+ */
+data class PeriodSpent(val period: PerformancePeriod, val progress: TierProgress, val recorded: Boolean = true)
 
 /**
  * 카드실적 상세의 상태.
@@ -108,6 +119,7 @@ data class PeriodSpent(val period: PerformancePeriod, val progress: TierProgress
  * @property period 고른 기간. 이번 기간보다 뒤로는 못 간다.
  * @property currentMonth 오늘이 든 기간의 이름 달
  * @property daysLeft 고른 기간이 이번 기간일 때 남은 날. 지난 기간이면 0
+ * @property recorded 고른 기간에 기록이 있는지. 카드를 처음 쓴 날 전에 끝난 지난 기간이면 false 라 채웠는지 따지지 않는다.
  * @property history 고른 기간까지 최근 [HISTORY_PERIODS] 기간(오래된 것이 앞, 마지막이 고른 기간)
  * @property days 고른 기간의 거래를 날짜별로(최근 날이 먼저)
  * @property count 고른 기간의 거래 수(지출·환불)
@@ -122,6 +134,7 @@ data class CardPerformanceDetailUiState(
     val period: PerformancePeriod?,
     val currentMonth: YearMonth?,
     val daysLeft: Int,
+    val recorded: Boolean,
     val progress: TierProgress,
     val history: List<PeriodSpent>,
     val days: List<DayGroup>,
@@ -140,6 +153,7 @@ data class CardPerformanceDetailUiState(
             period = null,
             currentMonth = null,
             daysLeft = 0,
+            recorded = true,
             progress = TierProgress(0, emptyList()),
             history = emptyList(),
             days = emptyList(),
@@ -152,18 +166,24 @@ data class CardPerformanceDetailUiState(
  * 상세의 상태를 만든다.
  * @param month 보고 싶은 기간의 이름 달. 이번 기간보다 뒤면 이번 기간으로 맞춘다(앞으로의 기간은 못 본다).
  * @param rows 이 카드의 지출·환불([historyPeriods] 의 첫 기간 시작부터 마지막 기간 끝까지)
+ * @param firstUse 이 카드를 지출·환불에 처음 쓴 날. 한 번도 안 썼으면 null
  */
 fun buildCardDetail(
     method: PaymentMethodEntity,
     month: YearMonth,
     today: LocalDate,
     rows: List<TransactionListItem>,
+    firstUse: LocalDate?,
 ): CardPerformanceDetailUiState {
     val startDay = method.performanceStartDay
     val tiers = method.performanceTierList
     val currentMonth = periodMonthOf(today, startDay)
     val shown = minOf(month, currentMonth)
-    val history = historyPeriods(shown, startDay).map { PeriodSpent(it, TierProgress(spentIn(rows, method.id, it), tiers)) }
+    val first = effectiveFirstUse(rows, method.id, firstUse)
+    val history =
+        historyPeriods(shown, startDay).map {
+            PeriodSpent(it, TierProgress(spentIn(rows, method.id, it), tiers), recorded = hasRecord(it, first, currentMonth))
+        }
     val selected = history.last()
     val inPeriod = rows.filter { it.paymentMethodId == method.id && it.localDate() in selected.period }
     return CardPerformanceDetailUiState(
@@ -175,6 +195,7 @@ fun buildCardDetail(
         period = selected.period,
         currentMonth = currentMonth,
         daysLeft = if (shown == currentMonth) daysLeft(selected.period, today) else 0,
+        recorded = selected.recorded,
         progress = selected.progress,
         history = history,
         days = groupByDay(inPeriod),

@@ -3,6 +3,7 @@ package com.dong.budget.ui.card
 import com.dong.budget.data.db.PaymentMethodEntity
 import com.dong.budget.data.db.PaymentMethodType
 import com.dong.budget.data.db.TransactionListItem
+import com.dong.budget.data.db.TransactionType
 import com.dong.budget.ui.home.localDate
 import com.dong.budget.ui.home.totals
 import java.time.LocalDate
@@ -15,6 +16,7 @@ import java.time.temporal.ChronoUnit
 // 실적 기간: 시작일이 s 면 달 M 의 기간은 M 의 s일(그 달에 없으면 말일)부터 다음 달 s일(없으면 말일) 전날까지다.
 // 양 끝을 같은 함수로 만들어 기간 사이에 틈도 겹침도 없다. 기간 이름은 시작한 달이다("10월 실적"). s = 1 이면 달력 달과 같다.
 // 쓴 돈: 그 결제수단의 지출 − 환불(통계 Totals 와 같은 규칙). 이체·수입은 넣지 않는다. 날짜를 앞으로 적어 둔 거래도 기간 안이면 넣는다.
+// 기록 없음: 그 카드를 처음 쓴 날 전에 끝난 지난 기간은 쓴 돈 0원을 '모자랐어요' 로 따지지 않고 기록이 없다고 둔다(통계가 기록 시작 전 달을 비우는 것과 같다).
 // ─────────────────────────────────────────────────────────────────────
 
 /** 상세의 막대 차트가 보여 주는 기간 수(고른 기간까지) */
@@ -83,6 +85,25 @@ fun tabReadRange(today: LocalDate): Pair<LocalDate, LocalDate> {
  * 알림으로 생긴 카드와 직접 만든 결제수단은 종류가 '기타' 로 저장돼서, 종류가 카드인 것만 고르면 기본 카드 두 개만 남는다.
  */
 fun PaymentMethodEntity.isPerformanceTarget(): Boolean = type != PaymentMethodType.CASH && type != PaymentMethodType.ACCOUNT
+
+/**
+ * [period] 에 이 카드 기록이 있는지. 카드를 처음 쓴 날([firstUse])보다 앞에 끝난 기간은 기록이 없다.
+ * 한 번도 안 쓴 카드(null)는 지난 기간이 모두 기록이 없다. 오늘이 든 기간([current])은 언제나 있다고 본다(이제부터 쓰면 된다).
+ */
+fun hasRecord(period: PerformancePeriod, firstUse: LocalDate?, current: YearMonth): Boolean =
+    period.month >= current || (firstUse != null && firstUse.isBefore(period.end))
+
+/**
+ * 결제수단 [paymentMethodId] 를 지출·환불에 처음 쓴 날. 첫 사용일 조회([firstUse])와 거래 목록([rows])은 따로 방출돼
+ * 잠깐 어긋날 수 있다(첫 거래를 막 등록한 직후 등). 보이는 거래보다 늦은 첫 사용일은 있을 수 없어 둘 중 이른 날을 쓴다(통계의 기록 시작일과 같다).
+ */
+internal fun effectiveFirstUse(rows: List<TransactionListItem>, paymentMethodId: Long, firstUse: LocalDate?): LocalDate? {
+    val earliestRow = rows.filter { it.paymentMethodId == paymentMethodId && it.type in SPENDING_TYPES }.minOfOrNull { it.localDate() }
+    return listOfNotNull(firstUse, earliestRow).minOrNull()
+}
+
+/** 쓴 돈에 드는 거래 종류(지출에서 환불을 뺀다) */
+private val SPENDING_TYPES = setOf(TransactionType.EXPENSE, TransactionType.REFUND)
 
 /** [rows] 중 결제수단 [paymentMethodId] 로 [period] 안에 쓴 돈(지출 − 환불). 환불이 더 많으면 음수다. */
 fun spentIn(rows: List<TransactionListItem>, paymentMethodId: Long, period: PerformancePeriod): Long =

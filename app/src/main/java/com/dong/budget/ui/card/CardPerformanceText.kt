@@ -13,6 +13,7 @@ import java.time.YearMonth
 // ─── 카드실적 문구 ───
 // 영어·기호 없이 해요체로 적는다. 구간 금액은 만 단위로 끊되 1원까지 적고(30만원, 30만 5,000원), 남은 돈은 숫자로 1원까지 적는다.
 // 쓴 돈이 구간 금액과 같아도 '채웠어요' 다(카드사의 '이상'). 지난 기간은 '남았어요' 대신 '모자랐어요' 로 끝난다.
+// 카드를 처음 쓴 날 전에 끝난 지난 기간은 '모자랐어요' 대신 '기록이 없어요' 다(탭의 지난 기간 줄, 상세의 머리·막대·구간 모두).
 // 사용자가 지은 카드 이름 뒤에는 조사를 붙이지 않는다. 화면 읽기 문장은 보이는 글의 ' · ' 를 쉼표로 바꿔 읽는다.
 
 internal const val CARD_PERFORMANCE_TITLE = "카드실적"
@@ -41,6 +42,12 @@ internal const val HISTORY_TITLE = "최근 6개월"
 internal const val TIERS_TITLE = "구간"
 
 internal const val NO_TRANSACTIONS_TEXT = "이 기간에 이 카드로 쓴 돈이 없어요"
+
+/** 상세에서 카드를 처음 쓴 날 전에 끝난 기간을 골랐을 때 머리의 구간 막대·문장 자리 */
+internal const val NO_RECORD_TEXT = "이 기간은 기록이 없어요"
+
+/** 최근 6개월 중 기록이 이번 기간뿐일 때(새 카드) 막대 아래 한 줄 */
+internal const val NO_PAST_RECORD_TEXT = "아직 지난 기록이 없어요"
 
 /** 편집의 구간 묶음 아래 안내 */
 internal const val TIERS_HINT = "카드사 혜택 안내의 '전월 실적 30만원 이상' 같은 금액을 적어 주세요"
@@ -104,13 +111,23 @@ internal fun tierSentence(progress: TierProgress, past: Boolean): String {
     }
 }
 
-/** 지난 기간 한 줄. "9월 실적 523,000원 · 30만원 구간을 채웠어요" / "9월 실적 120,000원 · 30만원까지 180,000원 모자랐어요" */
-internal fun previousLine(month: YearMonth, today: LocalDate, progress: TierProgress): String =
-    listOfNotNull("${periodName(month, today)} ${spentText(progress.spent)}", previousStatus(progress)).joinToString(" · ")
+/**
+ * 지난 기간 한 줄. "9월 실적 523,000원 · 30만원 구간을 채웠어요" / "9월 실적 120,000원 · 30만원까지 180,000원 모자랐어요"
+ * 그 카드를 쓰기 전 기간이라 기록이 없으면([progress] 가 null) "9월 실적은 기록이 없어요"
+ */
+internal fun previousLine(month: YearMonth, today: LocalDate, progress: TierProgress?): String {
+    progress ?: return noRecordLine(month, today)
+    return listOfNotNull("${periodName(month, today)} ${spentText(progress.spent)}", previousStatus(progress)).joinToString(" · ")
+}
 
 /** 화면 읽기용 지난 기간 한 줄. 환불받은 돈이 더 많으면 부호 대신 "9월 실적 환불받은 돈이 1,000원 더 많아요, …" 로 읽는다. */
-private fun spokenPreviousLine(month: YearMonth, today: LocalDate, progress: TierProgress): String =
-    listOfNotNull("${periodName(month, today)} ${spokenSpent(progress.spent)}", previousStatus(progress)).joinToString(", ")
+private fun spokenPreviousLine(month: YearMonth, today: LocalDate, progress: TierProgress?): String {
+    progress ?: return noRecordLine(month, today)
+    return listOfNotNull("${periodName(month, today)} ${spokenSpent(progress.spent)}", previousStatus(progress)).joinToString(", ")
+}
+
+/** 기록이 없는 지난 기간. "9월 실적은 기록이 없어요" */
+private fun noRecordLine(month: YearMonth, today: LocalDate): String = "${periodName(month, today)}은 기록이 없어요"
 
 /** 지난 기간에 구간을 채웠는지. "30만원 구간을 채웠어요" / "30만원까지 180,000원 모자랐어요". 구간이 없으면 null */
 private fun previousStatus(progress: TierProgress): String? {
@@ -166,28 +183,43 @@ internal fun addPerformanceLabel(name: String): String = "$name $ADD_PERFORMANCE
 /**
  * 최근 6개월 막대 아래 한 줄. 가장 높은 구간을 몇 번 채웠는지. 구간이 없으면 null
  * "최근 6개월 중 4번 가장 높은 구간을 채웠어요" / 구간이 하나면 "… 실적을 채웠어요"
+ * 기록이 없는 기간(카드를 쓰기 전)은 세지 않고 "기록한 2개월 중 1번 …" 처럼 센 기간만 말한다.
+ * 기록이 이번 기간뿐이면(새 카드) "아직 지난 기록이 없어요", 하나도 없으면(기록 전 기간을 보는 중이라 머리가 이미 알린다) null 이다.
+ * @param currentMonth 오늘이 든 기간의 이름 달
  */
-internal fun historySummary(history: List<PeriodSpent>, tiers: List<Long>): String? {
+internal fun historySummary(history: List<PeriodSpent>, tiers: List<Long>, currentMonth: YearMonth?): String? {
     if (tiers.isEmpty()) return null
+    val recorded = history.filter { it.recorded }
+    if (recorded.isEmpty()) return null
+    if (recorded.all { it.period.month == currentMonth }) return NO_PAST_RECORD_TEXT
     val goal = if (tiers.size == 1) "실적을" else "가장 높은 구간을"
-    val count = history.count { it.progress.allReached }
+    val span = if (recorded.size == history.size) "최근 6개월" else "기록한 ${recorded.size}개월"
+    val count = recorded.count { it.progress.allReached }
     return when (count) {
-        0 -> "최근 6개월에는 $goal 채운 적이 없어요"
-        history.size -> "최근 6개월 모두 $goal 채웠어요"
-        else -> "최근 6개월 중 ${count}번 $goal 채웠어요"
+        0 -> "${span}에는 $goal 채운 적이 없어요"
+        recorded.size -> "$span 모두 $goal 채웠어요"
+        else -> "$span 중 ${count}번 $goal 채웠어요"
     }
 }
 
-/** 막대 한 칸을 읽는 문장. "2026년 10월 실적, 523,000원, 30만원 구간을 채웠어요" */
-internal fun historySlotDescription(entry: PeriodSpent, past: Boolean): String = listOfNotNull(
-    "${formatMonth(entry.period.month)} 실적",
-    spokenSpent(entry.progress.spent),
-    tierSentence(entry.progress, past).takeIf { it.isNotEmpty() }?.let(::spoken),
-).joinToString(", ")
+/** 막대 한 칸을 읽는 문장. "2026년 10월 실적, 523,000원, 30만원 구간을 채웠어요", 기록이 없으면 "2026년 5월 실적, 기록이 없어요" */
+internal fun historySlotDescription(entry: PeriodSpent, past: Boolean): String {
+    val name = "${formatMonth(entry.period.month)} 실적"
+    if (!entry.recorded) return "$name, 기록이 없어요"
+    return listOfNotNull(
+        name,
+        spokenSpent(entry.progress.spent),
+        tierSentence(entry.progress, past).takeIf { it.isNotEmpty() }?.let(::spoken),
+    ).joinToString(", ")
+}
 
 /** 구간 목록 한 줄의 상태. "채웠어요" / "176,550원 남았어요" / 지난 기간은 "176,550원 모자랐어요" */
 internal fun tierStatus(tier: Long, spent: Long, past: Boolean): String =
     if (spent >= tier) "채웠어요" else "${formatAmount(tier - spent)}원 ${if (past) "모자랐어요" else "남았어요"}"
+
+/** 상세 구간 목록 한 줄의 상태. 고른 기간에 기록이 없으면 채웠는지 따지지 않아 null 이다(머리가 기록이 없다고 알린다). */
+internal fun tierRowStatus(state: CardPerformanceDetailUiState, tier: Long): String? =
+    if (state.recorded) tierStatus(tier, state.progress.spent, past = !state.isCurrent) else null
 
 /** 구간 차례. "1구간" */
 internal fun tierOrder(index: Int): String = "${index + 1}구간"
@@ -201,11 +233,15 @@ internal fun detailHeaderDescription(state: CardPerformanceDetailUiState): Strin
     return buildList {
         add(periodName(period.month, state.today))
         add(spokenSpent(state.progress.spent))
-        if (state.tiers.isEmpty()) {
-            add(NO_TIERS_TEXT)
-        } else {
-            add(spoken(tierSentence(state.progress, past = !state.isCurrent)))
-            if (state.isCurrent) add(spoken(daysLeftLine(state.daysLeft, dailyNeed(state.progress, state.daysLeft))))
+        when {
+            state.tiers.isEmpty() -> add(NO_TIERS_TEXT)
+
+            !state.recorded -> add(NO_RECORD_TEXT)
+
+            else -> {
+                add(spoken(tierSentence(state.progress, past = !state.isCurrent)))
+                if (state.isCurrent) add(spoken(daysLeftLine(state.daysLeft, dailyNeed(state.progress, state.daysLeft))))
+            }
         }
     }.joinToString(", ")
 }

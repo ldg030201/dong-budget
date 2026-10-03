@@ -66,9 +66,10 @@ import java.time.LocalDate
  * 위에서부터
  * - 상단 바(뒤로, 카드 이름, '수정')와 이 화면만의 기간 줄("10월 실적" · "10월 1일 ~ 10월 31일")
  * - ① 머리: 뱃지, 쓴 돈, 구간 막대, "첫 구간 30만원까지 176,550원 남았어요", 이번 기간이면 남은 날과 하루에 쓸 돈.
- *   실적을 지웠으면 막대 대신 '실적 추가'
+ *   실적을 지웠으면 막대 대신 '실적 추가', 카드를 처음 쓴 날 전에 끝난 기간이면 막대 대신 '이 기간은 기록이 없어요'
  * - ② 최근 6개월: 한 계열 막대. 고른 기간만 카드 색이고 나머지는 흐린 색이다. 가장 높은 구간을 몇 번 채웠는지 글로 적는다.
- * - ③ 구간: 구간마다 채웠는지, 얼마 남았는지(지난 기간은 얼마 모자랐는지)
+ *   기록이 없는 기간은 막대 없이 달 이름만 둔다(통계와 같다).
+ * - ③ 구간: 구간마다 채웠는지, 얼마 남았는지(지난 기간은 얼마 모자랐는지). 기록이 없는 기간이면 금액만 둔다.
  * - ④ 그 기간 거래. 날짜별로 묶고, 누르면 거래 상세가 열린다.
  *
  * @param onEdit 상단 바 '수정'(실적을 지웠으면 머리의 '실적 추가'). 실적 구간·시작일을 고치는 화면
@@ -247,6 +248,9 @@ private fun DetailHeader(state: CardPerformanceDetailUiState, onEdit: () -> Unit
             }
             if (state.tiers.isEmpty()) {
                 Text(text = NO_TIERS_TEXT, style = MaterialTheme.typography.bodyMedium, color = BudgetTheme.colors.textSecondary)
+            } else if (!state.recorded) {
+                // 카드를 쓰기 전 기간이다. 쓴 돈 0원을 '모자랐어요' 로 따지지 않는다.
+                Text(text = NO_RECORD_TEXT, style = MaterialTheme.typography.bodyMedium, color = BudgetTheme.colors.textSecondary)
             } else {
                 TierBar(
                     progress = progress,
@@ -282,37 +286,43 @@ private fun HistorySection(state: CardPerformanceDetailUiState) {
         state.history.mapIndexed { index, entry ->
             val selected = index == state.history.lastIndex
             ColumnSlot(
-                values = listOf(entry.progress.spent),
+                // 카드를 쓰기 전 기간은 막대 없이 달 이름만 둔다
+                values = if (entry.recorded) listOf(entry.progress.spent) else emptyList(),
                 label = AxisLabel("${entry.period.month.monthValue}월", if (selected) AxisLabelStyle.STRONG else AxisLabelStyle.NORMAL),
                 description = historySlotDescription(entry, past = entry.period.month != state.currentMonth),
-                valueLabel = historyValueLabel(entry.progress.spent),
+                valueLabel = if (entry.recorded) historyValueLabel(entry.progress.spent) else null,
                 colors = listOf(if (selected) highlight else context),
             )
         }
     StatsSection(
         modifier = Modifier.padding(top = BudgetTheme.spacing.sectionGap),
         title = HISTORY_TITLE,
-        subtitle = historySummary(state.history, state.tiers),
+        subtitle = historySummary(state.history, state.tiers, state.currentMonth),
     ) {
         ColumnChart(slots = slots, seriesColors = listOf(context))
     }
 }
 
-/** ③ 구간. 구간마다 차례와 금액, 오른쪽에 채웠는지(브랜드색) 아니면 얼마 남았는지. 지난 기간은 얼마 모자랐는지 */
+/**
+ * ③ 구간. 구간마다 차례와 금액, 오른쪽에 채웠는지(브랜드색) 아니면 얼마 남았는지. 지난 기간은 얼마 모자랐는지.
+ * 카드를 쓰기 전 기간이면 오른쪽을 비운다(머리가 기록이 없다고 알린다).
+ */
 @Composable
 private fun TierSection(state: CardPerformanceDetailUiState) {
     val spent = state.progress.spent
-    val past = !state.isCurrent
     StatsSection(modifier = Modifier.padding(top = BudgetTheme.spacing.sectionGap), title = TIERS_TITLE) {
         state.tiers.forEachIndexed { index, tier ->
-            TierRow(order = tierOrder(index), amount = tierName(tier), status = tierStatus(tier, spent, past), reached = spent >= tier)
+            TierRow(order = tierOrder(index), amount = tierName(tier), status = tierRowStatus(state, tier), reached = spent >= tier)
         }
     }
 }
 
-/** 구간 한 줄. 화면 읽기는 "1구간, 30만원, 채웠어요" 로 한 번에 읽는다. 채웠는지는 색만이 아니라 글로도 적는다. */
+/**
+ * 구간 한 줄. 화면 읽기는 "1구간, 30만원, 채웠어요" 로 한 번에 읽는다. 채웠는지는 색만이 아니라 글로도 적는다.
+ * @param status 채웠는지·얼마 남았는지. null 이면(기록이 없는 기간) 적지 않는다.
+ */
 @Composable
-private fun TierRow(order: String, amount: String, status: String, reached: Boolean) {
+private fun TierRow(order: String, amount: String, status: String?, reached: Boolean) {
     Row(
         modifier =
         Modifier
@@ -326,13 +336,15 @@ private fun TierRow(order: String, amount: String, status: String, reached: Bool
             Text(text = order, style = MaterialTheme.typography.bodySmall, color = BudgetTheme.colors.textSecondary)
             Text(text = amount, style = MaterialTheme.typography.bodyLarge, color = BudgetTheme.colors.textPrimary)
         }
-        Text(
-            text = status,
-            style = MaterialTheme.typography.bodyMedium,
-            color = if (reached) BudgetTheme.colors.brandText else BudgetTheme.colors.textSecondary,
-            textAlign = TextAlign.End,
-            modifier = Modifier.padding(start = BudgetTheme.spacing.inlineGap),
-        )
+        if (status != null) {
+            Text(
+                text = status,
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (reached) BudgetTheme.colors.brandText else BudgetTheme.colors.textSecondary,
+                textAlign = TextAlign.End,
+                modifier = Modifier.padding(start = BudgetTheme.spacing.inlineGap),
+            )
+        }
     }
 }
 

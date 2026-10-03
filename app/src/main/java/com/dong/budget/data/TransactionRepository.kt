@@ -38,6 +38,15 @@ class TransactionRepository(private val transactionDao: TransactionDao) {
         // 거래를 쓸 때마다 Room 이 다시 내보내지만 시작일은 거의 그대로다. 같은 값이면 통계를 다시 계산하지 않게 거른다.
         .distinctUntilChanged()
 
+    /**
+     * 결제수단마다 지출·환불을 처음 쓴 날(서울 기준). 카드실적이 그 카드로 기록하기 전 기간을 '기록 없음' 으로 둔다.
+     * 한 번도 안 쓴 결제수단은 들어 있지 않다.
+     */
+    fun observeFirstUseDates(): Flow<Map<Long, LocalDate>> = transactionDao.observeFirstUseByPaymentMethod()
+        .map { rows -> rows.associate { it.paymentMethodId to BudgetTime.toLocalDate(it.firstAt) } }
+        // 거래를 쓸 때마다 Room 이 다시 내보내지만 첫 사용일은 거의 그대로다. 같은 값이면 카드실적을 다시 계산하지 않게 거른다.
+        .distinctUntilChanged()
+
     /** [from] 날(서울 0시)부터 [until] 날 0시 전까지의 거래. 카드실적 기간처럼 달 경계를 넘는 범위를 읽을 때 쓴다. */
     fun observeBetween(from: LocalDate, until: LocalDate): Flow<List<TransactionListItem>> =
         transactionDao.observeBetween(from.startInstant(), until.startInstant())

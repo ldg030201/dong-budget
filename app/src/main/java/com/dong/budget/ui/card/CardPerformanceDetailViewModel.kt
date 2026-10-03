@@ -25,7 +25,7 @@ import java.time.YearMonth
  * 카드 하나의 실적 상세 상태.
  *
  * 기간은 이 화면만 따로 가진다. 처음에는 오늘이 든 기간이고, 앞으로 넘겨 지난 기간을 볼 수 있다(이번 기간보다 뒤로는 못 간다).
- * 고른 기간까지 최근 6기간의 이 카드 지출·환불을 한 번에 읽어 순수 함수([buildCardDetail])로 계산한다.
+ * 고른 기간까지 최근 6기간의 이 카드 지출·환불과 이 카드를 처음 쓴 날을 읽어 순수 함수([buildCardDetail])로 계산한다.
  * 실적(구간·시작일)이나 거래를 고치면 바로 다시 계산된다. 결제수단을 지웠으면 [CardPerformanceDetailUiState.gone] 이다.
  *
  * @param clock 지금 시각. 테스트에서 날짜를 고정하려고 바꿀 수 있게 둔다.
@@ -52,9 +52,11 @@ class CardPerformanceDetailViewModel(
                 val current = periodMonthOf(today, card.performanceStartDay)
                 val month = picked?.let { minOf(it, current) } ?: current
                 val periods = historyPeriods(month, card.performanceStartDay)
-                transactionRepository
-                    .observeByPaymentMethod(card.id, periods.first().start, periods.last().end)
-                    .map { rows -> buildCardDetail(card, month, today, rows) }
+                combine(
+                    transactionRepository.observeByPaymentMethod(card.id, periods.first().start, periods.last().end),
+                    // 이 카드를 처음 쓴 날. 그 전에 끝난 기간은 기록이 없는 기간으로 둔다.
+                    transactionRepository.observeFirstUseDates().map { it[card.id] }.distinctUntilChanged(),
+                ) { rows, firstUse -> buildCardDetail(card, month, today, rows, firstUse) }
                     // 계산만 기본 풀에서 한다. 조회는 Room 이 자기 스레드에서 한다.
                     .flowOn(Dispatchers.Default)
             }.stateIn(

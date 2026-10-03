@@ -218,6 +218,39 @@ class PerformancePeriodsTest {
     }
 
     @Test
+    fun `카드를 처음 쓴 날 전에 끝난 지난 기간만 기록이 없다`() {
+        val september = performancePeriod(YearMonth.of(2026, 9), 1)
+        assertFalse(hasRecord(september, day("2026-10-02"), october))
+        // 기간 끝은 들지 않는다. 10월 1일에 처음 썼으면 9월에는 쓴 적이 없다
+        assertFalse(hasRecord(september, day("2026-10-01"), october))
+        assertTrue(hasRecord(september, day("2026-09-30"), october))
+        assertTrue(hasRecord(september, day("2026-05-01"), october))
+        // 한 번도 안 쓴 카드는 지난 기간이 모두 기록이 없다
+        assertFalse(hasRecord(september, null, october))
+        // 이번 기간은 아직 안 썼어도 보통대로 센다
+        assertTrue(hasRecord(performancePeriod(october, 1), null, october))
+        // 시작일이 15일이면 9월 실적은 10월 14일까지다
+        assertTrue(hasRecord(performancePeriod(YearMonth.of(2026, 8), 15), day("2026-09-14"), YearMonth.of(2026, 9)))
+        assertFalse(hasRecord(performancePeriod(YearMonth.of(2026, 8), 15), day("2026-09-15"), YearMonth.of(2026, 9)))
+    }
+
+    @Test
+    fun `첫 사용일은 조회 값과 보이는 거래 중 이른 날이고 이 카드의 지출과 환불만 본다`() {
+        val rows = listOf(
+            tx("2026-09-20", 10_000, paymentId = 6),
+            tx("2026-09-25", 1_000, REFUND, paymentId = 6),
+            tx("2026-09-01", 10_000, INCOME, paymentId = 6),
+            tx("2026-09-02", 10_000, TRANSFER, paymentId = 6),
+            tx("2026-08-01", 10_000, paymentId = 7),
+        )
+        // 첫 거래를 막 등록해 조회 값이 아직 없거나 늦어도 보이는 거래로 센다
+        assertEquals(day("2026-09-20"), effectiveFirstUse(rows, 6, null))
+        assertEquals(day("2026-09-20"), effectiveFirstUse(rows, 6, day("2026-10-02")))
+        assertEquals(day("2026-05-01"), effectiveFirstUse(rows, 6, day("2026-05-01")))
+        assertNull(effectiveFirstUse(rows, 8, null))
+    }
+
+    @Test
     fun `현금과 계좌이체만 빼고 모두 카드실적을 본다`() {
         fun method(type: PaymentMethodType) = PaymentMethodEntity(id = 1, uuid = "u", name = "이름", type = type)
         assertFalse(method(PaymentMethodType.CASH).isPerformanceTarget())
