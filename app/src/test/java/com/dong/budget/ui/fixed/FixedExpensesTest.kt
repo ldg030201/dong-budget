@@ -105,6 +105,21 @@ class FixedExpensesTest {
     }
 
     @Test
+    fun `주기는 최근 간격 5개로 보아 2달마다에서 매달로 바뀌면 따라간다`() {
+        // 2025년 1월부터 2026년 3월까지 2달마다(간격 2 여덟 개), 5월부터 9월까지 매달(간격 1 네 개) 냈다.
+        // 전체로 보면 2달마다라 10월이 '이번 달엔 안 내요' 로 숨었다. 최근 간격은 2, 1, 1, 1, 1 이라 매달이다.
+        val every2 = (0..7).map { YearMonth.of(2025, 1).plusMonths(it * 2L).atDay(10).toString() }
+        val monthly = (5..9).map { "2026-0$it-10" }
+        val rows = paid("관리비", 100_000, *(every2 + monthly).toTypedArray())
+        val item = only(rows, today = day("2026-10-15"))
+        assertEquals(1, item.cadence)
+        assertEquals(FixedStatus.DUE, item.status)
+        // 거꾸로 매달 내다 2달마다로 바뀌어도 간격 2가 셋이면 2달마다다
+        val slower = paid("가", 1_000, "2025-12-10", "2026-01-10", "2026-02-10", "2026-04-10", "2026-06-10", "2026-08-10")
+        assertEquals(2, only(slower).cadence)
+    }
+
+    @Test
     fun `평소 날짜는 최근 6번의 가운데 날이고 짝수 개면 이른 날이다`() {
         // 1월의 3일은 7번째 전이라 빠진다. 24, 25, 25, 26, 27, 28 → 25
         val item =

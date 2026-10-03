@@ -117,7 +117,8 @@ data class FixedExpenseBoard(
  *    31일에 낸 적이 있으면 짧은 달 말일도 말일로 센다.
  * 2. 몇 월 몫인지([shareMonths]): 평소 날짜를 보고 달 끝·다음 달 초에 낸 것을 옆 달 몫으로 옮긴다. 고른 달 뒤의 몫은 뺀다.
  * 3. 같은 달 몫은 합친다. 그 몫의 날짜는 첫 결제일이다(실제로 낸 날 그대로).
- * 4. 주기: 낸 몫 사이 간격(달 수)의 가운데 값. 간격이 짝수 개면 둘 중 짧은 쪽이다(늦게 알리는 것보다 일찍 알리는 게 낫다).
+ * 4. 주기: 최근 [CADENCE_GAPS] 개까지의 낸 몫 사이 간격(달 수)의 가운데 값. 간격이 짝수 개면 둘 중 짧은 쪽이다
+ *    (늦게 알리는 것보다 일찍 알리는 게 낫다). 옛 간격은 보지 않아서 2달마다 내다 매달 내게 바뀌어도 금방 따라간다.
  *    한 달에만 냈으면 매달로 본다. 11달 넘게 벌어지면 매년이다.
  * 5. 상태: 고른 달 몫을 냈으면 [FixedStatus.PAID]. 아니면 마지막으로 낸 몫에서 몇 달 지났는지(gap)를 주기와 견준다.
  *    gap < 주기면 [FixedStatus.NOT_THIS_MONTH], 주기 ≤ gap < 주기 + [DUE_MONTHS] 면 [FixedStatus.DUE], 그보다 길면 [FixedStatus.STOPPED].
@@ -191,7 +192,7 @@ private fun fixedItem(key: String, rows: List<TransactionListItem>, month: YearM
             }.sortedBy { it.month }
     val last = payments.last()
     val previous = payments.getOrNull(payments.lastIndex - 1)
-    val cadence = cadenceOf(payments.map { it.month })
+    val cadence = cadenceOf(payments.takeLast(CADENCE_GAPS + 1).map { it.month })
     val gap = ChronoUnit.MONTHS.between(last.month, month).toInt()
     val status =
         when {
@@ -302,6 +303,9 @@ private const val MAX_EVERY_MONTHS = 10
 
 /** 낼 차례가 된 달부터 이만큼(그 달과 다음 달) '아직 안 냈어요' 로 두고, 그 뒤로는 '한동안 안 냈어요' 로 접는다. */
 private const val DUE_MONTHS = 2
+
+/** 주기를 짐작할 때 보는 최근 간격 수. 한 번 건너뛴 정도는 가운데 값이 흡수한다. */
+private const val CADENCE_GAPS = 5
 
 /** 평소 날짜를 짐작할 때 보는 최근 결제일 수 */
 private const val USUAL_DAY_SAMPLES = 6
