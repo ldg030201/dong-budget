@@ -374,6 +374,31 @@ class FixedExpensesTest {
     }
 
     @Test
+    fun `밀린 몫과 이번 몫을 한날 함께 냈으면 한 건만 앞 달 몫으로 옮긴다`() {
+        // 말일에 내는 관리비가 9월을 놓쳐 10월 2일에 9월 몫과 10월 몫을 함께 냈다. 둘 다 9월 몫으로 세면
+        // 10월이 '아직 안 냈어요' 로 남고 11월에 빨간 '10월 차례도 안 냈어요' 가 떴다.
+        val rows = paid("관리비", 120_000, "2026-06-30", "2026-07-31", "2026-08-31", "2026-10-02", "2026-10-02")
+        val october15 = day("2026-10-15")
+        val september = YearMonth.of(2026, 9)
+        val inSeptember = only(readFor(rows, september), month = september, today = october15)
+        assertEquals(FixedStatus.PAID, inSeptember.status)
+        assertEquals(day("2026-10-02"), inSeptember.lastPaidOn)
+        assertEquals(1, inSeptember.lastPaidCount)
+        assertEquals(120_000L, inSeptember.amount)
+        val inOctober = only(readFor(rows, october), today = october15)
+        assertEquals(FixedStatus.PAID, inOctober.status)
+        assertEquals(1, inOctober.lastPaidCount)
+        assertEquals(120_000L, inOctober.amount)
+        // 11월 3일엔 11월이 아직이고(말일까지 남았다) 놓친 차례도 없다
+        val november = YearMonth.of(2026, 11)
+        val november3 = day("2026-11-03")
+        val inNovember = only(readFor(rows, november), month = november, today = november3)
+        assertEquals(FixedStatus.DUE, inNovember.status)
+        assertNull(inNovember.missedMonth)
+        assertNull(rowNote(inNovember, november, november3))
+    }
+
+    @Test
     fun `앞 달 몫을 이미 냈으면 다음 달 초에 낸 것은 그 달 몫이다`() {
         val rows = paid("관리비", 120_000, "2026-07-31", "2026-08-31", "2026-09-30", "2026-10-02")
         val october = only(rows)

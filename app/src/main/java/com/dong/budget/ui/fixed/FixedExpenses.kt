@@ -257,9 +257,10 @@ private fun usualDayOf(dates: List<LocalDate>): Int {
 /**
  * 결제([rows])마다 몇 월 몫인지(거래 id → 몫의 달). 보통은 낸 달의 몫이고, 달 끝과 다음 달 초 사이에서만 옮긴다.
  * 옆 달이 비었는지 · 그 달 몫을 냈는지는 옮기기 전의 낸 달(달력 달)로 본다. 결제일이 28일에서 3일로 바뀐 뒤의 결제가 줄줄이 앞 달로 끌려가지 않는다.
- * - 평소 날짜가 [LATE_PAY_FROM] 일 이후(말일 납부)인데 앞 달에 낸 것이 없으면, 그 달 1~[SHIFT_DAYS] 일에 낸 것은 앞 달 몫이다(말일 자동이체가 휴일로 밀림).
+ * - 평소 날짜가 [LATE_PAY_FROM] 일 이후(말일 납부)인데 앞 달에 낸 것이 없으면, 그 달 1~[SHIFT_DAYS] 일에 낸 것 중 가장 이른 한 건은
+ *   앞 달 몫이다(말일 자동이체가 휴일로 밀림). 밀린 몫과 그 달 몫을 한날 함께 냈으면 하나만 앞 달 몫이고 하나는 그 달 몫이다.
  * - 평소 날짜가 [SHIFT_DAYS] 일 이하(달 초 납부)인데 그 달 몫(1일 ~ 평소 날짜 + [SHIFT_DAYS] 일)을 이미 냈고 다음 달에 낸 것이 없으면,
- *   그 달 끝 [SHIFT_DAYS] 일 안에 낸 것은 다음 달 몫이다(월세를 전달 말에 미리 냄).
+ *   그 달 끝 [SHIFT_DAYS] 일 안에 낸 것 중 가장 늦은 한 건은 다음 달 몫이다(월세를 전달 말에 미리 냄).
  * 옮겨서 센 몫이 매달일 때만 옮긴다. 매년 · 몇 달마다 내는 것은 앞뒤 달이 원래 비어 있어서, 일찍 낸 것을 앞 달로 끌어가면 낸 달이 '안 내요' 가 된다.
  * 한 달에 보통 한 번 내는 것만 옮긴다. 한 가게에 3일 · 28일 두 번 내는 것은 28일 것이 늘 다음 달 몫으로 보여, 새 달 초에 3일 것을 안 냈는데도 '냈어요' 가 된다.
  * 그래서 나눠 내는 월세가 휴일로 다음 달 초에 밀린 것도 옮기지 않는다.
@@ -272,12 +273,13 @@ private fun shareMonths(rows: List<TransactionListItem>, month: YearMonth, usual
     val byMonth = rows.groupBy { YearMonth.from(it.localDate()) }
     val moved = own.toMutableMap()
     byMonth.forEach { (paidMonth, items) ->
+        // 한 달에 한 번 내는 것이라 한 건만 옮긴다. 밀린 몫과 이번 몫을 한날 함께 냈으면 하나는 낸 달 몫이다.
         if (usualDay >= LATE_PAY_FROM && paidMonth.minusMonths(1) !in byMonth) {
-            items.filter { it.localDate().dayOfMonth <= SHIFT_DAYS }.forEach { moved[it.id] = paidMonth.minusMonths(1) }
+            items.filter { it.localDate().dayOfMonth <= SHIFT_DAYS }.minWithOrNull(byTime)?.let { moved[it.id] = paidMonth.minusMonths(1) }
         }
         val paidOwnShare = items.any { it.localDate().dayOfMonth <= usualDay + SHIFT_DAYS }
         if (usualDay <= SHIFT_DAYS && paidOwnShare && paidMonth.plusMonths(1) !in byMonth) {
-            items.filter { it.localDate().isInLastDays() }.forEach { moved[it.id] = paidMonth.plusMonths(1) }
+            items.filter { it.localDate().isInLastDays() }.maxWithOrNull(byTime)?.let { moved[it.id] = paidMonth.plusMonths(1) }
         }
     }
     if (moved == own) return own
