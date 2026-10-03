@@ -108,16 +108,31 @@ class CardPerformanceTextTest {
             previous = TierProgress(523_000, tiers),
         )
         assertEquals(
-            "하나카드, 10월 실적 123,450원, 10월 1일부터 10월 31일까지, 29일 남았어요. " +
+            "하나카드, 10월 1일부터 10월 31일까지, 10월 실적 123,450원, 29일 남았어요. " +
                 "첫 구간 30만원까지 176,550원 남았어요. 9월 실적 523,000원, 30만원 구간을 채웠어요",
             trackedCardDescription(item, today),
         )
         // 지난 기간도 이번 기간처럼 환불이 더 많으면 부호 대신 말로 읽는다. 전에는 '9월 실적 -1,000원' 을 그대로 읽었다
         assertEquals(
-            "하나카드, 10월 실적 123,450원, 10월 1일부터 10월 31일까지, 29일 남았어요. " +
+            "하나카드, 10월 1일부터 10월 31일까지, 10월 실적 123,450원, 29일 남았어요. " +
                 "첫 구간 30만원까지 176,550원 남았어요. 9월 실적 환불받은 돈이 1,000원 더 많아요, 30만원까지 301,000원 모자랐어요",
             trackedCardDescription(item.copy(previous = TierProgress(-1_000, tiers)), today),
         )
+    }
+
+    @Test
+    fun `탭 판의 남은 날은 기간 날짜 뒤가 아니라 기간 이름 옆에 둔다`() {
+        val item = TrackedCard(
+            card = CardInfo(id = 2, name = "하나카드", icon = "credit_card", color = "blue"),
+            period = performancePeriod(october, 1),
+            daysLeft = 30,
+            progress = TierProgress(0, tiers),
+            previousMonth = YearMonth.of(2026, 9),
+            previous = TierProgress(0, tiers),
+        )
+        // 전에는 카드 이름 아래 '10월 1일 ~ 10월 31일 · 30일 남았어요' 가 320dp 에서 '30일 / 남았어요' 로 꺾였다
+        assertEquals("10월 실적 · 30일 남았어요", trackedHeadline(item, today))
+        assertEquals("10월 실적 · 오늘이 마지막 날이에요", trackedHeadline(item.copy(daysLeft = 1), today))
     }
 
     @Test

@@ -15,6 +15,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
@@ -29,6 +31,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.sp
 import com.dong.budget.R
 import com.dong.budget.ui.components.BudgetListItem
 import com.dong.budget.ui.components.BudgetPrimaryButton
@@ -52,8 +55,8 @@ import java.time.LocalDate
  *
  * ```
  * (뱃지) 하나카드                                   >
- *        10월 1일 ~ 10월 31일 · 29일 남았어요
- * 10월 실적
+ *        10월 1일 ~ 10월 31일
+ * 10월 실적 · 29일 남았어요
  * 123,450원
  * ██████████░░░░░│░░░░░░░░░░░░░░                  ← 카드 색, 구간 자리마다 눈금, 끝이 가장 높은 구간
  * 첫 구간 30만원까지 176,550원 남았어요
@@ -170,11 +173,7 @@ private fun TrackedCardBlock(item: TrackedCard, today: LocalDate, onClick: () ->
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                Text(
-                    text = "${periodRange(item.period)} · ${daysLeftText(item.daysLeft)}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = BudgetTheme.colors.textSecondary,
-                )
+                Text(text = periodRange(item.period), style = MaterialTheme.typography.bodySmall, color = BudgetTheme.colors.textSecondary)
             }
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
@@ -185,10 +184,14 @@ private fun TrackedCardBlock(item: TrackedCard, today: LocalDate, onClick: () ->
             )
         }
         Spacer(Modifier.height(BudgetTheme.spacing.sectionPadding))
-        Text(
-            text = periodName(item.period.month, today),
-            style = MaterialTheme.typography.bodyMedium,
-            color = BudgetTheme.colors.textSecondary,
+        // 기간 이름과 남은 날은 판 폭을 다 쓰는 이 줄에 둔다. 다른 해의 기간("2025년 12월 실적 · 오늘이 마지막 날이에요")처럼 길어도
+        // 좁은 화면(320dp)에서 꺾이지 않고 한 줄을 지키며 글자를 줄인다.
+        val headlineStyle = MaterialTheme.typography.bodyMedium
+        BasicText(
+            text = trackedHeadline(item, today),
+            style = headlineStyle.copy(color = BudgetTheme.colors.textSecondary),
+            maxLines = 1,
+            autoSize = TextAutoSize.StepBased(minFontSize = MIN_HEADLINE_SIZE, maxFontSize = headlineStyle.fontSize),
         )
         Text(text = spentText(item.progress.spent), style = BudgetTheme.amount.summary, color = BudgetTheme.colors.textPrimary)
         Spacer(Modifier.height(BudgetTheme.spacing.itemGap))
@@ -258,6 +261,9 @@ private fun EmptyCards(onOpenCategories: () -> Unit) {
 internal const val DETAIL_CLICK_LABEL = "자세히 보기"
 
 private const val OPEN_CATEGORIES = "분류 관리 열기"
+
+/** 카드 판의 '10월 실적 · 29일 남았어요' 가 좁은 화면에서 줄어드는 가장 작은 글자 크기(기간 날짜 글자와 같다) */
+private val MIN_HEADLINE_SIZE = 12.sp
 
 /** 빈 상태 뱃지 색. 전체 화면의 카드실적 줄과 같은 색이다. */
 private const val EMPTY_BADGE_COLOR = "blue"

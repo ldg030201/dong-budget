@@ -133,12 +133,19 @@ internal fun daysLeftLine(daysLeft: Int, need: Long?): String = when {
 internal fun spoken(text: String): String = text.replace(" · ", ", ")
 
 /**
- * 탭의 카드 판을 화면 읽기가 한 번에 읽을 문장. 금액은 줄이지 않는다.
- * "하나카드, 10월 실적 123,450원, 10월 1일부터 10월 31일까지, 29일 남았어요. 첫 구간 30만원까지 176,550원 남았어요. 9월 실적 …"
+ * 탭 판에서 쓴 돈 위 한 줄. 기간 이름과 남은 날이다. "10월 실적 · 29일 남았어요"
+ * 남은 날을 카드 이름 아래 기간 날짜 뒤에 붙이면 좁은 화면(320dp)에서 '29일 / 남았어요' 로 꺾여서, 폭이 넓은 이 줄에 둔다.
+ */
+internal fun trackedHeadline(item: TrackedCard, today: LocalDate): String =
+    "${periodName(item.period.month, today)} · ${daysLeftText(item.daysLeft)}"
+
+/**
+ * 탭의 카드 판을 화면 읽기가 한 번에 읽을 문장. 보이는 차례(이름, 기간 날짜, 기간 이름과 쓴 돈, 남은 날)대로 읽고 금액은 줄이지 않는다.
+ * "하나카드, 10월 1일부터 10월 31일까지, 10월 실적 123,450원, 29일 남았어요. 첫 구간 30만원까지 176,550원 남았어요. 9월 실적 …"
  */
 internal fun trackedCardDescription(item: TrackedCard, today: LocalDate): String = listOf(
-    "${item.card.name}, ${periodName(item.period.month, today)} ${spokenSpent(item.progress.spent)}, " +
-        "${spokenPeriodRange(item.period)}, ${daysLeftText(item.daysLeft)}",
+    "${item.card.name}, ${spokenPeriodRange(item.period)}, " +
+        "${periodName(item.period.month, today)} ${spokenSpent(item.progress.spent)}, ${daysLeftText(item.daysLeft)}",
     spoken(tierSentence(item.progress, past = false)),
     spokenPreviousLine(item.previousMonth, today, item.previous),
 ).joinToString(". ")
