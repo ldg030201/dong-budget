@@ -60,6 +60,10 @@ class FixedExpenseTextTest {
         val yearly = item(paid("2024-12-31", "2025-12-31", "2027-01-02"), month = february, today = today)
         assertEquals("매년 1월 말일쯤 · 하나카드", rowSubtitle(yearly, february))
         assertEquals("다음은 2028년 1월에 내요", rowNote(yearly, february, today)?.text)
+        // 매년 부제의 달은 낸 날의 달이 아니라 몇 월 몫인지로 적는다
+        val shifted = yearly.copy(lastShareMonth = YearMonth.of(2026, 12), nextMonth = YearMonth.of(2027, 12))
+        assertEquals("매년 12월 말일쯤 · 하나카드", rowSubtitle(shifted, february))
+        assertEquals("다음은 12월에 내요", rowNote(shifted, february, today)?.text)
     }
 
     @Test

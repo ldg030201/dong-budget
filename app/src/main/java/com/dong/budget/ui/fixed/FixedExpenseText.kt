@@ -22,9 +22,12 @@ internal fun cadenceText(cadence: Int): String = when {
 /** 평소 내는 날. "25일쯤", 31일이면 달마다 날이 달라 "말일쯤" */
 internal fun usualDayText(day: Int): String = if (day >= LAST_DAY) "말일쯤" else "${day}일쯤"
 
-/** 평소 언제 내는지. "매달 25일쯤", "2달마다 25일쯤", 매년이면 마지막으로 낸 달을 붙여 "매년 3월 25일쯤" */
+/**
+ * 평소 언제 내는지. "매달 25일쯤", "2달마다 25일쯤", 매년이면 마지막으로 낸 몫의 달을 붙여 "매년 3월 25일쯤".
+ * 낸 날의 달이 아니라 몇 월 몫인지로 적는다. 덧붙임의 '다음은 …에 내요' 도 몫의 달에서 센다.
+ */
 internal fun scheduleText(item: FixedExpenseItem): String = if (item.cadence >= YEARLY) {
-    "매년 ${item.lastPaidOn.monthValue}월 ${usualDayText(item.usualDay)}"
+    "매년 ${item.lastShareMonth.monthValue}월 ${usualDayText(item.usualDay)}"
 } else {
     "${cadenceText(item.cadence)} ${usualDayText(item.usualDay)}"
 }

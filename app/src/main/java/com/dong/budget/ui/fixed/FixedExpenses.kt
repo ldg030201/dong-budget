@@ -51,6 +51,8 @@ enum class FixedStatus {
  *   가장 최근에 낸 달의 합인데, 그 달에 그 앞 달보다 많이 냈으면(밀린 몫을 함께 냈으면) 그 달 가장 최근 한 건이다.
  * @property previousAmount 그 앞에 낸 달에 낸 돈. 견줄 수 없으면(한 달에만 냈거나 두 달의 낸 횟수가 다르면) null
  * @property lastPaidOn 가장 최근에 낸 몫의 첫 결제일. 냈으면 고른 달 몫을 낸 날이다(미리 냈으면 전달, 밀려 냈으면 다음 달 날짜다).
+ *   '냈어요' · '마지막' 날짜에만 쓴다. 몇 월 몫인지는 [lastShareMonth] 다.
+ * @property lastShareMonth 가장 최근에 낸 몫이 몇 월 몫인지. 매년 내는 것의 '매년 3월' 은 이 달로 적는다(낸 날의 달과 다를 수 있다).
  * @property lastPaidCount 그 몫으로 낸 횟수
  * @property nextMonth [FixedStatus.NOT_THIS_MONTH] 일 때 다음에 낼 달. 그 밖에는 null
  * @property missedMonth [FixedStatus.DUE] 인데 고른 달 전에 이미 낼 차례가 한 번 지났으면 그 달. 그 밖에는 null
@@ -72,6 +74,7 @@ data class FixedExpenseItem(
     val amount: Long,
     val previousAmount: Long?,
     val lastPaidOn: LocalDate,
+    val lastShareMonth: YearMonth,
     val lastPaidCount: Int,
     val nextMonth: YearMonth?,
     val missedMonth: YearMonth?,
@@ -211,6 +214,7 @@ private fun fixedItem(key: String, rows: List<TransactionListItem>, month: YearM
             // 밀린 몫을 함께 낸 달처럼 횟수가 다르면 금액이 달라도 값이 오르내린 것이 아니다
             previousAmount = previous?.takeIf { it.count == last.count }?.total,
             lastPaidOn = last.firstDate,
+            lastShareMonth = last.month,
             lastPaidCount = last.count,
             nextMonth = last.month.plusMonths(cadence.toLong()).takeIf { status == FixedStatus.NOT_THIS_MONTH },
             missedMonth = last.month.plusMonths(cadence.toLong()).takeIf { status == FixedStatus.DUE && gap > cadence },
