@@ -40,8 +40,9 @@ enum class FixedStatus {
  * @property merchant 등록창에 채울 가게 이름. 이름 없이 묶인 것은 null
  * @property cadence 몇 달마다 내는지. 1(매달), 2~10(그 달마다), 12(매년)
  * @property usualDay 평소 내는 날(1~31). 그 달에 없는 날이면 말일로 본다([usualDateIn]).
- * @property amount 가장 최근에 낸 달에 낸 돈(한 달에 여러 번이면 합). 냈으면 고른 달에 낸 돈이고, 아니면 이번에 낼 것으로 보는 금액이다.
- * @property previousAmount 그 앞에 낸 달에 낸 돈. 한 달에만 냈으면 null
+ * @property amount 냈으면 고른 달에 낸 돈(한 달에 여러 번이면 합). 아니면 이번에 낼 것으로 보는 금액이다.
+ *   가장 최근에 낸 달의 합인데, 그 달에 그 앞 달보다 많이 냈으면(밀린 몫을 함께 냈으면) 그 달 가장 최근 한 건이다.
+ * @property previousAmount 그 앞에 낸 달에 낸 돈. 견줄 수 없으면(한 달에만 냈거나 두 달의 낸 횟수가 다르면) null
  * @property lastPaidOn 가장 최근에 낸 달의 첫 결제일. 냈으면 고른 달에 낸 날이다.
  * @property lastPaidCount 그 달에 낸 횟수
  * @property nextMonth [FixedStatus.NOT_THIS_MONTH] 일 때 다음에 낼 달. 그 밖에는 null
@@ -116,6 +117,7 @@ data class FixedExpenseBoard(
  * - 평소 날짜: 최근에 낸 달(최대 [USUAL_DAY_SAMPLES] 번)의 날짜 가운데 값(짝수 개면 이른 쪽). 31일에 낸 적이 있으면 짧은 달 말일도 말일로 센다.
  * - 상태: 고른 달에 냈으면 [FixedStatus.PAID]. 아니면 마지막으로 낸 달에서 몇 달 지났는지(gap)를 주기와 견준다.
  *   gap < 주기면 [FixedStatus.NOT_THIS_MONTH], 주기 ≤ gap < 주기 + [DUE_MONTHS] 면 [FixedStatus.DUE], 그보다 길면 [FixedStatus.STOPPED].
+ * - 금액: 냈으면 그 달에 낸 돈(합). 아니면 [nextAmount]. 지난번 금액과는 두 달의 낸 횟수가 같을 때만 견준다.
  *
  * @param today 오늘. 고른 달이 이번 달이면 평소 날짜가 며칠 지났는지 센다.
  * @param rows '고정지출' 분류의 지출. [fixedHistoryStart] 부터 [month] 말일까지 읽은 것이다. 그 밖의 행과 지출이 아닌 행은 거른다.
@@ -150,17 +152,28 @@ fun buildFixedExpenses(month: YearMonth, today: LocalDate, rows: List<Transactio
  */
 fun fixedHistoryStart(month: YearMonth): YearMonth = month.minusMonths(HISTORY_MONTHS)
 
-/** 한 가게가 한 달에 낸 것. [firstDate] 는 그 달 첫 결제일, [count] 는 낸 횟수 */
-private data class MonthPayment(val month: YearMonth, val total: Long, val firstDate: LocalDate, val count: Int)
+/** 한 가게가 한 달에 낸 것. [firstDate] 는 그 달 첫 결제일, [count] 는 낸 횟수, [latestAmount] 는 그 달 가장 최근 한 건의 금액 */
+private data class MonthPayment(val month: YearMonth, val total: Long, val firstDate: LocalDate, val count: Int, val latestAmount: Long)
+
+/** 거래를 적은 차례. 같은 시각이면 나중에 적은(id 가 큰) 것이 나중이다. */
+private val byTime = compareBy<TransactionListItem> { it.occurredAt }.thenBy { it.id }
 
 private fun fixedItem(key: String, rows: List<TransactionListItem>, month: YearMonth, today: LocalDate): FixedExpenseItem {
-    val latest = rows.maxWith(compareBy<TransactionListItem> { it.occurredAt }.thenBy { it.id })
+    val latest = rows.maxWith(byTime)
     val payments =
         rows
             .groupBy { YearMonth.from(it.localDate()) }
-            .map { (paidMonth, items) -> MonthPayment(paidMonth, items.sumOf { it.amount }, items.minOf { it.localDate() }, items.size) }
-            .sortedBy { it.month }
+            .map { (paidMonth, items) ->
+                MonthPayment(
+                    month = paidMonth,
+                    total = items.sumOf { it.amount },
+                    firstDate = items.minOf { it.localDate() },
+                    count = items.size,
+                    latestAmount = items.maxWith(byTime).amount,
+                )
+            }.sortedBy { it.month }
     val last = payments.last()
+    val previous = payments.getOrNull(payments.lastIndex - 1)
     val cadence = cadenceOf(payments.map { it.month })
     val usualDay = usualDayOf(payments.takeLast(USUAL_DAY_SAMPLES).map { it.firstDate })
     val gap = ChronoUnit.MONTHS.between(last.month, month).toInt()
@@ -180,8 +193,9 @@ private fun fixedItem(key: String, rows: List<TransactionListItem>, month: YearM
             status = status,
             cadence = cadence,
             usualDay = usualDay,
-            amount = last.total,
-            previousAmount = payments.getOrNull(payments.lastIndex - 1)?.total,
+            amount = if (status == FixedStatus.PAID) last.total else nextAmount(last, previous),
+            // 밀린 몫을 함께 낸 달처럼 횟수가 다르면 금액이 달라도 값이 오르내린 것이 아니다
+            previousAmount = previous?.takeIf { it.count == last.count }?.total,
             lastPaidOn = last.firstDate,
             lastPaidCount = last.count,
             nextMonth = last.month.plusMonths(cadence.toLong()).takeIf { status == FixedStatus.NOT_THIS_MONTH },
@@ -200,6 +214,14 @@ private fun fixedItem(key: String, rows: List<TransactionListItem>, month: YearM
     if (status != FixedStatus.DUE || month != YearMonth.from(today)) return item
     return item.copy(daysPastUsual = ChronoUnit.DAYS.between(item.usualDateIn(month), today).toInt())
 }
+
+/**
+ * 다음에 낼 것으로 보는 금액. 마지막으로 낸 달([last])의 합인데, 그 달에 앞 달([previous])보다 많이 냈으면
+ * 밀린 몫을 함께 낸 것으로 보고 그 달 가장 최근 한 건의 금액이다(합을 쓰면 다음 달 낼 돈이 두 배가 된다).
+ * 나눠 내는 월세처럼 달마다 같은 횟수로 내거나, 한 달에만 냈으면 합 그대로다.
+ */
+private fun nextAmount(last: MonthPayment, previous: MonthPayment?): Long =
+    if (previous != null && last.count > previous.count) last.latestAmount else last.total
 
 /**
  * 평소 내는 날. [dates] 의 날짜 가운데 값(짝수 개면 이른 쪽)이다.

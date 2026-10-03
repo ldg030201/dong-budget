@@ -91,6 +91,16 @@ class FixedExpensePrefillTest {
     }
 
     @Test
+    fun `밀린 몫을 함께 낸 달 뒤에는 그 달 합이 아니라 한 번 낸 금액으로 채운다`() {
+        val rows =
+            listOf("2026-06-25", "2026-07-25", "2026-09-05", "2026-09-25").map {
+                tx(it, 17_000, categoryId = 4, merchant = "넷플릭스")
+            }
+        val today = day("2026-10-26")
+        assertEquals(17_000L, fixedExpensePrefill(item(rows, today), today).amount)
+    }
+
+    @Test
     fun `같은 날 몇 번을 눌러도 같은 값이다`() {
         val today = day("2026-10-27")
         assertEquals(fixedExpensePrefill(item(netflix, today), today), fixedExpensePrefill(item(netflix, today), today))

@@ -200,9 +200,38 @@ class FixedExpensesTest {
         val item = only(paid("통신비", 30_000, "2026-09-20", "2026-10-03", "2026-10-20"))
         assertEquals(FixedStatus.PAID, item.status)
         assertEquals(60_000L, item.amount)
-        assertEquals(30_000L, item.previousAmount)
+        // 낸 횟수가 달라(1번, 2번) 지난번 금액과 견주지 않는다
+        assertNull(item.previousAmount)
         assertEquals(day("2026-10-03"), item.lastPaidOn)
         assertEquals(2, item.lastPaidCount)
+    }
+
+    @Test
+    fun `밀린 몫을 함께 내 앞 달보다 많이 낸 달 뒤에는 한 번 낸 금액을 낼 돈으로 본다`() {
+        // 8월을 건너뛰고 9월 5일에 8월 몫, 9월 25일에 9월 몫을 냈다. 10월 낼 돈은 34,000원이 아니라 17,000원이다.
+        val rows = paid("넷플릭스", 17_000, "2026-06-25", "2026-07-25", "2026-09-05", "2026-09-25")
+        val board = board(rows)
+        val item = board.due.single()
+        assertEquals(FixedStatus.DUE, item.status)
+        assertEquals(17_000L, item.amount)
+        assertEquals(17_000L, board.dueTotal)
+        // 9월을 보면 그 달에 낸 돈은 합 그대로다
+        val september = board(rows, month = YearMonth.of(2026, 9), today = day("2026-09-30"))
+        assertEquals(34_000L, september.paid.single().amount)
+        assertEquals(34_000L, september.paidTotal)
+        // 한 번 낸 금액은 그 달 가장 최근 것이다(값이 올랐으면 오른 값)
+        val raised = only(paid("넷플릭스", 17_000, "2026-07-25", "2026-08-25", "2026-09-05") + paid("넷플릭스", 18_000, "2026-09-25"))
+        assertEquals(18_000L, raised.amount)
+    }
+
+    @Test
+    fun `나눠 내는 것처럼 달마다 같은 횟수로 냈으면 낼 돈은 그 달 합이다`() {
+        val rows =
+            paid("월세", 300_000, "2026-08-01T09:00", "2026-09-01T09:00") +
+                paid("월세", 200_000, "2026-08-15T09:00", "2026-09-15T09:00", paymentId = 11)
+        val item = only(rows)
+        assertEquals(FixedStatus.DUE, item.status)
+        assertEquals(500_000L, item.amount)
     }
 
     @Test

@@ -84,6 +84,14 @@ class FixedExpenseTextTest {
     }
 
     @Test
+    fun `냈어요 줄은 지난번과 낸 횟수가 다르면 오르내림을 덧붙이지 않는다`() {
+        // 9월 몫을 10월 2일에 늦게 내고 10월 몫도 냈다. 값이 오른 것이 아니다.
+        val twice = item(paid("2026-08-25", "2026-10-02", "2026-10-25"))
+        assertEquals("34,000원", rowAmount(twice))
+        assertNull(rowNote(twice, october))
+    }
+
+    @Test
     fun `아직 안 냈어요 줄은 평소 날짜가 지났거나 오늘이면 알린다`() {
         val rows = paid("2026-08-10", "2026-09-10")
         assertEquals(RowNote("평소보다 2일 지났어요", NoteTone.WARNING), rowNote(item(rows), october))
