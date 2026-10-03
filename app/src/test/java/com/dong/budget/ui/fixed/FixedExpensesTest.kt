@@ -370,6 +370,38 @@ class FixedExpensesTest {
     }
 
     @Test
+    fun `매년·몇 달마다 내는 것을 일찍 냈으면 앞 달로 끌어가지 않고 낸 달 몫이다`() {
+        // 매년 3월 28일쯤 내던 보험료를 올해는 3월 2일에 냈다. 2월 몫으로 끌어가면 3월이 '이번 달엔 안 내요' 가 된다.
+        val yearly = paid("보험", 300_000, "2024-03-28", "2025-03-28", "2026-03-02")
+        val march = YearMonth.of(2026, 3)
+        val inMarch = only(readFor(yearly, march), month = march, today = day("2026-03-10"))
+        assertEquals(FixedStatus.PAID, inMarch.status)
+        assertEquals(day("2026-03-02"), inMarch.lastPaidOn)
+        assertEquals(YEARLY, inMarch.cadence)
+        // 2월은 낼 달이 아니었다
+        val february = YearMonth.of(2026, 2)
+        val inFebruary = only(readFor(yearly, february), month = february, today = day("2026-03-10"))
+        assertEquals(FixedStatus.NOT_THIS_MONTH, inFebruary.status)
+        assertEquals(march, inFebruary.nextMonth)
+        // 2달마다 28일쯤 내던 것을 9월 3일에 냈으면 9월에 낸 것이다
+        val every2 = paid("관리비", 120_000, "2026-03-28", "2026-05-28", "2026-07-28", "2026-09-03")
+        val september = YearMonth.of(2026, 9)
+        val inSeptember = only(readFor(every2, september), month = september, today = day("2026-09-10"))
+        assertEquals(FixedStatus.PAID, inSeptember.status)
+        assertEquals(2, inSeptember.cadence)
+    }
+
+    @Test
+    fun `결제일이 28일에서 3일로 바뀌어도 바뀐 뒤의 결제를 줄줄이 앞 달로 끌어가지 않는다`() {
+        // 8월 28일 다음 9월을 건너뛰고 10월 3일, 11월 3일에 냈다. 10월에 이미 냈으니 11월 3일은 10월 몫이 아니다.
+        val rows = paid("통신비", 45_000, "2026-06-28", "2026-07-28", "2026-08-28", "2026-10-03", "2026-11-03")
+        val november = YearMonth.of(2026, 11)
+        val item = only(readFor(rows, november), month = november, today = day("2026-11-10"))
+        assertEquals(FixedStatus.PAID, item.status)
+        assertEquals(day("2026-11-03"), item.lastPaidOn)
+    }
+
+    @Test
     fun `띄어쓰기·대소문자만 다른 가게 이름은 한 가게로 묶고 이름은 가장 최근 것이다`() {
         val rows =
             listOf(

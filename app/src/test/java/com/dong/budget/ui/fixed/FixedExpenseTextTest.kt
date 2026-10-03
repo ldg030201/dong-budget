@@ -52,6 +52,17 @@ class FixedExpenseTextTest {
     }
 
     @Test
+    fun `매년 내는 것이 휴일로 해를 넘겨 밀려도 부제의 달과 다음 낼 달이 서로 맞는다`() {
+        // 매년 12월 31일에 내던 것이 올해는 2027년 1월 2일에 나갔다. 매년 내는 것은 옆 달 몫으로 옮기지 않는다.
+        // 옮기면 부제는 '매년 1월', 다음 낼 달은 12월로 한 줄 안에서 어긋났다.
+        val february = YearMonth.of(2027, 2)
+        val today = day("2027-02-10")
+        val yearly = item(paid("2024-12-31", "2025-12-31", "2027-01-02"), month = february, today = today)
+        assertEquals("매년 1월 말일쯤 · 하나카드", rowSubtitle(yearly, february))
+        assertEquals("다음은 2028년 1월에 내요", rowNote(yearly, february, today)?.text)
+    }
+
+    @Test
     fun `몇 달마다 내는 것은 다음 낼 달을 덧붙인다`() {
         // 7월 31일 · 9월 30일은 둘 다 말일이다
         val every2 = item(paid("2026-07-31", "2026-09-30"))
