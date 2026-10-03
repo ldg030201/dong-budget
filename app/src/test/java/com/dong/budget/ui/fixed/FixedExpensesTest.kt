@@ -250,9 +250,26 @@ class FixedExpensesTest {
         val september = board(rows, month = YearMonth.of(2026, 9), today = day("2026-09-30"))
         assertEquals(34_000L, september.paid.single().amount)
         assertEquals(34_000L, september.paidTotal)
-        // 한 번 낸 금액은 그 달 가장 최근 것이다(값이 올랐으면 오른 값)
-        val raised = only(paid("넷플릭스", 17_000, "2026-07-25", "2026-08-25", "2026-09-05") + paid("넷플릭스", 18_000, "2026-09-25"))
+        // 한 번 낸 금액은 그 달 가장 최근 것이다(값이 올랐으면 오른 값). 밀린 몫이려면 그 앞에 빈 달(8월)이 있어야 한다.
+        val raised = only(paid("넷플릭스", 17_000, "2026-06-25", "2026-07-25", "2026-09-05") + paid("넷플릭스", 18_000, "2026-09-25"))
         assertEquals(18_000L, raised.amount)
+    }
+
+    @Test
+    fun `빈 달 없이 한 달에 더 낸 것은 밀린 몫이 아니라 그 달 합을 낼 돈으로 본다`() {
+        // 통신비 50,000원을 내다 7월 20일부터 48,000원 회선이 하나 늘었다. 두 건이 앞 몫과 비슷해도 사이에 빈 달이 없으니
+        // 밀린 몫이 아니다. 낼 돈이 48,000원으로 나왔다.
+        val first = paid("통신비", 50_000, "2026-04-10", "2026-05-10", "2026-06-10", "2026-07-10") + paid("통신비", 48_000, "2026-07-20")
+        val august = YearMonth.of(2026, 8)
+        val inAugust = board(readFor(first, august), month = august, today = day("2026-08-05"))
+        assertEquals(98_000L, inAugust.due.single().amount)
+        assertEquals(98_000L, inAugust.dueTotal)
+        // 7~9월 석 달을 두 건씩 냈으면 10월도 98,000원이고, 평소 날짜(10일)가 지나면 알린다
+        val three = first + paid("통신비", 50_000, "2026-08-10", "2026-09-10") + paid("통신비", 48_000, "2026-08-20", "2026-09-20")
+        assertEquals(98_000L, only(readFor(three, october), today = day("2026-10-05")).amount)
+        val october15 = only(readFor(three, october), today = day("2026-10-15"))
+        assertEquals(98_000L, october15.amount)
+        assertEquals(5, october15.daysPastUsual)
     }
 
     @Test
@@ -289,6 +306,11 @@ class FixedExpensesTest {
         assertEquals(FixedStatus.DUE, item.status)
         assertEquals(1, item.cadence)
         assertEquals(500_000L, item.amount)
+        // 두 달 치를 260,000원 · 260,000원 · 240,000원 · 240,000원 차례로 냈어도 마지막 두 건(480,000원)이 아니라 500,000원이다
+        val inOrder =
+            paid("월세", 260_000, "2026-07-01T09:00", "2026-09-01T09:00", "2026-09-01T09:01") +
+                paid("월세", 240_000, "2026-07-02T09:00", "2026-09-02T09:00", "2026-09-02T09:01")
+        assertEquals(500_000L, only(readFor(inOrder, october), today = day("2026-10-03")).amount)
     }
 
     @Test

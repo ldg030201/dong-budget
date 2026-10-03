@@ -22,7 +22,7 @@ import kotlin.math.abs
 //   말일 자동이체가 휴일로 다음 달 초에 밀렸으면 앞 달 몫이다. 그래서 다음 달 초 며칠까지는 읽는다.
 //   한 달에 한 번 · 매달 내는 것만 옮긴다(매년 내는 것을 일찍 냈거나 한 가게에 달 초 · 달 말 두 번 내는 것은 낸 달 몫 그대로다).
 // - 주기는 최근 간격 몇 개로만 본다. 내는 주기가 바뀌면 금방 따라간다. 밀린 몫을 함께 낸 달은 빈 달을 메운 것으로 센다.
-// - 다음에 낼 금액은 마지막 몫의 합이지만, 밀린 몫을 함께 낸 뒤(보통보다 많이 냈고 한 건 한 건이 앞 몫과 비슷함)에는 가장 최근 한 건이다.
+// - 다음에 낼 금액은 마지막 몫의 합이지만, 밀린 몫을 함께 낸 뒤(빈 달 다음에 보통보다 많이 냈고 한 건 한 건이 앞 몫과 비슷함)에는 한 달 치다.
 // ─────────────────────────────────────────────────────────────────────
 
 /** 고른 달에서 한 가게가 어떤 상태인지 */
@@ -49,7 +49,7 @@ enum class FixedStatus {
  * @property cadence 몇 달마다 내는지. 1(매달), 2~10(그 달마다), 12(매년)
  * @property usualDay 평소 내는 날(1~31). 그 달에 없는 날이면 말일로 본다([usualDateIn]).
  * @property amount 냈으면 고른 달에 낸 돈(한 달에 여러 번이면 합). 아니면 이번에 낼 것으로 보는 금액이다.
- *   가장 최근에 낸 몫의 합인데, 밀린 몫을 함께 냈으면 그 몫 가장 최근 한 건이다([nextAmount]).
+ *   가장 최근에 낸 몫의 합인데, 밀린 몫을 함께 냈으면 한 달 치다([nextAmount]).
  * @property previousAmount 그 앞에 낸 달에 낸 돈. 견줄 수 없으면(한 달에만 냈거나 두 달의 낸 횟수가 다르면) null
  * @property lastPaidOn 가장 최근에 낸 몫의 첫 결제일. 냈으면 고른 달 몫을 낸 날이다(미리 냈으면 전달, 밀려 냈으면 다음 달 날짜다).
  *   '냈어요' · '마지막' 날짜에만 쓴다. 몇 월 몫인지는 [lastShareMonth] 다.
@@ -130,7 +130,7 @@ data class FixedExpenseBoard(
  * 4. 같은 몫끼리 합친다. 그 몫의 날짜는 첫 결제일이다(실제로 낸 날 그대로).
  * 5. 주기([cadenceOf]): 최근 [CADENCE_GAPS] 개까지의 낸 몫 사이 간격(달 수)의 가운데 값. 간격이 짝수 개면 둘 중 짧은 쪽이다
  *    (늦게 알리는 것보다 일찍 알리는 게 낫다). 옛 간격은 보지 않아서 2달마다 내다 매달 내게 바뀌어도 금방 따라간다.
- *    보통보다 k 번 더 낸 몫은 밀린 몫을 함께 낸 것이라 그 앞 간격을 k 달 줄여 센다.
+ *    밀린 몫을 함께 낸 몫([isCatchUp])이 보통보다 k 번 더 냈으면 그 앞 간격을 k 달 줄여 센다.
  *    한 달에만 냈으면 매달로 본다. 11달 넘게 벌어지면 매년이다.
  * 6. 상태: 고른 달 몫을 냈으면 [FixedStatus.PAID]. 아니면 마지막으로 낸 몫에서 몇 달 지났는지(gap)를 주기와 견준다.
  *    gap < 주기면 [FixedStatus.NOT_THIS_MONTH], 주기 ≤ gap < 주기 + [DUE_MONTHS] 면 [FixedStatus.DUE], 그보다 길면 [FixedStatus.STOPPED].
@@ -242,18 +242,27 @@ private fun fixedItem(key: String, rows: List<TransactionListItem>, month: YearM
 
 /**
  * 다음에 낼 것으로 보는 금액. 마지막으로 낸 몫([last])의 합이다.
- * 그 몫에 보통([usualCount])보다 많이 냈고 그 결제가 하나하나 모두 앞 몫([previous])의 한 건 평균과 비슷하면
- * (±[SIMILAR_AMOUNT_PERCENT]%) 밀린 몫을 함께 낸 것으로 보고, 가장 최근 결제 보통 건수만큼(대부분 한 건)의 금액이다
- * (합을 쓰면 다음 달 낼 돈이 두 배가 된다. 17,000원 + 17,000원 → 17,000원).
- * 처음 나눠 낸 달(500,000원 → 300,000원 + 200,000원)이나 같은 가게 구독이 하나 는 달(10,000원 → 10,000원 + 5,000원)은
- * 한 건이 앞 몫과 달라서 합 그대로다. 앞 몫이 없어도 합이다.
+ * 밀린 몫을 함께 낸 몫이면([isCatchUp]) 한 달 치다(합을 쓰면 다음 달 낼 돈이 두 배가 된다). 한 달에 한 번 내는 것은
+ * 가장 최근 한 건(17,000원 + 17,000원 → 17,000원), 나눠 내는 것은 앞 몫의 합(260,000원 · 260,000원 · 240,000원 · 240,000원 →
+ * 500,000원)이다. 앞 몫도 보통보다 많이 냈으면 이 몫의 한 건 평균에 보통 건수를 곱한다.
+ * 처음 나눠 낸 달(500,000원 → 300,000원 + 200,000원), 같은 가게 구독이나 회선이 하나 는 달(10,000원 → 10,000원 + 5,000원,
+ * 50,000원 → 50,000원 + 48,000원)은 밀린 몫이 아니라 합 그대로다. 앞 몫이 없어도 합이다.
  */
-private fun nextAmount(last: MonthPayment, previous: MonthPayment?, usualCount: Int): Long {
-    if (previous == null || last.count <= usualCount) return last.total
-    // 한 건과 앞 몫 한 건 평균(앞 합 ÷ 앞 횟수)의 차이가 평균의 몇 % 안인지를 나눗셈 없이 견준다
-    val caughtUp = last.amounts.all { isNear(it, previous.total, previous.count) }
-    return if (caughtUp) last.amounts.takeLast(usualCount).sum() else last.total
+private fun nextAmount(last: MonthPayment, previous: MonthPayment?, usualCount: Int): Long = when {
+    previous == null || !isCatchUp(previous, last, usualCount) -> last.total
+    usualCount == 1 -> last.amounts.last()
+    previous.count == usualCount -> previous.total
+    else -> last.total * usualCount / last.count
 }
+
+/**
+ * [current] 가 밀린 몫을 함께 낸 몫인지. 보통([usualCount])보다 많이 냈고, 앞 몫([previous])과의 사이에 빈 달이 있고,
+ * 그 결제가 하나하나 모두 앞 몫의 한 건 평균과 비슷하다(±[SIMILAR_AMOUNT_PERCENT]%).
+ * 빈 달이 없으면 메울 몫도 없다(비슷한 금액의 회선을 하나 더한 달). 주기([cadenceOf])와 금액([nextAmount])이 같은 판단을 쓴다.
+ */
+private fun isCatchUp(previous: MonthPayment, current: MonthPayment, usualCount: Int): Boolean = current.count > usualCount &&
+    ChronoUnit.MONTHS.between(previous.month, current.month) > 1 &&
+    current.amounts.all { isNear(it, previous.total, previous.count) }
 
 /**
  * 평소 내는 날. [dates] 의 날짜 가운데 값(짝수 개면 이른 쪽)이다.
@@ -343,15 +352,15 @@ private fun usualCountOf(rows: List<TransactionListItem>): Int = lowerMedian(
 
 /**
  * 낸 몫들(오래된 것부터)의 최근 [CADENCE_GAPS] 개까지의 간격으로 본 주기. 1(매달), 2~[MAX_EVERY_MONTHS], [YEARLY]
- * 보통([usualCount])보다 k 번 더 낸 몫은 밀린 몫을 함께 낸 것으로 보고, 그 몫으로 들어오는 간격에서 k 달을 뺀다(1달보다 짧게는 안 센다).
- * 7월 25일 다음 9월 5일(8월 몫)·25일에 냈으면 간격 2가 아니라 1이다.
+ * 밀린 몫을 함께 낸 몫([isCatchUp])이 보통([usualCount])보다 k 번 더 냈으면 빈 달을 메운 것으로 보고,
+ * 그 몫으로 들어오는 간격에서 k 달을 뺀다(1달보다 짧게는 안 센다). 7월 25일 다음 9월 5일(8월 몫)·25일에 냈으면 간격 2가 아니라 1이다.
  */
 private fun cadenceOf(payments: List<MonthPayment>, usualCount: Int): Int {
     val recent = payments.takeLast(CADENCE_GAPS + 1)
     if (recent.size < 2) return 1
     val gaps =
         recent.zipWithNext { a, b ->
-            val extra = (b.count - usualCount).coerceAtLeast(0)
+            val extra = if (isCatchUp(a, b, usualCount)) b.count - usualCount else 0
             (ChronoUnit.MONTHS.between(a.month, b.month).toInt() - extra).coerceAtLeast(1)
         }
     val gap = lowerMedian(gaps)
