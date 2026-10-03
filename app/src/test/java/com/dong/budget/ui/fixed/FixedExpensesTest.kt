@@ -463,6 +463,54 @@ class FixedExpensesTest {
     }
 
     @Test
+    fun `달 초에 내는 가게에 달 말 구독을 새로 더해도 그 결제를 다음 달 몫으로 옮기지 않는다`() {
+        // 구글에 매달 3일 14,900원을 내다 9월 28일에 2,400원 구독을 처음 더했다. 다음 달 몫으로 옮기면 10월이 달 내내 '냈어요' 였다.
+        val google = (4..9).flatMap { paid("구글", 14_900, "2026-0$it-03") } + paid("구글", 2_400, "2026-09-28")
+        val october2 = board(readFor(google, october), today = day("2026-10-02"))
+        assertTrue(october2.paid.isEmpty())
+        assertEquals(17_300L, october2.dueTotal)
+        val october15 = only(readFor(google, october), today = day("2026-10-15"))
+        assertEquals(FixedStatus.DUE, october15.status)
+        assertEquals(3, october15.usualDay)
+        assertEquals(12, october15.daysPastUsual)
+        assertEquals(17_300L, october15.amount)
+        // 9월 화면에는 9월 28일 결제도 9월에 낸 것으로 보인다
+        val september = YearMonth.of(2026, 9)
+        val inSeptember = only(readFor(google, september), month = september, today = day("2026-10-15"))
+        assertEquals(17_300L, inSeptember.amount)
+        assertEquals(2, inSeptember.lastPaidCount)
+        // 28일 30,000원을 8월부터 더했으면(두 번 낸 달이 최근 석 달 중 둘) 한 달에 두 번 내는 가게다
+        val insurance = (4..9).flatMap { paid("보험", 50_000, "2026-0$it-03") } + (8..9).flatMap { paid("보험", 30_000, "2026-0$it-28") }
+        listOf("2026-10-01" to -2, "2026-10-10" to 7, "2026-10-20" to 17).forEach { (date, past) ->
+            val item = only(readFor(insurance, october), today = day(date))
+            assertEquals(FixedStatus.DUE, item.status)
+            assertEquals(80_000L, item.amount)
+            assertEquals(past, item.daysPastUsual)
+        }
+        // 금액이 같은 회선을 8월부터 더한 것(3일 · 28일 각 30,000원)도 같다
+        val lines = (4..9).flatMap { paid("통신", 30_000, "2026-0$it-03") } + (8..9).flatMap { paid("통신", 30_000, "2026-0$it-28") }
+        val linesOctober = board(readFor(lines, october), today = day("2026-10-15"))
+        assertEquals(60_000L, linesOctober.dueTotal)
+        assertEquals(12, linesOctober.due.single().daysPastUsual)
+    }
+
+    @Test
+    fun `달 초에 내는 가게에 금액이 크게 다른 결제가 달 끝에 들어오면 다음 달 몫이 아니다`() {
+        // 애플에 매달 3일 4,400원을 내는데 10월 28일에 연간 결제 99,000원이 들어왔다. 다음 달 몫으로 옮기면 11월이 달 내내 '냈어요' 였다.
+        val rows = paid("애플", 4_400, "2026-05-03", "2026-06-03", "2026-07-03", "2026-08-03", "2026-09-03", "2026-10-03") +
+            paid("애플", 99_000, "2026-10-28")
+        val november = YearMonth.of(2026, 11)
+        val november1 = only(readFor(rows, november), month = november, today = day("2026-11-01"))
+        assertEquals(FixedStatus.DUE, november1.status)
+        val november10 = day("2026-11-10")
+        val item = only(readFor(rows, november), month = november, today = november10)
+        assertEquals(FixedStatus.DUE, item.status)
+        assertEquals(RowNote("평소보다 7일 지났어요", NoteTone.WARNING), rowNote(item, november, november10))
+        // 10월 화면에는 10월 28일 결제도 10월에 낸 것으로 보인다
+        assertEquals(2, only(readFor(rows, october), today = november10).lastPaidCount)
+    }
+
+    @Test
     fun `나눠 내는 월세가 휴일로 다음 달 초에 밀리면 옮기지 않고 그 달에 낸 것으로 본다`() {
         // 300,000원·200,000원을 말일에 나눠 내다 9월 몫이 10월 1일에 나갔다. 한 달에 두 번 내는 것은 위의 3일·28일 가게와
         // 가를 수 없어서 옆 달로 옮기지 않는다. 그래서 9월은 안 냈어요, 10월은 냈어요로 보인다(전에는 둘 다 9월 몫으로 옮겼다).

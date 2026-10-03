@@ -243,7 +243,7 @@ private fun fixedItem(key: String, rows: List<TransactionListItem>, month: YearM
 /**
  * 다음에 낼 것으로 보는 금액. 마지막으로 낸 몫([last])의 합이다.
  * 그 몫에 보통([usualCount])보다 많이 냈고 그 결제가 하나하나 모두 앞 몫([previous])의 한 건 평균과 비슷하면
- * (±[CATCH_UP_TOLERANCE_PERCENT]%) 밀린 몫을 함께 낸 것으로 보고, 가장 최근 결제 보통 건수만큼(대부분 한 건)의 금액이다
+ * (±[SIMILAR_AMOUNT_PERCENT]%) 밀린 몫을 함께 낸 것으로 보고, 가장 최근 결제 보통 건수만큼(대부분 한 건)의 금액이다
  * (합을 쓰면 다음 달 낼 돈이 두 배가 된다. 17,000원 + 17,000원 → 17,000원).
  * 처음 나눠 낸 달(500,000원 → 300,000원 + 200,000원)이나 같은 가게 구독이 하나 는 달(10,000원 → 10,000원 + 5,000원)은
  * 한 건이 앞 몫과 달라서 합 그대로다. 앞 몫이 없어도 합이다.
@@ -251,8 +251,7 @@ private fun fixedItem(key: String, rows: List<TransactionListItem>, month: YearM
 private fun nextAmount(last: MonthPayment, previous: MonthPayment?, usualCount: Int): Long {
     if (previous == null || last.count <= usualCount) return last.total
     // 한 건과 앞 몫 한 건 평균(앞 합 ÷ 앞 횟수)의 차이가 평균의 몇 % 안인지를 나눗셈 없이 견준다
-    val caughtUp =
-        last.amounts.all { abs(it * previous.count - previous.total) * PERCENT <= previous.total * CATCH_UP_TOLERANCE_PERCENT }
+    val caughtUp = last.amounts.all { isNear(it, previous.total, previous.count) }
     return if (caughtUp) last.amounts.takeLast(usualCount).sum() else last.total
 }
 
@@ -280,6 +279,7 @@ private fun usualDayOf(dates: List<LocalDate>): Int {
  *   앞 달 몫이다(말일 자동이체가 휴일로 밀림). 밀린 몫과 그 달 몫을 한날 함께 냈으면 하나만 앞 달 몫이고 하나는 그 달 몫이다.
  * - 평소 날짜가 [SHIFT_DAYS] 일 이하(달 초 납부)인데 그 달 몫(1일 ~ 평소 날짜 + [SHIFT_DAYS] 일)을 이미 냈고 다음 달에 낸 것이 없으면,
  *   그 달 끝 [SHIFT_DAYS] 일 안에 낸 것 중 가장 늦은 한 건은 다음 달 몫이다(월세를 전달 말에 미리 냄).
+ *   그 달 몫과 금액이 비슷할 때만이다(±[SIMILAR_AMOUNT_PERCENT]%). 3일 구독 가게에 28일 결제가 새로 생겼으면 새 구독이거나 한 번 낸 결제라 그 달에 낸 것이다.
  * 옮겨서 센 몫이 매달일 때만 옮긴다. 매년 · 몇 달마다 내는 것은 앞뒤 달이 원래 비어 있어서, 일찍 낸 것을 앞 달로 끌어가면 낸 달이 '안 내요' 가 된다.
  * 한 달에 보통 한 번 내는 것만 옮긴다. 한 가게에 3일 · 28일 두 번 내는 것은 28일 것이 늘 다음 달 몫으로 보여, 새 달 초에 3일 것을 안 냈는데도 '냈어요' 가 된다.
  * 그래서 나눠 내는 월세가 휴일로 다음 달 초에 밀린 것도 옮기지 않는다.
@@ -296,9 +296,14 @@ private fun shareMonths(rows: List<TransactionListItem>, month: YearMonth, usual
         if (usualDay >= LATE_PAY_FROM && paidMonth.minusMonths(1) !in byMonth) {
             items.filter { it.localDate().dayOfMonth <= SHIFT_DAYS }.minWithOrNull(byTime)?.let { moved[it.id] = paidMonth.minusMonths(1) }
         }
-        val paidOwnShare = items.any { it.localDate().dayOfMonth <= usualDay + SHIFT_DAYS }
-        if (usualDay <= SHIFT_DAYS && paidOwnShare && paidMonth.plusMonths(1) !in byMonth) {
-            items.filter { it.localDate().isInLastDays() }.maxWithOrNull(byTime)?.let { moved[it.id] = paidMonth.plusMonths(1) }
+        val ownShare = items.filter { it.localDate().dayOfMonth <= usualDay + SHIFT_DAYS }
+        if (usualDay <= SHIFT_DAYS && ownShare.isNotEmpty() && paidMonth.plusMonths(1) !in byMonth) {
+            // 그 달 몫과 금액이 비슷해야 미리 낸 것이다. 같은 가게에 새로 더한 구독이나 한 번 낸 연간 결제는 그 달에 낸 것이다.
+            items
+                .filter { it.localDate().isInLastDays() }
+                .maxWithOrNull(byTime)
+                ?.takeIf { isNear(it.amount, ownShare.sumOf { share -> share.amount }, ownShare.size) }
+                ?.let { moved[it.id] = paidMonth.plusMonths(1) }
         }
     }
     if (moved == own) return own
@@ -308,6 +313,9 @@ private fun shareMonths(rows: List<TransactionListItem>, month: YearMonth, usual
 
 /** 달 끝 [SHIFT_DAYS] 일 안인지 */
 private fun LocalDate.isInLastDays(): Boolean = dayOfMonth > lengthOfMonth() - SHIFT_DAYS
+
+/** [amount] 가 [count] 번에 낸 [total] 의 한 건 평균과 ±[SIMILAR_AMOUNT_PERCENT]% 안인지. 나눗셈 없이 견준다. */
+private fun isNear(amount: Long, total: Long, count: Int): Boolean = abs(amount * count - total) * PERCENT <= total * SIMILAR_AMOUNT_PERCENT
 
 /** [rows] 를 몫([shares])별로 합친 것(오래된 몫부터). 몫의 날짜는 첫 결제일(실제로 낸 날)이다. */
 private fun paymentsOf(rows: List<TransactionListItem>, shares: Map<Long, YearMonth>): List<MonthPayment> = rows
@@ -381,11 +389,17 @@ private const val CADENCE_GAPS = 5
 /** 평소 날짜를 짐작할 때 보는 최근 결제일 수 */
 private const val USUAL_DAY_SAMPLES = 6
 
-/** 한 달에 보통 몇 번 내는지 짐작할 때 보는 최근 결제 달 수 */
-private const val USUAL_COUNT_MONTHS = 6
+/**
+ * 한 달에 보통 몇 번 내는지 짐작할 때 보는 최근 결제 달 수. 한 가게에 구독을 하나 더한 뒤 두 달이면 두 번으로 따라간다
+ * (6달을 보면 석 달째까지 한 번이라, 새로 더한 달 말 결제를 다음 달 몫으로 옮겨 새 달 초에 안 낸 것을 '냈어요' 로 보였다).
+ */
+private const val USUAL_COUNT_MONTHS = 3
 
-/** 밀린 몫으로 볼 만큼 앞 몫 한 건과 비슷한 금액의 폭(%). 17,000원에 18,000원은 비슷하고 10,000원에 5,000원은 아니다. */
-private const val CATCH_UP_TOLERANCE_PERCENT = 20L
+/**
+ * 비슷한 금액으로 보는 폭(%). 밀린 몫(앞 몫 한 건과 비슷함)과 미리 냄(그 달 몫과 비슷함)을 가를 때 쓴다.
+ * 17,000원에 18,000원은 비슷하고 10,000원에 5,000원, 14,900원에 2,400원은 아니다.
+ */
+private const val SIMILAR_AMOUNT_PERCENT = 20L
 
 /** 백분율을 나눗셈 없이 견줄 때 곱하는 수 */
 private const val PERCENT = 100L
