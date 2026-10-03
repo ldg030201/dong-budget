@@ -15,6 +15,8 @@ import java.time.temporal.ChronoUnit
 // 가게는 많이 쓴 곳과 같은 열쇠(merchantKey: 띄어쓰기·대소문자 무시)로 묶는다. 이름이 비슷하기만 한 가게는 합치지 않는다.
 // 몇 달마다 · 며칠쯤 · 얼마를 내는지는 따로 적어 두지 않고 지난 기록에서 그때그때 짐작한다.
 // 고른 달 뒤의 기록은 보지 않는다. 지난 달을 보면 그 달까지 알던 대로 보인다.
+// 다만 결제는 낸 달이 아니라 '몇 월 몫인지' 로 센다. 1일에 내는 월세를 전달 말에 미리 냈으면 다음 달 몫이고,
+// 말일 자동이체가 휴일로 다음 달 초에 밀렸으면 앞 달 몫이다. 그래서 다음 달 초 며칠까지는 읽는다.
 // ─────────────────────────────────────────────────────────────────────
 
 /** 고른 달에서 한 가게가 어떤 상태인지 */
@@ -43,8 +45,8 @@ enum class FixedStatus {
  * @property amount 냈으면 고른 달에 낸 돈(한 달에 여러 번이면 합). 아니면 이번에 낼 것으로 보는 금액이다.
  *   가장 최근에 낸 달의 합인데, 그 달에 그 앞 달보다 많이 냈으면(밀린 몫을 함께 냈으면) 그 달 가장 최근 한 건이다.
  * @property previousAmount 그 앞에 낸 달에 낸 돈. 견줄 수 없으면(한 달에만 냈거나 두 달의 낸 횟수가 다르면) null
- * @property lastPaidOn 가장 최근에 낸 달의 첫 결제일. 냈으면 고른 달에 낸 날이다.
- * @property lastPaidCount 그 달에 낸 횟수
+ * @property lastPaidOn 가장 최근에 낸 몫의 첫 결제일. 냈으면 고른 달 몫을 낸 날이다(미리 냈으면 전달, 밀려 냈으면 다음 달 날짜다).
+ * @property lastPaidCount 그 몫으로 낸 횟수
  * @property nextMonth [FixedStatus.NOT_THIS_MONTH] 일 때 다음에 낼 달. 그 밖에는 null
  * @property missedMonth [FixedStatus.DUE] 인데 고른 달 전에 이미 낼 차례가 한 번 지났으면 그 달. 그 밖에는 null
  * @property daysPastUsual [FixedStatus.DUE] 이고 고른 달이 이번 달일 때, 오늘이 평소 내는 날에서 며칠 지났는지.
@@ -109,26 +111,30 @@ data class FixedExpenseBoard(
 }
 
 /**
- * [month] 의 고정지출을 계산한다.
+ * [month] 의 고정지출을 계산한다. 가게별로 묶고, 가게마다 아래 차례로 센다.
  *
- * - 가게별로 묶고, 같은 달에 여러 번 냈으면 합친다. 그 달의 날짜는 첫 결제일이다.
- * - 주기: 낸 달 사이 간격(달 수)의 가운데 값. 간격이 짝수 개면 둘 중 짧은 쪽이다(늦게 알리는 것보다 일찍 알리는 게 낫다).
- *   한 달에만 냈으면 매달로 본다. 11달 넘게 벌어지면 매년이다.
- * - 평소 날짜: 최근에 낸 달(최대 [USUAL_DAY_SAMPLES] 번)의 날짜 가운데 값(짝수 개면 이른 쪽). 31일에 낸 적이 있으면 짧은 달 말일도 말일로 센다.
- * - 상태: 고른 달에 냈으면 [FixedStatus.PAID]. 아니면 마지막으로 낸 달에서 몇 달 지났는지(gap)를 주기와 견준다.
- *   gap < 주기면 [FixedStatus.NOT_THIS_MONTH], 주기 ≤ gap < 주기 + [DUE_MONTHS] 면 [FixedStatus.DUE], 그보다 길면 [FixedStatus.STOPPED].
- * - 금액: 냈으면 그 달에 낸 돈(합). 아니면 [nextAmount]. 지난번 금액과는 두 달의 낸 횟수가 같을 때만 견준다.
+ * 1. 평소 날짜: 고른 달 말일까지 낸 최근 결제일(같은 날은 한 번, 최대 [USUAL_DAY_SAMPLES] 번)의 가운데 값(짝수 개면 이른 쪽).
+ *    31일에 낸 적이 있으면 짧은 달 말일도 말일로 센다.
+ * 2. 몇 월 몫인지([shareMonths]): 평소 날짜를 보고 달 끝·다음 달 초에 낸 것을 옆 달 몫으로 옮긴다. 고른 달 뒤의 몫은 뺀다.
+ * 3. 같은 달 몫은 합친다. 그 몫의 날짜는 첫 결제일이다(실제로 낸 날 그대로).
+ * 4. 주기: 낸 몫 사이 간격(달 수)의 가운데 값. 간격이 짝수 개면 둘 중 짧은 쪽이다(늦게 알리는 것보다 일찍 알리는 게 낫다).
+ *    한 달에만 냈으면 매달로 본다. 11달 넘게 벌어지면 매년이다.
+ * 5. 상태: 고른 달 몫을 냈으면 [FixedStatus.PAID]. 아니면 마지막으로 낸 몫에서 몇 달 지났는지(gap)를 주기와 견준다.
+ *    gap < 주기면 [FixedStatus.NOT_THIS_MONTH], 주기 ≤ gap < 주기 + [DUE_MONTHS] 면 [FixedStatus.DUE], 그보다 길면 [FixedStatus.STOPPED].
+ * 6. 금액: 냈으면 그 몫으로 낸 돈(합). 아니면 [nextAmount]. 지난번 금액과는 두 몫의 낸 횟수가 같을 때만 견준다.
  *
  * @param today 오늘. 고른 달이 이번 달이면 평소 날짜가 며칠 지났는지 센다.
- * @param rows '고정지출' 분류의 지출. [fixedHistoryStart] 부터 [month] 말일까지 읽은 것이다. 그 밖의 행과 지출이 아닌 행은 거른다.
+ * @param rows '고정지출' 분류의 지출. [fixedHistoryStart] 부터 [fixedHistoryEnd] 말일까지 읽은 것이다.
+ *   다음 달 [SHIFT_DAYS] 일 뒤의 행과 지출이 아닌 행은 거른다.
  */
 fun buildFixedExpenses(month: YearMonth, today: LocalDate, rows: List<TransactionListItem>): FixedExpenseBoard {
-    val end = month.plusMonths(1).atDay(1)
+    // 다음 달 초에 밀려 낸 고른 달 몫까지 본다
+    val end = month.plusMonths(1).atDay(SHIFT_DAYS + 1)
     val items =
         rows
             .filter { it.type == TransactionType.EXPENSE && it.localDate().isBefore(end) }
             .groupBy { merchantKey(it.merchant) ?: NO_MERCHANT_KEY }
-            .map { (key, group) -> fixedItem(key, group, month, today) }
+            .mapNotNull { (key, group) -> fixedItem(key, group, month, today) }
     return FixedExpenseBoard(
         due =
         items
@@ -152,17 +158,28 @@ fun buildFixedExpenses(month: YearMonth, today: LocalDate, rows: List<Transactio
  */
 fun fixedHistoryStart(month: YearMonth): YearMonth = month.minusMonths(HISTORY_MONTHS)
 
-/** 한 가게가 한 달에 낸 것. [firstDate] 는 그 달 첫 결제일, [count] 는 낸 횟수, [latestAmount] 는 그 달 가장 최근 한 건의 금액 */
+/** [month] 를 계산하려면 읽어야 하는 마지막 달. 말일에 낼 것이 휴일로 다음 달 초에 밀렸어도 그 달 몫으로 세려고 다음 달까지 읽는다. */
+fun fixedHistoryEnd(month: YearMonth): YearMonth = month.plusMonths(1)
+
+/** 한 가게가 한 달 몫으로 낸 것. [firstDate] 는 그 몫의 첫 결제일, [count] 는 낸 횟수, [latestAmount] 는 그 몫 가장 최근 한 건의 금액 */
 private data class MonthPayment(val month: YearMonth, val total: Long, val firstDate: LocalDate, val count: Int, val latestAmount: Long)
 
 /** 거래를 적은 차례. 같은 시각이면 나중에 적은(id 가 큰) 것이 나중이다. */
 private val byTime = compareBy<TransactionListItem> { it.occurredAt }.thenBy { it.id }
 
-private fun fixedItem(key: String, rows: List<TransactionListItem>, month: YearMonth, today: LocalDate): FixedExpenseItem {
-    val latest = rows.maxWith(byTime)
+/** 한 가게를 [month] 에서 본 것. 고른 달까지 낸 몫이 없으면(첫 결제 전 달) null */
+private fun fixedItem(key: String, rows: List<TransactionListItem>, month: YearMonth, today: LocalDate): FixedExpenseItem? {
+    val dates = rows.map { it.localDate() }.distinct().sorted()
+    val usualSamples = dates.filter { !it.isAfter(month.atEndOfMonth()) }.takeLast(USUAL_DAY_SAMPLES)
+    if (usualSamples.isEmpty()) return null
+    val usualDay = usualDayOf(usualSamples)
+    val shares = shareMonths(dates, usualDay)
+    val kept = rows.filter { shares.getValue(it.localDate()) <= month }
+    if (kept.isEmpty()) return null
+    val latest = kept.maxWith(byTime)
     val payments =
-        rows
-            .groupBy { YearMonth.from(it.localDate()) }
+        kept
+            .groupBy { shares.getValue(it.localDate()) }
             .map { (paidMonth, items) ->
                 MonthPayment(
                     month = paidMonth,
@@ -175,7 +192,6 @@ private fun fixedItem(key: String, rows: List<TransactionListItem>, month: YearM
     val last = payments.last()
     val previous = payments.getOrNull(payments.lastIndex - 1)
     val cadence = cadenceOf(payments.map { it.month })
-    val usualDay = usualDayOf(payments.takeLast(USUAL_DAY_SAMPLES).map { it.firstDate })
     val gap = ChronoUnit.MONTHS.between(last.month, month).toInt()
     val status =
         when {
@@ -233,6 +249,28 @@ private fun usualDayOf(dates: List<LocalDate>): Int {
     return lowerMedian(dates.map { if (paysOnLastDay && it.dayOfMonth == it.lengthOfMonth()) LAST_DAY else it.dayOfMonth })
 }
 
+/**
+ * 결제일([dates], 오래된 것부터, 겹치지 않게)마다 몇 월 몫인지. 보통은 낸 달의 몫이고, 달 끝과 다음 달 초 사이에서만 옮긴다.
+ * - 평소 날짜가 [SHIFT_DAYS] 일 이하인데 그 달 끝 [SHIFT_DAYS] 일 안에 냈고 그 달 몫을 이미 냈으면 다음 달 몫이다(월세를 전달 말에 미리 냄).
+ * - 평소 날짜가 [LATE_PAY_FROM] 일 이후인데 다음 달 1~[SHIFT_DAYS] 일에 냈고 앞 달 몫을 아직 안 냈으면 앞 달 몫이다(말일 자동이체가 휴일로 밀림).
+ * 그 달 몫을 아직 안 냈는데 달 끝에 냈으면 늦게 낸 그 달 몫이고, 앞 달 몫을 이미 냈는데 다음 달 초에 냈으면 일찍 낸 그 달 몫이라 옮기지 않는다.
+ * 같은 날 나눠 낸 것은 같은 몫이다.
+ */
+private fun shareMonths(dates: List<LocalDate>, usualDay: Int): Map<LocalDate, YearMonth> {
+    val paid = mutableSetOf<YearMonth>()
+    return dates.associateWith { date ->
+        val own = YearMonth.from(date)
+        val share =
+            when {
+                usualDay <= SHIFT_DAYS && date.dayOfMonth > date.lengthOfMonth() - SHIFT_DAYS && own in paid -> own.plusMonths(1)
+                usualDay >= LATE_PAY_FROM && date.dayOfMonth <= SHIFT_DAYS && own.minusMonths(1) !in paid -> own.minusMonths(1)
+                else -> own
+            }
+        paid += share
+        share
+    }
+}
+
 /** 낸 달들(오래된 것부터)의 간격으로 본 주기. 1(매달), 2~[MAX_EVERY_MONTHS], [YEARLY] */
 private fun cadenceOf(months: List<YearMonth>): Int {
     if (months.size < 2) return 1
@@ -265,8 +303,14 @@ private const val MAX_EVERY_MONTHS = 10
 /** 낼 차례가 된 달부터 이만큼(그 달과 다음 달) '아직 안 냈어요' 로 두고, 그 뒤로는 '한동안 안 냈어요' 로 접는다. */
 private const val DUE_MONTHS = 2
 
-/** 평소 날짜를 짐작할 때 보는 최근 결제 수 */
+/** 평소 날짜를 짐작할 때 보는 최근 결제일 수 */
 private const val USUAL_DAY_SAMPLES = 6
+
+/** 달 끝·다음 달 초의 이만큼(일) 안에 낸 것은 옆 달 몫일 수 있다([shareMonths]) */
+private const val SHIFT_DAYS = 5
+
+/** 평소 날짜가 이날 이후(말일 포함)면 다음 달 초에 낸 것을 밀린 앞 달 몫으로 볼 수 있다 */
+private const val LATE_PAY_FROM = 26
 
 /** 고른 달 앞으로 읽는 달 수. 매년(12) + 한 달 늦음(1) + 그 앞 해(12) */
 private const val HISTORY_MONTHS = 25L

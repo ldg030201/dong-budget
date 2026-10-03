@@ -247,6 +247,86 @@ class FixedExpensesTest {
     }
 
     @Test
+    fun `1일에 내는 것을 전달 말에 미리 냈으면 다음 달 몫으로 센다`() {
+        val rows = paid("월세", 500_000, "2026-07-01", "2026-08-01", "2026-09-01", "2026-09-30")
+        // 10월 5일에 보면 10월 몫은 9월 30일에 냈다. '평소보다 4일 지났어요' 와 100만 원 등록하기가 뜨지 않는다.
+        val october5 = board(rows, today = day("2026-10-05"))
+        val item = october5.paid.single()
+        assertEquals(day("2026-09-30"), item.lastPaidOn)
+        assertEquals(500_000L, item.amount)
+        assertEquals(1, item.lastPaidCount)
+        assertTrue(october5.due.isEmpty())
+        assertEquals(500_000L, october5.paidTotal)
+        // 9월은 9월 1일 한 번 냈다
+        val september = only(rows, month = YearMonth.of(2026, 9), today = day("2026-10-05"))
+        assertEquals(FixedStatus.PAID, september.status)
+        assertEquals(day("2026-09-01"), september.lastPaidOn)
+        assertEquals(1, september.lastPaidCount)
+        assertEquals(500_000L, september.amount)
+    }
+
+    @Test
+    fun `해를 넘겨 12월 말에 미리 낸 것은 다음 해 1월 몫이다`() {
+        val rows = paid("월세", 500_000, "2026-10-01", "2026-11-01", "2026-12-01", "2026-12-30")
+        val january = only(rows, month = YearMonth.of(2027, 1), today = day("2027-01-05"))
+        assertEquals(FixedStatus.PAID, january.status)
+        assertEquals(day("2026-12-30"), january.lastPaidOn)
+        val december = only(rows, month = YearMonth.of(2026, 12), today = day("2026-12-31"))
+        assertEquals(day("2026-12-01"), december.lastPaidOn)
+        assertEquals(1, december.lastPaidCount)
+    }
+
+    @Test
+    fun `그 달 몫을 안 낸 채 달 끝에 냈으면 늦게 낸 그 달 몫이다`() {
+        // 9월 1일에 못 내고 9월 28일에 냈다. 10월 몫을 미리 낸 것으로 보지 않는다.
+        val rows = paid("월세", 500_000, "2026-07-01", "2026-08-01", "2026-09-28")
+        val september = only(rows, month = YearMonth.of(2026, 9), today = day("2026-10-05"))
+        assertEquals(FixedStatus.PAID, september.status)
+        val october = only(rows, today = day("2026-10-05"))
+        assertEquals(FixedStatus.DUE, october.status)
+        assertNull(october.missedMonth)
+    }
+
+    @Test
+    fun `말일에 낼 것이 다음 달 초로 밀렸으면 앞 달 몫으로 센다`() {
+        // 9월 30일 자동이체가 휴일이라 10월 1일에 나갔다
+        val rows = paid("관리비", 120_000, "2026-07-31", "2026-08-31", "2026-10-01")
+        assertEquals(YearMonth.of(2026, 11), fixedHistoryEnd(october))
+        val september = only(rows, month = YearMonth.of(2026, 9), today = day("2026-10-15"))
+        assertEquals(FixedStatus.PAID, september.status)
+        assertEquals(day("2026-10-01"), september.lastPaidOn)
+        // 10월 몫은 아직이고, 9월 차례를 놓쳤다고 하지 않으며 평소 날짜(말일)도 아직이다
+        val october15 = only(rows, today = day("2026-10-15"))
+        assertEquals(FixedStatus.DUE, october15.status)
+        assertEquals(LAST_DAY, october15.usualDay)
+        assertNull(october15.missedMonth)
+        assertEquals(-16, october15.daysPastUsual)
+    }
+
+    @Test
+    fun `앞 달 몫을 이미 냈으면 다음 달 초에 낸 것은 그 달 몫이다`() {
+        val rows = paid("관리비", 120_000, "2026-07-31", "2026-08-31", "2026-09-30", "2026-10-02")
+        val october = only(rows)
+        assertEquals(FixedStatus.PAID, october.status)
+        assertEquals(day("2026-10-02"), october.lastPaidOn)
+        val september = only(rows, month = YearMonth.of(2026, 9), today = day("2026-10-12"))
+        assertEquals(day("2026-09-30"), september.lastPaidOn)
+        assertEquals(1, september.lastPaidCount)
+    }
+
+    @Test
+    fun `같은 날 나눠 낸 것은 함께 옆 달 몫으로 옮긴다`() {
+        val dates = arrayOf("2026-07-31", "2026-08-31", "2026-10-01")
+        val rows = paid("월세", 300_000, *dates) + paid("월세", 200_000, *dates, paymentId = 11)
+        val september = only(rows, month = YearMonth.of(2026, 9), today = day("2026-10-15"))
+        assertEquals(500_000L, september.amount)
+        assertEquals(2, september.lastPaidCount)
+        val october = only(rows, today = day("2026-10-15"))
+        assertEquals(FixedStatus.DUE, october.status)
+        assertEquals(500_000L, october.amount)
+    }
+
+    @Test
     fun `띄어쓰기·대소문자만 다른 가게 이름은 한 가게로 묶고 이름은 가장 최근 것이다`() {
         val rows =
             listOf(

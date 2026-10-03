@@ -53,7 +53,8 @@ data class FixedExpenseUiState(
 }
 
 /**
- * 고정지출 탭. 고른 달까지 [fixedHistoryStart] 부터의 '고정지출' 분류 지출을 읽어 순수 함수([buildFixedExpenses])로 나눈다.
+ * 고정지출 탭. [fixedHistoryStart] 부터 [fixedHistoryEnd] 까지의 '고정지출' 분류 지출을 읽어 순수 함수([buildFixedExpenses])로 나눈다.
+ * 고른 달 뒤의 기록은 다음 달 초에 밀려 낸 고른 달 몫만 쓴다.
  * 등록창에서 저장하거나 거래를 고치면 조회가 다시 내보내서 '아직 안 냈어요' 가 바로 '냈어요' 로 옮겨 간다.
  * 달을 바꾸면 새 계산이 끝날 때까지 이전 달 화면을 그대로 둔다(빈 화면이 깜빡이지 않게).
  *
@@ -87,7 +88,7 @@ class FixedExpenseViewModel(
             .flatMapLatest { (month, today) ->
                 combine(
                     hasCategory,
-                    transactions.observeExpensesWithCategoryCode(FIXED_CATEGORY_CODE, fixedHistoryStart(month), month),
+                    transactions.observeExpensesWithCategoryCode(FIXED_CATEGORY_CODE, fixedHistoryStart(month), fixedHistoryEnd(month)),
                 ) { has, rows ->
                     FixedExpenseUiState(
                         loaded = true,

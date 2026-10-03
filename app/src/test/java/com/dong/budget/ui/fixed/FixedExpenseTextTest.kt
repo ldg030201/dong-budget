@@ -109,6 +109,21 @@ class FixedExpenseTextTest {
     }
 
     @Test
+    fun `옆 달 몫으로 옮긴 결제는 실제로 낸 날을 적고 놓쳤다거나 지났다고 하지 않는다`() {
+        // 1일에 내는 것을 9월 30일에 미리 냈으면 10월 줄에 9월 30일이 보인다
+        val early = item(paid("2026-07-01", "2026-08-01", "2026-09-01", "2026-09-30"), today = day("2026-10-05"))
+        assertEquals("9월 30일 · 하나카드", rowSubtitle(early, october))
+        assertNull(rowNote(early, october))
+        // 말일 것이 10월 1일로 밀렸으면 9월 줄에 10월 1일이 보이고, 10월 중순엔 아직 낼 날이 안 됐다
+        val lateRows = paid("2026-07-31", "2026-08-31", "2026-10-01")
+        val september = YearMonth.of(2026, 9)
+        assertEquals("10월 1일 · 하나카드", rowSubtitle(item(lateRows, month = september, today = day("2026-10-15")), september))
+        val october15 = item(lateRows, today = day("2026-10-15"))
+        assertEquals("매달 말일쯤 · 하나카드", rowSubtitle(october15, october))
+        assertNull(rowNote(october15, october))
+    }
+
+    @Test
     fun `한동안 안 냈어요 줄은 마지막으로 낸 날을 적고 해가 다르면 연도를 붙인다`() {
         assertEquals("마지막 6월 3일 · 하나카드", rowSubtitle(item(paid("2026-05-03", "2026-06-03")), october))
         assertEquals("마지막 2025년 12월 3일 · 하나카드", rowSubtitle(item(paid("2025-12-03")), october))
