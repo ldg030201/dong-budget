@@ -274,9 +274,6 @@ private fun <T> combinations(items: List<T>, size: Int): List<List<T>> = when {
 /** I4: 낼 돈 · 등록하기 금액이 진짜 한 달 치의 몇 % 까지인지 */
 private const val I4_LIMIT_PERCENT = 120L
 
-/** I6: 진짜 낼 날(밀림 포함)보다 며칠 앞서 '평소보다 N일 지났어요' 가 떠도 봐주는지(주말 밀림 이틀) */
-private const val I6_TOLERANCE_DAYS = 2L
-
 /** 평소 날과 이만큼 넘게 떨어진 결제는 가까운 쪽 달 몫으로 봐준다(fixes3.md '받아들이는 모호함') */
 private const val HALF_MONTH_DAYS = 15L
 
@@ -378,10 +375,11 @@ private fun check(pattern: Pattern, day: LocalDate, now: View, before: View, che
     judge("I5", now, due?.payments.orEmpty().none { !it.date.isAfter(day) }, now.item?.status != FixedStatus.PAID) {
         "냈어요 아님(진짜 낼 날 ${due?.scheduled ?: "없음"})"
     }
-    // I6: '평소보다 N일 지났어요' 는 진짜 낼 날(밀림 포함)보다 I6_TOLERANCE_DAYS 일 넘게 앞서 뜨지 않는다
+    // I6: '평소보다 N일 지났어요' 는 진짜 낼 날(주말 · 공휴일 밀림 포함) 다음 날부터만 뜬다. 앱이 공휴일 달력으로 밀린 낼 날을 알므로
+    // 봐주는 날이 없다(공휴일 달력을 넣기 전에는 주말 밀림 이틀과 긴 연휴를 받아들였다).
     val past = now.item?.daysPastUsual
     val scheduled = due?.scheduled
-    val early = scheduled == null || ChronoUnit.DAYS.between(day, scheduled) > I6_TOLERANCE_DAYS
+    val early = scheduled == null || !day.isAfter(scheduled)
     judge("I6", now, now.item?.status == FixedStatus.DUE && past != null && past > 0, !early) {
         // 긴 연휴(설 · 추석 등 평일 공휴일)로 밀린 것인지 보기 쉽게 그 수를 적는다(받아들이지 않음, [acceptedReason]).
         val holidays = scheduled?.let { end ->
@@ -428,14 +426,7 @@ private fun acceptedReason(pattern: Pattern, violation: Violation, day: LocalDat
             share.payments.any { abs(ChronoUnit.DAYS.between(it.due, it.date)) > HALF_MONTH_DAYS }
         }
     if (far) return "평소 날과 반 달 넘게 떨어진 결제는 가까운 달 몫"
-    // 긴 연휴(설 · 추석 · 대체공휴일 등 평일 공휴일)로 밀리면 '평소보다 N일 지났어요' 가 진짜 낼 날보다 일찍 뜬다. 앱은 공휴일 달력을 두지 않아
-    // (몫 정하기는 요일 · 공휴일을 보지 않는다) 평소 날짜가 지난 것을 그대로 알리는 것이 맞다. 주말 밀림 허용치(I6_TOLERANCE_DAYS)에
-    // 그날부터 진짜 낼 날 사이의 평일 공휴일 수만큼 더 받아들인다. 앱에 공휴일 달력을 넣으면 이 블록을 지우고 I6 를 다시 본다.
-    if (violation.invariant == "I6") {
-        val scheduled = pattern.shareIn(violation.view)?.scheduled ?: return null
-        val holidays = generateSequence(day) { it.plusDays(1) }.takeWhile { it < scheduled }.count(KoreanCalendar::isWeekdayHoliday)
-        if (holidays > 0 && ChronoUnit.DAYS.between(day, scheduled) <= I6_TOLERANCE_DAYS + holidays) return "긴 연휴 밀림(평일 공휴일 ${holidays}일)"
-    }
+    // 긴 연휴(설 · 추석 등)로 밀린 결제는 받아들이지 않는다. 앱이 공휴일 달력(KoreanHolidays)으로 낼 날을 다음 영업일로 본다.
     return null
 }
 
