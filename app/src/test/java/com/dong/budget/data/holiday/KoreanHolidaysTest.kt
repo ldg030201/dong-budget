@@ -101,4 +101,15 @@ class KoreanHolidaysTest {
         assertEquals(day("2036-01-02"), KoreanHolidays.nextBusinessDay(day("2036-01-01")))
         assertEquals(day("2026-10-07"), KoreanHolidays.nextBusinessDay(day("2026-10-07")))
     }
+
+    @Test
+    fun `앞 영업일은 그날이 영업일이면 그날, 쉬는 날이면 주말 · 공휴일을 거슬러 건너뛴 날이다`() {
+        // 2026년 10월 5일(월)은 개천절 대체공휴일이라 3일(토)부터 거슬러 2일(금)
+        assertEquals(day("2026-10-02"), KoreanHolidays.previousBusinessDay(day("2026-10-05")))
+        // 2026년 2월 14일(토) · 15일(일) · 설 16~18일
+        assertEquals(day("2026-02-13"), KoreanHolidays.previousBusinessDay(day("2026-02-18")))
+        // 2025년 5월 31일(토)
+        assertEquals(day("2025-05-30"), KoreanHolidays.previousBusinessDay(day("2025-05-31")))
+        assertEquals(day("2026-10-07"), KoreanHolidays.previousBusinessDay(day("2026-10-07")))
+    }
 }

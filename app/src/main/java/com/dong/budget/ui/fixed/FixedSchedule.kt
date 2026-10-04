@@ -11,7 +11,8 @@ import kotlin.math.abs
 // 고정지출 한 가게의 일정 짐작. 한 달에 몇 번 · 며칠에 · 몇 달마다 내는지를 한 가지 원리로 고른다:
 // 결제마다 가장 가까운 차례의 '낼 날' 과 며칠 떨어졌는지를 더해 가장 덜 떨어지는 일정이다.
 // 낼 날은 평소 날짜부터 그날이 쉬는 날(주말 · 공휴일, KoreanHolidays)이면 다음 영업일까지다(카드는 그날, 자동이체는 다음 영업일에 나간다).
-// 그래서 주말 · 연휴로 밀린 결제도, 31일이 없는 달의 말일도 따로 가리지 않고 같은 셈으로 들어온다.
+// 쉬는 날 앞 영업일에 미리 빼 가는 자동이체도 있어, 그날도 딱 맞는 날로 센다(알림은 낼 날이 지나야 한다).
+// 그래서 주말 · 연휴로 밀리거나 당겨진 결제도, 31일이 없는 달의 말일도 따로 가리지 않고 같은 셈으로 들어온다.
 // ─────────────────────────────────────────────────────────────────────
 
 /** 고정지출 결제 한 건. 서울 날짜는 처음에 한 번만 구해 들고 다닌다. */
@@ -66,23 +67,45 @@ internal fun isExtraAt(amounts: List<Long>, index: Int): Boolean {
 }
 
 /**
- * 낼 날 표. (달, 평소 날)마다 낼 날을 한 번만 구한다. 낼 날은 가게와 상관없어 한 번 계산하는 모든 가게의 짐작 · 짝짓기 · 정렬이 한 표를
- * 함께 쓴다([buildFixedExpenses]). 짐작은 결제마다 앞뒤 달의 1~31일을 모두 묻는다.
+ * (달, 평소 날) 한 차례가 나갈 수 있는 날들. 거리를 뺄셈으로 세게 날짜를 에포크 날 수로도 들고 있다.
+ * @property due 낼 날([dueDateOf]). 평소 날짜가 쉬는 날이면 다음 영업일이다(자동이체).
+ * @property early 쉬는 날 앞에 미리 빼 가면 나가는 날. 평소 날짜가 쉬는 날이면 그 달 안의 앞 영업일, 아니면 평소 날짜다
+ *   ([KoreanHolidays.previousBusinessDay]). 앞 영업일이 앞 달이면(1일부터 쉬는 날) 앞 달 말일 납부와 가를 수 없어 평소 날짜로 둔다.
+ *   짐작과 짝짓기에서만 딱 맞는 날로 보고, 알림은 낼 날이 지나야 한다.
  */
-internal class DueDates {
-    private val cache = HashMap<Int, LocalDate>()
+internal class DueWindow(month: YearMonth, day: Int) {
+    val due: LocalDate = dueDateOf(month, day)
+    private val dueDay = due.toEpochDay()
+    private val usual = usualDateOf(month, day).toEpochDay()
+    private val early =
+        KoreanHolidays.previousBusinessDay(usualDateOf(month, day)).takeIf { YearMonth.from(it) == month }?.toEpochDay() ?: usual
 
-    /** 구해 둔 낼 날 수 */
-    val size: Int get() = cache.size
-
-    fun due(month: YearMonth, day: Int): LocalDate = cache.getOrPut(month.index() * DAY_KEYS + day) { dueDateOf(month, day) }
+    /** 에포크 날 수 [epochDay] 가 평소 날짜와 며칠 떨어졌는지 */
+    fun plain(epochDay: Long): Int = abs(epochDay - usual).toInt()
 
     /**
-     * [date] 가 [month] 의 [day] 일 차례와 며칠 떨어졌는지. 평소 날짜(카드는 쉬는 날에도 그날 나간다)와 낼 날(자동이체는 다음 영업일에 나간다)
-     * 가운데 가까운 쪽으로 센다.
+     * 에포크 날 수 [epochDay] 가 이 차례와 며칠 떨어졌는지. 평소 날짜(카드는 쉬는 날에도 그날 나간다), 낼 날(자동이체는 다음 영업일에
+     * 나간다), 앞 영업일([early], 쉬는 날 앞에 미리 빼 가는 자동이체) 가운데 가까운 쪽으로 센다.
      */
-    fun distance(date: LocalDate, month: YearMonth, day: Int): Int =
-        minOf(abs(daysBetween(date, usualDateOf(month, day))), abs(daysBetween(date, due(month, day))))
+    fun distance(epochDay: Long): Int = minOf(abs(epochDay - usual), abs(epochDay - dueDay), abs(epochDay - early)).toInt()
+}
+
+/**
+ * 낼 날 표. (달, 평소 날)마다 나갈 수 있는 날들([DueWindow])을 한 번만 구한다. 가게와 상관없어 한 번 계산하는 모든 가게의 짐작 · 짝짓기 ·
+ * 정렬이 한 표를 함께 쓴다([buildFixedExpenses]). 짐작은 결제마다 앞뒤 달의 1~31일을 모두 묻는다.
+ */
+internal class DueDates {
+    private val cache = HashMap<Int, DueWindow>()
+
+    /** 구해 둔 차례 수 */
+    val size: Int get() = cache.size
+
+    fun window(month: YearMonth, day: Int): DueWindow = cache.getOrPut(month.index() * DAY_KEYS + day) { DueWindow(month, day) }
+
+    fun due(month: YearMonth, day: Int): LocalDate = window(month, day).due
+
+    /** [date] 가 [month] 의 [day] 일 차례와 며칠 떨어졌는지([DueWindow.distance]) */
+    fun distance(date: LocalDate, month: YearMonth, day: Int): Int = window(month, day).distance(date.toEpochDay())
 
     /** [date] 에 가장 가까운 차례의 달(낸 달과 그 앞뒤 달 가운데, 평소 날 [days] 가운데 어느 것이든). 같으면 낸 달이다. */
     fun nearestMonth(date: LocalDate, days: List<Int>): YearMonth {
@@ -204,15 +227,16 @@ private fun occasionsOf(pays: List<Paid>): Int {
 private fun dayCosts(date: LocalDate, dues: DueDates): IntArray {
     val own = YearMonth.from(date)
     val months = arrayOf(own.minusMonths(1), own, own.plusMonths(1))
+    val epochDay = date.toEpochDay()
     return IntArray(LAST_DAY + 1) { day ->
         if (day == 0) return@IntArray 0
         // 앞뒤 달마다 거리를 한 번씩만 구해 가장 가까운 차례(같으면 평소 날짜와 그대로 견준 거리가 짧은 쪽, 그래도 같으면 앞 달)를 고른다
         var distance = Int.MAX_VALUE
         var unshifted = Int.MAX_VALUE
         for (month in months) {
-            val plain = abs(daysBetween(date, usualDateOf(month, day)))
-            // [DueDates.distance] 와 같은 값(평소 날짜와 낼 날 가운데 가까운 쪽)
-            val shifted = minOf(plain, abs(daysBetween(date, dues.due(month, day))))
+            val window = dues.window(month, day)
+            val plain = window.plain(epochDay)
+            val shifted = window.distance(epochDay)
             if (shifted < distance || (shifted == distance && plain < unshifted)) {
                 distance = shifted
                 unshifted = plain

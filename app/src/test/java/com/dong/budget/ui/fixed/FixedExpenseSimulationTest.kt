@@ -340,8 +340,9 @@ private const val I4_LIMIT_PERCENT = 120L
 
 /**
  * 2025-01-01 ~ 2035-12-31(공휴일 표가 있는 해까지)의 실제 한국 달력([KoreanCalendar])으로 진짜 결제를 만들고, 오늘을 날마다 옮기며
- * 그날까지의 기록만으로 이번 달 · 지난 달 화면을 계산해 불변식(fixes3.md '검증 방법' I1~I6, 일부 냄 I7, 지난 달 낼 날 I8)을 본다. 읽는 범위는 화면 모델과 같다
- * ([fixedHistoryStart] ~ [fixedHistoryEnd]). 위반은 모아서 한 번에 보여 준다.
+ * 그날까지의 기록만으로 이번 달 · 지난 달 화면을 계산해 불변식(fixes3.md '검증 방법' I1~I6, 일부 냄 I7, 지난 달 낼 날 I8)을 본다.
+ * 그날 결제를 넣기 전 아침의 이번 달 화면(그 앞 날짜까지의 기록)도 계산해 I5 · I6 · I7 을 따로 본다([checkMorning]).
+ * 읽는 범위는 화면 모델과 같다([fixedHistoryStart] ~ [fixedHistoryEnd]). 위반은 모아서 한 번에 보여 준다.
  */
 class FixedExpenseSimulationTest {
     private val patterns = patterns()
@@ -354,12 +355,16 @@ class FixedExpenseSimulationTest {
         var day = FIRST.atDay(1)
         while (!day.isAfter(LAST.atEndOfMonth())) {
             val known = rows.filter { !it.localDate().isAfter(day) }
+            // 아침: 그날 결제를 넣기 전(그 앞 날짜까지의 기록)
+            val earlier = known.filter { it.localDate().isBefore(day) }
             val thisMonth = YearMonth.from(day)
             val now = boardOf(known, thisMonth, day)
             val before = boardOf(known, thisMonth.minusMonths(1), day)
+            val morning = boardOf(earlier, thisMonth, day)
             patterns.forEach { pattern ->
                 val thisView = viewOf(pattern, now, thisMonth, known, day)
                 found += check(pattern, day, thisView, viewOf(pattern, before, thisMonth.minusMonths(1), known, day), checked)
+                found += checkMorning(pattern, day, viewOf(pattern, morning, thisMonth, earlier, day), checked)
             }
             day = day.plusDays(1)
         }
@@ -393,16 +398,37 @@ class FixedExpenseSimulationTest {
     }
 }
 
-/** [day] 에 [pattern] 을 이번 달([now]) · 지난 달([before]) 화면에서 본 것의 위반. [checked] 에 불변식마다 따져 본 수를 더한다. */
-private fun check(pattern: Pattern, day: LocalDate, now: View, before: View, checked: MutableMap<String, Int>): List<Violation> {
+/** [day] 에 [pattern] 을 본 화면들의 위반을 [found] 에 모은다. [checked] 에 불변식마다 따져 본 수를 더한다. */
+private class Judge(val pattern: Pattern, val day: LocalDate, private val checked: MutableMap<String, Int>) {
     val found = mutableListOf<Violation>()
-    fun judge(invariant: String, view: View, applies: Boolean, holds: Boolean, expected: () -> String) {
+
+    operator fun invoke(invariant: String, view: View, applies: Boolean, holds: Boolean, expected: () -> String) {
         if (!applies) return
         checked.merge(invariant, 1, Int::plus)
         if (holds) return
         val violation = Violation(pattern.name, day, invariant, view.month, expected(), describe(view.item))
         found += violation.copy(accepted = acceptedReason(pattern, violation, day))
     }
+}
+
+/** 아침 화면의 불변식 이름에 붙이는 말. 저녁 화면과 따로 센다. */
+private const val MORNING = " 아침"
+
+/**
+ * [day] 아침에 [pattern] 을 이번 달 화면([now], 그날 결제를 넣기 전 그 앞 날짜까지의 기록)에서 본 것의 위반. 그날 결제는 아직 안 낸 것이다
+ * (그날 결제를 그날 0시에 이미 넣는 저녁 화면만으로는 하루 차이 두 청구의 남은 것이 그날 아침 '지났어요' 가 되는 것을 못 잡는다).
+ */
+private fun checkMorning(pattern: Pattern, day: LocalDate, now: View, checked: MutableMap<String, Int>): List<Violation> {
+    val paidThrough = day.minusDays(1)
+    val judge = Judge(pattern, day, checked)
+    checkPartly(judge, now, paidThrough, MORNING)
+    checkUnpaid(judge, now, paidThrough, MORNING)
+    return judge.found
+}
+
+/** [day] 에 [pattern] 을 이번 달([now]) · 지난 달([before]) 화면에서 본 것의 위반. [checked] 에 불변식마다 따져 본 수를 더한다. */
+private fun check(pattern: Pattern, day: LocalDate, now: View, before: View, checked: MutableMap<String, Int>): List<Violation> {
+    val judge = Judge(pattern, day, checked)
     for (view in listOf(now, before)) {
         val item = view.item
         // I1: 매달 내는 것은 3번째 결제 뒤로 '이번 달엔 안 내요' · '한동안 안 냈어요' 가 아니다
@@ -425,14 +451,7 @@ private fun check(pattern: Pattern, day: LocalDate, now: View, before: View, che
     judge("I2b", now, nowPaid, now.item?.status == FixedStatus.PAID) {
         "냈어요(${nowShare?.payments.orEmpty().joinToString { it.date.toString() }})"
     }
-    // I7(일부 냄 · 리뷰 s1): 한 달 몫을 여러 번에 나눠 내는데 일부만 냈으면 그 달 화면은 냈어요가 아니다(남은 차례를 알린다)
-    for (view in listOf(now, before)) {
-        val pays = pattern.shareIn(view.month)?.payments.orEmpty()
-        val partly = pays.any { !it.date.isAfter(day) } && pays.any { it.date.isAfter(day) }
-        judge("I7", view, partly, view.item?.status != FixedStatus.PAID) {
-            "냈어요 아님(${pays.joinToString { it.date.toString() }} 가운데 일부만 냄)"
-        }
-    }
+    for (view in listOf(now, before)) checkPartly(judge, view, day, "")
     // I8(리뷰 c7): 지난 달 몫의 진짜 낼 날이 아직이면(말일이 쉬는 날이라 이번 달 초에 나감) 지난 달 화면도 끝난 달로 적지 않는다
     val waiting = share != null && !day.isAfter(share.scheduled) && before.item?.status == FixedStatus.DUE
     judge("I8", before, waiting, before.item?.let { rowStatus(it, before.month, day) }?.startsWith("아직") == true) {
@@ -443,9 +462,28 @@ private fun check(pattern: Pattern, day: LocalDate, now: View, before: View, che
     val apart = before.paidBases().any { basis -> nowBases.any { (it intersect basis).isEmpty() } }
     val bothPaid = now.item?.status == FixedStatus.PAID && before.item?.status == FixedStatus.PAID
     judge("I3", now, bothPaid, apart) { "${before.month} 과 ${now.month} 이 결제를 나눠 갖지 않음" }
+    checkUnpaid(judge, now, day, "")
+    return judge.found
+}
+
+/**
+ * I7(일부 냄 · 리뷰 s1): 한 달 몫을 여러 번에 나눠 내는데 [paidThrough] 날까지 일부만 냈으면 그 달 화면([view])은 냈어요가 아니다
+ * (남은 차례를 알린다). 저녁 화면은 그날까지, 아침 화면은 그 앞 날까지 나간 결제가 낸 것이고 [suffix] 로 따로 센다.
+ */
+private fun checkPartly(judge: Judge, view: View, paidThrough: LocalDate, suffix: String) {
+    val pays = judge.pattern.shareIn(view.month)?.payments.orEmpty()
+    val partly = pays.any { !it.date.isAfter(paidThrough) } && pays.any { it.date.isAfter(paidThrough) }
+    judge("I7$suffix", view, partly, view.item?.status != FixedStatus.PAID) {
+        "냈어요 아님(${pays.joinToString { it.date.toString() }} 가운데 일부만 냄)"
+    }
+}
+
+/** 이번 달 화면 [now] 의 낼 차례(I5 · I6). [paidThrough] 날까지 나간 결제만 낸 것이다(저녁 화면은 그날, 아침 화면은 그 앞 날). */
+private fun checkUnpaid(judge: Judge, now: View, paidThrough: LocalDate, suffix: String) {
+    val day = judge.day
     // I5: 이번 달 몫을 내기 전(미리 냄 제외)에는 냈어요가 아니다
-    val due = pattern.shareIn(now.month)
-    judge("I5", now, due?.payments.orEmpty().none { !it.date.isAfter(day) }, now.item?.status != FixedStatus.PAID) {
+    val due = judge.pattern.shareIn(now.month)
+    judge("I5$suffix", now, due?.payments.orEmpty().none { !it.date.isAfter(paidThrough) }, now.item?.status != FixedStatus.PAID) {
         "냈어요 아님(진짜 낼 날 ${due?.scheduled ?: "없음"})"
     }
     // I6: '평소보다 N일 지났어요' 는 진짜 낼 날(주말 · 공휴일 밀림 포함) 다음 날부터만 뜬다. 앱이 공휴일 달력으로 밀린 낼 날을 알므로
@@ -453,17 +491,16 @@ private fun check(pattern: Pattern, day: LocalDate, now: View, before: View, che
     // 남은 것 가운데 가장 이른 것의 진짜 낼 날이다(리뷰 검증: 9일 청구를 5일 것과 한 차례로 보아 9일 전에 지났다고 했다).
     val past = now.item?.daysPastUsual
     val pays = due?.payments.orEmpty()
-    val pending = pays.filter { it.date.isAfter(day) }
+    val pending = pays.filter { it.date.isAfter(paidThrough) }
     val scheduled = if (pending.isNotEmpty() && pending.size < pays.size) pending.minOf { it.due } else due?.scheduled
     val early = scheduled == null || !day.isAfter(scheduled)
-    judge("I6", now, now.item?.status == FixedStatus.DUE && past != null && past > 0, !early) {
+    judge("I6$suffix", now, now.item?.status == FixedStatus.DUE && past != null && past > 0, !early) {
         // 긴 연휴(설 · 추석 등 평일 공휴일)로 밀린 것인지 보기 쉽게 그 수를 적는다(받아들이지 않음, [acceptedReason]).
         val holidays = scheduled?.let { end ->
             generateSequence(day) { it.plusDays(1) }.takeWhile { it < end }.count(KoreanCalendar::isWeekdayHoliday)
         }
         "지났어요 없음(진짜 낼 날 ${scheduled ?: "없음"}${holidays?.takeIf { it > 0 }?.let { " · 사이 평일 공휴일 ${it}일" }.orEmpty()})"
     }
-    return found
 }
 
 /** 화면에 보이는 대로 한 줄 */

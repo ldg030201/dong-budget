@@ -165,6 +165,23 @@ class FixedExpensesVerifyTest {
         assertEquals(1, newest.due.single().paidCount)
     }
 
+    /** [rows] 가운데 [today] 앞 날짜까지의 기록. 그날 결제가 아직 안 나간 아침이다. */
+    private fun morningOf(rows: List<TransactionListItem>, today: LocalDate) = rows.filter { it.localDate().isBefore(today) }
+
+    @Test
+    fun `아침 - 말일 것을 쉬는 날 앞 영업일에 미리 빼 가는 관리비는 기록이 짧아도 말일 것이라 말일 아침에 지났다고 하지 않는다`() {
+        // 2025년 5월 31일(토) 것은 30일(금), 8월 31일(일) 것은 29일(금)에 미리 나갔다. 앞 영업일을 모르면 1~6월이 '30일, 쉬는 날이면
+        // 다음 영업일' 에 딱 맞아(1월 30일은 설 연휴라 31일, 3월 30일은 일요일이라 31일) 7월 31일 아침에 '평소보다 1일 지났어요' 였다.
+        val rows = generateSequence(YearMonth.of(2025, 1)) { it.plusMonths(1) }.takeWhile { it <= YearMonth.of(2025, 10) }.toList()
+            .flatMap { paid("관리비", 140_000, KoreanCalendar.previousBusinessDay(it.atEndOfMonth()).toString()) }
+        for (date in listOf("2025-07-31", "2025-10-31")) {
+            val today = day(date)
+            val item = view(morningOf(rows, today), YearMonth.from(today), today)
+            assertEquals(date, LAST_DAY, item.usualDay)
+            assertEquals(date, "오늘 낼 차례예요", rowNote(item, YearMonth.from(today), today)?.text)
+        }
+    }
+
     @Test
     fun `3 - 1일과 말일 두 청구는 같은 달의 두 차례라 1일 것은 그 달 몫이다`() {
         val insurer = card("보험사", 50_000, 1, YearMonth.of(2026, 1), YearMonth.of(2026, 11)) +

@@ -79,4 +79,7 @@ object KoreanHolidays {
 
     /** [date] 부터 첫 영업일. 그날이 영업일이면 그날이고, 쉬는 날이면 자동이체가 나갈 다음 영업일이다. */
     fun nextBusinessDay(date: LocalDate): LocalDate = generateSequence(date) { it.plusDays(1) }.first(::isBusinessDay)
+
+    /** [date] 까지 마지막 영업일. 그날이 영업일이면 그날이고, 쉬는 날이면 그 앞 영업일이다(쉬는 날 앞에 미리 빼 가는 자동이체). */
+    fun previousBusinessDay(date: LocalDate): LocalDate = generateSequence(date) { it.minusDays(1) }.first(::isBusinessDay)
 }

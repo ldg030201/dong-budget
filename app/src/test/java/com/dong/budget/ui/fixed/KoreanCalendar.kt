@@ -21,5 +21,5 @@ internal object KoreanCalendar {
     fun nextBusinessDay(date: LocalDate): LocalDate = KoreanHolidays.nextBusinessDay(date)
 
     /** [date] 가 쉬는 날이면 그 앞 마지막 영업일, 아니면 그날 */
-    fun previousBusinessDay(date: LocalDate): LocalDate = generateSequence(date) { it.minusDays(1) }.first { !isHoliday(it) }
+    fun previousBusinessDay(date: LocalDate): LocalDate = KoreanHolidays.previousBusinessDay(date)
 }
