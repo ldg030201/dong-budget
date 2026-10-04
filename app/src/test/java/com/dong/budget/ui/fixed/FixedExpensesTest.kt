@@ -241,6 +241,17 @@ class FixedExpensesTest {
     }
 
     @Test
+    fun `긴 연휴로 밀려도 평소 날짜 다음 날부터 지났다고 센다`() {
+        // 매달 15일 통신비가 2026년 2월 15일(일)·설 연휴(16~18일)로 19일에 나간다.
+        // 이 경우는 이렇게 본다(받아들이는 모호함): 공휴일 달력을 모르므로 16일에 '평소보다 1일 지났어요' 다.
+        val february = YearMonth.of(2026, 2)
+        val february16 = day("2026-02-16")
+        val item = only(paid("통신비", 55_000, "2025-12-15", "2026-01-15"), month = february, today = february16)
+        assertEquals(1, item.daysPastUsual)
+        assertEquals(RowNote("평소보다 1일 지났어요", NoteTone.WARNING), rowNote(item, february, february16))
+    }
+
+    @Test
     fun `매달 내는 것의 경계 - 1달 아직, 2달 지난 차례도 놓침, 3달 접기`() {
         val rows = paid("가", 1_000, "2026-05-10", "2026-06-10")
         val oneMonth = only(rows, month = YearMonth.of(2026, 7), today = day("2026-07-01"))
