@@ -7,8 +7,6 @@ import org.junit.Assert.fail
 import org.junit.Test
 import java.time.LocalDate
 import java.time.YearMonth
-import java.time.temporal.ChronoUnit
-import kotlin.math.abs
 
 /** 진짜로 낸 결제 한 건. [due] 는 그 결제를 원래 낼 날이다(밀린 몫을 늦게 내거나 다음 몫을 일찍 내면 [date] 와 다르다). */
 private data class Pay(val date: LocalDate, val amount: Long, val due: LocalDate = date)
@@ -37,11 +35,11 @@ private class Pattern(
 }
 
 /** 새 기록으로 보고 받아들이는 달 수(첫 결제 달부터 이만큼 뒤 달까지) */
-private const val NEW_RECORD_MONTHS = 4L
+private const val NEW_RECORD_MONTHS = 2L
 
 /** 시뮬레이션 달력의 첫 달 · 마지막 달 */
 private val FIRST = YearMonth.of(2025, 1)
-private val LAST = YearMonth.of(2027, 12)
+private val LAST = YearMonth.of(2035, 12)
 
 private fun months(from: YearMonth = FIRST, to: YearMonth = LAST, step: Long = 1): List<YearMonth> =
     generateSequence(from) { it.plusMonths(step) }.takeWhile { it <= to }.toList()
@@ -274,12 +272,9 @@ private fun <T> combinations(items: List<T>, size: Int): List<List<T>> = when {
 /** I4: 낼 돈 · 등록하기 금액이 진짜 한 달 치의 몇 % 까지인지 */
 private const val I4_LIMIT_PERCENT = 120L
 
-/** 평소 날과 이만큼 넘게 떨어진 결제는 가까운 쪽 달 몫으로 봐준다(fixes3.md '받아들이는 모호함') */
-private const val HALF_MONTH_DAYS = 15L
-
 /**
- * 2025-01-01 ~ 2027-12-31 의 실제 한국 달력([KoreanCalendar])으로 진짜 결제를 만들고, 오늘을 날마다 옮기며 그날까지의 기록만으로
- * 이번 달 · 지난 달 화면을 계산해 불변식(fixes3.md '검증 방법' I1~I6)을 본다. 읽는 범위는 화면 모델과 같다
+ * 2025-01-01 ~ 2035-12-31(공휴일 표가 있는 해까지)의 실제 한국 달력([KoreanCalendar])으로 진짜 결제를 만들고, 오늘을 날마다 옮기며
+ * 그날까지의 기록만으로 이번 달 · 지난 달 화면을 계산해 불변식(fixes3.md '검증 방법' I1~I6, 일부 냄 I7)을 본다. 읽는 범위는 화면 모델과 같다
  * ([fixedHistoryStart] ~ [fixedHistoryEnd]). 위반은 모아서 한 번에 보여 준다.
  */
 class FixedExpenseSimulationTest {
@@ -364,6 +359,14 @@ private fun check(pattern: Pattern, day: LocalDate, now: View, before: View, che
     judge("I2b", now, nowPaid, now.item?.status == FixedStatus.PAID) {
         "냈어요(${nowShare?.payments.orEmpty().joinToString { it.date.toString() }})"
     }
+    // I7(일부 냄 · 리뷰 s1): 한 달 몫을 여러 번에 나눠 내는데 일부만 냈으면 그 달 화면은 냈어요가 아니다(남은 차례를 알린다)
+    for (view in listOf(now, before)) {
+        val pays = pattern.shareIn(view.month)?.payments.orEmpty()
+        val partly = pays.any { !it.date.isAfter(day) } && pays.any { it.date.isAfter(day) }
+        judge("I7", view, partly, view.item?.status != FixedStatus.PAID) {
+            "냈어요 아님(${pays.joinToString { it.date.toString() }} 가운데 일부만 냄)"
+        }
+    }
     // I3: 한 결제가 두 달 화면에서 함께 냈어요의 근거가 되지 않는다
     val nowBases = now.paidBases()
     val apart = before.paidBases().any { basis -> nowBases.any { (it intersect basis).isEmpty() } }
@@ -401,30 +404,20 @@ private fun describe(item: FixedExpenseItem?): String {
 
 /** fixes3.md '받아들이는 모호함' 에 해당하면 그 까닭 */
 private fun acceptedReason(pattern: Pattern, violation: Violation, day: LocalDate): String? {
-    // 새로 생긴 기록의 첫 몇 달은 어긋날 수 있다. 결제가 네댓 번뿐이면 1일 것을 미리 낸 것과 말일 것이 밀린 것을 가를 증거
-    // (말일 · 1일이 둘 다 평일인 경계에서 딱 그날 낸 것)가 모자라다(월세P0 는 첫 결제가 미리 낸 12월 31일이라 2025년 4월까지 말일 쪽으로 본다).
+    // 새로 생긴 기록의 첫 몇 달은 어긋날 수 있다. 결제가 두세 번뿐이면 1일 것을 미리 낸 것과 말일 것이 밀린 것을 가를 증거가 모자라고
+    // (월세P0 는 첫 결제가 미리 낸 12월 31일이다), 두 차례 가게는 두 달을 다 내야 두 차례인 줄 안다.
+    // 새 일정 모델(리뷰 G1)로 다섯 달에서 석 달로 좁혔다.
     val first = pattern.shares.flatMap { it.payments }.minOf { it.date }
-    if (YearMonth.from(first) >= YearMonth.from(day).minusMonths(NEW_RECORD_MONTHS)) return "새 기록의 첫 다섯 달(평소 쪽이 아직 자리 잡지 않음)"
-    // 평소 날을 바꾼 첫 몇 달도 어긋날 수 있다. 평소 날(최근 결제일 6개의 가운데 값 · 짝수면 이른 쪽, fixes3.md 새 모델 1 그대로)이
-    // 새 날로 넘어가려면 새 날 결제가 넷 필요하다. 바꾼 달부터 넉 달 몫의 화면과 넷째를 내기 전까지는 받아들인다.
-    // (fixes3.md 는 '한두 달' 로 적었지만 나중 날로 바꾸면(15일 → 말일) 이 규칙대로 석 달 넘게 어긋난다.)
+    if (YearMonth.from(first) >= YearMonth.from(day).minusMonths(NEW_RECORD_MONTHS)) return "새 기록의 첫 석 달(평소 쪽이 아직 자리 잡지 않음)"
+    // 평소 날을 바꾼 첫 몇 달도 어긋날 수 있다. 평소 날은 최근 여섯 번 가운데 새 날에 딱 맞는 결제가 넷이 되어야 새 날로 넘어간다
+    // ([estimateSchedule]). 바꾼 달부터 넉 달 몫의 화면과 넷째를 내기 전까지는 받아들인다.
     val changed = pattern.changed
     if (changed != null) {
         val fourth = pattern.shares.filter { it.month >= changed }.flatMap { it.payments }.map { it.date }.sorted().getOrNull(3)
         val settling = YearMonth.from(day) >= changed && (fourth == null || day < fourth)
         if (violation.view in changed..changed.plusMonths(3) || settling) return "평소 날을 바꾼 첫 몇 달(새 날 결제 넷째까지)"
     }
-    // 매년 · 몇 달마다 결제가 달 경계를 넘어 밀리면 옮기지 않는다(낸 달로 보인다)
-    val near = listOf(violation.view.minusMonths(1), violation.view).mapNotNull { pattern.shareIn(it) }
-    if (!pattern.monthly && near.any { share -> share.payments.any { YearMonth.from(it.date) != share.month } }) {
-        return "매년·몇 달마다 결제가 달 경계를 넘어 밀림"
-    }
-    // 평소 날과 반 달 넘게 떨어진 결제는 가까운 쪽 달 몫이다(밀린 몫과 다음 몫을 한날 내면 한 몫에 둘 다 들어간다)
-    val far =
-        (-1L..1L).mapNotNull { pattern.shareIn(violation.view.plusMonths(it)) }.any { share ->
-            share.payments.any { abs(ChronoUnit.DAYS.between(it.due, it.date)) > HALF_MONTH_DAYS }
-        }
-    if (far) return "평소 날과 반 달 넘게 떨어진 결제는 가까운 달 몫"
+    // 새 일정 모델(리뷰 G1)에서는 매년 · 몇 달마다 결제의 달 경계 밀림과 평소 날과 반 달 넘게 떨어진 결제를 따로 받아들이지 않는다.
     // 긴 연휴(설 · 추석 등)로 밀린 결제는 받아들이지 않는다. 앱이 공휴일 달력(KoreanHolidays)으로 낼 날을 다음 영업일로 본다.
     return null
 }
