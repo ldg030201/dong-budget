@@ -6,6 +6,7 @@ import com.dong.budget.testing.tx
 import com.dong.budget.ui.editor.fixedExpensePrefill
 import com.dong.budget.ui.home.localDate
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 import java.time.LocalDate
@@ -72,6 +73,42 @@ class FixedExpensesCrossCheckTest {
             assertNull(today, note(rows, OCT, day(today)))
         }
         assertNull(view(rows, NOV, day("2026-11-02")).missedMonth)
+    }
+
+    @Test
+    fun `같은 날 회선 하나를 해지하고 남은 회선 금액이 바뀐 다음 달 몫을 일찍 내도 해지한 달의 빈 회선을 메우지 않는다`() {
+        // 21일 45,000원 · 33,000원 가운데 33,000원을 9월부터 해지, 10월부터 남은 회선이 55,000원으로 5일(대체공휴일이라 6일)에 나간다
+        val moved = bill("통신", 45_000, 21, JAN, SEP) + bill("통신", 55_000, 5, OCT, MAR27) + bill("통신", 33_000, 21, JAN, AUG)
+        assertEquals("PAID 1/2 45000", short(view(moved, SEP, day("2026-10-06"))))
+        for (today in listOf("2026-10-06", "2026-10-25")) {
+            assertEquals(today, "PAID 1/1 55000", short(view(moved, OCT, day(today))))
+            assertNotEquals(today, NoteTone.WARNING, note(moved, OCT, day(today))?.tone)
+        }
+        // 등록하기 금액을 새 금액으로 고쳐 10월 5일에 적어도 그 달 몫이다
+        val registered = bill("통신", 45_000, 21, JAN, SEP) + bill("통신", 33_000, 21, JAN, AUG) + paid("통신", 55_000, "2026-10-05")
+        assertEquals("PAID 1/1 55000", short(view(registered, OCT, day("2026-10-05"))))
+        assertNotEquals(NoteTone.WARNING, note(registered, OCT, day("2026-10-22"))?.tone)
+        assertEquals("PAID 1/2 45000", short(view(registered, SEP, day("2026-10-05"))))
+    }
+
+    @Test
+    fun `같은 날 두 회선 금액이 비슷해도 놓친 회선을 다음 달에 늦게 메우면 놓친 회선 금액이라 앞 달 몫이다`() {
+        // 25일 45,000원 · 48,000원 자동이체에서 2026년 4월 48,000원 회선이 5월 4일에 늦게 나갔다(5월 25일은 대체공휴일이라 26일)
+        val near = bill("통신", 45_000, 25, YearMonth.of(2025, 1), DEC) +
+            bill("통신", 48_000, 25, YearMonth.of(2025, 1), DEC).filter { YearMonth.from(it.localDate()) != APR } +
+            paid("통신", 48_000, "2026-05-04")
+        for (today in listOf("2026-05-04", "2026-05-10", "2026-05-25")) {
+            assertEquals(today, "DUE 0/2 93000", short(view(near, MAY, day(today))))
+            assertEquals(today, "PAID 2/2 93000", short(view(near, APR, day(today))))
+        }
+        // 21일 45,000원 · 40,000원에서 2026년 9월 40,000원 회선이 10월 2일에 늦게 나갔다
+        val similar = bill("보험", 45_000, 21, YearMonth.of(2025, 1), DEC) +
+            bill("보험", 40_000, 21, YearMonth.of(2025, 1), DEC).filter { YearMonth.from(it.localDate()) != SEP } +
+            paid("보험", 40_000, "2026-10-02")
+        for (today in listOf("2026-10-02", "2026-10-15", "2026-10-20")) {
+            assertEquals(today, "DUE 0/2 85000", short(view(similar, OCT, day(today))))
+            assertEquals(today, "PAID 2/2 85000", short(view(similar, SEP, day(today))))
+        }
     }
 
     @Test

@@ -13,7 +13,7 @@ import kotlin.math.abs
 //   새 회선이 같은 날 · 열흘 뒤에 생긴 달은 그 달 합으로 두고, 이미 찬 앞 달 대신 이번 달을 낸 것(등록하기로 오늘 적은 것)은 이번 달 몫이 된다.
 // - 첫 결제 차례부터 마지막 결제일까지 낼 날이 왔는데 빈 건수마다 [MISSING]. 밀린 몫을 늦게 함께 냈으면 빈 차례를 메운다
 //   (말일 관리비를 놓쳐 10월 2일에 두 건을 내면 하나는 9월, 하나는 10월 몫). 함께 나가던 건 가운데 일부만 나간 차례의 남은 건은
-//   그 뒤 사흘 안에, 또는 이미 낸 건과 금액이 다른 결제가 이어지는 동안만 센다([missingAt], 같은 금액이 이어지면 해지했거나 건너뛴 것이다).
+//   그 뒤 사흘 안에, 또는 빠진 건의 금액 쪽 결제가 이어지는 동안만 센다([missingAt], 이미 낸 건 쪽 금액이 이어지면 해지했거나 건너뛴 것이다).
 //   결제가 있는 달의 빈 차례(날이 따로인 차례)도 낼 날 뒤 사흘이 지나 그 차례 금액으로 보이지 않는 결제가 오면 세지 않는다([linesOf]).
 // - 따로 낸 결제(연간 결제 등, [extrasOf])는 짝짓지 않는다. 평소 낼 날 가까이 나갔어도 그 달 차례를 채우지 않는다(매달 것보다
 //   하루 이틀 먼저 나간 연간 결제로 그 달이 '냈어요' 가 되지 않게). 값을 바꾼 것이면 다음 결제부터 따로 낸 것이 아니다.
@@ -54,9 +54,9 @@ private class Node(
 
 /**
  * 함께 나가던 건 가운데 일부만 나간 차례가 남은 건을 기다리는 모양. [since] 는 그 차례 낼 날과 첫 결제 가운데 늦은 날의 에포크 날 수,
- * [amount] 는 그 첫 결제 금액이다.
+ * [amount] 는 그 첫 결제 금액, [others] 는 빠진 건의 기준 금액(그 차례 기준 금액에서 첫 결제와 가장 가까운 것을 뺀 것, 모르면 빔)이다.
  */
-private data class Partly(val since: Int, val amount: Long)
+private data class Partly(val since: Int, val amount: Long, val others: List<Long>)
 
 /**
  * [pays] 를 [schedule] 의 차례에 짝짓는다. 차례는 결제가 있는 달 앞뒤 한 주기와 [through] 달까지 있다.
@@ -130,7 +130,7 @@ internal fun matchPayments(
                     val over = if (node.count >= slot.cap) OVERFLOW else 0
                     val fits = minOf(node.fits + fit, slot.cap)
                     val partly = when {
-                        node.fits == 0 && fit > 0 -> partlyOf(slot, fits, pay, dues)
+                        node.fits == 0 && fit > 0 -> partlyOf(slot, fits, pay, lines[target], dues)
                         fits < slot.need -> node.partly
                         else -> null
                     }
@@ -138,7 +138,7 @@ internal fun matchPayments(
                 } else {
                     val left = if (node.slot < 0 || node.first) 0 else missingAt(slots[node.slot], node.fits, node.partly, pay)
                     val skipped = between(node.slot, target, pay, byAmount)
-                    val partly = if (fit > 0) partlyOf(slot, fit, pay, dues) else null
+                    val partly = if (fit > 0) partlyOf(slot, fit, pay, lines[target], dues) else null
                     offer(Node(cost + left + skipped, target, 1, fit, partly, node.slot < 0, node, target))
                 }
             }
@@ -268,23 +268,26 @@ private fun amountOrder(pay: Paid, slots: List<Slot>, near: Int, schedule: Fixed
 /**
  * [slot] 에 금액이 맞는 결제 [fits] 건을 짝지었을 때 모자라는 건수의 값. 하나도 없으면 모자라는 건수마다 [MISSING] 이다(밀린 몫을 늦게 내면
  * 메운다). 하나라도 있으면(함께 나가던 건 가운데 일부만 나감, [partly]) 다음 결제 [next](기록 끝이면 null)가 그 차례 낼 날과 첫 결제 가운데
- * 늦은 날 뒤 [DROP_GRACE_DAYS] 일 안에 오거나 이미 낸 건과 금액이 달라 남은 건일 수 있을 때만 센다. 그 뒤로 이미 낸 건과 같은 금액의
- * 결제가 이어졌으면 남은 건은 안 나간 것(해지했거나 건너뜀)이라 다음 달 몫을 미리 · 일찍 낸 결제를 끌어와 메우지 않는다(화면이 같은 날
- * 회선을 안 나간 것으로 보는 것과 같다). 늦게 메운 남은 회선(금액이 다름)은 그대로 그 달 몫이다.
+ * 늦은 날 뒤 [DROP_GRACE_DAYS] 일 안에 오거나, 이미 낸 건보다 빠진 건의 기준 금액([Partly.others])에 더 가까워 남은 건일 수 있을 때만 센다
+ * (기준 금액을 모르면 이미 낸 건과 금액이 다를 때). 그 뒤로 이미 낸 건 쪽 금액의 결제가 이어졌으면 남은 건은 안 나간 것(해지했거나 건너뜀)이라
+ * 다음 달 몫을 미리 · 일찍 낸 결제를 끌어와 메우지 않는다(화면이 같은 날 회선을 안 나간 것으로 보는 것과 같다). 늦게 메운 남은 회선(빠진
+ * 회선 금액, 이미 낸 회선과 비슷해도)은 그대로 그 달 몫이다. 두 회선 금액이 같으면 가를 수 없어 다음 달 몫으로 본다.
  */
 private fun missingAt(slot: Slot, fits: Int, partly: Partly?, next: Paid?): Int {
     val short = slot.need - minOf(fits, slot.need)
     val waiting = partly == null || next == null || next.date.toEpochDay() <= partly.since + DROP_GRACE_DAYS ||
-        !isNear(next.amount, partly.amount)
+        looksLike(next.amount, partly.others, listOf(partly.amount), fallback = !isNear(next.amount, partly.amount))
     return if (short > 0 && (fits == 0 || waiting)) short * MISSING else 0
 }
 
 /**
- * [slot] 에 금액이 맞는 결제가 [fits] 건 짝지어졌을 때 남은 건을 기다리는 모양. 첫 결제 [pay] 의 날과 그 차례 낼 날 가운데 늦은 날, 그 금액이고,
- * 건수가 다 찼거나 낼 날이 아직 안 와 셀 것이 없으면 null 이다(갈래를 쓸데없이 나누지 않게).
+ * [slot] 에 금액이 맞는 결제가 [fits] 건 짝지어졌을 때 남은 건을 기다리는 모양. 첫 결제 [pay] 의 날과 그 차례 낼 날 가운데 늦은 날, 그 금액,
+ * 그 차례 기준 금액 [lines] 에서 첫 결제와 가장 가까운 것을 뺀 빠진 건의 금액이고, 건수가 다 찼거나 낼 날이 아직 안 와 셀 것이 없으면
+ * null 이다(갈래를 쓸데없이 나누지 않게).
  */
-private fun partlyOf(slot: Slot, fits: Int, pay: Paid, dues: DueDates): Partly? = if (fits < slot.need) {
-    Partly(maxOf(dues.due(slot.month, slot.day), pay.date).toEpochDay().toInt(), pay.amount)
+private fun partlyOf(slot: Slot, fits: Int, pay: Paid, lines: List<Long>, dues: DueDates): Partly? = if (fits < slot.need) {
+    val others = lines.toMutableList().apply { minByOrNull { abs(it - pay.amount) }?.let(::remove) }
+    Partly(maxOf(dues.due(slot.month, slot.day), pay.date).toEpochDay().toInt(), pay.amount, others)
 } else {
     null
 }
