@@ -6,7 +6,6 @@ import com.dong.budget.ui.format.formatAmount
 import com.dong.budget.ui.format.formatKoreanWon
 import com.dong.budget.ui.format.formatMonth
 import com.dong.budget.ui.format.formatSpentAmount
-import com.dong.budget.ui.stats.chart.formatAxisWon
 import java.time.LocalDate
 import java.time.YearMonth
 
@@ -81,9 +80,6 @@ internal fun daysLeftText(days: Int): String = if (days <= 1) "오늘이 마지�
  * 같은 화면의 거래 줄도 결제는 '-', 환불은 '+' 라서 '-' 를 쓰면 쓴 돈과 돌려받은 돈이 같은 부호로 보인다.
  */
 internal fun spentText(spent: Long): String = formatSpentAmount(spent)
-
-/** 상세 막대 위에 적는 줄인 쓴 돈. "12.3만", 환불받은 돈이 더 많으면 머리 금액과 같은 부호로 "+1,000" */
-internal fun historyValueLabel(spent: Long): String = if (spent < 0) "+${formatAxisWon(-spent)}" else formatAxisWon(spent)
 
 /** 화면 읽기용 쓴 돈. "123,450원", 환불받은 돈이 더 많으면 "환불받은 돈이 1,000원 더 많아요" */
 internal fun spokenSpent(spent: Long): String = if (spent < 0) "환불받은 돈이 ${formatAmount(-spent)}원 더 많아요" else "${formatAmount(spent)}원"

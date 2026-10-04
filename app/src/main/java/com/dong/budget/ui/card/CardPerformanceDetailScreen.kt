@@ -46,11 +46,9 @@ import com.dong.budget.ui.components.animatedItems
 import com.dong.budget.ui.format.formatTime
 import com.dong.budget.ui.stats.SectionNote
 import com.dong.budget.ui.stats.StatsSection
-import com.dong.budget.ui.stats.chart.AxisLabel
-import com.dong.budget.ui.stats.chart.AxisLabelStyle
-import com.dong.budget.ui.stats.chart.ColumnChart
-import com.dong.budget.ui.stats.chart.ColumnSlot
 import com.dong.budget.ui.stats.chart.Meter
+import com.dong.budget.ui.stats.chart.TrendBar
+import com.dong.budget.ui.stats.chart.TrendBars
 import com.dong.budget.ui.stats.detail.transactionsTitle
 import com.dong.budget.ui.theme.BudgetTheme
 import com.dong.budget.ui.theme.slideByDirection
@@ -265,25 +263,19 @@ private fun DetailHeader(state: CardPerformanceDetailUiState, onEdit: () -> Unit
 }
 
 /**
- * ② 최근 6개월. 한 계열 막대이고 마지막 칸(고른 기간)만 카드 색, 나머지는 chartContext 다.
- * 고른 기간은 x축 글자도 굵게 적어 색만으로 가리지 않는다. 막대마다 줄인 금액을 적으므로 y축은 없다.
+ * ② 최근 6개월. 마지막 칸(고른 기간)만 카드 색인 한 계열 막대(통계 상세와 같은 TrendBars)다. 카드를 쓰기 전 기간은 달 이름만 둔다.
  * 가장 높은 구간을 채운 기간은 제목 아래 글로 몇 번인지 알리고, 칸마다 읽는 문장에도 넣는다.
  */
 @Composable
 private fun HistorySection(state: CardPerformanceDetailUiState) {
     val card = state.card ?: return
-    val context = BudgetTheme.colors.chartContext
-    val highlight = BudgetTheme.categoryPalette[card.color].content
-    val slots =
-        state.history.mapIndexed { index, entry ->
-            val selected = index == state.history.lastIndex
-            ColumnSlot(
-                // 카드를 쓰기 전 기간은 막대 없이 달 이름만 둔다
-                values = if (entry.recorded) listOf(entry.progress.spent) else emptyList(),
-                label = AxisLabel("${entry.period.month.monthValue}월", if (selected) AxisLabelStyle.STRONG else AxisLabelStyle.NORMAL),
+    val bars =
+        state.history.map { entry ->
+            TrendBar(
+                month = entry.period.month,
+                amount = entry.progress.spent,
+                recorded = entry.recorded,
                 description = historySlotDescription(entry, past = entry.period.month != state.currentMonth),
-                valueLabel = if (entry.recorded) historyValueLabel(entry.progress.spent) else null,
-                colors = listOf(if (selected) highlight else context),
             )
         }
     StatsSection(
@@ -291,7 +283,7 @@ private fun HistorySection(state: CardPerformanceDetailUiState) {
         title = HISTORY_TITLE,
         subtitle = historySummary(state.history, state.tiers, state.currentMonth),
     ) {
-        ColumnChart(slots = slots, seriesColors = listOf(context))
+        TrendBars(bars = bars, highlight = BudgetTheme.categoryPalette[card.color].content)
     }
 }
 

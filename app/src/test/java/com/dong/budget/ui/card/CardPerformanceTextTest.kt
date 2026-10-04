@@ -52,8 +52,6 @@ class CardPerformanceTextTest {
         // 앱의 다른 곳처럼 돌려받은 쪽은 + 다. 전에는 "-1,000원" 이라 같은 화면의 결제 줄(-)과 부호가 겹쳤다
         assertEquals("+1,000원", spentText(-1_000))
         assertEquals("0원", spentText(0))
-        assertEquals("12.3만", historyValueLabel(123_450))
-        assertEquals("+1,000", historyValueLabel(-1_000))
         assertEquals("123,450원", spokenSpent(123_450))
         assertEquals("환불받은 돈이 1,000원 더 많아요", spokenSpent(-1_000))
     }

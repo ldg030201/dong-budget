@@ -38,11 +38,8 @@ import com.dong.budget.ui.stats.SectionNote
 import com.dong.budget.ui.stats.SectionTitle
 import com.dong.budget.ui.stats.StatsSection
 import com.dong.budget.ui.stats.calc.changeText
-import com.dong.budget.ui.stats.chart.AxisLabel
-import com.dong.budget.ui.stats.chart.AxisLabelStyle
-import com.dong.budget.ui.stats.chart.ColumnChart
-import com.dong.budget.ui.stats.chart.ColumnSlot
-import com.dong.budget.ui.stats.chart.formatAxisWon
+import com.dong.budget.ui.stats.chart.TrendBar
+import com.dong.budget.ui.stats.chart.TrendBars
 import com.dong.budget.ui.stats.directedColor
 import com.dong.budget.ui.stats.netExpenseColor
 import com.dong.budget.ui.stats.tab.breakdown.BreakdownRow
@@ -179,27 +176,16 @@ private fun DetailHeader(state: StatsDetailUiState, monthLabel: String) {
 }
 
 /**
- * ② 최근 6개월. 한 계열 막대이고 마지막 칸(고른 달)만 [highlight] 색, 나머지는 chartContext 다.
- * 고른 달은 x축 글자도 굵게 적어 색만으로 가리지 않는다. 막대마다 줄인 금액을 적으므로 y축은 없다.
- * 누를 수 없고, 화면 읽기는 칸마다 "2026년 7월, 83,000원, 5건" 을 읽는다.
+ * ② 최근 6개월. 마지막 칸(고른 달)만 [highlight] 색인 한 계열 막대(TrendBars)다.
+ * 화면 읽기는 칸마다 "2026년 7월, 83,000원, 5건" 을 읽고, 환불이 더 많은 달은 막대 위 글자와 같이 "+" 로 읽는다.
  */
 @Composable
 private fun DetailTrend(trend: List<DetailMonth>, highlight: Color) {
-    val context = BudgetTheme.colors.chartContext
-    val slots =
-        trend.mapIndexed { index, point ->
-            val selected = index == trend.lastIndex
-            ColumnSlot(
-                // 기록을 시작하기 전 달은 막대 없이 달 이름만 둔다
-                values = if (point.beforeFirstRecord) emptyList() else listOf(point.amount),
-                label = AxisLabel("${point.month.monthValue}월", if (selected) AxisLabelStyle.STRONG else AxisLabelStyle.NORMAL),
-                description = trendSlotDescription(point),
-                valueLabel = if (point.beforeFirstRecord) null else formatAxisWon(point.amount),
-                colors = listOf(if (selected) highlight else context),
-            )
-        }
+    val bars = trend.map {
+        TrendBar(month = it.month, amount = it.amount, recorded = !it.beforeFirstRecord, description = trendSlotDescription(it))
+    }
     StatsSection(modifier = Modifier.padding(top = BudgetTheme.spacing.sectionGap), title = TREND_TITLE) {
-        ColumnChart(slots = slots, seriesColors = listOf(context))
+        TrendBars(bars = bars, highlight = highlight)
     }
 }
 
