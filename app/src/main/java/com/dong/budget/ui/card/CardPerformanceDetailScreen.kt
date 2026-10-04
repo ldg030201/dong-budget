@@ -50,6 +50,7 @@ import com.dong.budget.ui.stats.chart.AxisLabel
 import com.dong.budget.ui.stats.chart.AxisLabelStyle
 import com.dong.budget.ui.stats.chart.ColumnChart
 import com.dong.budget.ui.stats.chart.ColumnSlot
+import com.dong.budget.ui.stats.chart.Meter
 import com.dong.budget.ui.stats.detail.transactionsTitle
 import com.dong.budget.ui.theme.BudgetTheme
 import com.dong.budget.ui.theme.slideByDirection
@@ -241,9 +242,11 @@ private fun DetailHeader(state: CardPerformanceDetailUiState, onEdit: () -> Unit
                 // 카드를 쓰기 전 기간이다. 쓴 돈 0원을 '모자랐어요' 로 따지지 않는다.
                 Text(text = NO_RECORD_TEXT, style = MaterialTheme.typography.bodyMedium, color = BudgetTheme.colors.textSecondary)
             } else {
-                TierBar(
-                    progress = progress,
-                    color = card.color,
+                // 구간을 넘기는 건 좋은 일이라 경고색 없이 카드 색으로 채우고, 구간 자리마다 눈금을 비워 둔다
+                Meter(
+                    ratio = progress.fraction,
+                    fill = BudgetTheme.categoryPalette[card.color].content,
+                    ticks = progress.ticks,
                     modifier = Modifier.padding(vertical = BudgetTheme.spacing.tightGap),
                 )
                 Text(

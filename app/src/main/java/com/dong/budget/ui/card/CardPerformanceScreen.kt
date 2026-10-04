@@ -41,6 +41,7 @@ import com.dong.budget.ui.components.animatedItem
 import com.dong.budget.ui.components.sectionBlock
 import com.dong.budget.ui.stats.SectionNote
 import com.dong.budget.ui.stats.StatsSection
+import com.dong.budget.ui.stats.chart.Meter
 import com.dong.budget.ui.theme.BudgetTheme
 import com.dong.budget.ui.theme.pressScaleClickable
 import java.time.LocalDate
@@ -192,7 +193,8 @@ private fun TrackedCardBlock(item: TrackedCard, today: LocalDate, onClick: () ->
         )
         Text(text = spentText(item.progress.spent), style = BudgetTheme.amount.summary, color = BudgetTheme.colors.textPrimary)
         Spacer(Modifier.height(BudgetTheme.spacing.itemGap))
-        TierBar(progress = item.progress, color = item.card.color)
+        // 구간을 넘기는 건 좋은 일이라 경고색 없이 카드 색으로 채우고, 구간 자리마다 눈금을 비워 둔다
+        Meter(ratio = item.progress.fraction, fill = BudgetTheme.categoryPalette[item.card.color].content, ticks = item.progress.ticks)
         Spacer(Modifier.height(BudgetTheme.spacing.itemGap))
         Text(
             text = tierSentence(item.progress, past = false),
