@@ -249,11 +249,16 @@ private fun fixedItem(
     val last = shares.keys.filter { it <= month }.maxOrNull() ?: return null
     val here = shares[month].orEmpty()
     val extraHere = extras[month].orEmpty()
-    val required = counts.requiredIn(month)
-    val split = counts.sharesIn(month, slots).counts
+    val days = schedule.days
+    // 건수를 정한 앞 차례 달이 덜 낸 차례를 오늘 아직 기다리면(말일 것이 쉬는 날로 이번 달 초에 밀림) 그 달이 덜 낸 건수로 낮추지 않는다.
+    // 덜 낸 차례가 안 나간 것(해지했거나 건너뜀)으로 정해진 뒤에야 남은 건수다.
+    val settled = counts.endOf(month)?.let { end ->
+        slotState(end, today, counts.sharesIn(end, slots).counts, days, shares, slotOf, counts, dues, weighs = true).open.isEmpty()
+    } ?: true
+    val required = counts.requiredIn(month, lowers = settled)
+    val split = counts.sharesIn(month, slots, lowers = settled).counts
     val cadence = schedule.cadence
     val gap = month.index() - last.index()
-    val days = schedule.days
     // 덜 낸 차례를 아직 낼 것과 안 나간 것으로 가른다. 앞 차례 달까지 비었으면(놓친 차례) 그 달을 통째로 안 낸 것으로 본다.
     val state = slotState(month, today, split, days, shares, slotOf, counts, dues, weighs = here.isNotEmpty() || gap == cadence)
     // 덜 낸 차례가 모두 안 나갔으면(해지했거나 건너뜀) 낸 것만으로 냈어요다

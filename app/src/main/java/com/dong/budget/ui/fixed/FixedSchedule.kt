@@ -337,22 +337,27 @@ internal class MonthCounts(
     private fun slotMonthUntil(month: YearMonth): YearMonth = month.minusMonths(Math.floorMod(month.index() - phase, cadence).toLong())
 
     /** [month] 의 건수를 정하는 달. 그 달 앞 차례 달(마지막 결제 달이 더 앞이면 그 달까지의 차례 달)이고, 결제가 없으면 null */
-    private fun endOf(month: YearMonth): YearMonth? = last?.let { slotMonthUntil(minOf(month.minusMonths(1), it)) }
+    fun endOf(month: YearMonth): YearMonth? = last?.let { slotMonthUntil(minOf(month.minusMonths(1), it)) }
 
-    fun requiredIn(month: YearMonth): Int {
+    /**
+     * [month] 의 건수. [lowers] 가 아니면 앞 차례 달이 덜 낸 건수로 낮추지 않는다(화면이 오늘 보아 앞 달의 덜 낸 차례를 아직 기다릴 때,
+     * 쉬는 날로 이번 달 초에 밀린 말일 것). 짝짓기는 오늘과 상관없이 늘 낮춘다.
+     */
+    fun requiredIn(month: YearMonth, lowers: Boolean = true): Int {
         val end = endOf(month) ?: return 1
         val usual = lowerMedian((0 until SLOT_COUNT_MONTHS).map { counts[end.minusMonths(it.toLong() * cadence)] ?: 0 })
         val latest = counts[end] ?: 0
-        return (if (latest > 0) minOf(usual, latest) else usual).coerceAtLeast(1)
+        return (if (latest > 0 && lowers) minOf(usual, latest) else usual).coerceAtLeast(1)
     }
 
     /**
      * [month] 의 [slots] 차례마다 건수. 건수를 정한 달([requiredIn] 이 보는 앞 달)에 차례마다 짝지은 건수의 합이 그 건수와 같으면
      * 그 나눔이다. 앞 차례를 해지하면 다음 달부터 뒤 차례만 한 건이다(앞 차례부터 채우면 없는 차례를 기다렸다).
      * 아니면(어림, 덜 내거나 더 낸 달 뒤) 앞 차례부터 고루 나눈다(3건을 두 차례면 2 · 1). 짝짓기 · 다음 차례 · 남은 금액이 함께 쓴다.
+     * [lowers] 는 [requiredIn] 과 같다.
      */
-    fun sharesIn(month: YearMonth, slots: Int): SlotShares {
-        val required = requiredIn(month)
+    fun sharesIn(month: YearMonth, slots: Int, lowers: Boolean = true): SlotShares {
+        val required = requiredIn(month, lowers)
         val paid = endOf(month)?.let(bySlot::get)?.let { bySlot -> List(slots) { bySlot[it] ?: 0 } }
         if (paid != null && paid.sum() == required) return SlotShares(paid, counted = true)
         return SlotShares(List(slots) { required / slots + if (it < required % slots) 1 else 0 }, counted = required >= slots)

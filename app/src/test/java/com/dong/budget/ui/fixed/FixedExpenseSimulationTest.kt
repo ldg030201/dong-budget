@@ -599,8 +599,10 @@ private fun acceptedReason(pattern: Pattern, violation: Violation, day: LocalDat
     }
     // 두 청구 가운데 하나를 해지한 달은 그 달 기록만으로는 해지인지 아직 안 낸 것인지 모른다. 같은 날 함께 나가던 회선은 그날까지,
     // 날이 따로인 차례는 그 낼 날 뒤 사흘까지만 받아들이고, 그 뒤로는 안 나간 것으로 본다. 다음 달부터는 남은 건수다(MonthCounts).
+    // 그때까지는 다음 달 화면도 해지한 청구를 아직 기다리는 것으로 보아 두 청구의 건수 · 낼 돈이다(그 달이 덜 낸 건수로 낮추지 않는다).
     val until = pattern.cancelledUntil
-    if (violation.view == pattern.cancelled && until != null && !day.isAfter(until)) {
+    val cancelled = pattern.cancelled
+    if (cancelled != null && violation.view in cancelled..cancelled.plusMonths(1) && until != null && !day.isAfter(until)) {
         return "청구 하나를 해지한 달의 안 나간 것으로 보기 전(그 달만으로는 아직 안 낸 것과 가를 수 없음)"
     }
     // 새 일정 모델(리뷰 G1)에서는 매년 · 몇 달마다 결제의 달 경계 밀림과 평소 날과 반 달 넘게 떨어진 결제를 따로 받아들이지 않는다.

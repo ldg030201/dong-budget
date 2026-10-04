@@ -60,4 +60,33 @@ class FixedExpensesRecheckTest {
         assertEquals(1, november.requiredCount)
         assertEquals(45_000L, november.amount)
     }
+
+    @Test
+    fun `앞 달 뒤 청구가 쉬는 날로 이번 달 초에 밀려 아직 안 나갔으면 이번 달 건수와 낼 돈은 두 청구다`() {
+        // 25일 200,000원 · 28일 30,000원 자동이체. 2026년 2월 28일(토) 것은 3월 3일(3월 2일 대체공휴일)에 나간다.
+        val apartment = bill("아파트", 200_000, 25, YearMonth.of(2025, 6), YearMonth.of(2026, 6)) +
+            bill("아파트", 30_000, 28, YearMonth.of(2025, 6), YearMonth.of(2026, 6))
+        val march1 = day("2026-03-01")
+        assertEquals("2번 중 1번 냈고, 남은 건 3월 3일에 낼 차례예요", note(apartment, YearMonth.of(2026, 2), march1))
+        for (today in listOf(march1, day("2026-03-02"), day("2026-03-03"))) {
+            val march = view(apartment, YearMonth.of(2026, 3), today, morning = true)
+            assertEquals("$today", 2, march.requiredCount)
+            assertEquals("$today", 230_000L, march.amount)
+            assertEquals("$today", 230_000L, board(apartment, YearMonth.of(2026, 3), today, morning = true).dueTotal)
+        }
+        // 3일 50,000원 · 28일 30,000원 자동이체도 같다
+        val insurance = bill("보험", 50_000, 3, YearMonth.of(2025, 1), YearMonth.of(2026, 12)) +
+            bill("보험", 30_000, 28, YearMonth.of(2025, 1), YearMonth.of(2026, 12))
+        assertEquals(80_000L, view(insurance, YearMonth.of(2026, 3), march1).amount)
+        // 15일 50,000원 · 말일 30,000원: 10월 31일(토) 것은 11월 2일에 나간다
+        val endOfMonth = bill("보험사", 50_000, 15, YearMonth.of(2026, 1), YearMonth.of(2026, 12)) +
+            bill("보험사", 30_000, LAST_DAY, YearMonth.of(2026, 1), YearMonth.of(2026, 12))
+        assertEquals(80_000L, view(endOfMonth, YearMonth.of(2026, 11), day("2026-11-01")).amount)
+        // 같은 날 말일 두 회선(카드 45,000원은 그날, 자동이체 33,000원은 다음 영업일): 2025년 5월 31일(토) 자동이체분은 6월 2일에 나간다
+        val lines = bill("통신사", 45_000, LAST_DAY, YearMonth.of(2024, 1), YearMonth.of(2025, 12), card = true) +
+            bill("통신사", 33_000, LAST_DAY, YearMonth.of(2024, 1), YearMonth.of(2025, 12))
+        val june = view(lines, YearMonth.of(2025, 6), day("2025-06-01"))
+        assertEquals(2, june.requiredCount)
+        assertEquals(78_000L, june.amount)
+    }
 }
