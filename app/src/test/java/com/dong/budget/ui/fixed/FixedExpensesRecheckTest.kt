@@ -250,4 +250,21 @@ class FixedExpensesRecheckTest {
         assertEquals("2번 중 1번 냈고, 남은 건 오늘 낼 차례예요", note(purifier, july, day("2026-07-12"), morning = true))
         assertEquals(FixedStatus.PAID, view(purifier, july, day("2026-07-12")).status)
     }
+
+    @Test
+    fun `하루 차이 두 청구는 쉬는 날로 낼 날이 겹친 달에도 카드가 따로 나갔으면 두 때로 세고 다음 달 초로 밀린 말일 것은 그 달 몫으로 센다`() {
+        // 카드 1일 4,400원 · 2일 10,900원을 2025년 1월부터 냈다. 2 · 3월은 1일이 토요일이라 두 낼 날이 같지만 카드는 따로 나갔다.
+        val apple = bill("애플", 4_400, 1, YearMonth.of(2025, 1), YearMonth.of(2025, 6), card = true) +
+            bill("애플", 10_900, 2, YearMonth.of(2025, 1), YearMonth.of(2025, 6), card = true)
+        val april = view(apple, YearMonth.of(2025, 4), day("2025-04-02"), morning = true)
+        assertEquals(listOf(1, 2), april.usualDays)
+        assertEquals(2, april.dueDay)
+        // 자동이체 30일 10,000원 · 31일 20,000원을 2024년부터 냈다. 31일 것이 쉬는 날로 다음 달 초에 밀려도 그 달 몫이라 두 차례다.
+        val savings = bill("적금", 10_000, 30, YearMonth.of(2024, 1), YearMonth.of(2025, 12)) +
+            bill("적금", 20_000, LAST_DAY, YearMonth.of(2024, 1), YearMonth.of(2025, 12))
+        val today = day("2025-07-30")
+        val july = view(savings, YearMonth.of(2025, 7), today, morning = true)
+        assertEquals(listOf(30, LAST_DAY), july.usualDays)
+        assertEquals("오늘 낼 차례예요", rowNote(july, YearMonth.of(2025, 7), today)?.text)
+    }
 }

@@ -195,21 +195,22 @@ private fun frequentTimes(sorted: List<Paid>, base: YearMonth): Int? {
 }
 
 /**
- * 달마다 두 때에 내는지. [base] 달 앞(아직 덜 낸 이번 달은 빼고, 마지막 결제 달이 더 앞이면 그 달)까지 최근 [SLOT_COUNT_MONTHS] 달이나
- * [SLOT_COUNT_SPAN] 달력 달(첫 결제 달 앞은 빼고, 결제가 없던 달은 0)에 낸 때([occasionsOf])가 한 달 평균 한 번 반 이상인지다.
+ * 달마다 두 때에 내는지. 결제를 두 평소 날 [pair] 의 가장 가까운 차례 달로 모아(말일 것이 쉬는 날로 다음 달 초에 밀려도 그 달 몫이다)
+ * [base] 달 앞(아직 덜 낸 이번 달은 빼고, 마지막 결제 달이 더 앞이면 그 달)까지 최근 [SLOT_COUNT_MONTHS] 달이나
+ * [SLOT_COUNT_SPAN] 달(첫 결제 달 앞은 빼고, 결제가 없던 달은 0)에 낸 때([occasionsOf])가 한 달 평균 한 번 반 이상인지다.
  * 짧게 보아 회선을 더한 지 두 달이면 알고, 길게 보아 한 달을 통째로 건너뛰어도 두 차례 그대로다.
- * 말일 것이 밀려 한 달력 달에 두 번 낸 달이 생겨도 그만큼 빈 달이 생겨 평균은 한 번쯤이다.
- * 두 평소 날 [pair] 의 낼 날이 같은 달(5일 · 6일이 주말 · 연휴로 함께 7일에 밀림)은 따로 나가는 두 청구도 한날 나가 날짜로는 두 때인지
- * 가를 수 없어 세지 않는다. 그런 달까지 한 때로 세면 쉬는 날이 몰린 철(1월 · 3월 · 5월)에 하루 차이 두 청구를 한 차례로 보았다.
+ * 두 평소 날의 낼 날이 같은 달(5일 · 6일이 주말 · 연휴로 함께 7일에 밀림)에 한 때에 냈으면 따로 나가는 두 청구도 한날 나가 날짜로는
+ * 두 때인지 가를 수 없어 세지 않는다. 그런 달까지 한 때로 세면 쉬는 날이 몰린 철(1월 · 3월 · 5월)에 하루 차이 두 청구를 한 차례로
+ * 보았다. 그런 달에도 서로 다른 날 냈으면(카드는 쉬는 날에도 그날 나간다) 두 때인 증거라 센다.
  */
 private fun paysTwice(regular: List<Paid>, base: YearMonth, pair: List<Int>, dues: DueDates): Boolean {
-    val byMonth = regular.groupBy { it.month }
+    val byMonth = regular.groupBy { dues.nearestMonth(it.date, pair) }
     val end = minOf(base.minusMonths(1), byMonth.keys.max())
     val recorded = end.index() - byMonth.keys.min().index() + 1
     return listOf(SLOT_COUNT_MONTHS, SLOT_COUNT_SPAN).any { months ->
         val counted = (0 until recorded.coerceIn(1, months))
             .map { end.minusMonths(it.toLong()) }
-            .filter { dues.due(it, pair[0]) != dues.due(it, pair[1]) }
+            .filter { dues.due(it, pair[0]) != dues.due(it, pair[1]) || occasionsOf(byMonth[it].orEmpty()) > 1 }
         counted.isNotEmpty() && counted.sumOf { occasionsOf(byMonth[it].orEmpty()) } * 2 >= counted.size * 3
     }
 }
