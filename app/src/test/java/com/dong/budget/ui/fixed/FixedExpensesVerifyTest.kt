@@ -114,6 +114,27 @@ class FixedExpensesVerifyTest {
     }
 
     @Test
+    fun `4 - 따로 나가는 두 차례 가운데 앞 차례를 해지하면 다음 달엔 뒤 차례만 기다린다`() {
+        // 3일 50,000원 · 20일 30,000원 가운데 3일 것을 9월부터 해지했다(9월 20일은 일요일이라 21일에 나간다)
+        val insurance = monthly("보험", 50_000, 3, YearMonth.of(2026, 1), YearMonth.of(2026, 8)) +
+            monthly("보험", 30_000, 20, YearMonth.of(2026, 1), YearMonth.of(2026, 12))
+        // 10월엔 20일 것 한 건만 기다리고 그 전에는 지났다고 하지 않는다
+        val october = YearMonth.of(2026, 10)
+        for (today in (1..19).map { october.atDay(it) }) {
+            val item = view(insurance, october, today)
+            assertEquals("$today", FixedStatus.DUE, item.status)
+            assertEquals("$today", 1, item.requiredCount)
+            assertEquals("$today", 20, item.dueDay)
+            assertEquals("$today", 30_000L, item.amount)
+            assertTrue("$today", (item.daysPastUsual ?: 0) <= 0)
+        }
+        val paidOctober = view(insurance, october, day("2026-10-20"))
+        assertEquals(FixedStatus.PAID, paidOctober.status)
+        assertEquals(1, paidOctober.paidCount)
+        assertEquals(1, paidOctober.requiredCount)
+    }
+
+    @Test
     fun `6 - 금액이 3배 넘게 바뀌면서 결제일도 바뀌면 두 번째 새 금액부터 값을 바꾼 것으로 보아 다달이 낸 달이 냈어요다`() {
         val rows = (1..7).flatMap { paid("넷플릭스", 5_500, "2026-0$it-25") } +
             listOf("2026-08-10", "2026-09-10", "2026-10-10", "2026-11-10").flatMap { paid("넷플릭스", 17_000, it) }

@@ -233,6 +233,22 @@ private fun slotCancelled(cancelled: YearMonth): Pattern = Pattern(
     kept = 50_000,
 )
 
+/** 한 가게에 매달 3일 50,000원 · 28일 30,000원을 내다 [cancelled] 부터 3일 것을 해지했다(남은 28일 것을 기다린다) */
+private fun frontCancelled(cancelled: YearMonth): Pattern = Pattern(
+    name = "보험앞해지",
+    monthly = true,
+    oneMonth = 80_000,
+    shares =
+    months().map { month ->
+        val third = pushed(month.atDay(3))
+        val late = pushed(month.atDay(28))
+        val kept = month >= cancelled
+        Share(month, if (kept) late else third, (if (kept) emptyList() else listOf(Pay(third, 50_000))) + Pay(late, 30_000))
+    },
+    cancelled = cancelled,
+    kept = 30_000,
+)
+
 /**
  * 한 가게에서 [first] 일 [firstAmount] 원 · [second] 일 [secondAmount] 원 두 청구가 따로 나간다(리뷰 검증: 며칠 사이 · 1일과 말일 두 청구를
  * 한 차례로 합쳤다). [autoPay] 면 쉬는 날이면 다음 영업일(자동이체), 아니면 그날(카드)에 나간다.
@@ -312,9 +328,10 @@ private fun patterns(): List<Pattern> = listOf(
     switched("구독전환", 28, 3, YearMonth.of(2026, 4)),
     switched("구독전환2", 3, 28, YearMonth.of(2026, 4)),
     switched("구독전환3", 15, 31, YearMonth.of(2026, 7)),
-    // 두 청구 가운데 하나를 해지함: 같은 날 두 회선 · 3일 · 28일 두 차례
+    // 두 청구 가운데 하나를 해지함: 같은 날 두 회선 · 3일 · 28일 두 차례의 뒤 차례 · 앞 차례(개천절로 4일에 나가는 달부터)
     lineCancelled(YearMonth.of(2027, 4)),
     slotCancelled(YearMonth.of(2029, 9)),
+    frontCancelled(YearMonth.of(2030, 10)),
     // 며칠 사이로 따로 나가는 두 청구(카드 5일 · 9일, 자동이체 25일 · 28일)와 1일 · 말일 두 청구(카드)
     twoClaims("애플", 5, 4_400, 9, 10_900, autoPay = false),
     twoClaims("아파트", 25, 200_000, 28, 30_000, autoPay = true),

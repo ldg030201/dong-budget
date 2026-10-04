@@ -19,7 +19,8 @@ import java.time.YearMonth
 /**
  * 한 차례. [month] 몫의 [index] 번째 차례(평소 [day] 일).
  * @property cap 이만큼은 한 차례에 함께 낸 것이고(같은 날 나눠 내는 월세는 2), 넘는 결제마다 [OVERFLOW]
- * @property need 낼 날이 마지막 결제일 전에 왔으면 내야 하는 건수. 모자라는 건수마다 [MISSING]. 차례 수보다 적게 내던 달(회선을 더하기 전)이면 0
+ * @property need 낼 날이 마지막 결제일 전에 왔으면 내야 하는 건수. 모자라는 건수마다 [MISSING]. 차례 수보다 적게 내던 달(회선을 더하기 전)이면
+ *   0 이다. 다만 앞 달에 차례마다 낸 대로 나눈 달(해지한 다음 달, [SlotShares.counted])은 남은 차례의 건수다.
  */
 internal class Slot(val month: YearMonth, val index: Int, val day: Int, val cap: Int, val need: Int)
 
@@ -130,7 +131,7 @@ internal val paidByTime: Comparator<Paid> = compareBy<Paid> { it.row.occurredAt 
 
 /**
  * 짝지을 차례들(낼 날 차례). 결제가 가장 가까운 차례 달들의 앞뒤 한 주기와 [through] 달 뒤 한 주기까지의 차례 달마다 차례 수만큼이다.
- * 달마다 내야 하는 건수([MonthCounts.requiredIn])를 차례에 고루 나눈다(같은 날 나눠 내는 월세는 한 차례에 2건).
+ * 차례마다 건수는 [MonthCounts.sharesIn] 이다(같은 날 나눠 내는 월세는 한 차례에 2건).
  */
 private fun slotsFor(pays: List<Paid>, schedule: FixedSchedule, counts: MonthCounts, through: YearMonth, dues: DueDates): List<Slot> {
     val days = schedule.days
@@ -142,17 +143,14 @@ private fun slotsFor(pays: List<Paid>, schedule: FixedSchedule, counts: MonthCou
         .takeWhile { it <= last }
         .filter(schedule::isSlotMonth)
         .flatMap { month ->
-            val required = counts.requiredIn(month).coerceAtMost(MAX_CAP * days.size)
+            val shares = counts.sharesIn(month, days.size)
             days.indices.asSequence().map { i ->
-                val share = shareOf(required, days.size, i)
+                val share = shares.counts[i].coerceAtMost(MAX_CAP)
                 val passed = !dues.due(month, days[i]).isAfter(latest)
-                Slot(month, i, days[i], cap = maxOf(1, share), need = if (required >= days.size && passed) share else 0)
+                Slot(month, i, days[i], cap = maxOf(1, share), need = if (shares.counted && passed) share else 0)
             }
         }.toList()
 }
-
-/** 한 달에 [required] 건을 [slots] 차례에 고루 나눌 때 [slot] 번째 차례의 건수(3건을 두 차례면 2 · 1) */
-internal fun shareOf(required: Int, slots: Int, slot: Int): Int = required / slots + if (slot < required % slots) 1 else 0
 
 private fun slotDistance(pay: Paid, slot: Slot, dues: DueDates): Int = dues.distance(pay.date, slot.month, slot.day)
 

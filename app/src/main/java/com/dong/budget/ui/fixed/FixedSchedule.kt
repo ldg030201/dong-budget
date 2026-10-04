@@ -319,25 +319,55 @@ private fun slotAmountsOf(recent: List<Paid>, days: List<Int>, dues: DueDates): 
  * (두 청구 가운데 하나를 해지하면 다음 달부터 한 건이다. 해지한 달은 아직 안 낸 것과 가를 수 없다). 그 달 앞 기록만 보므로 덜 낸 달이
  * 제 건수를 낮추지 않고, 회선을 하나 더한 뒤에도 그 전 달들은 한 건이면 다 낸 것이며, 같은 날 본 모든 화면이 같은 달에 같은 수를 쓴다.
  * 건수는 결제를 차례에 짝지은 몫 달로 센다([matched]). 짝짓기 전에는 평소 날 [days] 의 가장 가까운 차례 달로 어림한다.
+ * [bySlot] 은 짝지은 몫 달마다 차례(번호)별 건수다([sharesIn]). 어림에는 없다.
  */
-internal class MonthCounts(private val counts: Map<YearMonth, Int>) {
+internal class MonthCounts(private val counts: Map<YearMonth, Int>, private val bySlot: Map<YearMonth, Map<Int, Int>> = emptyMap()) {
     constructor(regular: List<Paid>, days: List<Int>, dues: DueDates) :
         this(regular.groupingBy { dues.nearestMonth(it.date, days) }.eachCount())
 
     private val last = counts.keys.maxOrNull()
 
+    /** [month] 의 건수를 정하는 달. 그 달 앞(마지막 결제 달이 더 앞이면 그 달)이고, 결제가 없으면 null */
+    private fun endOf(month: YearMonth): YearMonth? = last?.let { minOf(month.minusMonths(1), it) }
+
     fun requiredIn(month: YearMonth): Int {
-        val end = minOf(month.minusMonths(1), last ?: return 1)
+        val end = endOf(month) ?: return 1
         val usual = lowerMedian((0 until SLOT_COUNT_MONTHS).map { counts[end.minusMonths(it.toLong())] ?: 0 })
         val latest = counts[end] ?: 0
         return (if (latest > 0) minOf(usual, latest) else usual).coerceAtLeast(1)
     }
 
+    /**
+     * [month] 의 [slots] 차례마다 건수. 건수를 정한 달([requiredIn] 이 보는 앞 달)에 차례마다 짝지은 건수의 합이 그 건수와 같으면
+     * 그 나눔이다. 앞 차례를 해지하면 다음 달부터 뒤 차례만 한 건이다(앞 차례부터 채우면 없는 차례를 기다렸다).
+     * 아니면(어림, 덜 내거나 더 낸 달 뒤) 앞 차례부터 고루 나눈다(3건을 두 차례면 2 · 1). 짝짓기 · 다음 차례 · 남은 금액이 함께 쓴다.
+     */
+    fun sharesIn(month: YearMonth, slots: Int): SlotShares {
+        val required = requiredIn(month)
+        val paid = endOf(month)?.let(bySlot::get)?.let { bySlot -> List(slots) { bySlot[it] ?: 0 } }
+        if (paid != null && paid.sum() == required) return SlotShares(paid, counted = true)
+        return SlotShares(List(slots) { required / slots + if (it < required % slots) 1 else 0 }, counted = required >= slots)
+    }
+
     companion object {
-        /** 짝지은 몫 달마다 건수. 가까운 차례 달로 어림하면 두 차례 가운데쯤 낸 결제(결제일을 15일 옮긴 달)가 한 달에 둘로 몰린다. */
-        fun matched(matching: Matching): MonthCounts = MonthCounts(matching.slotOf.values.groupingBy { it.month }.eachCount())
+        /**
+         * 짝지은 몫 달마다 건수와 차례별 건수. 가까운 차례 달로 어림하면 두 차례 가운데쯤 낸 결제(결제일을 15일 옮긴 달)가 한 달에
+         * 둘로 몰린다.
+         */
+        fun matched(matching: Matching): MonthCounts {
+            val byMonth = matching.slotOf.values.groupBy { it.month }
+            val bySlot = byMonth.mapValues { (_, slots) -> slots.groupingBy { it.index }.eachCount() }
+            return MonthCounts(byMonth.mapValues { (_, slots) -> slots.size }, bySlot)
+        }
     }
 }
+
+/**
+ * 한 달의 차례마다 건수([counts], 합이 그 달 건수). [counted] 면 낼 날이 지난 빈 차례를 센다([Slot.need]). 건수가 차례 수만큼이거나
+ * 앞 달에 차례마다 낸 대로 나눠 어느 차례가 남았는지 알 때다(해지한 다음 달). 건수가 차례 수보다 적은데 고루 나눈 달(회선을 더하기 전)은
+ * 어느 차례가 빌지 몰라 세지 않는다.
+ */
+internal data class SlotShares(val counts: List<Int>, val counted: Boolean)
 
 /** 따로 낸 결제를 가를 때 견주는 앞뒤 결제 수 */
 private const val EXTRA_SAMPLES = 12

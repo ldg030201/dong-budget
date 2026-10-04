@@ -226,9 +226,10 @@ private fun fixedItem(
     val extraIds = if (frequent) emptySet() else extrasOf(pays.sortedWith(paidByTime))
     val prior = if (frequent) MonthCounts(emptyMap()) else MonthCounts(pays.filter { it.id !in extraIds }, schedule.days, dues)
     val first = if (frequent) matchByMonth(pays) else matchPayments(pays, schedule, prior, month, dues, extraIds)
-    // 달마다 건수를 짝지은 몫으로 다시 세어 한 번 더 짝짓는다(건수가 바뀐 달이 없으면 그대로)
+    // 달마다 건수와 차례별 나눔을 짝지은 몫으로 다시 세어 한 번 더 짝짓는다(바뀐 달이 없으면 그대로)
     val counts = if (frequent) prior else MonthCounts.matched(first)
-    val changed = first.slots.map { it.month }.distinct().any { counts.requiredIn(it) != prior.requiredIn(it) }
+    val slots = schedule.days.size
+    val changed = first.slots.map { it.month }.distinct().any { counts.sharesIn(it, slots) != prior.sharesIn(it, slots) }
     val matching = if (changed) matchPayments(pays, schedule, counts, month, dues, extraIds) else first
     val slotOf = matching.slotOf
     val shares = pays.filter { it.id in slotOf }.groupBy { slotOf.getValue(it.id).month }
@@ -237,6 +238,7 @@ private fun fixedItem(
     val here = shares[month].orEmpty()
     val extraHere = extras[month].orEmpty()
     val required = counts.requiredIn(month)
+    val split = counts.sharesIn(month, slots).counts
     val cadence = schedule.cadence
     val gap = month.index() - last.index()
     val status =
@@ -269,11 +271,11 @@ private fun fixedItem(
             usualDay = days.first(),
             usualDays = days,
             timesPerMonth = schedule.timesPerMonth,
-            dueDay = days[openSlot(here, slotOf, days.size, required)],
+            dueDay = days[openSlot(here, slotOf, split)],
             amount =
             when {
                 status == FixedStatus.PAID -> (here + extraHere).sumOf { it.amount }
-                here.isNotEmpty() -> remainingAmount(here, full?.let(shares::getValue), slotOf, days.size, required)
+                here.isNotEmpty() -> remainingAmount(here, full?.let(shares::getValue), slotOf, split)
                 else -> shares.getValue(full ?: last).sumOf { it.amount }
             },
             previousAmount =
@@ -310,24 +312,26 @@ private fun fixedItem(
     return item.copy(daysPastUsual = daysBetween(from, today))
 }
 
-/** 고른 달에 다음으로 낼 차례(아직 덜 낸 첫 차례). 다 냈거나 하나도 안 냈으면 첫 차례다. */
-private fun openSlot(here: List<Paid>, slotOf: Map<Long, Slot>, slots: Int, required: Int): Int {
-    if (here.isEmpty()) return 0
+/**
+ * 고른 달에 다음으로 낼 차례(차례마다 건수 [split] 보다 덜 낸 첫 차례). 다 냈으면 첫 차례다. 하나도 안 냈으면 건수가 있는 첫 차례라
+ * 앞 차례를 해지한 다음 달은 뒤 차례다.
+ */
+private fun openSlot(here: List<Paid>, slotOf: Map<Long, Slot>, split: List<Int>): Int {
     val paid = here.groupingBy { slotOf.getValue(it.id).index }.eachCount()
-    return (0 until slots).firstOrNull { (paid[it] ?: 0) < shareOf(required, slots, it) } ?: 0
+    return split.indices.firstOrNull { (paid[it] ?: 0) < split[it] } ?: 0
 }
 
 /**
- * 일부만 낸 달([here])의 남은 금액. 덜 낸 차례마다 앞서 다 낸 달([reference]) 그 차례의 합에서 이번에 그 차례로 낸 것을 뺀다
- * (3일 50,000원만 내고 28일 것이 남았으면 30,000원). 그 차례를 앞서 알 수 없으면 한 건 평균에 모자라는 건수를 곱한다.
+ * 일부만 낸 달([here])의 남은 금액. 덜 낸 차례마다(차례마다 건수 [split]) 기준 달([reference]) 그 차례의 합에서 이번에 그 차례로
+ * 낸 것을 뺀다(3일 50,000원만 내고 28일 것이 남았으면 30,000원). 그 차례를 앞서 알 수 없으면 한 건 평균에 모자라는 건수를 곱한다.
  */
-private fun remainingAmount(here: List<Paid>, reference: List<Paid>?, slotOf: Map<Long, Slot>, slots: Int, required: Int): Long {
+private fun remainingAmount(here: List<Paid>, reference: List<Paid>?, slotOf: Map<Long, Slot>, split: List<Int>): Long {
     val paid = here.groupBy { slotOf.getValue(it.id).index }
     val before = reference?.groupBy { slotOf.getValue(it.id).index }.orEmpty()
     val average = (reference ?: here).let { pays -> pays.sumOf { it.amount } / pays.size }
-    return (0 until slots).sumOf { slot ->
+    return split.indices.sumOf { slot ->
         val inSlot = paid[slot].orEmpty()
-        val missing = shareOf(required, slots, slot) - inSlot.size
+        val missing = split[slot] - inSlot.size
         val fromBefore = before[slot]?.sumOf { it.amount }?.minus(inSlot.sumOf { it.amount })
         when {
             missing <= 0 -> 0L

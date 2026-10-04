@@ -138,15 +138,17 @@ class FixedExpensesReviewTest {
     }
 
     @Test
-    fun `c36 - 두 차례 가게가 이른 차례 하나를 빠뜨려도 평소 날은 이른 차례이고 낼 날이 지나면 알린다`() {
+    fun `c36 - 두 차례 가게가 이른 차례 하나를 빠뜨려도 평소 날은 이른 차례이고 그 달 낼 날이 지나면 알린다`() {
         val rows = monthly("보험", 50_000, 3, YearMonth.of(2026, 1), YearMonth.of(2026, 9)).filter { it.localDate() != day("2026-09-03") } +
             monthly("보험", 30_000, 28, YearMonth.of(2026, 1), YearMonth.of(2026, 9))
+        assertEquals(1, view(rows, YearMonth.of(2026, 9), day("2026-09-04")).daysPastUsual)
         val october10 = view(rows, YearMonth.of(2026, 10), day("2026-10-10"))
         assertEquals(3, october10.usualDay)
         assertEquals(listOf(3, 28), october10.usualDays)
-        // 낼 돈은 9월에 낸 한 차례다(3일 것을 해지한 것과 그 달만으로는 가를 수 없어 해지한 다음 달처럼 본다)
+        // 3일 것을 해지한 것과 9월만으로는 가를 수 없어 10월은 해지한 다음 달처럼 9월에 낸 28일 것 한 건을 기다린다
+        assertEquals(1, october10.requiredCount)
+        assertEquals(28, october10.dueDay)
         assertEquals(30_000L, october10.amount)
-        assertEquals(7, october10.daysPastUsual)
         // 9월은 28일 것만 냈으니 9월 화면은 냈어요가 아니다
         assertEquals(FixedStatus.DUE, view(rows, YearMonth.of(2026, 9), day("2026-10-10")).status)
     }
