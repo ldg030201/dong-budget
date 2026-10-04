@@ -642,9 +642,10 @@ private fun acceptedReason(pattern: Pattern, violation: Violation, day: LocalDat
     if (YearMonth.from(first) >= YearMonth.from(day).minusMonths(NEW_RECORD_MONTHS)) return "새 기록의 첫 석 달(평소 쪽이 아직 자리 잡지 않음)"
     // 한 달 몫을 서로 다른 날에 나눠 내는 가게는 그렇게 갈려 나간 달을 둘은 다 봐야 두 차례인 줄 안다(두 날로 볼 때 딱 맞지 않는 결제가
     // 하나 넘게 줄어야 한다, [estimateSchedule]). 1일 · 2일 자동이체처럼 쉬는 날로 두 청구가 한날 나간 달만 이어지면
-    // (2025년 1~3월 · 5~6월) 첫 석 달이 지나도 그 증거가 없다.
+    // (2025년 1~3월 · 5~6월) 첫 석 달이 지나도 그 증거가 없다. 달마다 나눠 내는 가게(갈린 달이 둘 넘음)의 둘째 갈린 달을 다 내기 전까지만
+    // 받아들인다. 어쩌다 한 번 나눠 낸 가게는 두 차례가 아니라서 이 까닭이 아니다.
     val split = pattern.shares.filter { share -> share.payments.map { it.date }.distinct().size > 1 }
-    if (split.isNotEmpty() && split.count { share -> share.payments.all { !it.date.isAfter(known) } } < 2) {
+    if (split.size >= 2 && split.count { share -> share.payments.all { !it.date.isAfter(known) } } < 2) {
         return "나눠 낸 날이 갈린 달이 둘이 되기 전(두 차례인 줄 알 증거가 모자람)"
     }
     // 평소 날을 바꾼 첫 몇 달도 어긋날 수 있다. 평소 날은 최근 여섯 번 가운데 새 날에 딱 맞는 결제가 넷이 되어야 새 날로 넘어간다
