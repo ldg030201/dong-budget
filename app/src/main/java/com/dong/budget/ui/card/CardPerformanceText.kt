@@ -6,6 +6,7 @@ import com.dong.budget.ui.format.formatAmount
 import com.dong.budget.ui.format.formatKoreanWon
 import com.dong.budget.ui.format.formatMonth
 import com.dong.budget.ui.format.formatSpentAmount
+import com.dong.budget.ui.stats.calc.TREND_MONTHS
 import java.time.LocalDate
 import java.time.YearMonth
 
@@ -36,7 +37,8 @@ internal const val EMPTY_CARDS_BODY = "분류 관리의 결제수단에서 카�
 /** 상세에서 실적을 안 적었을 때 머리 안내 */
 internal const val NO_TIERS_TEXT = "실적 구간을 적으면 얼마 더 쓰면 되는지 알려 줘요"
 
-internal const val HISTORY_TITLE = "최근 6개월"
+/** 상세 막대 제목. 칸 수는 통계 상세의 최근 몇 달([TREND_MONTHS])과 같다. */
+internal const val HISTORY_TITLE = "최근 ${TREND_MONTHS}개월"
 
 internal const val TIERS_TITLE = "구간"
 
@@ -177,7 +179,7 @@ internal fun untrackedSubtitle(item: UntrackedCard): String {
 internal fun addPerformanceLabel(name: String): String = "$name $ADD_PERFORMANCE"
 
 /**
- * 최근 6개월 막대 아래 한 줄. 가장 높은 구간을 몇 번 채웠는지. 구간이 없으면 null
+ * 최근 몇 기간([HISTORY_TITLE]) 막대 아래 한 줄. 가장 높은 구간을 몇 번 채웠는지. 구간이 없으면 null
  * "최근 6개월 중 4번 가장 높은 구간을 채웠어요" / 구간이 하나면 "… 실적을 채웠어요"
  * 아직 진행 중인 이번 기간은 다 채웠을 때만 센다. 못 채운 채 남은 날이 있으면 놓친 기간이 아니라서 빼고 "지난 5개월 중 …" 처럼 말한다.
  * 기록이 없는 기간(카드를 쓰기 전)도 세지 않고 "기록한 2개월 중 1번 …" 처럼 센 기간만 말한다.
@@ -193,7 +195,7 @@ internal fun historySummary(history: List<PeriodSpent>, tiers: List<Long>, curre
     val counted = recorded.filter { it.period.month != currentMonth || it.progress.allReached }
     val goal = if (tiers.size == 1) "실적을" else "가장 높은 구간을"
     val span = when {
-        counted.size == history.size -> "최근 6개월"
+        counted.size == history.size -> "최근 ${history.size}개월"
         counted.size < recorded.size && past.size == history.size - 1 -> "지난 ${past.size}개월"
         else -> "기록한 ${counted.size}개월"
     }

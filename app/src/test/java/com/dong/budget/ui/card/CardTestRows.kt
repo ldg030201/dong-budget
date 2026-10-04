@@ -3,6 +3,7 @@ package com.dong.budget.ui.card
 import com.dong.budget.data.db.CardSpendRow
 import com.dong.budget.data.db.TransactionListItem
 import com.dong.budget.data.db.TransactionType
+import com.dong.budget.ui.stats.calc.TREND_MONTHS
 import kotlinx.coroutines.flow.StateFlow
 import java.lang.reflect.Proxy
 
@@ -16,6 +17,12 @@ internal fun List<TransactionListItem>.cardSpending(): List<CardSpendRow> = mapN
 /** 결제수단 [paymentMethodId] 의 쓴 돈 목록 */
 internal fun List<TransactionListItem>.spendsOf(paymentMethodId: Long): List<Spend> =
     cardSpending().filter { it.paymentMethodId == paymentMethodId }.map { it.toSpend() }
+
+/**
+ * 상세 막대([historyPeriods], 통계와 같은 [TREND_MONTHS] 칸)의 끝을 [recent] 로 채운 목록. 오래된 칸이 앞이다.
+ * 칸이 더 많으면 앞을 [before] 로 채우고, 적으면 앞을 버린다. 칸 수를 바꿔도 테스트가 마지막 몇 칸만 보게 한다.
+ */
+internal fun <T> recentSlots(recent: List<T>, before: T): List<T> = (List(TREND_MONTHS) { before } + recent).takeLast(TREND_MONTHS)
 
 /** 구독하지 않고 값만 들여다보며 [done] 이 될 때까지 기다린다(그리는 화면이 없을 때와 같다) */
 internal fun <T> StateFlow<T>.await(done: (T) -> Boolean): T {

@@ -26,7 +26,7 @@ import java.time.YearMonth
  * 카드 하나의 실적 상세 상태.
  *
  * 기간은 이 화면만 따로 가진다. 처음에는 오늘이 든 기간이고, 앞으로 넘겨 지난 기간을 볼 수 있다(이번 기간보다 뒤로는 못 간다).
- * 고른 기간까지 최근 6기간의 이 카드 지출·환불과 이 카드를 처음 쓴 날을 읽어 순수 함수([buildCardDetail])로 계산한다.
+ * 고른 기간까지 최근 기간들([historyPeriods])의 이 카드 지출·환불과 이 카드를 처음 쓴 날을 읽어 순수 함수([buildCardDetail])로 계산한다.
  * 실적(구간·시작일)이나 거래를 고치면 바로 다시 계산된다. 백스택에 있는 동안 계속 구독해 편집 화면에서 돌아와도 옛 값을 먼저 그리지 않는다([stateWhileAlive]).
  * 오늘은 자정에, 그리고 폰이 잠든 사이 자정이 지났을 때를 위해 화면이 다시 보일 때마다 다시 읽는다.
  * 결제수단을 지웠으면 [CardPerformanceDetailUiState.gone] 이다.
@@ -96,5 +96,5 @@ class CardPerformanceDetailViewModel(
     }
 }
 
-/** 상세를 계산할 카드·고른 기간·오늘·그 6기간 거래. 카드가 null 이면 결제수단이 없어졌다. */
+/** 상세를 계산할 카드·고른 기간·오늘·그 최근 기간들의 거래. 카드가 null 이면 결제수단이 없어졌다. */
 private class DetailRows(val card: PaymentMethodEntity?, val month: YearMonth, val today: LocalDate, val rows: List<TransactionListItem>)

@@ -123,7 +123,7 @@ data class PeriodSpent(val period: PerformancePeriod, val progress: TierProgress
  * @property card 카드 이름·아이콘·색. 첫 계산 전에는 null
  * @property tiers 구간 금액(오름차순). 실적을 지웠으면 비어 있다.
  * @property currentMonth 오늘이 든 기간의 이름 달
- * @property history 고른 기간까지 최근 6기간(오래된 것이 앞, 마지막이 고른 기간)
+ * @property history 고른 기간까지 최근 기간들([historyPeriods], 오래된 것이 앞, 마지막이 고른 기간)
  * @property days 고른 기간의 거래를 날짜별로(최근 날이 먼저)
  */
 @Immutable

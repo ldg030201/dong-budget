@@ -8,6 +8,7 @@ import com.dong.budget.data.db.TransactionType.REFUND
 import com.dong.budget.testing.day
 import com.dong.budget.testing.tx
 import com.dong.budget.ui.home.localDate
+import com.dong.budget.ui.stats.calc.TREND_MONTHS
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -109,20 +110,26 @@ class CardPerformanceStatesTest {
         tx("2026-09-10", 523_000, paymentId = 2),
         tx("2026-08-10", 800_000, paymentId = 2),
         tx("2026-05-01", 10_000, paymentId = 2),
-        // 6개월 밖
+        // 지금 칸 수(TREND_MONTHS = 6)면 막대 밖이다
         tx("2026-04-30", 999_000, paymentId = 2),
     )
 
     @Test
-    fun `상세는 고른 기간까지 최근 6개월과 그 기간의 거래를 날짜별로 보여 준다`() {
+    fun `상세는 고른 기간까지 최근 기간들과 그 기간의 거래를 날짜별로 보여 준다`() {
         val state = buildCardDetail(hana, YearMonth.of(2026, 10), today, hanaRows, firstUse = null)
         assertTrue(state.loaded)
         assertTrue(state.isCurrent)
         assertEquals(123_450L, state.progress.spent)
         assertEquals(29, state.daysLeft)
-        assertEquals((5..10).map { YearMonth.of(2026, it) }, state.history.map { it.period.month })
-        assertEquals(listOf(10_000L, 0L, 0L, 800_000L, 523_000L, 123_450L), state.history.map { it.progress.spent })
-        assertTrue(state.history[3].progress.allReached)
+        // 칸 수는 통계와 같은 TREND_MONTHS 이고 마지막 칸이 고른 기간이다
+        val october = YearMonth.of(2026, 10)
+        assertEquals((TREND_MONTHS - 1 downTo 0).map { october.minusMonths(it.toLong()) }, state.history.map { it.period.month })
+        // 칸마다 그 기간에 쓴 돈이다. 칸 밖(지금은 4월)의 거래는 세지 않는다
+        val spentByMonth = mapOf(4 to 999_000L, 5 to 10_000L, 8 to 800_000L, 9 to 523_000L, 10 to 123_450L).mapKeys {
+            YearMonth.of(2026, it.key)
+        }
+        assertEquals(state.history.map { spentByMonth[it.period.month] ?: 0L }, state.history.map { it.progress.spent })
+        assertTrue(state.history.single { it.period.month == YearMonth.of(2026, 8) }.progress.allReached)
         assertEquals(3, state.count)
         assertEquals(listOf(day("2026-10-02"), day("2026-10-01")), state.days.map { it.date })
         // 같은 날은 늦은 시각이 먼저다
@@ -192,9 +199,9 @@ class CardPerformanceStatesTest {
 
         val detail = buildCardDetail(fresh, YearMonth.of(2026, 10), today, freshRows, firstUse)
         assertTrue(detail.recorded)
-        assertEquals(listOf(false, false, false, false, false, true), detail.history.map { it.recorded })
+        assertEquals(recentSlots(listOf(true), false), detail.history.map { it.recorded })
         assertEquals("아직 지난 기록이 없어요", historySummary(detail.history, detail.tiers, detail.currentMonth))
-        assertEquals("2026년 9월 실적, 기록이 없어요", historySlotDescription(detail.history[4], past = true))
+        assertEquals("2026년 9월 실적, 기록이 없어요", historySlotDescription(detail.history.dropLast(1).last(), past = true))
         assertEquals("280,000원 남았어요", tierRowStatus(detail, 300_000))
 
         // 기록이 없는 지난 기간을 고르면 머리와 구간 목록도 채웠는지 따지지 않는다
@@ -215,8 +222,8 @@ class CardPerformanceStatesTest {
         assertEquals("9월 실적 120,000원 · 30만원까지 180,000원 모자랐어요", previousLine(tracked.previousMonth, today, tracked.previous))
 
         val detail = buildCardDetail(card, YearMonth.of(2026, 10), today, cardRows, firstUse)
-        assertEquals(listOf(false, false, false, false, true, true), detail.history.map { it.recorded })
-        // 기록이 없는 넉 달과 아직 진행 중인 10월은 세지 않는다
+        assertEquals(recentSlots(listOf(true, true), false), detail.history.map { it.recorded })
+        // 기록이 없는 앞 기간들과 아직 진행 중인 10월은 세지 않는다
         assertEquals("기록한 1개월에는 실적을 채운 적이 없어요", historySummary(detail.history, detail.tiers, detail.currentMonth))
         val september = buildCardDetail(card, YearMonth.of(2026, 9), today, cardRows, firstUse)
         assertTrue(september.recorded)

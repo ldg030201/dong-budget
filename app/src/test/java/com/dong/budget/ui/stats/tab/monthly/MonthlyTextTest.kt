@@ -12,6 +12,7 @@ import com.dong.budget.ui.stats.GroupKey
 import com.dong.budget.ui.stats.Insight
 import com.dong.budget.ui.stats.MonthPoint
 import com.dong.budget.ui.stats.calc.SpendRatioSentence
+import com.dong.budget.ui.stats.calc.TREND_MONTHS
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -27,6 +28,13 @@ class MonthlyTextTest {
         MonthPoint(month, Totals(expense, income), hasRecord, before)
 
     private fun entry(key: GroupKey) = BreakdownEntry(key, "식비", null, null, 523_000, 12, 0.42, 20_000, change = null)
+
+    @Test
+    fun `최근 몇 달 제목은 막대 칸 수를 따른다`() {
+        // 전에는 '최근 6개월' 로 박혀 있어 칸 수(TREND_MONTHS)를 바꾸면 제목만 남았다
+        assertEquals("최근 ${TREND_MONTHS}개월", TREND_TITLE)
+        assertTrue(TREND_CHART_DESCRIPTION.startsWith(TREND_TITLE))
+    }
 
     @Test
     fun `쓴 돈은 - 를 붙이고, 환불이 더 많으면 돌아온 돈으로 적는다`() {

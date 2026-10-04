@@ -317,9 +317,9 @@ class PerformancePeriodsTest {
         // 상세는 이 카드의 지출·환불 중 가장 이른 날을 보이는 거래로 센다(9월 1일 수입·9월 2일 이체·다른 카드는 아니다)
         val card = PaymentMethodEntity(id = 6, uuid = "u", name = "카드", type = PaymentMethodType.OTHER, performanceTiers = "300000")
         val detail = buildCardDetail(card, october, day("2026-10-03"), rows, firstUse = null)
-        assertEquals(listOf(false, false, false, false, true, true), detail.history.map { it.recorded })
+        assertEquals(recentSlots(listOf(true, true), false), detail.history.map { it.recorded })
         val before = buildCardDetail(card, october, day("2026-10-03"), rows.filter { it.amount != 1_000L && it.type != EXPENSE }, null)
-        assertEquals(listOf(false, false, false, false, false, true), before.history.map { it.recorded })
+        assertEquals(recentSlots(listOf(true), false), before.history.map { it.recorded })
     }
 
     @Test

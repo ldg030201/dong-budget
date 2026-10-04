@@ -14,6 +14,7 @@ import com.dong.budget.ui.stats.Insight
 import com.dong.budget.ui.stats.MonthPoint
 import com.dong.budget.ui.stats.Period
 import com.dong.budget.ui.stats.calc.SpendRatioSentence
+import com.dong.budget.ui.stats.calc.TREND_MONTHS
 import com.dong.budget.ui.stats.calc.spendRatioSentence
 import com.dong.budget.ui.stats.categoryEntry
 import com.dong.budget.ui.stats.detailKey
@@ -50,14 +51,14 @@ internal fun insightActionLabel(insight: Insight): String = when (insight) {
 
 // ── 최근 6개월 ─────────────────────────────────────────────────────────
 
-/** 최근 6개월 섹션 제목 */
-internal const val TREND_TITLE = "최근 6개월"
+/** 최근 몇 달 섹션 제목. 칸 수([TREND_MONTHS])를 따른다. */
+internal const val TREND_TITLE = "최근 ${TREND_MONTHS}개월"
 
 /** 기록한 달이 모자라 차트와 표 대신 두는 안내 */
 internal const val TREND_FALLBACK = "기록한 달이 두 달은 되어야 달마다 비교해 보여 드려요"
 
 /** 6개월 막대 차트의 화면 읽기 요약. 값은 표가 줄마다 읽는다. */
-internal const val TREND_CHART_DESCRIPTION = "최근 6개월 지출과 수입 막대 그래프. 아래 표에 달마다 금액이 있어요"
+internal const val TREND_CHART_DESCRIPTION = "$TREND_TITLE 지출과 수입 막대 그래프. 아래 표에 달마다 금액이 있어요"
 
 /** 창 안에 이번 달이 있으면 표 아래 붙는 안내 */
 internal const val TREND_CURRENT_HINT = "이번 달은 지금까지 적은 거래로 셌어요"

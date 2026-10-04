@@ -65,7 +65,7 @@ internal fun nextPick(picked: YearMonth?, current: YearMonth): YearMonth? =
 
 /**
  * [month] 까지 최근 기간들. 오래된 기간이 앞이고 마지막이 [month] 다.
- * 기간 수는 통계 상세의 최근 6개월 막대([trendMonths])와 같아 한쪽을 바꾸면 함께 바뀐다.
+ * 기간 수는 통계 상세의 최근 몇 달 막대([trendMonths])와 같아 한쪽을 바꾸면 함께 바뀐다.
  */
 fun historyPeriods(month: YearMonth, startDay: Int): List<PerformancePeriod> = trendMonths(month).map { performancePeriod(it, startDay) }
 

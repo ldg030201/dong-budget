@@ -1,6 +1,7 @@
 package com.dong.budget.ui.card
 
 import com.dong.budget.testing.day
+import com.dong.budget.ui.stats.calc.TREND_MONTHS
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
@@ -142,6 +143,14 @@ class CardPerformanceTextTest {
         assertEquals("이번 달 쓴 돈이 없어요", untrackedSubtitle(UntrackedCard(card, performancePeriod(october, 1), 0)))
         assertEquals("9월 15일부터 환불받은 돈이 더 많아요", untrackedSubtitle(UntrackedCard(card, performancePeriod(YearMonth.of(2026, 9), 15), -10)))
         assertEquals("체크카드 실적 추가", addPerformanceLabel("체크카드"))
+    }
+
+    @Test
+    fun `상세 막대 제목과 요약의 개월 수는 막대 칸 수를 따른다`() {
+        // 통계의 최근 몇 달(TREND_MONTHS)을 바꾸면 카드실적 상세 막대의 칸 수와 제목이 함께 바뀐다. 전에는 '최근 6개월' 로 박혀 있었다
+        assertEquals("최근 ${TREND_MONTHS}개월", HISTORY_TITLE)
+        val history = historyPeriods(october, 1).map { PeriodSpent(it, TierProgress(1, listOf(1L))) }
+        assertEquals("최근 ${TREND_MONTHS}개월 모두 실적을 채웠어요", historySummary(history, listOf(1L), october))
     }
 
     @Test
