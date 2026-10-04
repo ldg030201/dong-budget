@@ -11,7 +11,7 @@ import java.time.YearMonth
 import kotlin.random.Random
 
 /**
- * 아무렇게나 낸 가게(날마다 · 요일마다 · 며칠마다 · 한 달에 몇 번 · 몇 달마다, 금액이 바뀌고 밀리고 빠지고 겹친다)를 수천 개 만들어
+ * 아무렇게나 낸 가게(날마다 · 요일마다 · 며칠마다 · 한 달에 몇 번 · 몇 달마다 · 하루 차이 두 청구, 금액이 바뀌고 밀리고 빠지고 겹친다)를 수천 개 만들어
  * 고정지출 계산이 어떤 기록에도 예외를 던지지 않는지 본다(리뷰 검증: 자주 내는 가게에서 금액이 바뀌면 짝짓기가 죽었다).
  * 읽는 범위는 화면 모델과 같다([fixedHistoryStart] ~ [fixedHistoryEnd]). 씨앗을 박아 두어 늘 같은 기록을 본다.
  */
@@ -57,8 +57,9 @@ class FixedExpenseFuzzTest {
                 0 -> List(random.nextInt(1, 80)) { start.plusDays(random.nextLong(0, daysBetween(start, end) + 1L)) }
                 1 -> weekdays(random, start, end)
                 2 -> stepped(random.nextInt(1, 12), start, end)
-                3 -> monthly(random, start, end)
-                else -> periodic(random, start, end)
+                3 -> monthly(random, start, end, List(random.nextInt(1, 4)) { random.nextInt(1, LAST_DAY + 1) })
+                4 -> periodic(random, start, end)
+                else -> nextDays(random, start, end)
             }.ifEmpty { listOf(start) }
         return dates.flatMap { date ->
             val amount = if (date < changeAt) base else changed
@@ -77,9 +78,8 @@ class FixedExpenseFuzzTest {
     private fun stepped(step: Int, start: LocalDate, end: LocalDate): List<LocalDate> =
         generateSequence(start) { it.plusDays(step.toLong()) }.takeWhile { it <= end }.toList()
 
-    /** 한 달에 한두세 번 평소 날에, 가끔 쉬는 날로 밀리고 · 빠지고 · 며칠 일찍이나 늦게 */
-    private fun monthly(random: Random, start: LocalDate, end: LocalDate): List<LocalDate> {
-        val days = List(random.nextInt(1, 4)) { random.nextInt(1, LAST_DAY + 1) }
+    /** 달마다 평소 날 [days] 에, 가끔 쉬는 날로 밀리고 · 빠지고 · 며칠 일찍이나 늦게 */
+    private fun monthly(random: Random, start: LocalDate, end: LocalDate, days: List<Int>): List<LocalDate> {
         val pushed = random.nextBoolean()
         return months(start, end, 1).flatMap { month ->
             days.mapNotNull { day ->
@@ -92,6 +92,10 @@ class FixedExpenseFuzzTest {
             }
         }
     }
+
+    /** 하루 차이로 따로 나가는 두 청구(5일 · 6일, 30일 · 말일). 흔들림은 [monthly] 와 같다. */
+    private fun nextDays(random: Random, start: LocalDate, end: LocalDate): List<LocalDate> =
+        random.nextInt(1, LAST_DAY).let { monthly(random, start, end, listOf(it, it + 1)) }
 
     /** 몇 달마다 · 매년, 낼 날에서 앞뒤로 흔들리게 */
     private fun periodic(random: Random, start: LocalDate, end: LocalDate): List<LocalDate> {
@@ -106,7 +110,7 @@ class FixedExpenseFuzzTest {
 
 private const val SEED = 20_261_004
 private const val PATTERNS = 3_000
-private const val KINDS = 5
+private const val KINDS = 6
 private const val SHOWN = 10
 private const val ODD_ONE_IN = 15
 private const val TWICE_ONE_IN = 25

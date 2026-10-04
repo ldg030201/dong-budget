@@ -169,6 +169,37 @@ class FixedExpensesVerifyTest {
     private fun morningOf(rows: List<TransactionListItem>, today: LocalDate) = rows.filter { it.localDate().isBefore(today) }
 
     @Test
+    fun `A - 하루 차이로 따로 나가는 두 청구는 두 차례라 남은 청구의 날 아침에 지났다고 하지 않는다`() {
+        // 카드로 5일 4,400원 · 6일 10,900원이 그날 나간다. 8월 5일(수) 것만 나간 6일 아침엔 6일 것이 오늘 낼 차례다.
+        val apple = card("애플", 4_400, 5, YearMonth.of(2026, 1), YearMonth.of(2026, 8)) +
+            card("애플", 10_900, 6, YearMonth.of(2026, 1), YearMonth.of(2026, 8))
+        val august = YearMonth.of(2026, 8)
+        val sixth = day("2026-08-06")
+        val morning = view(morningOf(apple, sixth), august, sixth)
+        assertEquals(listOf(5, 6), morning.usualDays)
+        assertEquals(6, morning.dueDay)
+        assertEquals(0, morning.daysPastUsual)
+        assertEquals("2번 중 1번 냈고, 남은 건 오늘 낼 차례예요", rowNote(morning, august, sixth)?.text)
+        val evening = view(apple, august, sixth)
+        assertEquals(FixedStatus.PAID, evening.status)
+        assertEquals(15_300L, evening.amount)
+        // 자동이체면 6월 6일(토 · 현충일) 것은 8일(월)에 나간다. 5일(금) 것만 나간 6 · 7일엔 지났다고 하지 않고 8일 아침엔 오늘 낼 차례다.
+        val school = monthly("학원", 4_400, 5, YearMonth.of(2026, 1), YearMonth.of(2026, 6)) +
+            monthly("학원", 10_900, 6, YearMonth.of(2026, 1), YearMonth.of(2026, 6))
+        val june = YearMonth.of(2026, 6)
+        for (date in listOf("2026-06-06", "2026-06-07")) {
+            val item = view(morningOf(school, day(date)), june, day(date))
+            assertEquals(date, listOf(5, 6), item.usualDays)
+            assertEquals(date, "2번 중 1번 냈어요", rowNote(item, june, day(date))?.text)
+        }
+        val eighth = day("2026-06-08")
+        assertEquals("2번 중 1번 냈고, 남은 건 오늘 낼 차례예요", rowNote(view(morningOf(school, eighth), june, eighth), june, eighth)?.text)
+        // 한 달에 한 번 내는 것이 5일 · 6일로 하루씩 흔들려도 두 차례가 아니다(달마다 한 때에 낸다)
+        val wobbly = (1..8).flatMap { paid("구독", 9_900, usualDateOf(YearMonth.of(2026, it), 5 + it % 2).toString()) }
+        assertEquals(1, view(wobbly, august, day("2026-08-20")).usualDays.size)
+    }
+
+    @Test
     fun `아침 - 말일 것을 쉬는 날 앞 영업일에 미리 빼 가는 관리비는 기록이 짧아도 말일 것이라 말일 아침에 지났다고 하지 않는다`() {
         // 2025년 5월 31일(토) 것은 30일(금), 8월 31일(일) 것은 29일(금)에 미리 나갔다. 앞 영업일을 모르면 1~6월이 '30일, 쉬는 날이면
         // 다음 영업일' 에 딱 맞아(1월 30일은 설 연휴라 31일, 3월 30일은 일요일이라 31일) 7월 31일 아침에 '평소보다 1일 지났어요' 였다.

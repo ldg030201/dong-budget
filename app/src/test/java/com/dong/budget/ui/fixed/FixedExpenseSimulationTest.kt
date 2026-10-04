@@ -242,6 +242,22 @@ private fun twoClaims(name: String, first: Int, firstAmount: Long, second: Int, 
     },
 )
 
+/**
+ * 1일(쉬는 날이면 다음 영업일) 월세를 300,000원 · 200,000원으로 나눠 내는데, 석 달에 [nextDays] 번은 200,000원을 이튿날 낸다.
+ * 월세는 1일에 낼 것이라 이튿날 낸 몫도 낼 날은 1일이다. 한 달 평균 때 수로 한 차례(1일에 두 건) · 두 차례(1일 · 2일)가 갈린다.
+ */
+private fun splitRent(name: String, nextDays: Int) = Pattern(
+    name = name,
+    monthly = true,
+    oneMonth = 500_000,
+    shares =
+    months().mapIndexed { i, month ->
+        val due = pushed(month.atDay(1))
+        val rest = if (i % 3 < nextDays) due.plusDays(1) else due
+        Share(month, due, listOf(Pay(due, 300_000), Pay(rest, 200_000, due)))
+    },
+)
+
 /** 매달 12일 9,900원(카드)에 해마다 9월 10일 연간 결제 99,000원이 따로 나간다(리뷰 검증: 매달 것보다 먼저 나간 연간 결제가 그 달을 채웠다) */
 private fun annualExtra(): Pattern = Pattern(
     name = "구글",
@@ -299,6 +315,14 @@ private fun patterns(): List<Pattern> = listOf(
     twoClaims("보험사", 1, 50_000, LAST_DAY, 30_000, autoPay = false),
     // 매달 것보다 이틀 먼저 나가는 연간 결제
     annualExtra(),
+    // 하루 차이로 따로 나가는 두 청구(카드 5일 · 6일, 자동이체 5일 · 6일)
+    twoClaims("하루카드", 5, 4_400, 6, 10_900, autoPay = false),
+    twoClaims("하루이체", 5, 4_400, 6, 10_900, autoPay = true),
+    // 달마다 1일 · 2일에 나눠 내는 월세(자동이체)
+    twoClaims("나눈월세", 1, 300_000, 2, 200_000, autoPay = true),
+    // 나눠 내는 1일 월세의 남은 몫을 같은 날 낼 때도 이튿날 낼 때도 있다(석 달에 한 번 · 두 번 이튿날)
+    splitRent("섞은월세1", nextDays = 1),
+    splitRent("섞은월세2", nextDays = 2),
 )
 
 /** 불변식 위반 하나. [accepted] 는 fixes3.md '받아들이는 모호함' 에 해당하면 그 까닭(테스트를 실패시키지 않는다) */
@@ -398,8 +422,11 @@ class FixedExpenseSimulationTest {
     }
 }
 
-/** [day] 에 [pattern] 을 본 화면들의 위반을 [found] 에 모은다. [checked] 에 불변식마다 따져 본 수를 더한다. */
-private class Judge(val pattern: Pattern, val day: LocalDate, private val checked: MutableMap<String, Int>) {
+/**
+ * [day] 에 [pattern] 을 본 화면들의 위반을 [found] 에 모은다. [checked] 에 불변식마다 따져 본 수를 더한다.
+ * [known] 은 화면이 본 기록의 마지막 날이다(저녁 화면은 그날, 아침 화면은 그 앞 날).
+ */
+private class Judge(val pattern: Pattern, val day: LocalDate, private val known: LocalDate, private val checked: MutableMap<String, Int>) {
     val found = mutableListOf<Violation>()
 
     operator fun invoke(invariant: String, view: View, applies: Boolean, holds: Boolean, expected: () -> String) {
@@ -407,7 +434,7 @@ private class Judge(val pattern: Pattern, val day: LocalDate, private val checke
         checked.merge(invariant, 1, Int::plus)
         if (holds) return
         val violation = Violation(pattern.name, day, invariant, view.month, expected(), describe(view.item))
-        found += violation.copy(accepted = acceptedReason(pattern, violation, day))
+        found += violation.copy(accepted = acceptedReason(pattern, violation, day, known))
     }
 }
 
@@ -420,7 +447,7 @@ private const val MORNING = " 아침"
  */
 private fun checkMorning(pattern: Pattern, day: LocalDate, now: View, checked: MutableMap<String, Int>): List<Violation> {
     val paidThrough = day.minusDays(1)
-    val judge = Judge(pattern, day, checked)
+    val judge = Judge(pattern, day, paidThrough, checked)
     checkPartly(judge, now, paidThrough, MORNING)
     checkUnpaid(judge, now, paidThrough, MORNING)
     return judge.found
@@ -428,7 +455,7 @@ private fun checkMorning(pattern: Pattern, day: LocalDate, now: View, checked: M
 
 /** [day] 에 [pattern] 을 이번 달([now]) · 지난 달([before]) 화면에서 본 것의 위반. [checked] 에 불변식마다 따져 본 수를 더한다. */
 private fun check(pattern: Pattern, day: LocalDate, now: View, before: View, checked: MutableMap<String, Int>): List<Violation> {
-    val judge = Judge(pattern, day, checked)
+    val judge = Judge(pattern, day, day, checked)
     for (view in listOf(now, before)) {
         val item = view.item
         // I1: 매달 내는 것은 3번째 결제 뒤로 '이번 달엔 안 내요' · '한동안 안 냈어요' 가 아니다
@@ -513,13 +540,20 @@ private fun describe(item: FixedExpenseItem?): String {
     return "${item.status} ${item.cadence}달마다 ${item.usualDay}일 ${item.amount}원 · $last$past$missed$next"
 }
 
-/** fixes3.md '받아들이는 모호함' 에 해당하면 그 까닭 */
-private fun acceptedReason(pattern: Pattern, violation: Violation, day: LocalDate): String? {
+/** fixes3.md '받아들이는 모호함' 에 해당하면 그 까닭. [known] 은 화면이 본 기록의 마지막 날이다. */
+private fun acceptedReason(pattern: Pattern, violation: Violation, day: LocalDate, known: LocalDate): String? {
     // 새로 생긴 기록의 첫 몇 달은 어긋날 수 있다. 결제가 두세 번뿐이면 1일 것을 미리 낸 것과 말일 것이 밀린 것을 가를 증거가 모자라고
     // (월세P0 는 첫 결제가 미리 낸 12월 31일이다), 두 차례 가게는 두 달을 다 내야 두 차례인 줄 안다.
     // 새 일정 모델(리뷰 G1)로 다섯 달에서 석 달로 좁혔다.
     val first = pattern.shares.flatMap { it.payments }.minOf { it.date }
     if (YearMonth.from(first) >= YearMonth.from(day).minusMonths(NEW_RECORD_MONTHS)) return "새 기록의 첫 석 달(평소 쪽이 아직 자리 잡지 않음)"
+    // 한 달 몫을 서로 다른 날에 나눠 내는 가게는 그렇게 갈려 나간 달을 둘은 다 봐야 두 차례인 줄 안다(두 날로 볼 때 딱 맞지 않는 결제가
+    // 하나 넘게 줄어야 한다, [estimateSchedule]). 1일 · 2일 자동이체처럼 쉬는 날로 두 청구가 한날 나간 달만 이어지면
+    // (2025년 1~3월 · 5~6월) 첫 석 달이 지나도 그 증거가 없다.
+    val split = pattern.shares.filter { share -> share.payments.map { it.date }.distinct().size > 1 }
+    if (split.isNotEmpty() && split.count { share -> share.payments.all { !it.date.isAfter(known) } } < 2) {
+        return "나눠 낸 날이 갈린 달이 둘이 되기 전(두 차례인 줄 알 증거가 모자람)"
+    }
     // 평소 날을 바꾼 첫 몇 달도 어긋날 수 있다. 평소 날은 최근 여섯 번 가운데 새 날에 딱 맞는 결제가 넷이 되어야 새 날로 넘어간다
     // ([estimateSchedule]). 바꾼 달부터 넉 달 몫의 화면과 넷째를 내기 전까지는 받아들인다.
     val changed = pattern.changed

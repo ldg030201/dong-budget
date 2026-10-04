@@ -146,10 +146,11 @@ internal class FixedSchedule(
  *    [DAY_SAMPLES] × [MAX_SLOTS] 번으로 두 날). 딱 맞는 결제가 가장 많은 날을 고르는 셈이라 가끔 늦게 낸 것이나 결제일을 바꾸기 전 결제가
  *    평소 날을 사이 날로 끌지 않고, 말일 자동이체를 하루 차이인 1일 납부로 보지 않는다. 같으면 거리를 끝까지 더한 합,
  *    평소 날짜와 그대로 견준 합이 작은 쪽, 그래도 같으면 마지막 결제일에서 볼 때 이른 날이다(늦게 알리는 것보다 일찍 알리는 게 낫다).
- * 2. 차례 수: 두 날이 한 달 안에서 [SLOT_GAP_DAYS] 일 넘게 떨어져 있고, 두 날로 보면 한 날로 볼 때보다 딱 맞지 않는 결제가 [CHANGE_MARGIN] 넘게
- *    줄고, 최근 달마다 두 때에 냈으면([paysTwice]) 두 차례다. 며칠 사이로 따로 나가는 두 청구(5일 · 9일, 25일 · 28일)도, 1일과 말일에
- *    나가는 두 청구도 두 차례다. 말일 것이 쉬는 날로 다음 달 초에 밀려 한 달력 달에 두 번 낸 달이 생겨도(한 날로 다 맞고 달마다 한 번이다),
- *    말일 것을 가끔 이틀 늦게 내도(달마다 한 번이다), 1일 · 2일에 나눠 내도(두 날이 붙어 있다) 한 차례다.
+ * 2. 차례 수: 두 날로 보면 한 날로 볼 때보다 딱 맞지 않는 결제가 [CHANGE_MARGIN] 넘게 줄고, 최근 달마다 두 때에 냈으면([paysTwice])
+ *    두 차례다. 두 날이 하루만 떨어져도 된다. 하루 · 며칠 사이로 따로 나가는 두 청구(5일 · 6일, 5일 · 9일, 25일 · 28일)도, 1일과 말일에
+ *    나가는 두 청구도, 달마다 1일 · 2일에 나눠 내는 월세도 두 차례다(남은 것의 날 전에는 지났다고 하지 않는다). 말일 것이 쉬는 날로 다음 달
+ *    초에 밀려 한 달력 달에 두 번 낸 달이 생겨도(한 날로 다 맞고 달마다 한 번이다), 말일 것을 가끔 이틀 늦게 내도, 한 달에 한 번 내는 것이
+ *    5일 · 6일로 하루씩 흔들려도(달마다 한 때다) 한 차례다. 나눠 낸 몫을 같은 날 낼 때도 이튿날 낼 때도 있으면 한 달 평균 때 수로 갈린다.
  * 3. 주기: 결제마다 가장 가까운 차례의 달을 모아 최근 [CADENCE_GAPS] 간격의 가운데 값(짝수 개면 짧은 쪽, 늦게 알리는 것보다 일찍 알리는 게 낫다).
  * 4. 몇 달마다면 차례 달: 최근 결제가 가장 덜 떨어지는 달들(같으면 마지막 결제의 달을 지나는 쪽)이다.
  * 자주 내는 가게([frequentTimes], 평일마다 내는 돌봄 · 주 3회 PT)는 차례를 짐작하지 않고 매달 내는 것으로 둔다.
@@ -169,9 +170,7 @@ internal fun estimateSchedule(estimation: List<Paid>, base: YearMonth, dues: Due
     val single = singleDay(costs, lastDay)
     val pairCosts = costs.takeLast(DAY_SAMPLES * MAX_SLOTS)
     val pair = bestPair(pairCosts, lastDay)
-    val twice = pair[1] - pair[0] >= SLOT_GAP_DAYS &&
-        missed(pairCosts, listOf(single)) - missed(pairCosts, pair) > CHANGE_MARGIN &&
-        paysTwice(regular, base)
+    val twice = missed(pairCosts, listOf(single)) - missed(pairCosts, pair) > CHANGE_MARGIN && paysTwice(regular, base, pair, dues)
     val recent = regular.takeLast(DAY_SAMPLES * if (twice) MAX_SLOTS else 1)
     val days = if (twice) pair else listOf(single)
     val cadence = cadenceOf(regular, days, dues)
@@ -200,25 +199,26 @@ private fun frequentTimes(sorted: List<Paid>, base: YearMonth): Int? {
  * [SLOT_COUNT_SPAN] 달력 달(첫 결제 달 앞은 빼고, 결제가 없던 달은 0)에 낸 때([occasionsOf])가 한 달 평균 한 번 반 이상인지다.
  * 짧게 보아 회선을 더한 지 두 달이면 알고, 길게 보아 한 달을 통째로 건너뛰어도 두 차례 그대로다.
  * 말일 것이 밀려 한 달력 달에 두 번 낸 달이 생겨도 그만큼 빈 달이 생겨 평균은 한 번쯤이다.
+ * 두 평소 날 [pair] 의 낼 날이 같은 달(5일 · 6일이 주말 · 연휴로 함께 7일에 밀림)은 따로 나가는 두 청구도 한날 나가 날짜로는 두 때인지
+ * 가를 수 없어 세지 않는다. 그런 달까지 한 때로 세면 쉬는 날이 몰린 철(1월 · 3월 · 5월)에 하루 차이 두 청구를 한 차례로 보았다.
  */
-private fun paysTwice(regular: List<Paid>, base: YearMonth): Boolean {
+private fun paysTwice(regular: List<Paid>, base: YearMonth, pair: List<Int>, dues: DueDates): Boolean {
     val byMonth = regular.groupBy { it.month }
     val end = minOf(base.minusMonths(1), byMonth.keys.max())
     val recorded = end.index() - byMonth.keys.min().index() + 1
     return listOf(SLOT_COUNT_MONTHS, SLOT_COUNT_SPAN).any { months ->
-        val span = recorded.coerceIn(1, months)
-        (0 until span).sumOf { occasionsOf(byMonth[end.minusMonths(it.toLong())].orEmpty()) } * 2 >= span * 3
+        val counted = (0 until recorded.coerceIn(1, months))
+            .map { end.minusMonths(it.toLong()) }
+            .filter { dues.due(it, pair[0]) != dues.due(it, pair[1]) }
+        counted.isNotEmpty() && counted.sumOf { occasionsOf(byMonth[it].orEmpty()) } * 2 >= counted.size * 3
     }
 }
 
 /**
- * 낸 때의 수. 같은 날이나 [SLOT_GAP_DAYS] 일 안쪽(이튿날)에 이어 낸 것은 한 때다(1일 · 2일에 나눠 낸 월세는 한 차례에 두 건).
- * 사흘 사이로 따로 나가는 두 청구(25일 · 28일)는 두 때다.
+ * 낸 때의 수. 서로 다른 날마다 한 때다(같은 날 여러 건은 한 때). 하루 차이로 따로 나가는 두 청구(5일 · 6일)도, 1일 · 2일에 나눠 낸
+ * 월세도 두 때다. 둘이 쉬는 날로 같은 영업일에 밀려 나간 달은 한 때다(그런 달은 [paysTwice] 가 세지 않는다).
  */
-private fun occasionsOf(pays: List<Paid>): Int {
-    val dates = pays.map { it.date }.distinct().sorted()
-    return if (dates.isEmpty()) 0 else 1 + dates.zipWithNext().count { (a, b) -> daysBetween(a, b) >= SLOT_GAP_DAYS }
-}
+private fun occasionsOf(pays: List<Paid>): Int = pays.map { it.date }.distinct().size
 
 /**
  * 평소 날 1~31(첨자) 마다 [date] 가 가장 가까운 차례(앞뒤 달 가운데 거리가 가장 짧은 것)와 떨어진 값. 딱 맞지 않은 값([MISSED] +
@@ -362,12 +362,6 @@ private const val SLOT_COUNT_MONTHS = 3
 
 /** 한 달에 두 때에 내는지([paysTwice]) 길게 볼 때의 최근 달 수 */
 private const val SLOT_COUNT_SPAN = 6
-
-/**
- * 두 차례로 보는 두 평소 날의 가장 짧은 사이(한 달 안에서). 이틀 이상 떨어진 두 날은 따로 나가는 두 청구일 수 있다.
- * 달 경계를 돌아 재지 않는다(1일 · 말일 두 청구). 말일 것이 다음 달 1일로 밀리는 한 청구와는 한 달에 두 번 내는 달이 많은지([paysTwice])로 가른다.
- */
-private const val SLOT_GAP_DAYS = 2
 
 /** 한 달에 서로 다른 날 이보다 많이 내면 자주 내는 가게다([frequentTimes]) */
 private const val FREQUENT_TIMES = 3
