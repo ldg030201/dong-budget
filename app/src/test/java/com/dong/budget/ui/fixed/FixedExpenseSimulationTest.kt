@@ -20,7 +20,7 @@ private data class Share(val month: YearMonth, val scheduled: LocalDate, val pay
 /**
  * 한 가게의 진짜 결제 흐름. [monthly] 면 매달 내는 것(I1 을 본다), [oneMonth] 는 진짜 한 달 치(I4 의 기준).
  * [changed] 는 평소 낼 날을 바꾼 첫 달, [cancelled] 는 두 청구 가운데 하나를 해지한 첫 달이다(없으면 null).
- * [extras] 는 어느 몫도 아닌, 따로 낸 결제(연간 결제 등)다.
+ * [kept] 는 해지한 뒤 남은 청구의 한 달 치다. [extras] 는 어느 몫도 아닌, 따로 낸 결제(연간 결제 등)다.
  */
 private class Pattern(
     val name: String,
@@ -29,8 +29,12 @@ private class Pattern(
     val shares: List<Share>,
     val changed: YearMonth? = null,
     val cancelled: YearMonth? = null,
+    val kept: Long = oneMonth,
     val extras: List<Pay> = emptyList(),
 ) {
+    /** [month] 의 진짜 한 달 치. 해지한 다음 달부터는 남은 청구 금액이다(해지한 달은 그 달만으로는 해지인지 아직 안 낸 것인지 모른다). */
+    fun oneMonthIn(month: YearMonth): Long = if (cancelled != null && month > cancelled) kept else oneMonth
+
     val rows: List<TransactionListItem> =
         (shares.flatMap { it.payments } + extras).map { tx(it.date.toString(), it.amount, categoryId = 4, paymentId = 10, merchant = name) }
 
@@ -208,6 +212,7 @@ private fun lineCancelled(cancelled: YearMonth): Pattern = Pattern(
         Share(month, date, listOf(Pay(date, 45_000)) + if (month < cancelled) listOf(Pay(date, 48_000)) else emptyList())
     },
     cancelled = cancelled,
+    kept = 45_000,
 )
 
 /** 한 가게에 매달 3일 50,000원 · 28일 30,000원을 내다 [cancelled] 부터 28일 것을 해지했다 */
@@ -225,6 +230,7 @@ private fun slotCancelled(cancelled: YearMonth): Pattern = Pattern(
         )
     },
     cancelled = cancelled,
+    kept = 50_000,
 )
 
 /**
@@ -461,9 +467,10 @@ private fun check(pattern: Pattern, day: LocalDate, now: View, before: View, che
         // I1: 매달 내는 것은 3번째 결제 뒤로 '이번 달엔 안 내요' · '한동안 안 냈어요' 가 아니다
         val active = item != null && item.status !in setOf(FixedStatus.NOT_THIS_MONTH, FixedStatus.STOPPED)
         judge("I1", view, pattern.monthly && view.seen.size >= 3, active) { "아직 안 냈어요 또는 냈어요" }
-        // I4: 낼 돈(등록하기 금액)은 진짜 한 달 치의 1.2배까지
-        judge("I4", view, item?.status == FixedStatus.DUE, (item?.amount ?: 0) * 100 <= pattern.oneMonth * I4_LIMIT_PERCENT) {
-            "낼 돈 ${pattern.oneMonth * I4_LIMIT_PERCENT / 100}원 이하"
+        // I4: 낼 돈(등록하기 금액)은 진짜 한 달 치의 1.2배까지(해지한 다음 달부터는 남은 청구의 한 달 치)
+        val oneMonth = pattern.oneMonthIn(view.month)
+        judge("I4", view, item?.status == FixedStatus.DUE, (item?.amount ?: 0) * 100 <= oneMonth * I4_LIMIT_PERCENT) {
+            "낼 돈 ${oneMonth * I4_LIMIT_PERCENT / 100}원 이하"
         }
     }
     // I2: 지난 달 몫을 진짜로 다 냈으면 지난 달 화면은 냈어요

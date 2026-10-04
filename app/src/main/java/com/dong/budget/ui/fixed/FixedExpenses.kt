@@ -49,8 +49,8 @@ enum class FixedStatus {
  *   차례 없이 달력 달로 보아 그 달에 한 번이라도 냈으면 냈어요이고, 낼 돈은 가장 최근에 낸 달의 합이며 낼 날 알림이 없다. 그 밖에는 null
  * @property dueDay 고른 달에 다음으로 낼 차례의 평소 날. 일부만 냈으면 아직 안 낸 첫 차례, 아니면 [usualDay] 다([usualDateIn] · [dueDateIn]).
  * @property amount 냈으면 고른 달에 낸 돈(그 달 몫의 합에 그 달에 따로 낸 것을 더함). 일부만 냈으면 남은 차례의 평소 금액,
- *   아니면 이번에 낼 것으로 보는 금액(가장 최근에 다 낸 달 몫의 합, 따로 낸 것은 빼고)이다.
- * @property previousAmount 냈어요일 때 그 앞에 다 낸 달 몫의 합. 견줄 수 없으면(앞 달이 없거나 낸 횟수가 다르거나 따로 낸 것이 섞였거나
+ *   아니면 이번에 낼 것으로 보는 금액(고른 달 건수만큼 낸 가장 최근 달 몫의 합, 따로 낸 것은 빼고)이다.
+ * @property previousAmount 냈어요일 때 그 앞에 고른 달 건수만큼 낸 달 몫의 합. 견줄 수 없으면(앞 달이 없거나 낸 횟수가 다르거나 따로 낸 것이 섞였거나
  *   자주 내는 가게라 달마다 낸 횟수가 다르면) null
  * @property lastPaidOn 가장 최근에 낸 몫의 첫 결제일. 냈으면 고른 달 몫을 낸 날이다(미리 냈으면 전달, 밀려 냈으면 다음 달 날짜다).
  *   '냈어요' · '마지막' 날짜에만 쓴다. 몇 월 몫인지는 [lastShareMonth] 다.
@@ -153,7 +153,8 @@ data class FixedExpenseBoard(
  * - 상태: 고른 달 몫으로 짝지은 결제가 그 달 건수([MonthCounts.requiredIn]) 이상이면 [FixedStatus.PAID], 덜이면 일부만 낸 [FixedStatus.DUE].
  *   하나도 없으면 마지막으로 낸 몫의 달에서 몇 달 지났는지(gap)를 주기와 견준다. gap < 주기면 [FixedStatus.NOT_THIS_MONTH],
  *   주기 ≤ gap < 주기 + [DUE_MONTHS] 면 [FixedStatus.DUE], 그보다 길면 [FixedStatus.STOPPED].
- * - 금액: 냈으면 그 달 몫과 그 달에 따로 낸 것의 합. 일부만 냈으면 남은 차례의 금액, 아니면 가장 최근에 다 낸 달 몫의 합(따로 낸 것은 빼고)이다.
+ * - 금액: 냈으면 그 달 몫과 그 달에 따로 낸 것의 합. 일부만 냈으면 남은 차례의 금액, 아니면 고른 달 건수만큼 낸 가장 최근 달 몫의 합
+ *   (따로 낸 것은 빼고)이다. 청구 하나를 해지한 다음 달은 남은 청구 금액이다.
  *
  * @param today 오늘. 고른 달이 이번 달이면 낼 날([FixedExpenseItem.dueDateIn])이 며칠 지났는지 센다.
  * @param rows '고정지출' 분류의 지출. [fixedHistoryStart] 부터 [fixedHistoryEnd] 말일까지 읽은 것이다.
@@ -246,8 +247,9 @@ private fun fixedItem(
             gap < cadence + DUE_MONTHS -> FixedStatus.DUE
             else -> FixedStatus.STOPPED
         }
-    // 가장 최근에 다 낸 달(고른 달 전). 낼 돈과 지난번 금액은 이 달 몫으로 센다.
-    val full = shares.keys.filter { it < month && shares.getValue(it).size >= counts.requiredIn(it) }.maxOrNull()
+    // 고른 달의 건수만큼 낸 가장 최근 달(고른 달 전). 낼 돈과 지난번 금액은 이 달 몫으로 센다. 그 달마다의 건수가 아니라 고른 달의
+    // 건수로 보아, 청구 하나를 해지한 다음 달(한 건)은 해지한 달(한 건)이 기준이고 회선을 더한 뒤(두 건)에는 두 건 낸 달이 기준이다.
+    val full = shares.keys.filter { it < month && shares.getValue(it).size >= required }.maxOrNull()
     val days = schedule.days
     // 고른 달 몫을 하나도 안 냈는데 그 앞 차례 달도 비었으면 그 달(낼 날이 지났으면 놓친 것, 아직이면 기다리는 것)
     val skipped = last.plusMonths(cadence.toLong()).takeIf { status == FixedStatus.DUE && here.isEmpty() && gap > cadence }

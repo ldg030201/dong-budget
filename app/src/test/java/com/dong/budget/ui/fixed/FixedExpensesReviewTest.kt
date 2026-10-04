@@ -103,10 +103,11 @@ class FixedExpensesReviewTest {
         assertEquals(50_000L, october30.paidAmount)
         assertEquals(28, october30.dueDay)
         assertEquals(2, october30.daysPastUsual)
-        // 지난 달로 보아도 냈어요가 아니고, 다음 달 낼 돈은 두 차례 합이다
+        // 지난 달로 보아도 냈어요가 아니다. 다음 달 낼 돈은 10월에 낸 한 차례다(28일 것을 해지한 것과 그 달만으로는 가를 수 없어
+        // 해지한 다음 달처럼 10월 건수만큼 낸 가장 최근 달인 10월이 기준이다).
         val november10 = day("2026-11-10")
         assertEquals(FixedStatus.DUE, view(rows, YearMonth.of(2026, 10), november10).status)
-        assertEquals(80_000L, view(rows, YearMonth.of(2026, 11), november10).amount)
+        assertEquals(50_000L, view(rows, YearMonth.of(2026, 11), november10).amount)
         // 3일 것을 빠뜨리고 28일 것만 냈으면 남은 돈은 50,000원이고 평소 날은 3일 그대로다
         val late = view(insurance + paid("보험", 30_000, "2026-10-28"), YearMonth.of(2026, 10), day("2026-10-30"))
         assertEquals(FixedStatus.DUE, late.status)
@@ -143,7 +144,8 @@ class FixedExpensesReviewTest {
         val october10 = view(rows, YearMonth.of(2026, 10), day("2026-10-10"))
         assertEquals(3, october10.usualDay)
         assertEquals(listOf(3, 28), october10.usualDays)
-        assertEquals(80_000L, october10.amount)
+        // 낼 돈은 9월에 낸 한 차례다(3일 것을 해지한 것과 그 달만으로는 가를 수 없어 해지한 다음 달처럼 본다)
+        assertEquals(30_000L, october10.amount)
         assertEquals(7, october10.daysPastUsual)
         // 9월은 28일 것만 냈으니 9월 화면은 냈어요가 아니다
         assertEquals(FixedStatus.DUE, view(rows, YearMonth.of(2026, 9), day("2026-10-10")).status)
