@@ -179,7 +179,8 @@ internal fun addPerformanceLabel(name: String): String = "$name $ADD_PERFORMANCE
 /**
  * 최근 6개월 막대 아래 한 줄. 가장 높은 구간을 몇 번 채웠는지. 구간이 없으면 null
  * "최근 6개월 중 4번 가장 높은 구간을 채웠어요" / 구간이 하나면 "… 실적을 채웠어요"
- * 기록이 없는 기간(카드를 쓰기 전)은 세지 않고 "기록한 2개월 중 1번 …" 처럼 센 기간만 말한다.
+ * 아직 진행 중인 이번 기간은 다 채웠을 때만 센다. 못 채운 채 남은 날이 있으면 놓친 기간이 아니라서 빼고 "지난 5개월 중 …" 처럼 말한다.
+ * 기록이 없는 기간(카드를 쓰기 전)도 세지 않고 "기록한 2개월 중 1번 …" 처럼 센 기간만 말한다.
  * 기록이 이번 기간뿐이면(새 카드) "아직 지난 기록이 없어요", 하나도 없으면(기록 전 기간을 보는 중이라 머리가 이미 알린다) null 이다.
  * @param currentMonth 오늘이 든 기간의 이름 달
  */
@@ -187,13 +188,20 @@ internal fun historySummary(history: List<PeriodSpent>, tiers: List<Long>, curre
     if (tiers.isEmpty()) return null
     val recorded = history.filter { it.recorded }
     if (recorded.isEmpty()) return null
-    if (recorded.all { it.period.month == currentMonth }) return NO_PAST_RECORD_TEXT
+    val past = recorded.filter { it.period.month != currentMonth }
+    if (past.isEmpty()) return NO_PAST_RECORD_TEXT
+    val counted = recorded.filter { it.period.month != currentMonth || it.progress.allReached }
     val goal = if (tiers.size == 1) "실적을" else "가장 높은 구간을"
-    val span = if (recorded.size == history.size) "최근 6개월" else "기록한 ${recorded.size}개월"
-    val count = recorded.count { it.progress.allReached }
-    return when (count) {
-        0 -> "${span}에는 $goal 채운 적이 없어요"
-        recorded.size -> "$span 모두 $goal 채웠어요"
+    val span = when {
+        counted.size == history.size -> "최근 6개월"
+        counted.size < recorded.size && past.size == history.size - 1 -> "지난 ${past.size}개월"
+        else -> "기록한 ${counted.size}개월"
+    }
+    val count = counted.count { it.progress.allReached }
+    return when {
+        count == 0 -> "${span}에는 $goal 채운 적이 없어요"
+        count == counted.size && count == 1 -> "${span}에 $goal 채웠어요"
+        count == counted.size -> "$span 모두 $goal 채웠어요"
         else -> "$span 중 ${count}번 $goal 채웠어요"
     }
 }

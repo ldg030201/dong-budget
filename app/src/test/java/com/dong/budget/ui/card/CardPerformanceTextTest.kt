@@ -9,6 +9,7 @@ import java.time.YearMonth
 class CardPerformanceTextTest {
     private val today = day("2026-10-03")
     private val october = YearMonth.of(2026, 10)
+    private val november = YearMonth.of(2026, 11)
     private val tiers = listOf(300_000L, 700_000L)
 
     @Test
@@ -150,14 +151,19 @@ class CardPerformanceTextTest {
         fun history(vararg spent: Long, tiers: List<Long> = this.tiers) = spent.mapIndexed { index, amount ->
             PeriodSpent(performancePeriod(YearMonth.of(2026, 5 + index), 1), TierProgress(amount, tiers))
         }
-        assertEquals("최근 6개월 중 2번 가장 높은 구간을 채웠어요", historySummary(history(0, 800_000, 0, 700_000, 10, 20), tiers, october))
-        assertEquals("최근 6개월에는 가장 높은 구간을 채운 적이 없어요", historySummary(history(0, 0, 0, 0, 0, 0), tiers, october))
+        // 아직 못 채운 이번 기간(10월)은 남은 날이 있어 놓친 기간으로 세지 않는다
+        assertEquals("지난 5개월 중 2번 가장 높은 구간을 채웠어요", historySummary(history(0, 800_000, 0, 700_000, 10, 20), tiers, october))
+        assertEquals("지난 5개월에는 가장 높은 구간을 채운 적이 없어요", historySummary(history(0, 0, 0, 0, 0, 0), tiers, october))
+        // 이번 기간도 다 채웠으면 함께 센다
         assertEquals("최근 6개월 모두 실적을 채웠어요", historySummary(history(1, 1, 1, 1, 1, 1, tiers = listOf(1L)), listOf(1L), october))
+        assertEquals("최근 6개월 중 2번 가장 높은 구간을 채웠어요", historySummary(history(0, 800_000, 0, 0, 10, 700_000), tiers, october))
+        // 지난 기간을 고르면 막대가 모두 끝난 기간이라 다 센다
+        assertEquals("최근 6개월 중 2번 가장 높은 구간을 채웠어요", historySummary(history(0, 800_000, 0, 700_000, 10, 20), tiers, november))
         assertNull(historySummary(history(0, 0, 0, 0, 0, 0), emptyList(), october))
 
         // 기록이 없는 기간(카드를 쓰기 전)은 세지 않는다
         val partly = history(0, 0, 0, 800_000, 0, 20).mapIndexed { index, entry -> entry.copy(recorded = index >= 3) }
-        assertEquals("기록한 3개월 중 1번 가장 높은 구간을 채웠어요", historySummary(partly, tiers, october))
+        assertEquals("기록한 2개월 중 1번 가장 높은 구간을 채웠어요", historySummary(partly, tiers, october))
         val reachedAll = history(0, 0, 0, 800_000, 900_000, 700_000).mapIndexed { index, entry -> entry.copy(recorded = index >= 3) }
         assertEquals("기록한 3개월 모두 가장 높은 구간을 채웠어요", historySummary(reachedAll, tiers, october))
         val onlyNow = history(0, 0, 0, 0, 0, 20).mapIndexed { index, entry -> entry.copy(recorded = index == 5) }

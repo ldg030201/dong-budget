@@ -191,11 +191,26 @@ class CardPerformanceStatesTest {
 
         val detail = buildCardDetail(card, YearMonth.of(2026, 10), today, cardRows, firstUse)
         assertEquals(listOf(false, false, false, false, true, true), detail.history.map { it.recorded })
-        // 기록이 없는 넉 달은 세지 않는다
-        assertEquals("기록한 2개월에는 실적을 채운 적이 없어요", historySummary(detail.history, detail.tiers, detail.currentMonth))
+        // 기록이 없는 넉 달과 아직 진행 중인 10월은 세지 않는다
+        assertEquals("기록한 1개월에는 실적을 채운 적이 없어요", historySummary(detail.history, detail.tiers, detail.currentMonth))
         val september = buildCardDetail(card, YearMonth.of(2026, 9), today, cardRows, firstUse)
         assertTrue(september.recorded)
         assertEquals("180,000원 모자랐어요", tierRowStatus(september, 300_000))
         assertEquals("9월 실적, 120,000원, 실적 30만원까지 180,000원 모자랐어요", detailHeaderDescription(september))
+    }
+
+    @Test
+    fun `새 기간이 시작돼도 지난 기간을 다 채운 카드를 한 번 놓친 것처럼 세지 않는다`() {
+        // 9월에 처음 써서 가장 높은 구간을 채운 카드. 전에는 10월 첫날부터 진행 중인 10월을 못 채운 달로 세어
+        // '기록한 2개월 중 1번 가장 높은 구간을 채웠어요' 가 나왔다
+        val card = method(6, "새카드", tiers = "300000,700000")
+        val rows = listOf(tx("2026-09-05", 750_000, paymentId = 6))
+        val octoberFirst = day("2026-10-01")
+        val detail = buildCardDetail(card, YearMonth.of(2026, 10), octoberFirst, rows, day("2026-09-05"))
+        assertEquals("기록한 1개월에 가장 높은 구간을 채웠어요", historySummary(detail.history, detail.tiers, detail.currentMonth))
+        // 10월도 다 채우면 함께 센다
+        val both = rows + tx("2026-10-01", 700_000, paymentId = 6)
+        val reached = buildCardDetail(card, YearMonth.of(2026, 10), octoberFirst, both, day("2026-09-05"))
+        assertEquals("기록한 2개월 모두 가장 높은 구간을 채웠어요", historySummary(reached.history, reached.tiers, reached.currentMonth))
     }
 }
