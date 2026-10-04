@@ -324,10 +324,11 @@ private fun slotAmountsOf(recent: List<Paid>, days: List<Int>, dues: DueDates): 
 
 /**
  * 달마다 내야 하는 건수([requiredIn]). 그 달 앞 차례 달(마지막 결제 달이 더 앞이면 그 달)까지 최근 [SLOT_COUNT_MONTHS] 차례 달의 건수
- * (따로 낸 것은 빼고, 결제가 없던 달은 0)의 가운데 값이고 적어도 1이다. 차례 달은 [cadence] 달마다 [phase] 인 달이라([FixedSchedule.isSlotMonth])
- * 2달마다 내는 가게는 사이 달(늘 0)을 세지 않는다. 다만 바로 앞 차례 달에 한 건이라도 냈으면 그 달 건수를 넘지 않는다
- * (두 청구 가운데 하나를 해지하면 다음 달부터 한 건이다. 해지한 달은 아직 안 낸 것과 가를 수 없다). 그 달 앞 기록만 보므로 덜 낸 달이
- * 제 건수를 낮추지 않고, 회선을 하나 더한 뒤에도 그 전 달들은 한 건이면 다 낸 것이며, 같은 날 본 모든 화면이 같은 달에 같은 수를 쓴다.
+ * (따로 낸 것은 빼고, 첫 결제 달 앞은 빼고, 결제가 없던 달은 0)의 가운데 값이고 적어도 1이다. 첫 결제 달 앞을 0으로 세면 두 건씩 내는
+ * 새 가게가 둘째 · 셋째 달에 한 건으로 떨어져, 쉬는 날로 다음 달 초에 밀린 두 건 가운데 하나를 다음 달 몫으로 보았다.
+ * 차례 달은 [cadence] 달마다 [phase] 인 달이라([FixedSchedule.isSlotMonth]) 2달마다 내는 가게는 사이 달(늘 0)을 세지 않는다.
+ * 다만 바로 앞 차례 달에 한 건이라도 냈으면 그 달 건수를 넘지 않는다(두 청구 가운데 하나를 해지하면 다음 달부터 한 건이다. 해지한 달은
+ * 아직 안 낸 것과 가를 수 없다). 그 달 앞 기록만 보므로 덜 낸 달이 제 건수를 낮추지 않고, 회선을 하나 더한 뒤에도 그 전 달들은 한 건이면 다 낸 것이며, 같은 날 본 모든 화면이 같은 달에 같은 수를 쓴다.
  * 건수는 결제를 차례에 짝지은 몫 달로 센다([matched]). 짝짓기 전에는 결제마다 가장 가까운 차례 달로 어림한다.
  * [bySlot] 은 짝지은 몫 달마다 차례(번호)별 건수다([sharesIn]). 어림에는 없다.
  */
@@ -340,6 +341,7 @@ internal class MonthCounts(
     constructor(regular: List<Paid>, schedule: FixedSchedule, dues: DueDates) :
         this(regular.groupingBy { dues.nearestMonth(it.date, schedule.days) }.eachCount(), emptyMap(), schedule.cadence, schedule.phase)
 
+    private val first = counts.keys.minOrNull()
     private val last = counts.keys.maxOrNull()
 
     /** [month] 이거나 그 앞의 가장 가까운 차례 달 */
@@ -354,7 +356,9 @@ internal class MonthCounts(
      */
     fun requiredIn(month: YearMonth, lowers: Boolean = true): Int {
         val end = endOf(month) ?: return 1
-        val usual = lowerMedian((0 until SLOT_COUNT_MONTHS).map { counts[end.minusMonths(it.toLong() * cadence)] ?: 0 })
+        val start = first ?: return 1
+        val months = (0 until SLOT_COUNT_MONTHS).map { end.minusMonths(it.toLong() * cadence) }.filter { it >= start }.ifEmpty { return 1 }
+        val usual = lowerMedian(months.map { counts[it] ?: 0 })
         val latest = counts[end] ?: 0
         return (if (latest > 0 && lowers) minOf(usual, latest) else usual).coerceAtLeast(1)
     }

@@ -285,4 +285,22 @@ class FixedExpensesRecheckTest {
         assertEquals(listOf(1, 2), july.usualDays)
         assertEquals("오늘 낼 차례예요", rowNote(july, YearMonth.of(2025, 7), day("2025-07-01"))?.text)
     }
+
+    @Test
+    fun `월말 두 청구 새 가게는 첫 결제 달 앞을 빈 달로 세지 않아 다음 달 초로 밀린 두 건이 밀린 달 몫이다`() {
+        // 자동이체 30일 4,400원 · 31일 10,900원을 2025년 12월부터 냈다. 2026년 2월 몫 두 건은 2월 28일(토) · 3월 2일(대체공휴일)을 지나 3월 3일에 나갔다.
+        val rows = bill("구독", 4_400, 30, YearMonth.of(2025, 12), YearMonth.of(2026, 6)) +
+            bill("구독", 10_900, LAST_DAY, YearMonth.of(2025, 12), YearMonth.of(2026, 6))
+        val today = day("2026-03-15")
+        assertEquals(FixedStatus.DUE, view(rows, YearMonth.of(2026, 3), today).status)
+        val february = view(rows, YearMonth.of(2026, 2), today)
+        assertEquals(FixedStatus.PAID, february.status)
+        assertEquals(2, february.paidCount)
+        assertEquals(15_300L, february.amount)
+        assertNull(rowNote(february, YearMonth.of(2026, 2), today))
+        // 28일 · 29일(2026년 1월부터)도 3월 몫이 3월 30일에 밀려 나가도 4월 28일 저녁에 4월은 아직 다 안 냈다
+        val late = bill("구독2", 4_400, 28, YearMonth.of(2026, 1), YearMonth.of(2026, 8)) +
+            bill("구독2", 10_900, 29, YearMonth.of(2026, 1), YearMonth.of(2026, 8))
+        assertEquals(FixedStatus.DUE, view(late, YearMonth.of(2026, 4), day("2026-04-28")).status)
+    }
 }
