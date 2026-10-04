@@ -1,12 +1,7 @@
 package com.dong.budget.ui.card
 
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.SizeTransform
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -44,6 +39,7 @@ import com.dong.budget.ui.components.BudgetTopAppBar
 import com.dong.budget.ui.components.CategoryBadge
 import com.dong.budget.ui.components.DayHeader
 import com.dong.budget.ui.components.HintText
+import com.dong.budget.ui.components.ThisMonthButton
 import com.dong.budget.ui.components.TransactionRow
 import com.dong.budget.ui.components.animatedItem
 import com.dong.budget.ui.components.animatedItems
@@ -56,7 +52,6 @@ import com.dong.budget.ui.stats.chart.ColumnChart
 import com.dong.budget.ui.stats.chart.ColumnSlot
 import com.dong.budget.ui.stats.detail.transactionsTitle
 import com.dong.budget.ui.theme.BudgetTheme
-import com.dong.budget.ui.theme.Motion
 import com.dong.budget.ui.theme.slideByDirection
 import java.time.LocalDate
 
@@ -113,7 +108,7 @@ fun CardPerformanceDetailScreen(
 
 /**
  * 기간 고르기. ‹ 10월 실적 › 와 그 아래 날짜, 지난 기간을 보고 있으면 오른쪽 끝에 '이번 달'(시작일이 1일이 아니면 '이번 기간').
- * 달 줄(MonthStepper)과 같은 모양이고, 앞으로의 기간은 볼 수 없어 이번 기간에서는 › 가 막힌다.
+ * 달 줄(MonthStepper)과 같은 모양이고(제목이 두 줄이라 따로 둔다), 앞으로의 기간은 볼 수 없어 이번 기간에서는 › 가 막힌다.
  */
 @Composable
 private fun PeriodStepper(
@@ -151,13 +146,7 @@ private fun PeriodStepper(
                 enabled = !isCurrent,
             )
         }
-        AnimatedVisibility(
-            visible = !isCurrent,
-            enter = fadeIn(Motion.quick()) + scaleIn(Motion.standard(), initialScale = HIDDEN_BUTTON_SCALE),
-            exit = fadeOut(Motion.quick()) + scaleOut(Motion.standard(), targetScale = HIDDEN_BUTTON_SCALE),
-        ) {
-            BudgetTextButton(text = thisPeriodLabel(period), onClick = onThisPeriod)
-        }
+        ThisMonthButton(visible = !isCurrent, text = thisPeriodLabel(period), onClick = onThisPeriod)
     }
 }
 
@@ -352,9 +341,6 @@ private const val EDIT_LABEL = "수정"
 
 /** 기간 줄 제목이 좁은 화면에서 줄어드는 가장 작은 글자 크기 */
 private val MIN_TITLE_SIZE = 14.sp
-
-/** '이번 달'·'이번 기간' 버튼이 나타나고 사라질 때 이 크기에서 커지고 여기까지 줄어든다(통계와 같다) */
-private const val HIDDEN_BUTTON_SCALE = 0.8f
 
 private const val HEADER_KEY = "header"
 private const val HISTORY_KEY = "history"

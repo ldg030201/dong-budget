@@ -1,14 +1,8 @@
 package com.dong.budget.ui.fixed
 
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -28,8 +22,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -52,20 +44,19 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import com.dong.budget.R
 import com.dong.budget.navigation.EditorPrefill
-import com.dong.budget.ui.components.BudgetIconButton
 import com.dong.budget.ui.components.BudgetPrimaryButton
 import com.dong.budget.ui.components.BudgetSmallButton
-import com.dong.budget.ui.components.BudgetTextButton
 import com.dong.budget.ui.components.CategoryBadge
 import com.dong.budget.ui.components.HintText
 import com.dong.budget.ui.components.IconBadge
+import com.dong.budget.ui.components.MonthStepper
 import com.dong.budget.ui.components.TabHeader
+import com.dong.budget.ui.components.ThisMonthButton
 import com.dong.budget.ui.components.animatedItem
 import com.dong.budget.ui.components.animatedItems
 import com.dong.budget.ui.components.sectionBlock
 import com.dong.budget.ui.editor.fixedExpensePrefill
 import com.dong.budget.ui.format.formatAmount
-import com.dong.budget.ui.format.formatMonth
 import com.dong.budget.ui.stats.SectionTitle
 import com.dong.budget.ui.stats.chart.Meter
 import com.dong.budget.ui.theme.BudgetTheme
@@ -113,20 +104,13 @@ fun FixedExpenseScreen(
             }
             return@Column
         }
-        FixedMonthStepper(
+        // 고정지출은 앞날을 보지 않아서 이번 달에서는 '다음 달' 을 막는다
+        MonthStepper(
             month = state.month,
-            nextEnabled = !state.isThisMonth,
             onPreviousMonth = onPreviousMonth,
             onNextMonth = onNextMonth,
-            trailing = {
-                AnimatedVisibility(
-                    visible = !state.isThisMonth,
-                    enter = fadeIn(Motion.quick()) + scaleIn(Motion.standard(), initialScale = HIDDEN_BUTTON_SCALE),
-                    exit = fadeOut(Motion.quick()) + scaleOut(Motion.standard(), targetScale = HIDDEN_BUTTON_SCALE),
-                ) {
-                    BudgetTextButton(text = "이번 달", onClick = onThisMonth)
-                }
-            },
+            nextEnabled = !state.isThisMonth,
+            trailing = { ThisMonthButton(visible = !state.isThisMonth, onClick = onThisMonth) },
         )
         // 달이 바뀌면 넘긴 방향으로 한 판이 밀려 바뀐다(홈과 같다). 같은 달 안에서 바뀐 것(등록해서 '냈어요' 로 옮김)은
         // 판을 바꾸지 않고 줄이 제자리로 미끄러진다. 나가는 판이 새 달 내용으로 바뀌지 않게 상태를 통째로 넘기고 달로만 구분한다.
@@ -413,50 +397,6 @@ private fun StoppedHeader(count: Int, expanded: Boolean, onToggle: () -> Unit) {
 }
 
 /**
- * 달 줄. 공용 달 줄(MonthStepper)과 모양이 같고, 이번 달에서는 '다음 달' 을 막는다(고정지출은 앞날을 보지 않는다).
- * 막힌 버튼은 흐리게 그리고 화면 읽기는 '사용 중지됨' 으로 읽는다.
- */
-@Composable
-private fun FixedMonthStepper(
-    month: YearMonth,
-    nextEnabled: Boolean,
-    onPreviousMonth: () -> Unit,
-    onNextMonth: () -> Unit,
-    trailing: @Composable () -> Unit,
-) {
-    Row(
-        modifier =
-        Modifier
-            .fillMaxWidth()
-            .padding(horizontal = BudgetTheme.spacing.inlineGap, vertical = BudgetTheme.spacing.tightGap),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        BudgetIconButton(icon = Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "이전 달", onClick = onPreviousMonth)
-        // 달을 넘기면 제목이 넘긴 방향으로 밀려 바뀐다. 폭이 달라져도 오른쪽 화살표가 따라 움직인다(SizeTransform).
-        AnimatedContent(
-            targetState = month,
-            transitionSpec = { slideByDirection().using(SizeTransform(clip = false)) },
-            label = "fixedMonthTitle",
-        ) { shown ->
-            Text(
-                text = formatMonth(shown),
-                style = MaterialTheme.typography.titleLarge,
-                color = BudgetTheme.colors.textPrimary,
-                modifier = Modifier.padding(horizontal = BudgetTheme.spacing.tightGap).semantics { heading() },
-            )
-        }
-        BudgetIconButton(
-            icon = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-            contentDescription = "다음 달",
-            onClick = onNextMonth,
-            enabled = nextEnabled,
-        )
-        Spacer(Modifier.weight(1f))
-        trailing()
-    }
-}
-
-/**
  * 보여 줄 것이 없을 때(분류를 지웠거나 고정지출이 없을 때). 큰 뱃지 아래에 제목과 설명을 가운데에 두고, [action] 이 있으면 그 아래에 둔다.
  * 가로 화면처럼 높이가 모자라면 버튼이 찌그러지지 않게 스크롤한다(월급 탭의 빈 화면과 같은 모양).
  */
@@ -506,9 +446,6 @@ private const val FOOTNOTE_KEY = "footnote"
 
 /** 달을 넘길 때 한 판을 옮기는 거리. 화면 폭의 1/5 만 옮기고 나머지는 흐려짐으로 보여 준다(홈과 같다). */
 private const val MONTH_SHIFT_DIVISOR = 5
-
-/** '이번 달' 버튼이 나타나고 사라질 때 이 크기에서 커지고 여기까지 줄어든다(통계와 같다) */
-private const val HIDDEN_BUTTON_SCALE = 0.8f
 
 /** 펼친 묶음의 화살표 각도 */
 private const val EXPANDED_ROTATION = 180f

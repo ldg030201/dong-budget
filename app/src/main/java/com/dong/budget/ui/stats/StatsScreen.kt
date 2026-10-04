@@ -1,15 +1,12 @@
 package com.dong.budget.ui.stats
 
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.EnterExitState
 import androidx.compose.animation.core.FastOutLinearInEasing
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
@@ -32,12 +29,12 @@ import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.semantics
 import androidx.navigation3.ui.LocalNavAnimatedContentScope
 import com.dong.budget.navigation.StatsDetailKey
-import com.dong.budget.ui.components.BudgetTextButton
 import com.dong.budget.ui.components.FloatingSubBar
 import com.dong.budget.ui.components.FloatingSubBarScrim
 import com.dong.budget.ui.components.MonthStepper
 import com.dong.budget.ui.components.STATS_ENTRY_SHARED_KEY
 import com.dong.budget.ui.components.SubBarTab
+import com.dong.budget.ui.components.ThisMonthButton
 import com.dong.budget.ui.components.floatingBarClearance
 import com.dong.budget.ui.stats.tab.BreakdownKind
 import com.dong.budget.ui.stats.tab.BreakdownTab
@@ -102,15 +99,7 @@ fun StatsScreen(
                     month = state.month,
                     onPreviousMonth = onPreviousMonth,
                     onNextMonth = onNextMonth,
-                    trailing = {
-                        AnimatedVisibility(
-                            visible = state.month != YearMonth.from(state.today),
-                            enter = fadeIn(Motion.quick()) + scaleIn(Motion.standard(), initialScale = HIDDEN_BUTTON_SCALE),
-                            exit = fadeOut(Motion.quick()) + scaleOut(Motion.standard(), targetScale = HIDDEN_BUTTON_SCALE),
-                        ) {
-                            BudgetTextButton(text = "이번 달", onClick = onThisMonth)
-                        }
-                    },
+                    trailing = { ThisMonthButton(visible = state.month != YearMonth.from(state.today), onClick = onThisMonth) },
                 )
                 // 첫 계산이 끝나기 전에는 달 줄과 메뉴만 둔다. 빈 상태 안내가 잠깐 보였다 사라지지 않게 한다.
                 val page =
@@ -183,9 +172,6 @@ private sealed interface StatsPage {
 
     data class Tab(val tab: StatsTab) : StatsPage
 }
-
-/** '이번 달' 버튼이 나타나고 사라질 때 이 크기에서 커지고 여기까지 줄어든다 */
-private const val HIDDEN_BUTTON_SCALE = 0.8f
 
 /**
  * @param dailyRequest 통계 탭이 일별 탭에 보여 달라고 한 곳. 일별 탭이 처리하면 [onDailyRequestHandled] 로 비운다.
