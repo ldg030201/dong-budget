@@ -41,6 +41,7 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextOverflow
 import com.dong.budget.R
 import com.dong.budget.navigation.EditorPrefill
+import com.dong.budget.ui.components.BudgetListItem
 import com.dong.budget.ui.components.BudgetPrimaryButton
 import com.dong.budget.ui.components.BudgetSmallButton
 import com.dong.budget.ui.components.CategoryBadge
@@ -276,70 +277,64 @@ private fun FixedRow(
     val canRegister = item.status == FixedStatus.DUE && state.isThisMonth && item.merchant != null
     // 이번 달 돈이 아닌 줄(안 내는 달, 그만둔 것)은 금액을 흐리게 둔다
     val quiet = item.status == FixedStatus.NOT_THIS_MONTH || item.status == FixedStatus.STOPPED
-    Row(
-        modifier =
-        Modifier
-            .fillMaxWidth()
-            .pressScaleClickable(
-                shape = RoundedCornerShape(BudgetTheme.radius.chip),
-                onClickLabel = ROW_CLICK_LABEL,
-                onClick = { onOpenTransaction(item.latestId) },
-            ).semantics { stateDescription = status }
-            .padding(horizontal = BudgetTheme.spacing.screenHorizontal, vertical = BudgetTheme.spacing.listItemVertical),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
+    BudgetListItem(
+        title = item.name,
+        subtitle = rowSubtitle(item, state.month),
+        modifier = Modifier.semantics { stateDescription = status },
         // 모두 같은 '고정지출' 분류라 분류 뱃지는 줄마다 같다. 어느 카드로 내는지가 더 잘 가려 준다.
-        if (item.paymentMethodId != null) {
-            CategoryBadge(icon = item.paymentMethodIcon, color = item.paymentMethodColor)
-        } else {
-            CategoryBadge(icon = item.categoryIcon, color = item.categoryColor)
-        }
-        Spacer(Modifier.width(BudgetTheme.spacing.itemGap))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = item.name,
-                style = MaterialTheme.typography.bodyLarge,
-                color = BudgetTheme.colors.textPrimary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                text = rowSubtitle(item, state.month),
-                style = MaterialTheme.typography.bodySmall,
-                color = BudgetTheme.colors.textSecondary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.padding(top = BudgetTheme.spacing.tightGap),
-            )
-            if (note != null) {
+        leading = {
+            if (item.paymentMethodId != null) {
+                CategoryBadge(icon = item.paymentMethodIcon, color = item.paymentMethodColor)
+            } else {
+                CategoryBadge(icon = item.categoryIcon, color = item.categoryColor)
+            }
+        },
+        // 덧붙임은 두 줄까지 둔다(부제는 한 줄)
+        note =
+        note?.let { shown ->
+            {
                 Text(
-                    text = note.text,
+                    text = shown.text,
                     style = MaterialTheme.typography.bodySmall,
-                    color = noteColor(note.tone),
+                    color = noteColor(shown.tone),
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(top = BudgetTheme.spacing.tightGap),
                 )
             }
-        }
-        Column(modifier = Modifier.padding(start = BudgetTheme.spacing.inlineGap), horizontalAlignment = Alignment.End) {
-            Text(
-                text = rowAmount(item),
-                style = BudgetTheme.amount.medium,
-                color = if (quiet) BudgetTheme.colors.textSecondary else BudgetTheme.colors.textPrimary,
+        },
+        onClickLabel = ROW_CLICK_LABEL,
+        onClick = { onOpenTransaction(item.latestId) },
+        trailing = { RowTrailing(item = item, state = state, quiet = quiet, canRegister = canRegister, onRegister = onRegister) },
+    )
+}
+
+/** 줄 오른쪽. 금액과, 이번 달에 낼 차례면 그 아래 '등록하기' */
+@Composable
+private fun RowTrailing(
+    item: FixedExpenseItem,
+    state: FixedExpenseUiState,
+    quiet: Boolean,
+    canRegister: Boolean,
+    onRegister: (EditorPrefill) -> Unit,
+) {
+    // 줄과 띄우는 간격은 BudgetListItem 이 둔다
+    Column(horizontalAlignment = Alignment.End) {
+        Text(
+            text = rowAmount(item),
+            style = BudgetTheme.amount.medium,
+            color = if (quiet) BudgetTheme.colors.textSecondary else BudgetTheme.colors.textPrimary,
+        )
+        if (canRegister) {
+            Spacer(Modifier.height(BudgetTheme.spacing.tightGap))
+            BudgetSmallButton(
+                text = REGISTER_TEXT,
+                // 누를 때마다 같은 값이 나와서(평소 날짜·지난번 시각) 연달아 눌러도 등록창이 두 번 쌓이지 않는다
+                onClick = { onRegister(fixedExpensePrefill(item, state.today)) },
+                modifier = Modifier.semantics { contentDescription = registerLabel(item.name) },
+                // 이 탭에서 할 일은 이것 하나라 회색 버튼들과 갈리게 연한 남색으로 둔다(알림 목록의 '모두 읽음' 과 같다)
+                container = MaterialTheme.colorScheme.primaryContainer,
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
             )
-            if (canRegister) {
-                Spacer(Modifier.height(BudgetTheme.spacing.tightGap))
-                BudgetSmallButton(
-                    text = REGISTER_TEXT,
-                    // 누를 때마다 같은 값이 나와서(평소 날짜·지난번 시각) 연달아 눌러도 등록창이 두 번 쌓이지 않는다
-                    onClick = { onRegister(fixedExpensePrefill(item, state.today)) },
-                    modifier = Modifier.semantics { contentDescription = registerLabel(item.name) },
-                    // 이 탭에서 할 일은 이것 하나라 회색 버튼들과 갈리게 연한 남색으로 둔다(알림 목록의 '모두 읽음' 과 같다)
-                    container = MaterialTheme.colorScheme.primaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                )
-            }
         }
     }
 }

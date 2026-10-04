@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -20,6 +21,8 @@ import com.dong.budget.ui.theme.pressScaleClickable
  * 구분선 없는 리스트 한 줄.
  *
  * 구분선 대신 여백으로 항목을 나눈다.
+ * @param note 부제 아래 덧붙임(고정지출의 '평소보다 2일 지났어요' 처럼 줄마다 다른 한두 줄). 부제와 같은 간격을 두고 그 아래에 둔다.
+ * @param onClickLabel 누르면 무엇을 하는지 화면 읽기가 알려 줄 말. 없으면 기본 말로 읽는다.
  */
 @Composable
 fun BudgetListItem(
@@ -28,6 +31,8 @@ fun BudgetListItem(
     subtitle: String? = null,
     leading: @Composable (() -> Unit)? = null,
     trailing: @Composable (() -> Unit)? = null,
+    note: @Composable (() -> Unit)? = null,
+    onClickLabel: String? = null,
     onClick: (() -> Unit)? = null,
 ) {
     val base =
@@ -37,6 +42,7 @@ fun BudgetListItem(
                 if (onClick != null) {
                     m.pressScaleClickable(
                         shape = RoundedCornerShape(BudgetTheme.radius.chip),
+                        onClickLabel = onClickLabel,
                         onClick = onClick,
                     )
                 } else {
@@ -69,6 +75,10 @@ fun BudgetListItem(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.padding(top = BudgetTheme.spacing.tightGap),
                 )
+            }
+            if (note != null) {
+                Spacer(Modifier.height(BudgetTheme.spacing.tightGap))
+                note()
             }
         }
         if (trailing != null) {
