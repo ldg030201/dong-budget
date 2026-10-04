@@ -22,8 +22,8 @@ import java.time.YearMonth
  */
 internal class Slot(val month: YearMonth, val index: Int, val day: Int, val cap: Int, val need: Int)
 
-/** 짝지은 결과. [slotOf] 는 결제 id → 차례, [extras] 는 따로 낸 것으로 두어 어느 차례에도 들지 않은 결제다. */
-internal class Matching(val slotOf: Map<Long, Slot>, val extras: List<Paid>)
+/** 짝지은 결과. [slotOf] 는 결제 id → 차례, [extras] 는 따로 낸 것으로 두어 어느 차례에도 들지 않은 결제, [slots] 는 짝지을 수 있던 차례들이다. */
+internal class Matching(val slotOf: Map<Long, Slot>, val extras: List<Paid>, val slots: List<Slot> = emptyList())
 
 /** 짝짓기 중의 한 갈래. [slot] 은 마지막으로 짝지은 차례(아직 없으면 -1), [count] 는 그 차례에 짝지은 수([Slot.cap] 까지만 센다). */
 private class Node(val cost: Int, val slot: Int, val count: Int, val first: Boolean, val prev: Node?, val assigned: Int)
@@ -110,7 +110,7 @@ private fun resultOf(best: Node, ordered: List<Paid>, slots: List<Slot>): Matchi
         if (current.assigned < 0) extras += pay else slotOf[pay.id] = slots[current.assigned]
         node = current.prev
     }
-    return Matching(slotOf, extras.asReversed())
+    return Matching(slotOf, extras.asReversed(), slots)
 }
 
 /** 결제를 적은 차례. 같은 시각이면 나중에 적은(id 가 큰) 것이 나중이다. */

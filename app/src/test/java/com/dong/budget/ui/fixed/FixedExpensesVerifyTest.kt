@@ -66,4 +66,28 @@ class FixedExpensesVerifyTest {
             assertEquals(55_000L, view(pt, YearMonth.of(2026, 10), today).amount)
         }
     }
+
+    /** [from] ~ [to] 달마다 [day] 일(없으면 말일, 쉬는 날이면 다음 영업일)에 [amount] 를 낸 기록 */
+    private fun monthly(merchant: String, amount: Long, day: Int, from: YearMonth, to: YearMonth) =
+        generateSequence(from) { it.plusMonths(1) }.takeWhile { it <= to }.toList().flatMap {
+            paid(merchant, amount, KoreanCalendar.nextBusinessDay(usualDateOf(it, day)).toString())
+        }
+
+    @Test
+    fun `4 - 두 청구 가운데 하나를 해지하면 다음 달부터 남은 하나만 내도 냈어요다`() {
+        // 21일 45,000원 · 33,000원 두 회선 가운데 33,000원을 9월에 해지했다. 9월은 해지인지 아직 안 낸 것인지 모른다.
+        val lines = monthly("통신사", 45_000, 21, YearMonth.of(2026, 1), YearMonth.of(2026, 12)) +
+            monthly("통신사", 33_000, 21, YearMonth.of(2026, 1), YearMonth.of(2026, 8))
+        assertEquals(FixedStatus.DUE, view(lines, YearMonth.of(2026, 9), day("2026-09-30")).status)
+        val october = view(lines, YearMonth.of(2026, 10), day("2026-10-22"))
+        assertEquals(FixedStatus.PAID, october.status)
+        assertEquals(45_000L, october.amount)
+        assertEquals(1, october.requiredCount)
+        // 3일 50,000원 · 20일 30,000원 두 차례 가운데 20일 것을 9월부터 해지했다
+        val insurance = monthly("보험", 50_000, 3, YearMonth.of(2026, 1), YearMonth.of(2026, 12)) +
+            monthly("보험", 30_000, 20, YearMonth.of(2026, 1), YearMonth.of(2026, 8))
+        val later = view(insurance, YearMonth.of(2026, 10), day("2026-10-25"))
+        assertEquals(FixedStatus.PAID, later.status)
+        assertNull(rowNote(later, YearMonth.of(2026, 10), day("2026-10-25")))
+    }
 }

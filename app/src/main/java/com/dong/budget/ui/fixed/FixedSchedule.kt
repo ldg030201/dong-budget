@@ -259,17 +259,27 @@ private fun slotAmountsOf(recent: List<Paid>, days: List<Int>, dues: DueDates): 
 
 /**
  * 달마다 내야 하는 건수([requiredIn]). 그 달 앞(마지막 결제 달이 더 앞이면 그 달)까지 최근 [SLOT_COUNT_MONTHS] 달의 건수
- * (따로 낸 것은 빼고, 결제가 없던 달은 0)의 가운데 값이고 적어도 1이다. 결제는 평소 날 [days] 의 가장 가까운 차례 달로 센다
- * (말일 것이 다음 달 초로 밀려 한 달력 달에 두 번 낸 달이 생겨도 한 번). 그 달 앞 기록만 보므로 덜 낸 달이 제 건수를 낮추지 않고,
- * 회선을 하나 더한 뒤에도 그 전 달들은 한 건이면 다 낸 것이며, 같은 날 본 모든 화면이 같은 달에 같은 수를 쓴다.
+ * (따로 낸 것은 빼고, 결제가 없던 달은 0)의 가운데 값이고 적어도 1이다. 다만 바로 앞 달에 한 건이라도 냈으면 그 달 건수를 넘지 않는다
+ * (두 청구 가운데 하나를 해지하면 다음 달부터 한 건이다. 해지한 달은 아직 안 낸 것과 가를 수 없다). 그 달 앞 기록만 보므로 덜 낸 달이
+ * 제 건수를 낮추지 않고, 회선을 하나 더한 뒤에도 그 전 달들은 한 건이면 다 낸 것이며, 같은 날 본 모든 화면이 같은 달에 같은 수를 쓴다.
+ * 건수는 결제를 차례에 짝지은 몫 달로 센다([matched]). 짝짓기 전에는 평소 날 [days] 의 가장 가까운 차례 달로 어림한다.
  */
-internal class MonthCounts(regular: List<Paid>, days: List<Int>, dues: DueDates) {
-    private val counts = regular.groupingBy { dues.nearestMonth(it.date, days) }.eachCount()
+internal class MonthCounts(private val counts: Map<YearMonth, Int>) {
+    constructor(regular: List<Paid>, days: List<Int>, dues: DueDates) :
+        this(regular.groupingBy { dues.nearestMonth(it.date, days) }.eachCount())
+
     private val last = counts.keys.maxOrNull()
 
     fun requiredIn(month: YearMonth): Int {
         val end = minOf(month.minusMonths(1), last ?: return 1)
-        return lowerMedian((0 until SLOT_COUNT_MONTHS).map { counts[end.minusMonths(it.toLong())] ?: 0 }).coerceAtLeast(1)
+        val usual = lowerMedian((0 until SLOT_COUNT_MONTHS).map { counts[end.minusMonths(it.toLong())] ?: 0 })
+        val latest = counts[end] ?: 0
+        return (if (latest > 0) minOf(usual, latest) else usual).coerceAtLeast(1)
+    }
+
+    companion object {
+        /** 짝지은 몫 달마다 건수. 가까운 차례 달로 어림하면 두 차례 가운데쯤 낸 결제(결제일을 15일 옮긴 달)가 한 달에 둘로 몰린다. */
+        fun matched(matching: Matching): MonthCounts = MonthCounts(matching.slotOf.values.groupingBy { it.month }.eachCount())
     }
 }
 

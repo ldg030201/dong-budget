@@ -19,7 +19,7 @@ private data class Share(val month: YearMonth, val scheduled: LocalDate, val pay
 
 /**
  * 한 가게의 진짜 결제 흐름. [monthly] 면 매달 내는 것(I1 을 본다), [oneMonth] 는 진짜 한 달 치(I4 의 기준).
- * [changed] 는 평소 낼 날을 바꾼 첫 달이다(바꾸지 않았으면 null).
+ * [changed] 는 평소 낼 날을 바꾼 첫 달, [cancelled] 는 두 청구 가운데 하나를 해지한 첫 달이다(없으면 null).
  */
 private class Pattern(
     val name: String,
@@ -27,6 +27,7 @@ private class Pattern(
     val oneMonth: Long,
     val shares: List<Share>,
     val changed: YearMonth? = null,
+    val cancelled: YearMonth? = null,
 ) {
     val rows: List<TransactionListItem> =
         shares.flatMap { it.payments }.map { tx(it.date.toString(), it.amount, categoryId = 4, paymentId = 10, merchant = name) }
@@ -194,6 +195,36 @@ private fun switched(name: String, from: Int, to: Int, at: YearMonth): Pattern =
     changed = at,
 )
 
+/** 같은 가게 두 회선(45,000원 · 48,000원)을 매달 20일에 함께 내다 [cancelled] 부터 48,000원 회선을 해지했다 */
+private fun lineCancelled(cancelled: YearMonth): Pattern = Pattern(
+    name = "통신사해지",
+    monthly = true,
+    oneMonth = 93_000,
+    shares =
+    months().map { month ->
+        val date = pushed(month.atDay(20))
+        Share(month, date, listOf(Pay(date, 45_000)) + if (month < cancelled) listOf(Pay(date, 48_000)) else emptyList())
+    },
+    cancelled = cancelled,
+)
+
+/** 한 가게에 매달 3일 50,000원 · 28일 30,000원을 내다 [cancelled] 부터 28일 것을 해지했다 */
+private fun slotCancelled(cancelled: YearMonth): Pattern = Pattern(
+    name = "보험해지",
+    monthly = true,
+    oneMonth = 80_000,
+    shares =
+    months().map { month ->
+        val third = pushed(month.atDay(3))
+        Share(
+            month,
+            third,
+            listOf(Pay(third, 50_000)) + if (month < cancelled) listOf(Pay(pushed(month.atDay(28)), 30_000)) else emptyList(),
+        )
+    },
+    cancelled = cancelled,
+)
+
 /** 시뮬레이션에 쓰는 가게들 */
 private fun patterns(): List<Pattern> = listOf(
     every("관리비", 150_000, 31),
@@ -233,6 +264,9 @@ private fun patterns(): List<Pattern> = listOf(
     switched("구독전환", 28, 3, YearMonth.of(2026, 4)),
     switched("구독전환2", 3, 28, YearMonth.of(2026, 4)),
     switched("구독전환3", 15, 31, YearMonth.of(2026, 7)),
+    // 두 청구 가운데 하나를 해지함: 같은 날 두 회선 · 3일 · 28일 두 차례
+    lineCancelled(YearMonth.of(2027, 4)),
+    slotCancelled(YearMonth.of(2029, 9)),
 )
 
 /** 불변식 위반 하나. [accepted] 는 fixes3.md '받아들이는 모호함' 에 해당하면 그 까닭(테스트를 실패시키지 않는다) */
@@ -422,6 +456,8 @@ private fun acceptedReason(pattern: Pattern, violation: Violation, day: LocalDat
         val settling = YearMonth.from(day) >= changed && (fourth == null || day < fourth)
         if (violation.view in changed..changed.plusMonths(3) || settling) return "평소 날을 바꾼 첫 몇 달(새 날 결제 넷째까지)"
     }
+    // 두 청구 가운데 하나를 해지한 달은 그 달 기록만으로는 해지인지 아직 안 낸 것인지 모른다. 다음 달부터는 한 건으로 본다(MonthCounts).
+    if (violation.view == pattern.cancelled) return "청구 하나를 해지한 달(그 달만으로는 아직 안 낸 것과 가를 수 없음)"
     // 새 일정 모델(리뷰 G1)에서는 매년 · 몇 달마다 결제의 달 경계 밀림과 평소 날과 반 달 넘게 떨어진 결제를 따로 받아들이지 않는다.
     // 긴 연휴(설 · 추석 등)로 밀린 결제는 받아들이지 않는다. 앱이 공휴일 달력(KoreanHolidays)으로 낼 날을 다음 영업일로 본다.
     return null
