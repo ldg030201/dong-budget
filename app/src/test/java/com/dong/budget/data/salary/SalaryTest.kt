@@ -317,6 +317,8 @@ class SalaryTest {
         // 3,330,000 원도 같은 셈이면 3,329,999.9999999995 가 된다
         assertEquals(3_330_000.0, salary.copy(amount = 3_330_000).earningsAt(at("2026-10-23T18:00:00")).period, 0.0)
         assertEquals(3_330_000L, salary.copy(amount = 3_330_000).payFor(october))
+        // 기간 전체로 셀 때도 하루치를 먼저 곱하면 평일 23일인 11월 월급 기간(10/24~11/25)에서 3,329,999.9999999995 가 된다
+        assertEquals(3_330_000.0, salary.copy(amount = 3_330_000).earnedInPeriod(YearMonth.of(2026, 11)), 0.0)
         // 추석으로 짧아진 9월 월급 기간(평일 21일)도 딱 월급이다
         assertEquals(3_000_000L, salary.payFor(september))
     }
