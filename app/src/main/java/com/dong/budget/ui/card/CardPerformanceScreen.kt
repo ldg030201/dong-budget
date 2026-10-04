@@ -13,11 +13,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.TextAutoSize
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.Icon
@@ -29,7 +27,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.sp
 import com.dong.budget.R
@@ -38,7 +35,7 @@ import com.dong.budget.ui.components.BudgetPrimaryButton
 import com.dong.budget.ui.components.BudgetSmallButton
 import com.dong.budget.ui.components.CategoryBadge
 import com.dong.budget.ui.components.HintText
-import com.dong.budget.ui.components.IconBadge
+import com.dong.budget.ui.components.TabEmptyState
 import com.dong.budget.ui.components.TabHeader
 import com.dong.budget.ui.components.animatedItem
 import com.dong.budget.ui.components.sectionBlock
@@ -227,33 +224,8 @@ private fun UntrackedRow(item: UntrackedCard, onAdd: () -> Unit) {
 /** 실적을 볼 카드가 하나도 없다(현금·계좌이체만 남음). 결제수단을 추가하러 분류 관리로 보낸다. */
 @Composable
 private fun EmptyCards(onOpenCategories: () -> Unit) {
-    // 가로 화면처럼 높이가 모자라면 버튼이 찌그러지지 않게 스크롤한다. 높이가 넉넉하면 가운데에 둔다(월급 탭과 같다).
-    Column(
-        modifier =
-        Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(BudgetTheme.spacing.screenHorizontal),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Spacer(Modifier.weight(1f))
-        IconBadge(
-            iconRes = R.drawable.ic_sym_credit_card,
-            swatch = BudgetTheme.categoryPalette[EMPTY_BADGE_COLOR],
-            size = BudgetTheme.size.badgeLarge,
-        )
-        Spacer(Modifier.height(BudgetTheme.spacing.sectionPadding))
-        Text(text = EMPTY_CARDS_TITLE, style = MaterialTheme.typography.titleMedium, color = BudgetTheme.colors.textPrimary)
-        Spacer(Modifier.height(BudgetTheme.spacing.inlineGap))
-        Text(
-            text = EMPTY_CARDS_BODY,
-            style = MaterialTheme.typography.bodyMedium,
-            color = BudgetTheme.colors.textSecondary,
-            textAlign = TextAlign.Center,
-        )
-        Spacer(Modifier.height(BudgetTheme.spacing.sectionGap))
+    TabEmptyState(iconRes = R.drawable.ic_sym_credit_card, color = EMPTY_BADGE_COLOR, title = EMPTY_CARDS_TITLE, body = EMPTY_CARDS_BODY) {
         BudgetPrimaryButton(text = OPEN_CATEGORIES, onClick = onOpenCategories)
-        Spacer(Modifier.weight(1f))
     }
 }
 

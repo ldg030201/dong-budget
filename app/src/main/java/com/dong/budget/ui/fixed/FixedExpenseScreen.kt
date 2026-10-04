@@ -18,9 +18,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.Icon
@@ -40,7 +38,6 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import com.dong.budget.R
 import com.dong.budget.navigation.EditorPrefill
@@ -48,8 +45,8 @@ import com.dong.budget.ui.components.BudgetPrimaryButton
 import com.dong.budget.ui.components.BudgetSmallButton
 import com.dong.budget.ui.components.CategoryBadge
 import com.dong.budget.ui.components.HintText
-import com.dong.budget.ui.components.IconBadge
 import com.dong.budget.ui.components.MonthStepper
+import com.dong.budget.ui.components.TabEmptyState
 import com.dong.budget.ui.components.TabHeader
 import com.dong.budget.ui.components.ThisMonthButton
 import com.dong.budget.ui.components.animatedItem
@@ -396,47 +393,10 @@ private fun StoppedHeader(count: Int, expanded: Boolean, onToggle: () -> Unit) {
     }
 }
 
-/**
- * 보여 줄 것이 없을 때(분류를 지웠거나 고정지출이 없을 때). 큰 뱃지 아래에 제목과 설명을 가운데에 두고, [action] 이 있으면 그 아래에 둔다.
- * 가로 화면처럼 높이가 모자라면 버튼이 찌그러지지 않게 스크롤한다(월급 탭의 빈 화면과 같은 모양).
- */
+/** 보여 줄 것이 없을 때(분류를 지웠거나 고정지출이 없을 때). 전체 목록의 '고정지출' 줄과 같은 아이콘·색이다. */
 @Composable
 private fun FixedEmpty(title: String, body: String, action: (@Composable () -> Unit)? = null) {
-    Column(
-        modifier =
-        Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(BudgetTheme.spacing.screenHorizontal),
-        horizontalAlignment = Alignment.CenterHorizontally,
-    ) {
-        Spacer(Modifier.weight(1f))
-        // 전체 목록의 '고정지출' 줄과 같은 아이콘·색
-        IconBadge(
-            iconRes = R.drawable.ic_sym_event_repeat,
-            swatch = BudgetTheme.categoryPalette[EMPTY_BADGE_COLOR],
-            size = BudgetTheme.size.badgeLarge,
-        )
-        Spacer(Modifier.height(BudgetTheme.spacing.sectionPadding))
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleMedium,
-            color = BudgetTheme.colors.textPrimary,
-            textAlign = TextAlign.Center,
-        )
-        Spacer(Modifier.height(BudgetTheme.spacing.inlineGap))
-        Text(
-            text = body,
-            style = MaterialTheme.typography.bodyMedium,
-            color = BudgetTheme.colors.textSecondary,
-            textAlign = TextAlign.Center,
-        )
-        if (action != null) {
-            Spacer(Modifier.height(BudgetTheme.spacing.sectionGap))
-            action()
-        }
-        Spacer(Modifier.weight(1f))
-    }
+    TabEmptyState(iconRes = R.drawable.ic_sym_event_repeat, color = EMPTY_BADGE_COLOR, title = title, body = body, action = action)
 }
 
 // 목록의 고정 줄 key. 달마다 묶음이 숨었다 나타나도 스크롤 기준이 흔들리지 않게 고정한다.

@@ -31,7 +31,6 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.rememberTextMeasurer
-import androidx.compose.ui.text.style.TextAlign
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dong.budget.R
 import com.dong.budget.data.db.BudgetTime
@@ -41,8 +40,8 @@ import com.dong.budget.data.salary.WorkStatus
 import com.dong.budget.ui.components.BudgetIconButton
 import com.dong.budget.ui.components.BudgetPrimaryButton
 import com.dong.budget.ui.components.HintText
-import com.dong.budget.ui.components.IconBadge
 import com.dong.budget.ui.components.RollingText
+import com.dong.budget.ui.components.TabEmptyState
 import com.dong.budget.ui.components.TabHeader
 import com.dong.budget.ui.components.TransactionRow
 import com.dong.budget.ui.components.sectionBlock
@@ -135,33 +134,13 @@ internal fun SalaryHeader(onOpenSettings: (() -> Unit)?) {
 
 @Composable
 private fun EmptySalary(onOpenSettings: () -> Unit) {
-    // 가로 화면처럼 높이가 모자라면 버튼이 찌그러지지 않게 스크롤한다. 높이가 넉넉하면 가운데에 둔다.
-    Column(
-        modifier =
-        Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(BudgetTheme.spacing.screenHorizontal),
-        horizontalAlignment = Alignment.CenterHorizontally,
+    TabEmptyState(
+        iconRes = R.drawable.ic_sym_payments,
+        color = "teal",
+        title = "월급을 정해 주세요",
+        body = "연봉이나 월급과 출퇴근 시간을 정하면\n일하는 동안 번 돈이 초마다 쌓여요.",
     ) {
-        Spacer(Modifier.weight(1f))
-        IconBadge(
-            iconRes = R.drawable.ic_sym_payments,
-            swatch = BudgetTheme.categoryPalette["teal"],
-            size = BudgetTheme.size.badgeLarge,
-        )
-        Spacer(Modifier.height(BudgetTheme.spacing.sectionPadding))
-        Text(text = "월급을 정해 주세요", style = MaterialTheme.typography.titleMedium, color = BudgetTheme.colors.textPrimary)
-        Spacer(Modifier.height(BudgetTheme.spacing.inlineGap))
-        Text(
-            text = "연봉이나 월급과 출퇴근 시간을 정하면\n일하는 동안 번 돈이 초마다 쌓여요.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = BudgetTheme.colors.textSecondary,
-            textAlign = TextAlign.Center,
-        )
-        Spacer(Modifier.height(BudgetTheme.spacing.sectionGap))
         BudgetPrimaryButton(text = "월급 정하기", onClick = onOpenSettings)
-        Spacer(Modifier.weight(1f))
     }
 }
 
