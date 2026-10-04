@@ -82,7 +82,7 @@ internal fun matchPayments(
     val lines = linesOf(pays, slots, schedule.days.size, distances, extras)
     val dueDays = LongArray(slots.size) { dues.due(slots[it].month, slots[it].day).toEpochDay() }
     val amountSlots = pays.associate { pay -> pay.id to amountOrder(pay, slots, nearest.getValue(pay.id), schedule, lines, dues) }
-    val ordered = orderOf(pays, { orderDay(it, slots[amountSlots.getValue(it.id)], schedule, dues) }) { amountSlots.getValue(it.id) }
+    val ordered = orderOf(pays, { orderDay(it, slots, nearest.getValue(it.id), schedule, lines, dues) }) { amountSlots.getValue(it.id) }
     val missingBefore = IntArray(slots.size + 1)
     slots.forEachIndexed { i, slot -> missingBefore[i + 1] = missingBefore[i] + slot.need * MISSING }
 
@@ -278,10 +278,14 @@ private fun assignCost(pay: Paid, slot: Slot, byAmount: Int?, dues: DueDates): I
  * ([lines])이 더 가까운 번호가 하나면 그 차례로 본다(1일 30,000원 · 말일 33,000원이 쉬는 날로 한날 나가면 33,000원이 앞 달 말일 몫).
  * 그래도 모르면 가장 가까운 차례[near] 다.
  */
-private fun amountOrder(pay: Paid, slots: List<Slot>, near: Int, schedule: FixedSchedule, lines: List<List<Long>>, dues: DueDates): Int {
+private fun amountOrder(pay: Paid, slots: List<Slot>, near: Int, schedule: FixedSchedule, lines: List<List<Long>>, dues: DueDates): Int =
+    amountSlot(pay, slots, near, schedule, lines, dues) ?: near
+
+/** [pay] 의 금액으로 본 차례(닿는 차례 가운데 그 번호의 가장 가까운 것, [amountOrder]). 금액으로 모르면 null */
+private fun amountSlot(pay: Paid, slots: List<Slot>, near: Int, schedule: FixedSchedule, lines: List<List<Long>>, dues: DueDates): Int? {
     val reach = maxOf(0, near - schedule.days.size)..minOf(slots.lastIndex, near + schedule.days.size)
-    val slot = schedule.slotByAmount(pay.amount) ?: closerLine(pay.amount, reach, slots, lines) ?: return near
-    return reach.filter { slots[it].index == slot }.minByOrNull { slotDistance(pay, slots[it], dues) } ?: near
+    val slot = schedule.slotByAmount(pay.amount) ?: closerLine(pay.amount, reach, slots, lines) ?: return null
+    return reach.filter { slots[it].index == slot }.minByOrNull { slotDistance(pay, slots[it], dues) }
 }
 
 /** 닿는 차례 [reach] 가운데 기준 금액([lines])이 [amount] 에 가장 가까운 차례 번호. 두 번호가 같거나 기준 금액을 모르면 null */
@@ -293,14 +297,15 @@ private fun closerLine(amount: Long, reach: IntRange, slots: List<Slot>, lines: 
 }
 
 /**
- * 짝지을 때 [pay] 를 줄 세우는 날. 금액으로 어느 차례인지 아는 결제가 그 차례 [slot] 에 딱 맞는 날(쉬는 날의 평소 날짜, 카드)에 낼 날보다
- * 먼저 나갔으면 그 차례 낼 날이고, 그 밖에는 낸 날이다. 하루 차이 두 청구의 앞 것(자동이체)이 쉬는 날로 뒤 것 낼 날까지 밀린 달에
- * 뒤 것(카드)이 평소 날짜에 먼저 나가도 짝짓기가 차례를 거슬러 앞 것을 다음 달 몫으로 넘기지 않는다.
+ * 짝지을 때 [pay] 를 줄 세우는 날. 금액으로 어느 차례인지 아는 결제([amountSlot], 금액이 비슷한 두 차례면 기준 금액이 더 가까운 쪽)가 그 차례에
+ * 딱 맞는 날(쉬는 날의 평소 날짜, 카드)에 낼 날보다 먼저 나갔으면 그 차례 낼 날이고, 그 밖에는 낸 날이다. 하루 차이 두 청구의 앞 것
+ * (자동이체)이 쉬는 날로 뒤 것 낼 날까지 밀린 달에 뒤 것(카드)이 평소 날짜에 먼저 나가도 짝짓기가 차례를 거슬러 앞 것을 다음 달 몫으로
+ * 넘기지 않는다.
  */
-private fun orderDay(pay: Paid, slot: Slot, schedule: FixedSchedule, dues: DueDates): LocalDate {
+private fun orderDay(pay: Paid, slots: List<Slot>, near: Int, schedule: FixedSchedule, lines: List<List<Long>>, dues: DueDates): LocalDate {
+    val slot = amountSlot(pay, slots, near, schedule, lines, dues)?.let(slots::get) ?: return pay.date
     val due = dues.due(slot.month, slot.day)
-    val early = schedule.slotByAmount(pay.amount) == slot.index && pay.date < due && slotDistance(pay, slot, dues) == 0
-    return if (early) due else pay.date
+    return if (pay.date < due && slotDistance(pay, slot, dues) == 0) due else pay.date
 }
 
 /**

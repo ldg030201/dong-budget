@@ -184,6 +184,12 @@ class FixedExpensesCrossCheckTest {
         val august = view(apple, YearMonth.of(2025, 8), day("2025-08-05"), morning = true)
         assertEquals(5, august.dueDay)
         assertEquals("오늘 낼 차례예요", rowNote(august, YearMonth.of(2025, 8), day("2025-08-05"))?.text)
+        // 금액이 비슷해도(5일 자동이체 10,000원 · 6일 카드 11,000원) 같다. 2025년 5월 5일 · 6일이 쉬는 날이라 카드분이 6일, 자동이체분이 7일에 나갔다.
+        val similar = bill("구독", 10_000, 5, YearMonth.of(2024, 1), YearMonth.of(2025, 8)) +
+            bill("구독", 11_000, 6, YearMonth.of(2024, 1), YearMonth.of(2025, 8), card = true)
+        assertEquals("DUE 1/2 10000", short(view(similar, YearMonth.of(2025, 5), day("2025-05-06"))))
+        assertEquals("DUE 1/2 11000", short(view(similar, YearMonth.of(2025, 6), day("2025-06-05"))))
+        assertEquals("DUE 1/2 11000", short(view(similar, YearMonth.of(2025, 8), day("2025-08-05"))))
     }
 
     @Test
