@@ -68,15 +68,16 @@ class SalaryTextTest {
 
     @Test
     fun `시간당 버는 돈(주휴수당 포함)과 통상시급을 두 줄로 견준다`() {
-        // 10월 월급 기간 9월 26일~10월 23일: 평일 20일 × 8시간 = 160시간 → 3,000,000 ÷ 160 = 18,750
+        // 10월 월급 기간 9월 24일~10월 23일(9월 월급날 25일이 추석이라 23일로 당겨짐): 평일 22일 × 8시간 = 176시간
+        // → 3,000,000 ÷ 176 = 17,045.45 → 17,045
         val october = YearMonth.of(2026, 10)
-        assertEquals("주휴수당 포함: ₩18,750/h\n통상시급: ₩14,354/h", hourlyLine(salary, october))
+        assertEquals("주휴수당 포함: ₩17,045/h\n통상시급: ₩14,354/h", hourlyLine(salary, october))
         // 오늘 번 돈 옆 ₩/h 와 같은 값이다
-        assertEquals("₩18,750/h", perHourBadge(salary.perSecond(october)))
-        // 실수령으로 쌓이면 위 줄은 실수령, 통상시급은 세전이다
-        assertEquals("주휴수당 포함(실수령): ₩16,250/h\n통상시급(세전): ₩14,354/h", hourlyLine(salary.copy(takeHome = 2_600_000), october))
+        assertEquals("₩17,045/h", perHourBadge(salary.perSecond(october)))
+        // 실수령으로 쌓이면 위 줄은 실수령, 통상시급은 세전이다: 2,600,000 ÷ 176 = 14,772.73 → 14,773
+        assertEquals("주휴수당 포함(실수령): ₩14,773/h\n통상시급(세전): ₩14,354/h", hourlyLine(salary.copy(takeHome = 2_600_000), october))
         // 세전을 적지 않으면 통상시급 줄은 뺀다
-        assertEquals("주휴수당 포함(실수령): ₩16,250/h", hourlyLine(SalarySettings(takeHome = 2_600_000), october))
+        assertEquals("주휴수당 포함(실수령): ₩14,773/h", hourlyLine(SalarySettings(takeHome = 2_600_000), october))
         // 주 15시간이 안 되면 주휴가 없다(주 3일 하루 4시간)
         val partTime = salary.copy(
             workStart = LocalTime.of(9, 0),
@@ -91,8 +92,9 @@ class SalaryTextTest {
     @Test
     fun `월급날부터 번 돈 밑 안내`() {
         val earnings = salary.earningsAt(at("2026-09-29T10:30:00"))
-        // 10월 월급 기간 9월 26일~, 150,000 + 28,125 = 178,125원 → 5%
-        assertEquals("9월 26일부터 · 10월 월급 3,000,000원 중 5%", periodCaption(earnings))
+        // 10월 월급 기간 9월 24일~(9월 월급날 25일이 추석이라 23일로 당겨짐, 평일 22일). 24·25·28일 사흘과 오늘 1.5시간
+        // = 3,000,000 × 3.1875 ÷ 22 = 434,659원 → 14.49% → 14%
+        assertEquals("9월 24일부터 · 10월 월급 3,000,000원 중 14%", periodCaption(earnings))
     }
 
     @Test

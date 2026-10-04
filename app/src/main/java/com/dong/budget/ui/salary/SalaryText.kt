@@ -103,7 +103,7 @@ internal fun hourlyLine(settings: SalarySettings, payMonth: YearMonth?): String?
 
 /**
  * '월급날부터 번 돈' 밑 안내. 언제부터 셌고, 이번 월급의 몇 %를 벌었는지.
- * "9월 26일부터 · 10월 월급 3,000,000원 중 12%"
+ * "9월 24일부터 · 10월 월급 3,000,000원 중 14%"
  */
 internal fun periodCaption(earnings: Earnings): String {
     val start = earnings.periodStart ?: return ""

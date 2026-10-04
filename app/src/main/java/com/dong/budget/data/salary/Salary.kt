@@ -1,5 +1,6 @@
 package com.dong.budget.data.salary
 
+import com.dong.budget.data.holiday.KoreanHolidays
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -19,7 +20,8 @@ import kotlin.math.roundToInt
 //     (초당 버는 돈은 기간마다 조금 다르다. 한국의 통상시급처럼 월 209시간으로 나누면 쉬는 날의 주휴 몫까지 들어 있어,
 //     일하는 시간에만 쌓을 때 월급날에 월급의 약 83% 에서 멈춘다. 통상시급은 [ordinaryHourlyWage] 로 따로 보여 준다.)
 //   - 출근부터 퇴근 사이에만 쌓이고, 점심시간은 뺀다(끌 수 있다). 퇴근 뒤와 쉬는 요일에는 멈춘다.
-//   - 공휴일은 모른다(자료가 없다). 일하는 요일이면 일한 날로 친다.
+//   - 쌓이는 날은 공휴일을 따로 빼지 않는다. 일하는 요일이면 공휴일도 일한 날로 친다.
+//     월급날만 주말 · 공휴일([KoreanHolidays])이면 앞 영업일로 당긴다([paydayIn]).
 //   - 시작일(입사일)이 있으면 그 전날까지는 벌지 않는다. 시작한 기간은 그날부터 일한 날만큼만(일할 계산) 쌓인다.
 //   - '올해 번 돈' 은 1월 1일부터 센다. 월급 기간이 해를 넘으면 올해에 든 날만 센다.
 //   - 시각은 가계부처럼 서울 기준이다(BudgetTime.ZONE). 부르는 쪽이 서울 시각을 넘긴다.
@@ -41,7 +43,7 @@ enum class PayBasis {
  * @property workEnd 퇴근. 출근보다 늦어야 한다(밤을 넘기는 근무는 아직 모른다).
  * @property skipLunch true 면 점심시간([lunchStart]~[lunchEnd])에는 쌓이지 않는다.
  * @property workdays 일하는 요일
- * @property payday 월급날(1~31). 그 달에 그날이 없으면 말일, 주말이면 앞 금요일로 당긴다([paydayIn]).
+ * @property payday 월급날(1~31). 그 달에 그날이 없으면 말일, 주말 · 공휴일이면 앞 영업일로 당긴다([paydayIn]).
  * @property startDate 이날부터 번다(입사일). null 이면 따지지 않는다.
  * @property paydayNotice 월급날 출근 시각에 '월급 들어왔나요?' 알림을 띄울지
  */
@@ -82,7 +84,7 @@ data class SalarySettings(
 
     /** [date] 가 어느 달 월급의 기간에 드는지. 월급날 당일은 그달 월급의 마지막 날이다. */
     fun payMonthFor(date: LocalDate): YearMonth {
-        // 월급날은 달마다 앞으로만 간다(주말로 당겨도 이틀). 앞 달부터 차례로 보면 곧 찾는다.
+        // 월급날은 달마다 앞으로만 간다(주말 · 연휴로 당겨도 며칠). 앞 달부터 차례로 보면 곧 찾는다.
         var month = YearMonth.from(date).minusMonths(1)
         while (paydayIn(month).isBefore(date)) month = month.plusMonths(1)
         return month
@@ -194,7 +196,7 @@ data class SalarySettings(
 
     /**
      * [today] 가 어느 달 월급을 받는 날인지. 월급날이 아니면 null.
-     * 1일 월급이 주말이라 앞 달 말로 당겨지면 그날은 다음 달 월급날이다.
+     * 1일 월급이 주말 · 공휴일이라 앞 달 말로 당겨지면 그날은 다음 달 월급날이다.
      */
     fun payMonthOn(today: LocalDate): YearMonth? {
         val month = YearMonth.from(today)
@@ -242,12 +244,12 @@ data class SalarySettings(
     }
 
     /**
-     * [month] 의 월급날. 그 달에 [payday] 가 없으면 말일이고, 토·일이면 앞 금요일로 당긴다(공휴일은 모른다).
-     * 1일이 주말이면 앞 달 말일쯤으로 넘어갈 수 있다.
+     * [month] 의 월급날. 그 달에 [payday] 가 없으면 말일이고, 주말 · 공휴일([KoreanHolidays])이면 앞 영업일로 당긴다
+     * (2026년 9월 25일 추석이면 23일). 1일이 쉬는 날이면 앞 달 말일쯤으로 넘어갈 수 있다.
      */
     fun paydayIn(month: YearMonth): LocalDate {
         var date = month.atDay(payday.coerceIn(1, month.lengthOfMonth()))
-        while (date.dayOfWeek == DayOfWeek.SATURDAY || date.dayOfWeek == DayOfWeek.SUNDAY) date = date.minusDays(1)
+        while (!KoreanHolidays.isBusinessDay(date)) date = date.minusDays(1)
         return date
     }
 

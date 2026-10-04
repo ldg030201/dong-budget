@@ -223,7 +223,7 @@ fun SalarySettingsScreen(
                         modifier = row(SalaryPanel.PAYDAY),
                     )
                     HintText(
-                        "그 달에 없는 날이면 말일, 주말이면 앞 금요일에 받는 것으로 쳐요. 월급날 다음 날부터 다시 0원부터 쌓여요",
+                        "그 달에 없는 날이면 말일, 주말 · 공휴일이면 앞 영업일에 받는 것으로 쳐요. 월급날 다음 날부터 다시 0원부터 쌓여요",
                         modifier = Modifier.padding(bottom = BudgetTheme.spacing.inlineGap),
                     )
                     SwitchRow(
