@@ -83,6 +83,9 @@ internal class DueWindow(month: YearMonth, day: Int) {
     private val early = KoreanHolidays.previousBusinessDay(usualDateOf(month, day))
         .takeIf { YearMonth.from(due) != month && YearMonth.from(it) == month }?.toEpochDay() ?: usual
 
+    /** 이 차례에 딱 맞게 나갈 수 있는 첫날(평소 날짜나 [early], 쉬는 날이면 낼 날 전이다)의 에포크 날 수 */
+    val opens: Long = minOf(usual, early)
+
     /** 에포크 날 수 [epochDay] 가 평소 날짜와 며칠 떨어졌는지 */
     fun plain(epochDay: Long): Int = abs(epochDay - usual).toInt()
 

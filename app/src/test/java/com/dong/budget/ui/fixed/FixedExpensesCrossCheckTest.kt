@@ -205,6 +205,11 @@ class FixedExpensesCrossCheckTest {
         // 카드 5일 10,000원 · 6일 11,000원 가운데 5일 것을 2026년 6월부터 해지. 7월 5일(일) 것의 낼 날이 6일이라 7월 6일 결제는 두 차례와 거리가 같다.
         val sub = bill("구독", 10_000, 5, YearMonth.of(2025, 1), MAY, card = true) +
             bill("구독", 11_000, 6, YearMonth.of(2025, 1), SEP, card = true)
+        // 해지한 6월은 6일(토) 카드 결제가 6일 차례 몫이라 5일 차례 낼 날 뒤 사흘이 지나면 2번 중 1번만 냈어요다
+        for (today in days("2026-06-09", "2026-06-11")) {
+            assertEquals("$today", "PAID 1/2 11000", short(view(sub, JUN, today)))
+            assertEquals("$today", "2번 중 1번만 냈어요", note(sub, JUN, today)?.text)
+        }
         val august = view(sub, AUG, day("2026-08-05"), morning = true)
         assertEquals(6, august.dueDay)
         assertNull(rowNote(august, AUG, day("2026-08-05")))

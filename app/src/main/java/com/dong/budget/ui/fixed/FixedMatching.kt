@@ -24,8 +24,10 @@ import kotlin.math.abs
 /**
  * 한 차례. [month] 몫의 [index] 번째 차례(평소 [day] 일).
  * @property cap 이만큼은 한 차례에 함께 낸 것이고(같은 날 나눠 내는 월세는 2), 넘는 결제마다 [OVERFLOW]
- * @property need 낼 날이 마지막 결제일 전에 왔으면 내야 하는 건수. 모자라는 건수마다 [MISSING]. 차례 수보다 적게 내던 달(회선을 더하기 전)이면
- *   0 이다. 다만 앞 달에 차례마다 낸 대로 나눈 달(해지한 다음 달, [SlotShares.counted])은 남은 차례의 건수다.
+ * @property need 그 차례에 딱 맞게 나갈 수 있는 첫날([DueWindow.opens], 쉬는 날이면 낼 날 전의 평소 날짜)이 마지막 결제일이거나 그 전이면 내야
+ *   하는 건수. 모자라는 건수마다 [MISSING]. 차례 수보다 적게 내던 달(회선을 더하기 전)이면 0 이다. 다만 앞 달에 차례마다 낸 대로 나눈 달
+ *   (해지한 다음 달, [SlotShares.counted])은 남은 차례의 건수다. 낼 날로만 재면 쉬는 날 평소 날짜에 먼저 나간 카드 결제가 마지막일 때
+ *   그 차례가 아직 안 온 것이라, 그 결제를 하루 가까운 다른 차례(해지한 앞 차례)에 넣었다.
  */
 internal class Slot(val month: YearMonth, val index: Int, val day: Int, val cap: Int, val need: Int)
 
@@ -220,7 +222,7 @@ private fun slotsFor(pays: List<Paid>, schedule: FixedSchedule, counts: MonthCou
             val shares = counts.sharesIn(month, days.size)
             days.indices.asSequence().map { i ->
                 val share = shares.counts[i].coerceAtMost(MAX_CAP)
-                val passed = !dues.due(month, days[i]).isAfter(latest)
+                val passed = dues.window(month, days[i]).opens <= latest.toEpochDay()
                 Slot(month, i, days[i], cap = maxOf(1, share), need = if (shares.counted && passed) share else 0)
             }
         }.toList()
