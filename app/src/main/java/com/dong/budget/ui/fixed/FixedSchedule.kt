@@ -42,11 +42,16 @@ internal fun <T : Comparable<T>> lowerMedian(values: List<T>): T = values.sorted
 internal fun isNear(amount: Long, reference: Long): Boolean = abs(amount - reference) * PERCENT <= reference * SIMILAR_AMOUNT_PERCENT
 
 /**
- * 따로 낸 결제(연간 결제 · 한 번 산 것)인지. 최근 금액([sample]) 가운데 [EXTRA_RATIO] 배 안쪽으로 비슷한 것이 절반이 안 되는 금액이다.
- * 가운데 값 하나와 견주면 금액이 크게 다른 두 차례(월세 500,000원 · 관리비 100,000원)의 한쪽이 모두 따로 낸 것이 된다.
+ * 따로 낸 결제(연간 결제 · 한 번 산 것)인지. 최근 금액([sample], 낸 차례) 가운데 [EXTRA_RATIO] 배 안쪽으로 비슷한 것이 [EXTRA_SHARE] 분의 1이
+ * 안 되는 금액이다. 다만 마지막 두 결제가 비슷한 금액이면 그 금액은 값을 바꾼 것이라 따로 낸 것이 아니다(5,500원 → 17,000원).
+ * 가운데 값 하나와 견주면 금액이 크게 다른 두 차례(월세 500,000원 · 관리비 100,000원)의 한쪽이 모두 따로 낸 것이 되고, 절반과 견주면
+ * 최근 12건에 두 차례가 7건 · 5건으로 걸린 날 적은 쪽이 따로 낸 것이 된다.
  */
-internal fun isExtra(amount: Long, sample: List<Long>): Boolean =
-    sample.count { it <= amount * EXTRA_RATIO && amount <= it * EXTRA_RATIO } * 2 < sample.size
+internal fun isExtra(amount: Long, sample: List<Long>): Boolean {
+    val settled = sample.takeLast(2).takeIf { it.size == 2 && isNear(it[1], it[0]) }?.last()
+    if (settled != null && isNear(amount, settled)) return false
+    return sample.count { it <= amount * EXTRA_RATIO && amount <= it * EXTRA_RATIO } * EXTRA_SHARE < sample.size
+}
 
 /** 한 가게의 낼 날 표. (달, 평소 날)마다 낼 날을 한 번만 구한다. 짐작 · 짝짓기가 같은 달의 낼 날을 수십 번 묻는다. */
 internal class DueDates {
@@ -112,7 +117,8 @@ internal class FixedSchedule(
  * 자주 내는 가게([frequentTimes], 평일마다 내는 돌봄 · 주 3회 PT)는 차례를 짐작하지 않고 매달 내는 것으로 둔다.
  */
 internal fun estimateSchedule(estimation: List<Paid>, base: YearMonth, dues: DueDates): FixedSchedule {
-    val sorted = estimation.sortedBy { it.date }
+    // 같은 날 낸 것도 적은 차례로 줄 세워 최근 금액의 끝이 읽은 차례(조회는 최신순)에 따라 달라지지 않게 한다
+    val sorted = estimation.sortedWith(paidByTime)
     val sample = sorted.takeLast(EXTRA_SAMPLES).map { it.amount }
     frequentTimes(sorted, base)?.let { times ->
         return FixedSchedule(listOf(1), slotAmounts = null, cadence = 1, phase = 0, sample = sample, timesPerMonth = times)
@@ -327,6 +333,9 @@ private const val MAX_EVERY_MONTHS = 10
 
 /** 따로 낸 결제로 보는 금액 차이(배) */
 private const val EXTRA_RATIO = 3
+
+/** 최근 금액 가운데 비슷한 것이 이만큼 분의 1이 안 되면 따로 낸 결제다([isExtra]) */
+private const val EXTRA_SHARE = 4
 
 /** 비슷한 금액으로 보는 폭(%) */
 private const val SIMILAR_AMOUNT_PERCENT = 20L

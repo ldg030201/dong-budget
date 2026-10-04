@@ -7,7 +7,9 @@ import com.dong.budget.testing.tx
 import com.dong.budget.ui.editor.fixedExpensePrefill
 import com.dong.budget.ui.home.localDate
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.DayOfWeek
 import java.time.Instant
@@ -89,5 +91,32 @@ class FixedExpensesVerifyTest {
         val later = view(insurance, YearMonth.of(2026, 10), day("2026-10-25"))
         assertEquals(FixedStatus.PAID, later.status)
         assertNull(rowNote(later, YearMonth.of(2026, 10), day("2026-10-25")))
+    }
+
+    @Test
+    fun `6 - 금액이 3배 넘게 바뀌면서 결제일도 바뀌면 두 번째 새 금액부터 값을 바꾼 것으로 보아 다달이 낸 달이 냈어요다`() {
+        val rows = (1..7).flatMap { paid("넷플릭스", 5_500, "2026-0$it-25") } +
+            listOf("2026-08-10", "2026-09-10", "2026-10-10", "2026-11-10").flatMap { paid("넷플릭스", 17_000, it) }
+        // 첫 새 금액 하나만으로는 연간 결제와 가를 수 없어 따로 낸 것이다(그 달 낸 돈에는 든다)
+        val august = view(rows, YearMonth.of(2026, 8), day("2026-08-11"))
+        assertEquals(FixedStatus.DUE, august.status)
+        assertEquals(17_000L, august.paidAmount)
+        for (date in listOf("2026-09-11", "2026-10-11", "2026-10-27", "2026-11-11", "2026-11-26")) {
+            val today = day(date)
+            val item = view(rows, YearMonth.from(today), today)
+            assertEquals(date, FixedStatus.PAID, item.status)
+            assertEquals(date, 17_000L, item.amount)
+        }
+        // 두 번째 새 금액이 나간 뒤에는 첫 달도 그 결제로 냈어요다
+        assertEquals(FixedStatus.PAID, view(rows, YearMonth.of(2026, 8), day("2026-09-11")).status)
+    }
+
+    @Test
+    fun `6 - 따로 낸 결제는 최근 금액의 4분의 1이 안 되는 금액이고 마지막 두 결제가 같은 금액이면 값을 바꾼 것이다`() {
+        // 금액이 크게 다른 두 청구가 최근 12건에 7건 · 5건으로 걸려도 적은 쪽은 따로 낸 것이 아니다(절반과 견주면 따로 낸 것이었다)
+        assertFalse(isExtra(30_000, List(7) { 200_000L } + List(5) { 30_000L }))
+        assertTrue(isExtra(99_000, List(11) { 9_900L } + 99_000L))
+        assertTrue(isExtra(17_000, List(11) { 5_500L } + 17_000L))
+        assertFalse(isExtra(17_000, List(10) { 5_500L } + 17_000L + 17_000L))
     }
 }
