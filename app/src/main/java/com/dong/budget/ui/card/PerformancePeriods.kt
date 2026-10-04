@@ -5,7 +5,7 @@ import com.dong.budget.data.db.BudgetTime
 import com.dong.budget.data.db.CardSpendRow
 import com.dong.budget.data.db.PaymentMethodEntity
 import com.dong.budget.data.db.PaymentMethodType
-import com.dong.budget.data.db.TransactionType
+import com.dong.budget.ui.home.netExpenseOf
 import com.dong.budget.ui.stats.calc.trendMonths
 import java.time.LocalDate
 import java.time.YearMonth
@@ -104,14 +104,8 @@ fun hasRecord(period: PerformancePeriod, firstUse: LocalDate?, current: YearMont
 /** 쓴 돈 한 건. 날짜(서울 기준)는 한 줄에 한 번만 구해 둔다. 지출은 +, 환불은 − 다. */
 internal class Spend(val date: LocalDate, val amount: Long)
 
-/** 쓴 돈에 더할 금액. 지출은 +, 환불은 − 이고 수입·이체는 넣지 않는다(통계 Totals 의 지출과 같은 규칙). */
-internal fun signedSpend(type: TransactionType, amount: Long): Long = when (type) {
-    TransactionType.EXPENSE -> amount
-    TransactionType.REFUND -> -amount
-    TransactionType.INCOME, TransactionType.TRANSFER -> 0
-}
-
-internal fun CardSpendRow.toSpend(): Spend = Spend(BudgetTime.toLocalDate(occurredAt), signedSpend(type, amount))
+/** 쓴 돈 한 건으로. 금액은 합계(Totals)의 지출과 같은 규칙([netExpenseOf])으로 센다. */
+internal fun CardSpendRow.toSpend(): Spend = Spend(BudgetTime.toLocalDate(occurredAt), netExpenseOf(type, amount))
 
 /** [spends] 중 [period] 안에 쓴 돈(지출 − 환불). 환불이 더 많으면 음수다. */
 internal fun spentIn(spends: List<Spend>, period: PerformancePeriod): Long = spends.sumOf { if (it.date in period) it.amount else 0 }

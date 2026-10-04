@@ -8,6 +8,7 @@ import com.dong.budget.data.db.TransactionListItem
 import com.dong.budget.ui.home.DayGroup
 import com.dong.budget.ui.home.groupByDay
 import com.dong.budget.ui.home.localDate
+import com.dong.budget.ui.home.netExpenseOf
 import com.dong.budget.ui.stats.calc.Measure
 import com.dong.budget.ui.stats.calc.effectiveFirstDate
 import java.time.LocalDate
@@ -200,7 +201,7 @@ fun buildCardDetail(
         if (earliest == null || date < earliest) earliest = date
         val index = periods.indexOfFirst { date in it }
         if (index < 0) continue
-        spent[index] += signedSpend(item.type, item.amount)
+        spent[index] += netExpenseOf(item.type, item.amount)
         if (index == periods.lastIndex) selected += item
     }
     val first = effectiveFirstDate(firstUse, earliest)

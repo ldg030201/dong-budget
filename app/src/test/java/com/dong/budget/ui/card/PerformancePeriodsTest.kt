@@ -1,13 +1,17 @@
 package com.dong.budget.ui.card
 
+import com.dong.budget.data.db.CardSpendRow
 import com.dong.budget.data.db.PaymentMethodEntity
 import com.dong.budget.data.db.PaymentMethodType
+import com.dong.budget.data.db.TransactionType
 import com.dong.budget.data.db.TransactionType.EXPENSE
 import com.dong.budget.data.db.TransactionType.INCOME
 import com.dong.budget.data.db.TransactionType.REFUND
 import com.dong.budget.data.db.TransactionType.TRANSFER
 import com.dong.budget.testing.day
 import com.dong.budget.testing.tx
+import com.dong.budget.ui.home.Totals
+import com.dong.budget.ui.home.totals
 import com.dong.budget.ui.stats.calc.effectiveFirstRecord
 import com.dong.budget.ui.stats.calc.trendMonths
 import org.junit.Assert.assertEquals
@@ -110,10 +114,21 @@ class PerformancePeriodsTest {
         assertEquals(20_000L, spentIn(rows.spendsOf(2), period))
         val card = PaymentMethodEntity(id = 1, uuid = "u", name = "카드", type = PaymentMethodType.OTHER)
         assertEquals(49_000L, buildCardDetail(card, october, day("2026-10-03"), rows, firstUse = null).progress.spent)
-        assertEquals(0L, signedSpend(INCOME, 3_000_000))
-        assertEquals(0L, signedSpend(TRANSFER, 100_000))
         // 환불이 더 많으면 음수다
         assertEquals(-8_000L, spentIn(listOf(tx("2026-10-04", 8_000, REFUND, paymentId = 3)).spendsOf(3), period))
+    }
+
+    @Test
+    fun `쓴 돈은 홈과 통계 합계의 지출과 같은 부호 규칙으로 센다`() {
+        // 지출 +, 환불 −, 수입·이체 0 을 합계(Totals)와 같이 써서 한쪽을 바꾸면 카드실적도 함께 바뀌게
+        TransactionType.entries.forEach { type ->
+            val item = tx("2026-10-03", 12_000, type, paymentId = 1)
+            val row = CardSpendRow(1, type, item.amount, item.occurredAt)
+            assertEquals("$type", (Totals() + item).expense, row.toSpend().amount)
+        }
+        val rows = TransactionType.entries.map { tx("2026-10-03", 12_000, it, paymentId = 1) }
+        val card = PaymentMethodEntity(id = 1, uuid = "u", name = "카드", type = PaymentMethodType.OTHER)
+        assertEquals(rows.totals().expense, buildCardDetail(card, october, day("2026-10-04"), rows, firstUse = null).progress.spent)
     }
 
     @Test

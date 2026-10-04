@@ -20,12 +20,20 @@ import java.time.YearMonth
  * 환불은 쓴 돈을 되돌려 받은 것이라 지출에서 뺀다. 그래서 지출이 음수가 될 수도 있다.
  */
 data class Totals(val expense: Long = 0, val income: Long = 0) {
-    operator fun plus(item: TransactionListItem): Totals = when (item.type) {
-        TransactionType.EXPENSE -> copy(expense = expense + item.amount)
-        TransactionType.REFUND -> copy(expense = expense - item.amount)
-        TransactionType.INCOME -> copy(income = income + item.amount)
-        TransactionType.TRANSFER -> this
-    }
+    operator fun plus(item: TransactionListItem): Totals = Totals(
+        expense = expense + netExpenseOf(item.type, item.amount),
+        income = if (item.type == TransactionType.INCOME) income + item.amount else income,
+    )
+}
+
+/**
+ * 지출 합(지출 − 환불)에 더할 금액. 지출은 +, 환불은 − 이고 수입·이체는 넣지 않는다(0).
+ * 합계([Totals])와 카드실적의 쓴 돈이 같이 쓴다.
+ */
+fun netExpenseOf(type: TransactionType, amount: Long): Long = when (type) {
+    TransactionType.EXPENSE -> amount
+    TransactionType.REFUND -> -amount
+    TransactionType.INCOME, TransactionType.TRANSFER -> 0
 }
 
 fun Iterable<TransactionListItem>.totals(): Totals = fold(Totals()) { acc, item -> acc + item }
