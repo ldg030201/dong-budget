@@ -8,6 +8,7 @@ import com.dong.budget.ui.home.localDate
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDate
 import java.time.YearMonth
@@ -73,6 +74,26 @@ class FixedExpensesCrossCheckTest {
             assertNull(today, note(rows, OCT, day(today)))
         }
         assertNull(view(rows, NOV, day("2026-11-02")).missedMonth)
+    }
+
+    @Test
+    fun `한 차례에 한 건 다른 차례에 두 건 내는 가게는 차례마다 낸 대로 나눠 기다린다`() {
+        // 5일 20,000원 · 21일 45,000원 · 21일 33,000원 자동이체
+        val normal = bill("통신", 20_000, 5, JAN, MAR27) + bill("통신", 45_000, 21, JAN, MAR27) + bill("통신", 33_000, 21, JAN, MAR27)
+        assertEquals("DUE 1/3 78000", short(view(normal, SEP, day("2026-09-10"))))
+        // 5일 것을 9월부터 해지하면 다음 달부터 21일 두 회선만 기다린다
+        val early = bill("통신", 20_000, 5, JAN, AUG) + bill("통신", 45_000, 21, JAN, MAR27) + bill("통신", 33_000, 21, JAN, MAR27)
+        for (today in listOf("2026-10-08", "2026-10-15", "2026-11-07", "2026-12-09")) {
+            val item = view(early, YearMonth.from(day(today)), day(today))
+            assertEquals(today, "DUE 0/2 78000 21", "${short(item)} ${item.dueDay}")
+            assertTrue(today, (item.daysPastUsual ?: 0) <= 0)
+        }
+        // 21일 33,000원 회선을 9월부터 해지하면 9월은 끝까지 3번 중 2번만 냈어요, 10월은 두 건이다
+        val late = bill("통신", 20_000, 5, JAN, MAR27) + bill("통신", 45_000, 21, JAN, MAR27) + bill("통신", 33_000, 21, JAN, AUG)
+        for (today in listOf("2026-10-06", "2026-10-25")) assertEquals(today, "PAID 2/3 65000", short(view(late, SEP, day(today))))
+        assertEquals(2, view(late, OCT, day("2026-10-07")).requiredCount)
+        assertEquals("PAID 2/2 65000", short(view(late, OCT, day("2026-10-22"))))
+        assertNull(note(late, OCT, day("2026-10-22")))
     }
 
     @Test

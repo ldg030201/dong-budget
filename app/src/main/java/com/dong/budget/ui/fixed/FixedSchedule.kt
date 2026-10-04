@@ -330,7 +330,8 @@ private fun slotAmountsOf(recent: List<Paid>, days: List<Int>, dues: DueDates): 
  * 다만 바로 앞 차례 달에 한 건이라도 냈으면 그 달 건수를 넘지 않는다(두 청구 가운데 하나를 해지하면 다음 달부터 한 건이다. 해지한 달은
  * 아직 안 낸 것과 가를 수 없다). 그 달 앞 기록만 보므로 덜 낸 달이 제 건수를 낮추지 않고, 회선을 하나 더한 뒤에도 그 전 달들은 한 건이면 다 낸 것이며, 같은 날 본 모든 화면이 같은 달에 같은 수를 쓴다.
  * 건수는 결제를 차례에 짝지은 몫 달로 센다([matched]). 짝짓기 전에는 결제마다 가장 가까운 차례 달로 어림한다.
- * [bySlot] 은 짝지은 몫 달마다 차례(번호)별 건수다([sharesIn]). 어림에는 없다.
+ * [bySlot] 은 몫 달마다 차례(번호)별 건수다([sharesIn]). 어림에서는 결제마다 가장 가까운 차례로 세고, 어느 차례인지 모르는 결제가 있는 달은
+ * 없다([nearestSlots]).
  */
 internal class MonthCounts(
     private val counts: Map<YearMonth, Int>,
@@ -338,8 +339,12 @@ internal class MonthCounts(
     private val cadence: Int = 1,
     private val phase: Int = 0,
 ) {
-    constructor(regular: List<Paid>, schedule: FixedSchedule, dues: DueDates) :
-        this(regular.groupingBy { dues.nearestMonth(it.date, schedule.days) }.eachCount(), emptyMap(), schedule.cadence, schedule.phase)
+    constructor(regular: List<Paid>, schedule: FixedSchedule, dues: DueDates) : this(
+        regular.groupingBy { dues.nearestMonth(it.date, schedule.days) }.eachCount(),
+        nearestSlots(regular, schedule.days, dues),
+        schedule.cadence,
+        schedule.phase,
+    )
 
     private val first = counts.keys.minOrNull()
     private val last = counts.keys.maxOrNull()
@@ -365,9 +370,9 @@ internal class MonthCounts(
 
     /**
      * [month] 의 [slots] 차례마다 건수. 건수를 정한 달([requiredIn] 이 보는 앞 달)에 차례마다 짝지은 건수의 합이 그 건수와 같으면
-     * 그 나눔이다. 앞 차례를 해지하면 다음 달부터 뒤 차례만 한 건이다(앞 차례부터 채우면 없는 차례를 기다렸다).
-     * 아니면(어림, 덜 내거나 더 낸 달 뒤) 앞 차례부터 고루 나눈다(3건을 두 차례면 2 · 1). 짝짓기 · 다음 차례 · 남은 금액이 함께 쓴다.
-     * [lowers] 는 [requiredIn] 과 같다.
+     * 그 나눔이다. 앞 차례를 해지하면 다음 달부터 뒤 차례만 한 건이고(앞 차례부터 채우면 없는 차례를 기다렸다), 5일 한 건 · 21일 두 건이면
+     * 1 · 2, 그 가운데 5일 것을 해지하면 0 · 2 다. 아니면(덜 내거나 더 낸 달 뒤, 어느 차례인지 모르는 달 뒤) 앞 차례부터 고루 나눈다
+     * (3건을 두 차례면 2 · 1). 짝짓기 · 다음 차례 · 남은 금액이 함께 쓴다. [lowers] 는 [requiredIn] 과 같다.
      */
     fun sharesIn(month: YearMonth, slots: Int, lowers: Boolean = true): SlotShares {
         val required = requiredIn(month, lowers)
@@ -387,6 +392,32 @@ internal class MonthCounts(
             return MonthCounts(byMonth.mapValues { (_, slots) -> slots.size }, bySlot, schedule.cadence, schedule.phase)
         }
     }
+}
+
+/**
+ * [regular] 결제마다 가장 가까운 차례(달은 [DueDates.nearestMonth], 그 달 평소 날 [days] 가운데 가장 가까운 날)로 센 달마다 차례별 건수.
+ * 다른 차례도 [DROP_GRACE_DAYS] 일 안에 있어 어느 차례인지 모르는 결제(1일 · 2일에 나눠 내는 월세를 같은 날 낸 것, 30일 · 말일 두 청구,
+ * 쉬는 날로 두 청구가 한날 밀린 것)가 있는 달은 뺀다(그 달 뒤는 고루 나눈다). 짝짓기 전 어림에도 차례별 나눔을 알아서, 한 차례에 한 건 ·
+ * 다른 차례에 두 건 내는 가게를 고루(2 · 1) 나눠 짝지은 것이 굳지 않는다.
+ */
+private fun nearestSlots(regular: List<Paid>, days: List<Int>, dues: DueDates): Map<YearMonth, Map<Int, Int>> {
+    val unknown = HashSet<YearMonth>()
+    val bySlot = HashMap<YearMonth, MutableMap<Int, Int>>()
+    for (pay in regular) {
+        val month = dues.nearestMonth(pay.date, days)
+        val own = YearMonth.from(pay.date)
+        val distances = listOf(own.minusMonths(1), own, own.plusMonths(1)).flatMap { near ->
+            days.map { dues.distance(pay.date, near, it) }
+        }
+        val (best, second) = distances.sorted()
+        if (second <= maxOf(best, DROP_GRACE_DAYS.toInt())) {
+            unknown += month
+            continue
+        }
+        val index = days.indices.minBy { dues.distance(pay.date, month, days[it]) }
+        bySlot.getOrPut(month) { HashMap() }.merge(index, 1, Int::plus)
+    }
+    return bySlot.filterKeys { it !in unknown }
 }
 
 /**
