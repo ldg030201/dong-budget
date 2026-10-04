@@ -20,7 +20,8 @@ private data class Share(val month: YearMonth, val scheduled: LocalDate, val pay
 /**
  * 한 가게의 진짜 결제 흐름. [monthly] 면 매달 내는 것(I1 을 본다), [oneMonth] 는 진짜 한 달 치(I4 의 기준).
  * [changed] 는 평소 낼 날을 바꾼 첫 달, [cancelled] 는 두 청구 가운데 하나를 해지한 첫 달이다(없으면 null).
- * [kept] 는 해지한 뒤 남은 청구의 한 달 치다. [extras] 는 어느 몫도 아닌, 따로 낸 결제(연간 결제 등)다.
+ * [kept] 는 해지한 뒤 남은 청구의 한 달 치, [cancelledUntil] 은 해지한 달 화면의 어긋남을 받아들이는 마지막 날이다(해지한 청구를
+ * 안 나간 것으로 보기 전, [acceptedReason]). [extras] 는 어느 몫도 아닌, 따로 낸 결제(연간 결제 등)다.
  */
 private class Pattern(
     val name: String,
@@ -30,6 +31,7 @@ private class Pattern(
     val changed: YearMonth? = null,
     val cancelled: YearMonth? = null,
     val kept: Long = oneMonth,
+    val cancelledUntil: LocalDate? = null,
     val extras: List<Pay> = emptyList(),
 ) {
     /** [month] 의 진짜 한 달 치. 해지한 다음 달부터는 남은 청구 금액이다(해지한 달은 그 달만으로는 해지인지 아직 안 낸 것인지 모른다). */
@@ -201,7 +203,10 @@ private fun switched(name: String, from: Int, to: Int, at: YearMonth): Pattern =
     changed = at,
 )
 
-/** 같은 가게 두 회선(45,000원 · 48,000원)을 매달 20일에 함께 내다 [cancelled] 부터 48,000원 회선을 해지했다 */
+/**
+ * 같은 가게 두 회선(45,000원 · 48,000원)을 매달 20일에 함께 내다 [cancelled] 부터 48,000원 회선을 해지했다.
+ * 해지한 달은 그날(남은 회선이 나간 날)까지만 받아들인다. 같은 날 함께 나가던 회선이 하나만 나가면 다음 날부터 안 나간 것이다.
+ */
 private fun lineCancelled(cancelled: YearMonth): Pattern = Pattern(
     name = "통신사해지",
     monthly = true,
@@ -213,9 +218,10 @@ private fun lineCancelled(cancelled: YearMonth): Pattern = Pattern(
     },
     cancelled = cancelled,
     kept = 45_000,
+    cancelledUntil = pushed(cancelled.atDay(20)),
 )
 
-/** 한 가게에 매달 3일 50,000원 · 28일 30,000원을 내다 [cancelled] 부터 28일 것을 해지했다 */
+/** 한 가게에 매달 3일 50,000원 · 28일 30,000원을 내다 [cancelled] 부터 28일 것을 해지했다. 해지한 달은 28일 것의 낼 날 뒤 사흘까지 받아들인다. */
 private fun slotCancelled(cancelled: YearMonth): Pattern = Pattern(
     name = "보험해지",
     monthly = true,
@@ -231,9 +237,13 @@ private fun slotCancelled(cancelled: YearMonth): Pattern = Pattern(
     },
     cancelled = cancelled,
     kept = 50_000,
+    cancelledUntil = pushed(cancelled.atDay(28)).plusDays(DROP_GRACE_DAYS),
 )
 
-/** 한 가게에 매달 3일 50,000원 · 28일 30,000원을 내다 [cancelled] 부터 3일 것을 해지했다(남은 28일 것을 기다린다) */
+/**
+ * 한 가게에 매달 3일 50,000원 · 28일 30,000원을 내다 [cancelled] 부터 3일 것을 해지했다(남은 28일 것을 기다린다).
+ * 해지한 달은 3일 것의 낼 날 뒤 사흘까지 받아들인다(그때까지는 3일 것을 늦게 내는 것과 가를 수 없어 지났다고 한다).
+ */
 private fun frontCancelled(cancelled: YearMonth): Pattern = Pattern(
     name = "보험앞해지",
     monthly = true,
@@ -247,6 +257,7 @@ private fun frontCancelled(cancelled: YearMonth): Pattern = Pattern(
     },
     cancelled = cancelled,
     kept = 30_000,
+    cancelledUntil = pushed(cancelled.atDay(3)).plusDays(DROP_GRACE_DAYS),
 )
 
 /**
@@ -586,8 +597,12 @@ private fun acceptedReason(pattern: Pattern, violation: Violation, day: LocalDat
         val settling = YearMonth.from(day) >= changed && (fourth == null || day < fourth)
         if (violation.view in changed..changed.plusMonths(3) || settling) return "평소 날을 바꾼 첫 몇 달(새 날 결제 넷째까지)"
     }
-    // 두 청구 가운데 하나를 해지한 달은 그 달 기록만으로는 해지인지 아직 안 낸 것인지 모른다. 다음 달부터는 한 건으로 본다(MonthCounts).
-    if (violation.view == pattern.cancelled) return "청구 하나를 해지한 달(그 달만으로는 아직 안 낸 것과 가를 수 없음)"
+    // 두 청구 가운데 하나를 해지한 달은 그 달 기록만으로는 해지인지 아직 안 낸 것인지 모른다. 같은 날 함께 나가던 회선은 그날까지,
+    // 날이 따로인 차례는 그 낼 날 뒤 사흘까지만 받아들이고, 그 뒤로는 안 나간 것으로 본다. 다음 달부터는 남은 건수다(MonthCounts).
+    val until = pattern.cancelledUntil
+    if (violation.view == pattern.cancelled && until != null && !day.isAfter(until)) {
+        return "청구 하나를 해지한 달의 안 나간 것으로 보기 전(그 달만으로는 아직 안 낸 것과 가를 수 없음)"
+    }
     // 새 일정 모델(리뷰 G1)에서는 매년 · 몇 달마다 결제의 달 경계 밀림과 평소 날과 반 달 넘게 떨어진 결제를 따로 받아들이지 않는다.
     // 긴 연휴(설 · 추석 등)로 밀린 결제는 받아들이지 않는다. 앱이 공휴일 달력(KoreanHolidays)으로 낼 날을 다음 영업일로 본다.
     return null

@@ -26,7 +26,10 @@ enum class FixedStatus {
     /** 고른 달에 낼 차례인데 아직 안 냈다. 일부만 냈으면([FixedExpenseItem.paidCount] 가 0보다 큼) 남은 차례를 아직 안 낸 것이다. */
     DUE,
 
-    /** 고른 달 몫을 냈다(전달 말에 미리 냈거나 다음 달 초에 밀려 냈어도, 날짜를 앞으로 적어 둔 거래도 낸 것으로 본다) */
+    /**
+     * 고른 달 몫을 냈다(전달 말에 미리 냈거나 다음 달 초에 밀려 냈어도, 날짜를 앞으로 적어 둔 거래도 낸 것으로 본다).
+     * 나머지가 안 나간 것(해지했거나 건너뜀, [FixedExpenseItem.droppedDays])이면 낸 것만으로도 냈다([FixedExpenseItem.paidCount] 가 적다).
+     */
     PAID,
 
     /** 몇 달마다 · 매년 내는 것이라 고른 달은 낼 달이 아니다 */
@@ -47,8 +50,9 @@ enum class FixedStatus {
  * @property usualDays 차례마다 평소 내는 날, 이른 차례부터(3일 · 28일). 한 달에 한 번이면 [usualDay] 하나다.
  * @property timesPerMonth 한 달에 서로 다른 날 여러 번 내는 자주 내는 가게(평일마다 내는 돌봄 · 주 3회 PT)면 한 달에 보통 몇 번 내는지.
  *   차례 없이 달력 달로 보아 그 달에 한 번이라도 냈으면 냈어요이고, 낼 돈은 가장 최근에 낸 달의 합이며 낼 날 알림이 없다. 그 밖에는 null
- * @property dueDay 고른 달에 다음으로 낼 차례의 평소 날. 일부만 냈으면 아직 안 낸 첫 차례, 아니면 [usualDay] 다([usualDateIn] · [dueDateIn]).
- * @property amount 냈으면 고른 달에 낸 돈(그 달 몫의 합에 그 달에 따로 낸 것을 더함). 일부만 냈으면 남은 차례의 평소 금액,
+ * @property dueDay 고른 달에 다음으로 낼 차례의 평소 날. 덜 낸 첫 차례(안 나간 차례 [droppedDays] 는 빼고)이고, 하나도 안 냈는데 모든 차례가
+ *   안 나갔으면 마지막 차례, 다 냈으면 건수가 있는 첫 차례다([usualDateIn] · [dueDateIn]).
+ * @property amount 냈으면 고른 달에 낸 돈(그 달 몫의 합에 그 달에 따로 낸 것을 더함). 일부만 냈거나 안 나간 차례가 있으면 남은 차례의 평소 금액,
  *   아니면 이번에 낼 것으로 보는 금액(고른 달 건수만큼 낸 가장 최근 달 몫의 합, 따로 낸 것은 빼고)이다.
  * @property previousAmount 냈어요일 때 그 앞에 고른 달 건수만큼 낸 달 몫의 합. 견줄 수 없으면(앞 달이 없거나 낸 횟수가 다르거나 따로 낸 것이 섞였거나
  *   자주 내는 가게라 달마다 낸 횟수가 다르면) null
@@ -56,8 +60,13 @@ enum class FixedStatus {
  *   '냈어요' · '마지막' 날짜에만 쓴다. 몇 월 몫인지는 [lastShareMonth] 다.
  * @property lastShareMonth 가장 최근에 낸 몫이 몇 월 몫인지. 매년 내는 것의 '매년 3월' 은 이 달로 적는다(낸 날의 달과 다를 수 있다).
  * @property lastPaidCount 그 몫으로 낸 횟수(그 달에 따로 낸 것 포함)
- * @property paidCount 고른 달 몫으로 낸 횟수(따로 낸 것 빼고). [requiredCount] 보다 적고 0보다 크면 일부만 낸 것이다.
- * @property requiredCount 고른 달에 내야 하는 횟수(한 달에 두 차례 내거나 한 차례에 두 건씩 내면 2)
+ * @property paidCount 고른 달 몫으로 낸 횟수(따로 낸 것 빼고). [requiredCount] 보다 적고 0보다 크면 일부만 낸 것이다
+ *   (냈어요면 나머지가 안 나간 것이다).
+ * @property requiredCount 고른 달에 내야 하는 횟수(한 달에 두 차례 내거나 한 차례에 두 건씩 내면 2). 나머지가 안 나가 냈어요여도 그대로다.
+ * @property droppedDays 고른 달에 안 나간 것으로 보는 차례의 평소 날(해지했거나 건너뜀, 이른 차례부터). 덜 낸 차례가 같은 날 함께 나가던
+ *   것이면 그 차례의 평소 벌어짐이 지난 뒤, 그 차례에 결제가 없으면 낼 날 뒤 [DROP_GRACE_DAYS] 일이 지난 뒤다(오늘에 따라 본다).
+ *   냈어요의 "2번 중 1번만 냈어요" 와 하나도 안 낸 달의 "3일 차례는 안 나갔어요" 에 쓴다. 하나도 안 냈는데 모든 차례가 안 나갔으면
+ *   그 달을 안 낸 것이라 비었다. 그 밖에도 비었다.
  * @property paidAmount 고른 달에 낸 돈(그 달 몫과 그 달에 따로 낸 것). 아무것도 안 냈으면 0
  * @property nextMonth [FixedStatus.NOT_THIS_MONTH] 일 때 다음에 낼 달. 다음 차례 몫을 미리 냈으면([prepaidMonth]) 그다음 차례 달이다. 그 밖에는 null
  * @property prepaidMonth [FixedStatus.NOT_THIS_MONTH] 인데 다음 차례 몫을 고른 달이 끝나기 전에 미리 냈으면 그 몫의 달(매년 3월 것을 2월에 갱신).
@@ -94,6 +103,7 @@ data class FixedExpenseItem(
     val lastPaidCount: Int,
     val paidCount: Int,
     val requiredCount: Int,
+    val droppedDays: List<Int>,
     val paidAmount: Long,
     val nextMonth: YearMonth?,
     val prepaidMonth: YearMonth?,
@@ -151,12 +161,14 @@ data class FixedExpenseBoard(
  * [month] 의 고정지출을 계산한다. 가게별로 묶고 가게마다 일정을 짐작해([estimateSchedule]) 결제를 차례에 짝지은 뒤([matchPayments])
  * 고른 달을 본다.
  * - 상태: 고른 달 몫으로 짝지은 결제가 그 달 건수([MonthCounts.requiredIn]) 이상이면 [FixedStatus.PAID], 덜이면 일부만 낸 [FixedStatus.DUE].
+ *   덜 낸 차례가 모두 오늘 안 나간 것([FixedExpenseItem.droppedDays], 해지했거나 건너뜀)이면 낸 것만으로 [FixedStatus.PAID] 다.
  *   하나도 없으면 마지막으로 낸 몫의 달에서 몇 달 지났는지(gap)를 주기와 견준다. gap < 주기면 [FixedStatus.NOT_THIS_MONTH],
  *   주기 ≤ gap < 주기 + [DUE_MONTHS] 면 [FixedStatus.DUE], 그보다 길면 [FixedStatus.STOPPED].
  * - 금액: 냈으면 그 달 몫과 그 달에 따로 낸 것의 합. 일부만 냈으면 남은 차례의 금액, 아니면 고른 달 건수만큼 낸 가장 최근 달 몫의 합
  *   (따로 낸 것은 빼고)이다. 청구 하나를 해지한 다음 달은 남은 청구 금액이다.
  *
- * @param today 오늘. 고른 달이 이번 달이면 낼 날([FixedExpenseItem.dueDateIn])이 며칠 지났는지 센다.
+ * @param today 오늘. 고른 달이 이번 달이면 낼 날([FixedExpenseItem.dueDateIn])이 며칠 지났는지 센다. 덜 낸 차례가 안 나간 것인지도
+ *   오늘에 따라 본다(짝짓기는 오늘과 상관없다).
  * @param rows '고정지출' 분류의 지출. [fixedHistoryStart] 부터 [fixedHistoryEnd] 말일까지 읽은 것이다.
  *   지출이 아닌 행과 오늘이 든 달 뒤의 행은 거른다. 일정은 오늘이 든 달 기준 [fixedHistoryStart] 부터의 행으로만 짐작해서
  *   지난 달 화면이 더 오래된 결제를 읽어도 같은 날 본 이번 달 화면과 같은 일정을 쓴다.
@@ -241,18 +253,24 @@ private fun fixedItem(
     val split = counts.sharesIn(month, slots).counts
     val cadence = schedule.cadence
     val gap = month.index() - last.index()
+    val days = schedule.days
+    // 덜 낸 차례를 아직 낼 것과 안 나간 것으로 가른다. 앞 차례 달까지 비었으면(놓친 차례) 그 달을 통째로 안 낸 것으로 본다.
+    val state = slotState(month, today, split, days, shares, slotOf, counts, dues, weighs = here.isNotEmpty() || gap == cadence)
+    // 덜 낸 차례가 모두 안 나갔으면(해지했거나 건너뜀) 낸 것만으로 냈어요다
     val status =
         when {
             here.size >= required -> FixedStatus.PAID
-            here.isNotEmpty() -> FixedStatus.DUE
+            here.isNotEmpty() -> if (state.open.isEmpty()) FixedStatus.PAID else FixedStatus.DUE
             gap < cadence -> FixedStatus.NOT_THIS_MONTH
             gap < cadence + DUE_MONTHS -> FixedStatus.DUE
             else -> FixedStatus.STOPPED
         }
+    // 하나도 안 냈는데 모든 차례가 안 나갔으면 그 달을 안 낸 것이다(지난 날 수는 마지막 차례부터 이어 센다)
+    val unpaid = here.isEmpty() && state.open.isEmpty() && state.dropped.isNotEmpty()
+    val dropped = if (unpaid || here.size >= required) emptyList() else state.dropped
     // 고른 달의 건수만큼 낸 가장 최근 달(고른 달 전). 낼 돈과 지난번 금액은 이 달 몫으로 센다. 그 달마다의 건수가 아니라 고른 달의
     // 건수로 보아, 청구 하나를 해지한 다음 달(한 건)은 해지한 달(한 건)이 기준이고 회선을 더한 뒤(두 건)에는 두 건 낸 달이 기준이다.
     val full = shares.keys.filter { it < month && shares.getValue(it).size >= required }.maxOrNull()
-    val days = schedule.days
     // 고른 달 몫을 하나도 안 냈는데 그 앞 차례 달도 비었으면 그 달(낼 날이 지났으면 놓친 것, 아직이면 기다리는 것)
     val skipped = last.plusMonths(cadence.toLong()).takeIf { status == FixedStatus.DUE && here.isEmpty() && gap > cadence }
     // 몇 달마다 · 매년 내는 것의 다음 차례 몫을 고른 달이 끝나기 전에 미리 냈으면 그 몫. 다음 차례는 그다음이다.
@@ -271,11 +289,11 @@ private fun fixedItem(
             usualDay = days.first(),
             usualDays = days,
             timesPerMonth = schedule.timesPerMonth,
-            dueDay = days[openSlot(here, slotOf, split)],
+            dueDay = days[state.open.firstOrNull() ?: state.dropped.lastOrNull()?.takeIf { unpaid } ?: split.indexOfFirst { it > 0 }],
             amount =
             when {
                 status == FixedStatus.PAID -> (here + extraHere).sumOf { it.amount }
-                here.isNotEmpty() -> remainingAmount(here, full?.let(shares::getValue), slotOf, split)
+                here.isNotEmpty() || dropped.isNotEmpty() -> remainingAmount(here, shares.getValue(full ?: last), slotOf, split, state.open)
                 else -> shares.getValue(full ?: last).sumOf { it.amount }
             },
             previousAmount =
@@ -287,6 +305,7 @@ private fun fixedItem(
             lastPaidCount = lastPays.size,
             paidCount = here.size,
             requiredCount = required,
+            droppedDays = dropped.map { days[it] },
             paidAmount = (here + extraHere).sumOf { it.amount },
             nextMonth = ahead.plusMonths(if (prepaidOn != null) cadence.toLong() else 0).takeIf { status == FixedStatus.NOT_THIS_MONTH },
             prepaidMonth = ahead.takeIf { prepaidOn != null },
@@ -312,32 +331,78 @@ private fun fixedItem(
     return item.copy(daysPastUsual = daysBetween(from, today))
 }
 
+/** 고른 달의 덜 낸 차례(번호, 이른 차례부터). [open] 은 아직 낼 차례, [dropped] 는 안 나간 것으로 보는 차례(해지했거나 건너뜀)다. */
+private class SlotState(val open: List<Int>, val dropped: List<Int>)
+
 /**
- * 고른 달에 다음으로 낼 차례(차례마다 건수 [split] 보다 덜 낸 첫 차례). 다 냈으면 첫 차례다. 하나도 안 냈으면 건수가 있는 첫 차례라
- * 앞 차례를 해지한 다음 달은 뒤 차례다.
+ * [month] 의 덜 낸 차례(차례마다 건수 [split] 보다 그 달 몫으로 짝지은 결제가 적은 것)를 [today] 에 아직 낼 것과 안 나간 것으로 가른다.
+ * 화면 계산에서만 오늘에 따라 보고 짝짓기는 오늘과 상관없다. 덜 낸 차례 가운데
+ * - 그 차례에 이번 결제가 있으면(같은 날 함께 나가던 회선) 그 차례 낼 날과 이번 첫 결제일에 평소 벌어짐([usualSpread])을 더한 날 가운데 늦은 날이,
+ * - 그 차례에 결제가 없으면(날이 따로인 차례) 낼 날 뒤 [DROP_GRACE_DAYS] 일이
+ * 지나면 안 나간 것이다. 정말 깜빡한 회선이면 그 뒤로 알리지 않는 대신, 해지한 달이 끝까지 '덜 냈어요' 로 남지 않는다.
+ * [weighs] 가 아니면(앞 차례 달까지 비어 놓친 차례를 알리는 달) 안 나간 것으로 보지 않는다.
  */
-private fun openSlot(here: List<Paid>, slotOf: Map<Long, Slot>, split: List<Int>): Int {
-    val paid = here.groupingBy { slotOf.getValue(it.id).index }.eachCount()
-    return split.indices.firstOrNull { (paid[it] ?: 0) < split[it] } ?: 0
+private fun slotState(
+    month: YearMonth,
+    today: LocalDate,
+    split: List<Int>,
+    days: List<Int>,
+    shares: Map<YearMonth, List<Paid>>,
+    slotOf: Map<Long, Slot>,
+    counts: MonthCounts,
+    dues: DueDates,
+    weighs: Boolean,
+): SlotState {
+    val bySlot = shares[month].orEmpty().groupBy { slotOf.getValue(it.id).index }
+    val short = split.indices.filter { (bySlot[it]?.size ?: 0) < split[it] }
+    if (!weighs) return SlotState(short, emptyList())
+    val dropped = short.filter { slot ->
+        val due = dues.due(month, days[slot])
+        val inSlot = bySlot[slot]
+        val until = if (inSlot == null) {
+            due.plusDays(DROP_GRACE_DAYS)
+        } else {
+            maxOf(due, inSlot.minOf { it.date }.plusDays(usualSpread(slot, month, shares, slotOf, counts, split.size).toLong()))
+        }
+        today.isAfter(until)
+    }
+    return SlotState(short - dropped.toSet(), dropped)
 }
 
 /**
- * 일부만 낸 달([here])의 남은 금액. 덜 낸 차례마다(차례마다 건수 [split]) 기준 달([reference]) 그 차례의 합에서 이번에 그 차례로
- * 낸 것을 뺀다(3일 50,000원만 내고 28일 것이 남았으면 30,000원). 그 차례를 앞서 알 수 없으면 한 건 평균에 모자라는 건수를 곱한다.
+ * [slot] 차례로 함께 나가던 결제가 평소 며칠에 걸쳐 나가는지. [month] 앞 최근 다 낸 달들(그 차례 건수만큼 낸 달, [SPREAD_MONTHS] 달까지)에서
+ * 그 차례 첫 결제와 마지막 결제가 며칠 떨어졌는지의 가장 큰 값이다(늘 같은 날이면 0, 나눠 낸 몫을 가끔 이튿날 내면 1).
  */
-private fun remainingAmount(here: List<Paid>, reference: List<Paid>?, slotOf: Map<Long, Slot>, split: List<Int>): Long {
+private fun usualSpread(
+    slot: Int,
+    month: YearMonth,
+    shares: Map<YearMonth, List<Paid>>,
+    slotOf: Map<Long, Slot>,
+    counts: MonthCounts,
+    slots: Int,
+): Int = shares.keys
+    .filter { it < month }
+    .sortedDescending()
+    .asSequence()
+    .map { it to shares.getValue(it).filter { pay -> slotOf.getValue(pay.id).index == slot } }
+    .filter { (paidMonth, inSlot) -> inSlot.isNotEmpty() && inSlot.size >= counts.sharesIn(paidMonth, slots).counts[slot] }
+    .take(SPREAD_MONTHS)
+    .maxOfOrNull { (_, inSlot) -> daysBetween(inSlot.minOf { it.date }, inSlot.maxOf { it.date }) } ?: 0
+
+/**
+ * 아직 낼 차례 [open] 의 남은 금액. 차례마다 기준 달([reference]) 그 차례의 합에서 이번에 그 차례로 낸 것([here])을 뺀다
+ * (3일 50,000원만 내고 28일 것이 남았으면 30,000원). 그 차례를 앞서 알 수 없으면 한 건 평균에 모자라는 건수를 곱한다.
+ * 안 나간 차례는 세지 않는다(3일 것이 안 나갔으면 20일 것만).
+ */
+private fun remainingAmount(here: List<Paid>, reference: List<Paid>, slotOf: Map<Long, Slot>, split: List<Int>, open: List<Int>): Long {
     val paid = here.groupBy { slotOf.getValue(it.id).index }
-    val before = reference?.groupBy { slotOf.getValue(it.id).index }.orEmpty()
-    val average = (reference ?: here).let { pays -> pays.sumOf { it.amount } / pays.size }
-    return split.indices.sumOf { slot ->
+    val before = reference.groupBy { slotOf.getValue(it.id).index }
+    val average = reference.sumOf { it.amount } / reference.size
+    return open.sumOf { slot ->
         val inSlot = paid[slot].orEmpty()
         val missing = split[slot] - inSlot.size
         val fromBefore = before[slot]?.sumOf { it.amount }?.minus(inSlot.sumOf { it.amount })
-        when {
-            missing <= 0 -> 0L
-            fromBefore != null && fromBefore > 0 -> fromBefore
-            else -> average * missing
-        }
+        if (fromBefore != null && fromBefore > 0) fromBefore else average * missing
     }
 }
 
@@ -352,6 +417,19 @@ internal const val LAST_DAY = 31
 
 /** 매년. 11달 이상 벌어지는 주기는 모두 매년으로 본다. */
 const val YEARLY = 12
+
+/**
+ * 날이 따로인 차례에 결제가 없을 때 낼 날 뒤 이만큼은 '지났어요' 로 알리고, 그 뒤엔 안 나간 것(해지했거나 건너뜀)으로 본다.
+ * 늦게 낸 것과 해지한 것을 그 달 기록만으로는 가를 수 없어, 며칠 늦게 내는 일(손으로 내는 관리비는 이틀쯤)을 덮을 만큼만 알리고
+ * 해지한 차례를 달 끝까지 '지났어요' 로 두지 않는다.
+ */
+internal const val DROP_GRACE_DAYS = 3L
+
+/**
+ * 같은 차례에 함께 나가던 결제가 평소 며칠에 걸쳐 나가는지 볼 때 보는 최근 다 낸 달 수([usualSpread]). 석 달에 한 번 이튿날 내는 몫도
+ * 두 번은 들어온다.
+ */
+private const val SPREAD_MONTHS = 6
 
 /** 낼 차례가 된 달부터 이만큼(그 달과 다음 달) '아직 안 냈어요' 로 두고, 그 뒤로는 '한동안 안 냈어요' 로 접는다. */
 private const val DUE_MONTHS = 2

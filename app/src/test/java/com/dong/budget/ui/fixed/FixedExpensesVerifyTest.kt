@@ -76,10 +76,25 @@ class FixedExpensesVerifyTest {
         }
 
     @Test
-    fun `4 - 같은 날 두 회선 가운데 하나를 해지하면 다음 달 낼 돈은 남은 회선이다`() {
+    fun `4 - 같은 날 두 회선 가운데 하나를 해지하면 하나만 나간 다음 날부터 냈어요이고 다음 달 낼 돈은 남은 회선이다`() {
         // 21일 45,000원 · 33,000원 두 회선 가운데 33,000원을 9월에 해지했다(9월 21일 월요일)
         val lines = monthly("통신사", 45_000, 21, YearMonth.of(2026, 1), YearMonth.of(2026, 12)) +
             monthly("통신사", 33_000, 21, YearMonth.of(2026, 1), YearMonth.of(2026, 8))
+        val september = YearMonth.of(2026, 9)
+        // 그날은 함께 나가던 회선을 아직 기다린다
+        val on21 = day("2026-09-21")
+        assertEquals(RowNote("2번 중 1번 냈고, 남은 건 오늘 낼 차례예요", NoteTone.TODAY), rowNote(view(lines, september, on21), september, on21))
+        // 다음 날부터는 남은 회선이 안 나간 것으로 보아 냈어요이고 낼 돈에서 빠진다. 10월에 본 9월도 같다.
+        for (date in (22..30).map { "2026-09-$it" } + "2026-10-05") {
+            val today = day(date)
+            val item = view(lines, september, today)
+            assertEquals(date, FixedStatus.PAID, item.status)
+            assertEquals(date, 1, item.paidCount)
+            assertEquals(date, 2, item.requiredCount)
+            assertEquals(date, 45_000L, item.amount)
+            assertEquals(date, RowNote("2번 중 1번만 냈어요", NoteTone.PLAIN), rowNote(item, september, today))
+            assertEquals(date, 0L, board(lines, september, today).dueTotal)
+        }
         // 10월 낼 돈은 남은 회선 금액이고 한 건만 내면 된다
         val october = YearMonth.of(2026, 10)
         for (today in (1..20).map { october.atDay(it) }) {
@@ -98,10 +113,22 @@ class FixedExpensesVerifyTest {
     }
 
     @Test
-    fun `4 - 따로 나가는 두 차례 가운데 뒤 차례를 해지하면 다음 달 낼 돈은 남은 앞 차례다`() {
-        // 3일 50,000원 · 20일 30,000원 가운데 20일 것을 9월부터 해지했다
+    fun `4 - 따로 나가는 두 차례 가운데 뒤 차례를 해지하면 그 낼 날 뒤 사흘까지만 지났다고 하고 그 뒤엔 냈어요다`() {
+        // 3일 50,000원 · 20일 30,000원 가운데 20일 것을 9월부터 해지했다. 9월 20일이 일요일이라 낼 날은 21일이다.
         val insurance = monthly("보험", 50_000, 3, YearMonth.of(2026, 1), YearMonth.of(2026, 12)) +
             monthly("보험", 30_000, 20, YearMonth.of(2026, 1), YearMonth.of(2026, 8))
+        val september = YearMonth.of(2026, 9)
+        fun note(date: String) = day(date).let { rowNote(view(insurance, september, it), september, it) }
+        assertEquals(RowNote("2번 중 1번 냈고, 남은 건 오늘 낼 차례예요", NoteTone.TODAY), note("2026-09-21"))
+        for ((date, past) in listOf("2026-09-22" to 2, "2026-09-23" to 3, "2026-09-24" to 4)) {
+            assertEquals(date, RowNote("2번 중 1번 냈고, 남은 건 평소보다 ${past}일 지났어요", NoteTone.WARNING), note(date))
+        }
+        for (date in listOf("2026-09-25", "2026-09-30", "2026-10-02")) {
+            val item = view(insurance, september, day(date))
+            assertEquals(date, FixedStatus.PAID, item.status)
+            assertEquals(date, 50_000L, item.amount)
+            assertEquals(date, RowNote("2번 중 1번만 냈어요", NoteTone.PLAIN), note(date))
+        }
         // 10월 낼 돈은 남은 3일 것이고 한 건만 내면 된다
         val october = YearMonth.of(2026, 10)
         val early = view(insurance, october, day("2026-10-02"))
@@ -114,10 +141,35 @@ class FixedExpensesVerifyTest {
     }
 
     @Test
-    fun `4 - 따로 나가는 두 차례 가운데 앞 차례를 해지하면 다음 달엔 뒤 차례만 기다린다`() {
-        // 3일 50,000원 · 20일 30,000원 가운데 3일 것을 9월부터 해지했다(9월 20일은 일요일이라 21일에 나간다)
+    fun `4 - 따로 나가는 두 차례 가운데 앞 차례를 해지하면 그 낼 날 뒤 사흘부터 뒤 차례를 기다리고 다음 달엔 뒤 차례만 기다린다`() {
+        // 3일 50,000원 · 20일 30,000원 가운데 3일 것을 9월부터 해지했다(9월 3일 목요일, 20일 것은 일요일이라 21일에 나간다)
         val insurance = monthly("보험", 50_000, 3, YearMonth.of(2026, 1), YearMonth.of(2026, 8)) +
             monthly("보험", 30_000, 20, YearMonth.of(2026, 1), YearMonth.of(2026, 12))
+        val september = YearMonth.of(2026, 9)
+        val on3 = day("2026-09-03")
+        assertEquals(RowNote("오늘 낼 차례예요", NoteTone.TODAY), rowNote(view(insurance, september, on3), september, on3))
+        // 그 달만으로는 3일 것을 다 안 낸 것과 가를 수 없어 낼 날 뒤 사흘까지는 지났다고 한다
+        for (today in (4..6).map { september.atDay(it) }) {
+            assertEquals(
+                "$today",
+                RowNote("평소보다 ${today.dayOfMonth - 3}일 지났어요", NoteTone.WARNING),
+                rowNote(view(insurance, september, today), september, today),
+            )
+        }
+        for (today in (7..20).map { september.atDay(it) }) {
+            val item = view(insurance, september, today)
+            assertEquals("$today", FixedStatus.DUE, item.status)
+            assertEquals("$today", 20, item.dueDay)
+            assertEquals("$today", 30_000L, item.amount)
+            assertEquals("$today", RowNote("3일 차례는 안 나갔어요", NoteTone.PLAIN), rowNote(item, september, today))
+        }
+        val on21 = day("2026-09-21")
+        val morning = view(morningOf(insurance, on21), september, on21)
+        assertEquals(RowNote("3일 차례는 안 나갔고, 남은 건 오늘 낼 차례예요", NoteTone.TODAY), rowNote(morning, september, on21))
+        val evening = view(insurance, september, on21)
+        assertEquals(FixedStatus.PAID, evening.status)
+        assertEquals(30_000L, evening.amount)
+        assertEquals(RowNote("2번 중 1번만 냈어요", NoteTone.PLAIN), rowNote(evening, september, on21))
         // 10월엔 20일 것 한 건만 기다리고 그 전에는 지났다고 하지 않는다
         val october = YearMonth.of(2026, 10)
         for (today in (1..19).map { october.atDay(it) }) {
@@ -132,6 +184,41 @@ class FixedExpensesVerifyTest {
         assertEquals(FixedStatus.PAID, paidOctober.status)
         assertEquals(1, paidOctober.paidCount)
         assertEquals(1, paidOctober.requiredCount)
+    }
+
+    @Test
+    fun `4 - 해지 없는 두 차례 가게가 한 달을 통째로 안 내면 앞 차례는 사흘 뒤 안 나간 것으로 두고 뒤 차례까지 지나면 그 달을 안 낸 것이다`() {
+        val insurance = monthly("보험", 50_000, 3, YearMonth.of(2026, 1), YearMonth.of(2026, 8)) +
+            monthly("보험", 30_000, 20, YearMonth.of(2026, 1), YearMonth.of(2026, 8))
+        val september = YearMonth.of(2026, 9)
+        fun note(today: LocalDate) = rowNote(view(insurance, september, today), september, today)
+        for (today in (4..6).map { september.atDay(it) }) {
+            assertEquals("$today", RowNote("평소보다 ${today.dayOfMonth - 3}일 지났어요", NoteTone.WARNING), note(today))
+        }
+        for (today in (7..20).map { september.atDay(it) }) {
+            assertEquals("$today", RowNote("3일 차례는 안 나갔어요", NoteTone.PLAIN), note(today))
+            assertEquals("$today", 30_000L, view(insurance, september, today).amount)
+        }
+        assertEquals(RowNote("3일 차례는 안 나갔고, 남은 건 오늘 낼 차례예요", NoteTone.TODAY), note(day("2026-09-21")))
+        for (today in (22..24).map { september.atDay(it) }) {
+            assertEquals(
+                "$today",
+                RowNote("3일 차례는 안 나갔고, 남은 건 평소보다 ${today.dayOfMonth - 20}일 지났어요", NoteTone.WARNING),
+                note(today),
+            )
+        }
+        // 뒤 차례도 낼 날 뒤 사흘이 지나면 그 달을 안 낸 것이고, 지난 날 수는 20일부터 이어 센다
+        for (today in (25..30).map { september.atDay(it) }) {
+            val item = view(insurance, september, today)
+            assertEquals("$today", FixedStatus.DUE, item.status)
+            assertEquals("$today", 80_000L, item.amount)
+            assertEquals("$today", RowNote("평소보다 ${today.dayOfMonth - 20}일 지났어요", NoteTone.WARNING), note(today))
+        }
+        // 다음 달엔 지금처럼 놓친 차례를 알린다
+        val october = YearMonth.of(2026, 10)
+        for (today in listOf(day("2026-10-02"), day("2026-10-12"))) {
+            assertEquals("$today", RowNote("9월 차례도 안 냈어요", NoteTone.WARNING), rowNote(view(insurance, october, today), october, today))
+        }
     }
 
     @Test

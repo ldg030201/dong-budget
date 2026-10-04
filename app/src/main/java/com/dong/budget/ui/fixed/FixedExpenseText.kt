@@ -23,8 +23,10 @@ internal fun cadenceText(cadence: Int): String = when {
 internal fun usualDayText(day: Int): String = if (day >= LAST_DAY) "말일쯤" else "${day}일쯤"
 
 /** 차례마다 평소 내는 날. 한 차례면 [usualDayText], 한 달에 두 차례면 "3일, 28일쯤" · "15일, 말일쯤" */
-internal fun usualDaysText(days: List<Int>): String =
-    (days.dropLast(1).map { if (it >= LAST_DAY) "말일" else "${it}일" } + usualDayText(days.last())).joinToString(", ")
+internal fun usualDaysText(days: List<Int>): String = (days.dropLast(1).map(::dayName) + usualDayText(days.last())).joinToString(", ")
+
+/** 평소 날의 이름. "3일", 31일이면 "말일" */
+private fun dayName(day: Int): String = if (day >= LAST_DAY) "말일" else "${day}일"
 
 /**
  * 평소 언제 내는지. "매달 25일쯤", "2달마다 25일쯤", 한 달에 두 차례면 "매달 3일, 28일쯤",
@@ -72,13 +74,15 @@ internal data class RowNote(val text: String, val tone: NoteTone)
  *   이번 달 낼 날(평소 날짜가 쉬는 날이면 다음 영업일, [FixedExpenseItem.dueDateIn])이 지났으면 "평소보다 3일 지났어요",
  *   오늘이면 "오늘 낼 차례예요". 지난 달인데 그 달 낼 날이 아직이면(말일이 쉬는 날이라 다음 달 초에 나감) "11월 2일에 낼 차례예요".
  *   한 달 몫을 여러 번에 나눠 내는데 일부만 냈으면 앞에 "2번 중 1번 냈어요" 를 붙인다("2번 중 1번 냈고, 남은 건 평소보다 2일 지났어요").
- * - 냈어요: 지난번과 금액이 다르면 "지난번보다 1,000원 올랐어요" / "내렸어요"
+ *   하나도 안 냈는데 안 나간 차례([FixedExpenseItem.droppedDays])가 있으면 "3일 차례는 안 나갔어요"("3일 차례는 안 나갔고, 남은 건 오늘 낼 차례예요").
+ * - 냈어요: 나머지가 안 나갔으면 "2번 중 1번만 냈어요". 지난번과 금액이 다르면 "지난번보다 1,000원 올랐어요" / "내렸어요"
  * - 이번 달엔 안 내요: "다음은 12월에 내요". 다음 차례 몫을 미리 냈으면 "3월 몫을 2월 22일에 미리 냈어요"
  */
 internal fun rowNote(item: FixedExpenseItem, month: YearMonth, today: LocalDate): RowNote? = when (item.status) {
     FixedStatus.DUE -> {
         val due = dueNote(item, month, today)
         when {
+            item.paidCount <= 0 && item.droppedDays.isNotEmpty() -> droppedNote(item.droppedDays, due)
             item.paidCount <= 0 -> due
             due == null -> RowNote(partlyText(item) + "어요", NoteTone.PLAIN)
             else -> RowNote("${partlyText(item)}고, 남은 건 ${due.text}", due.tone)
@@ -88,6 +92,7 @@ internal fun rowNote(item: FixedExpenseItem, month: YearMonth, today: LocalDate)
     FixedStatus.PAID -> {
         val change = item.previousAmount?.let { item.amount - it } ?: 0
         when {
+            item.paidCount < item.requiredCount -> RowNote("${item.requiredCount}번 중 ${item.paidCount}번만 냈어요", NoteTone.PLAIN)
             change > 0 -> RowNote("지난번보다 ${formatAmount(change)}원 올랐어요", NoteTone.PLAIN)
             change < 0 -> RowNote("지난번보다 ${formatAmount(-change)}원 내렸어요", NoteTone.PLAIN)
             else -> null
@@ -131,6 +136,15 @@ private fun waitingNote(waiting: YearMonth, due: LocalDate, month: YearMonth, to
     } else {
         RowNote("$name 차례는 ${dateText(due, month)}에 내요", NoteTone.PLAIN)
     }
+}
+
+/**
+ * 하나도 안 냈는데 안 나간 차례([days], 해지했거나 건너뜀)가 있다. "3일 차례는 안 나갔어요", 남은 차례의 낼 날 알림([due])이 있으면
+ * "3일 차례는 안 나갔고, 남은 건 평소보다 2일 지났어요"(톤은 낼 날 알림 것). 말일이면 "말일 차례".
+ */
+private fun droppedNote(days: List<Int>, due: RowNote?): RowNote {
+    val dropped = "${days.joinToString(", ", transform = ::dayName)} 차례는 안 나갔"
+    return if (due == null) RowNote(dropped + "어요", NoteTone.PLAIN) else RowNote("${dropped}고, 남은 건 ${due.text}", due.tone)
 }
 
 /** 한 달 몫을 여러 번에 나눠 내는데 일부만 냈다. 뒤에 '어요' · '고' 를 붙인다: "2번 중 1번 냈" */

@@ -312,19 +312,46 @@ class FixedExpenseTextTest {
         )
         val board = buildFixedExpenses(october, october30, rows)
         assertEquals("이번 달 고정지출. 1개 중 0개 냈어요. 낸 돈 50,000원, 낼 돈 30,000원", summarySpoken(board, october, october30))
-        // 끝난 지난 달로 보면 덜 냈다고 적는다
+        // 28일 것의 낼 날 뒤 사흘이 지나면 안 나간 것(해지했거나 건너뜀)으로 보아 낸 것만으로 냈어요다
         val november10 = day("2026-11-10")
-        val ended = item(rows, october, november10)
-        assertEquals(RowNote("2번 중 1번 냈어요", NoteTone.PLAIN), rowNote(ended, october, november10))
-        assertEquals("덜 냈어요", rowStatus(ended, october, november10))
+        val dropped = item(rows, october, november10)
+        assertEquals(RowNote("2번 중 1번만 냈어요", NoteTone.PLAIN), rowNote(dropped, october, november10))
+        assertEquals("냈어요", rowStatus(dropped, october, november10))
+        assertEquals("50,000원", rowAmount(dropped))
+        // 15일 · 말일 것 가운데 15일 것만 낸 10월을 말일 것(10월 31일 토요일이라 11월 2일에 나감)의 낼 날 뒤 사흘 안에 보면 덜 냈다고 적는다
+        val endOfMonth = monthly("보험", 50_000, 15, YearMonth.of(2026, 4), YearMonth.of(2026, 9)) +
+            monthly("보험", 30_000, LAST_DAY, YearMonth.of(2026, 4), YearMonth.of(2026, 9)) +
+            tx("2026-10-15", 50_000, categoryId = 4, paymentId = 10, merchant = "보험", paymentName = "하나카드")
+        val november3 = day("2026-11-03")
+        val ended = item(endOfMonth, october, november3)
+        assertEquals(RowNote("2번 중 1번 냈어요", NoteTone.PLAIN), rowNote(ended, october, november3))
+        assertEquals("덜 냈어요", rowStatus(ended, october, november3))
         assertEquals(
             "안 냈어요",
             statusTitle(
                 FixedStatus.DUE,
                 october,
-                november10,
-                isStillOpen(buildFixedExpenses(october, november10, rows), october, november10),
+                november3,
+                isStillOpen(buildFixedExpenses(october, november3, endOfMonth), october, november3),
             ),
+        )
+    }
+
+    @Test
+    fun `안 나간 차례는 평소 날로 적고 말일이면 말일 차례다`() {
+        // 3일 · 20일 것 가운데 3일 것이 안 나가고 20일 것을 기다린다
+        val rows = monthly("보험", 50_000, 3, YearMonth.of(2026, 4), YearMonth.of(2026, 9)) +
+            monthly("보험", 30_000, 20, YearMonth.of(2026, 4), YearMonth.of(2026, 9))
+        val october12 = item(rows)
+        assertEquals(listOf(3), october12.droppedDays)
+        assertEquals(RowNote("3일 차례는 안 나갔어요", NoteTone.PLAIN), rowNote(october12, october, today))
+        val lastDay = october12.copy(droppedDays = listOf(LAST_DAY))
+        assertEquals(RowNote("말일 차례는 안 나갔어요", NoteTone.PLAIN), rowNote(lastDay, october, today))
+        // 낼 날 알림이 있으면 그 톤을 따른다
+        val october21 = day("2026-10-21")
+        assertEquals(
+            RowNote("3일 차례는 안 나갔고, 남은 건 평소보다 1일 지났어요", NoteTone.WARNING),
+            rowNote(item(rows, october, october21), october, october21),
         )
     }
 

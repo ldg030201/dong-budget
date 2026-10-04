@@ -103,17 +103,19 @@ class FixedExpensesReviewTest {
         assertEquals(50_000L, october30.paidAmount)
         assertEquals(28, october30.dueDay)
         assertEquals(2, october30.daysPastUsual)
-        // 지난 달로 보아도 냈어요가 아니다. 다음 달 낼 돈은 10월에 낸 한 차례다(28일 것을 해지한 것과 그 달만으로는 가를 수 없어
-        // 해지한 다음 달처럼 10월 건수만큼 낸 가장 최근 달인 10월이 기준이다).
+        // 28일 것의 낼 날 뒤 사흘이 지나면 28일 것을 해지한 것과 가를 수 없어 안 나간 것으로 보아 지난 달 화면은 낸 것만으로 냈어요다.
+        // 다음 달 낼 돈은 10월에 낸 한 차례다(해지한 다음 달처럼 10월 건수만큼 낸 가장 최근 달인 10월이 기준이다).
         val november10 = day("2026-11-10")
-        assertEquals(FixedStatus.DUE, view(rows, YearMonth.of(2026, 10), november10).status)
+        val ended = view(rows, YearMonth.of(2026, 10), november10)
+        assertEquals(FixedStatus.PAID, ended.status)
+        assertEquals(listOf(28), ended.droppedDays)
         assertEquals(50_000L, view(rows, YearMonth.of(2026, 11), november10).amount)
-        // 3일 것을 빠뜨리고 28일 것만 냈으면 남은 돈은 50,000원이고 평소 날은 3일 그대로다
+        // 3일 것을 빠뜨리고 28일 것만 냈으면 3일 것의 낼 날(6일) 뒤 사흘이 지난 뒤라 낸 것만으로 냈어요다. 평소 날은 3일 그대로다.
         val late = view(insurance + paid("보험", 30_000, "2026-10-28"), YearMonth.of(2026, 10), day("2026-10-30"))
-        assertEquals(FixedStatus.DUE, late.status)
-        assertEquals(50_000L, late.amount)
+        assertEquals(FixedStatus.PAID, late.status)
+        assertEquals(30_000L, late.amount)
         assertEquals(3, late.usualDay)
-        assertEquals(3, late.dueDay)
+        assertEquals(listOf(3), late.droppedDays)
     }
 
     @Test
@@ -149,8 +151,11 @@ class FixedExpensesReviewTest {
         assertEquals(1, october10.requiredCount)
         assertEquals(28, october10.dueDay)
         assertEquals(30_000L, october10.amount)
-        // 9월은 28일 것만 냈으니 9월 화면은 냈어요가 아니다
-        assertEquals(FixedStatus.DUE, view(rows, YearMonth.of(2026, 9), day("2026-10-10")).status)
+        // 9월은 28일 것만 냈는데 3일 것의 낼 날 뒤 사흘이 지났으니 3일 것은 안 나간 것으로 보아 9월 화면은 낸 것만으로 냈어요다
+        val september = view(rows, YearMonth.of(2026, 9), day("2026-10-10"))
+        assertEquals(FixedStatus.PAID, september.status)
+        assertEquals(1, september.paidCount)
+        assertEquals(2, september.requiredCount)
     }
 
     @Test
