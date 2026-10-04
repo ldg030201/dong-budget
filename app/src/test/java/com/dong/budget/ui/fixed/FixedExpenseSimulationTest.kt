@@ -22,6 +22,7 @@ private data class Share(val month: YearMonth, val scheduled: LocalDate, val pay
  * [changed] 는 평소 낼 날을 바꾼 첫 달, [cancelled] 는 두 청구 가운데 하나를 해지한 첫 달이다(없으면 null).
  * [kept] 는 해지한 뒤 남은 청구의 한 달 치, [cancelledUntil] 은 해지한 달 화면의 어긋남을 받아들이는 마지막 날이다(해지한 청구를
  * 안 나간 것으로 보기 전, [acceptedReason]). [extras] 는 어느 몫도 아닌, 따로 낸 결제(연간 결제 등)다.
+ * [lateLine] 은 같은 날 함께 나가던 회선 하나를 늦게 낸 달과 그 회선이 나간 날이다(해지 아님, 없으면 null).
  */
 private class Pattern(
     val name: String,
@@ -33,6 +34,7 @@ private class Pattern(
     val kept: Long = oneMonth,
     val cancelledUntil: LocalDate? = null,
     val extras: List<Pay> = emptyList(),
+    val lateLine: Pair<YearMonth, LocalDate>? = null,
 ) {
     /** [month] 의 진짜 한 달 치. 해지한 다음 달부터는 남은 청구 금액이다(해지한 달은 그 달만으로는 해지인지 아직 안 낸 것인지 모른다). */
     fun oneMonthIn(month: YearMonth): Long = if (cancelled != null && month > cancelled) kept else oneMonth
@@ -349,6 +351,54 @@ private fun claimCancelled(name: String, claims: List<Pair<Int, Long>>, cards: L
     )
 }
 
+/**
+ * 같은 가게 두 회선([first] · [second] 원)을 매달 [day] 일(쉬는 날이면 다음 영업일)에 함께 내는데, [late] 달 몫의 [second] 원 회선은 [on] 에
+ * 늦게 냈다(해지 아님, 교차 검증: 두 회선 금액이 비슷하면 늦게 메운 결제를 다음 달 몫으로 보았다).
+ */
+private fun lateLine(name: String, day: Int, first: Long, second: Long, late: YearMonth, on: LocalDate) = Pattern(
+    name = name,
+    monthly = true,
+    oneMonth = first + second,
+    shares =
+    months().map { month ->
+        val due = pushed(dayIn(month, day))
+        Share(month, due, listOf(Pay(due, first), Pay(if (month == late) on else due, second, due)))
+    },
+    lateLine = late to on,
+)
+
+/**
+ * 한 가게에 매달 5일 20,000원 · 21일 45,000원 · 21일 33,000원 세 회선(자동이체)을 내다 [cancelled] 부터 5일 것을 해지했다(교차 검증: 한 건 ·
+ * 두 건 차례를 고루 2 · 1 로 나눴다). 해지한 달은 5일 것의 낼 날 뒤 사흘까지 받아들인다.
+ */
+private fun threeLinesCancelled(cancelled: YearMonth): Pattern = Pattern(
+    name = "세회선해지",
+    monthly = true,
+    oneMonth = 98_000,
+    shares =
+    months().map { month ->
+        val fifth = pushed(dayIn(month, 5))
+        val late = pushed(dayIn(month, 21))
+        val pays = (if (month < cancelled) listOf(Pay(fifth, 20_000)) else emptyList()) + Pay(late, 45_000) + Pay(late, 33_000)
+        Share(month, pays.minOf { it.date }, pays)
+    },
+    cancelled = cancelled,
+    kept = 78_000,
+    cancelledUntil = pushed(dayIn(cancelled, 5)).plusDays(DROP_GRACE_DAYS),
+)
+
+/** 2024년 1월부터 홀수 달마다 3일 50,000원 · 20일 30,000원을 낸다(교차 검증: 사이 달까지 세어 매달 한 차례로 보았다) */
+private fun twoDaysEveryOther(): Pattern = Pattern(
+    name = "정기2달",
+    monthly = false,
+    oneMonth = 80_000,
+    shares =
+    months(YearMonth.of(2024, 1), step = 2).map { month ->
+        val third = pushed(dayIn(month, 3))
+        Share(month, third, listOf(Pay(third, 50_000), Pay(pushed(dayIn(month, 20)), 30_000)))
+    },
+)
+
 /** 시뮬레이션에 쓰는 가게들 */
 private fun patterns(): List<Pattern> = listOf(
     every("관리비", 150_000, 31),
@@ -415,6 +465,16 @@ private fun patterns(): List<Pattern> = listOf(
     // 재검증: 새로 낸 월말 두 청구(30일 · 31일 자동이체)와 쉬는 날이 몰린 철에 시작한 하루 차이 카드 두 청구(1일 · 2일)
     twoClaims("새월말", 30, 4_400, LAST_DAY, 10_900, autoPay = true, from = YearMonth.of(2025, 12)),
     twoClaims("카드12", 1, 4_400, 2, 10_900, autoPay = false),
+    // 교차 검증: 금액으로 차례를 가를 수 없는(같거나 20% 안) 두 차례의 뒤 차례 해지(카드 5일 · 21일은 2026년 10월 5일 대체공휴일, 카드 3일 · 20일은
+    // 10월 3일 개천절에 나간다), 금액이 비슷한 하루 차이 카드 두 청구의 앞 것 해지, 금액이 비슷한 같은 날 두 회선의 늦게 메운 회선,
+    // 한 건 · 두 건 세 회선 가게의 한 건 차례 해지, 2달마다 내는 따로인 두 차례
+    claimCancelled("같은카드해지", listOf(5 to 20_000L, 21 to 20_000L), listOf(true, true), YearMonth.of(2026, 9), dropped = 1),
+    claimCancelled("비슷한해지", listOf(3 to 50_000L, 20 to 45_000L), listOf(true, true), YearMonth.of(2026, 9), dropped = 1),
+    claimCancelled("같은이체해지", listOf(3 to 30_000L, 20 to 30_000L), listOf(false, false), YearMonth.of(2028, 3), dropped = 1),
+    claimCancelled("비슷앞해지", listOf(5 to 10_000L, 6 to 11_000L), listOf(true, true), YearMonth.of(2026, 6), dropped = 0),
+    lateLine("늦은회선", 21, 45_000, 40_000, YearMonth.of(2027, 9), LocalDate.of(2027, 10, 1)),
+    threeLinesCancelled(YearMonth.of(2029, 5)),
+    twoDaysEveryOther(),
 )
 
 /** 불변식 위반 하나. [accepted] 는 fixes3.md '받아들이는 모호함' 에 해당하면 그 까닭(테스트를 실패시키지 않는다) */
@@ -663,6 +723,12 @@ private fun acceptedReason(pattern: Pattern, violation: Violation, day: LocalDat
     val cancelled = pattern.cancelled
     if (cancelled != null && violation.view in cancelled..cancelled.plusMonths(1) && until != null && !day.isAfter(until)) {
         return "청구 하나를 해지한 달의 안 나간 것으로 보기 전(그 달만으로는 아직 안 낸 것과 가를 수 없음)"
+    }
+    // 같은 날 함께 나가던 회선 하나를 늦게 낸 달은 그 회선이 나갈 때까지 '2번 중 1번만 냈어요'(냈어요)다. 같은 날 회선은 이튿날부터 안 나간
+    // 것으로 보는 대가(사용자가 고름: 정말 깜빡한 회선이면 그 뒤로 알리지 않는다)라 그 달 화면의 일부 냄(I7)만 받아들인다.
+    val late = pattern.lateLine
+    if (late != null && violation.view == late.first && violation.invariant.startsWith("I7") && day < late.second) {
+        return "같은 날 회선 하나가 늦게 나가기 전(이튿날부터 안 나간 것으로 보는 대가)"
     }
     // 새 일정 모델(리뷰 G1)에서는 매년 · 몇 달마다 결제의 달 경계 밀림과 평소 날과 반 달 넘게 떨어진 결제를 따로 받아들이지 않는다.
     // 긴 연휴(설 · 추석 등)로 밀린 결제는 받아들이지 않는다. 앱이 공휴일 달력(KoreanHolidays)으로 낼 날을 다음 영업일로 본다.
