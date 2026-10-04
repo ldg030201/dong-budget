@@ -101,11 +101,13 @@ interface TransactionDao {
     /**
      * 기간 안에 코드가 [code] 인 분류(기본 분류)의 지출을 최신순으로. 고정지출 탭이 쓴다.
      * 그 분류를 지웠으면 거래가 '기타' 로 옮겨 가서 아무것도 안 나온다. 날짜를 앞으로 적어 둔 거래도 [end] 앞이면 들어온다.
+     * 분류는 번호 목록으로 걸러 categoryId 인덱스로 그 분류 거래만 읽는다(코드로 이어 붙여 거르면 기간 안의 모든 거래를 읽었다).
      */
     @Query(
         LIST_ITEM_SELECT +
             """
-        WHERE c.code = :code AND t.type = 'EXPENSE' AND t.occurredAt >= :start AND t.occurredAt < :end
+        WHERE t.categoryId IN (SELECT id FROM categories WHERE code = :code)
+          AND t.type = 'EXPENSE' AND t.occurredAt >= :start AND t.occurredAt < :end
         ORDER BY t.occurredAt DESC, t.id DESC
         """,
     )
