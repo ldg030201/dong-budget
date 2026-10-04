@@ -1,5 +1,8 @@
 package com.dong.budget.ui.card
 
+import com.dong.budget.data.card.performanceTierList
+import com.dong.budget.data.db.BudgetTime
+import com.dong.budget.data.db.CardSpendRow
 import com.dong.budget.data.db.PaymentMethodEntity
 import com.dong.budget.data.db.PaymentMethodType
 import com.dong.budget.data.db.TransactionListItem
@@ -73,12 +76,19 @@ fun historyPeriods(month: YearMonth, startDay: Int): List<PerformancePeriod> =
 fun daysLeft(period: PerformancePeriod, today: LocalDate): Int = ChronoUnit.DAYS.between(today, period.end).coerceAtLeast(0).toInt()
 
 /**
- * 탭이 한 번에 읽을 달 범위(첫 달 1일부터 끝 달 말일까지). 시작일이 무엇이든 지난 기간 시작부터 이번 기간 끝까지 덮는다.
- * 이번 기간은 이번 달이나 지난달 이름이고 지난 기간은 그 앞 달이라, 두 달 전부터 다음 달까지면 된다.
+ * 탭이 읽을 달 범위(첫 달 1일부터 끝 달 말일까지). 실적을 적은 카드는 지난 기간 시작부터, 안 적은 카드는 이번 기간 시작부터
+ * 이번 기간 끝까지를 모두 덮는 가장 좁은 달 범위다. 시작일이 모두 1일이면 지난달과 이번 달이다. 볼 카드가 없으면 이번 달 하나다.
  */
-fun tabReadRange(today: LocalDate): Pair<YearMonth, YearMonth> {
+fun tabReadRange(today: LocalDate, methods: List<PaymentMethodEntity>): Pair<YearMonth, YearMonth> {
+    val periods =
+        methods.filter { it.isPerformanceTarget() }.map { method ->
+            val startDay = method.performanceStartDay
+            val current = currentPeriod(today, startDay)
+            val from = if (method.performanceTierList.isEmpty()) current else performancePeriod(current.month.minusMonths(1), startDay)
+            YearMonth.from(from.start) to YearMonth.from(current.lastDay)
+        }
     val month = YearMonth.from(today)
-    return month.minusMonths(2) to month.plusMonths(1)
+    return (periods.minOfOrNull { it.first } ?: month) to (periods.maxOfOrNull { it.second } ?: month)
 }
 
 /**
@@ -100,8 +110,15 @@ fun hasRecord(period: PerformancePeriod, firstUse: LocalDate?, current: YearMont
  */
 internal fun effectiveFirstUse(rows: List<TransactionListItem>, paymentMethodId: Long, firstUse: LocalDate?): LocalDate? {
     val earliestRow = rows.filter { it.paymentMethodId == paymentMethodId && it.type in SPENDING_TYPES }.minOfOrNull { it.localDate() }
-    return listOfNotNull(firstUse, earliestRow).minOrNull()
+    return effectiveFirstUse(firstUse, earliestRow)
 }
+
+/**
+ * 카드를 처음 쓴 날. 첫 사용일 조회([firstUse])와 거래 목록은 따로 방출돼 잠깐 어긋날 수 있다(첫 거래를 막 등록한 직후 등).
+ * 보이는 거래([earliestSeen] 이 가장 이른 날)보다 늦은 첫 사용일은 있을 수 없어 둘 중 이른 날을 쓴다(통계의 기록 시작일과 같은 규칙).
+ */
+internal fun effectiveFirstUse(firstUse: LocalDate?, earliestSeen: LocalDate?): LocalDate? =
+    listOfNotNull(firstUse, earliestSeen).minOrNull()
 
 /** 쓴 돈에 드는 거래 종류(지출에서 환불을 뺀다) */
 private val SPENDING_TYPES = setOf(TransactionType.EXPENSE, TransactionType.REFUND)
@@ -109,6 +126,21 @@ private val SPENDING_TYPES = setOf(TransactionType.EXPENSE, TransactionType.REFU
 /** [rows] 중 결제수단 [paymentMethodId] 로 [period] 안에 쓴 돈(지출 − 환불). 환불이 더 많으면 음수다. */
 fun spentIn(rows: List<TransactionListItem>, paymentMethodId: Long, period: PerformancePeriod): Long =
     rows.filter { it.paymentMethodId == paymentMethodId && it.localDate() in period }.totals().expense
+
+/** 쓴 돈 한 건. 날짜(서울 기준)는 한 줄에 한 번만 구해 둔다. 지출은 +, 환불은 − 다. */
+internal class Spend(val date: LocalDate, val amount: Long)
+
+/** 쓴 돈에 더할 금액. 지출은 +, 환불은 − 이고 수입·이체는 넣지 않는다(통계 Totals 의 지출과 같은 규칙). */
+internal fun signedSpend(type: TransactionType, amount: Long): Long = when (type) {
+    TransactionType.EXPENSE -> amount
+    TransactionType.REFUND -> -amount
+    TransactionType.INCOME, TransactionType.TRANSFER -> 0
+}
+
+internal fun CardSpendRow.toSpend(): Spend = Spend(BudgetTime.toLocalDate(occurredAt), signedSpend(type, amount))
+
+/** [spends] 중 [period] 안에 쓴 돈(지출 − 환불). 환불이 더 많으면 음수다. */
+internal fun spentIn(spends: List<Spend>, period: PerformancePeriod): Long = spends.sumOf { if (it.date in period) it.amount else 0 }
 
 /**
  * 한 기간에 실적 구간을 얼마나 채웠는지. 쓴 돈이 구간 금액과 같으면 채운 것이다(카드사의 '30만원 이상').

@@ -105,6 +105,9 @@ class PerformancePeriodsTest {
         )
         assertEquals(49_000L, spentIn(rows, 1, period))
         assertEquals(20_000L, spentIn(rows, 2, period))
+        // 탭이 읽는 가는 줄(지출·환불만)로 세도 같다
+        assertEquals(49_000L, spentIn(rows.spendsOf(1), period))
+        assertEquals(20_000L, spentIn(rows.spendsOf(2), period))
         // 환불이 더 많으면 음수다
         assertEquals(-8_000L, spentIn(listOf(tx("2026-10-04", 8_000, REFUND, paymentId = 3)), 3, period))
     }
@@ -187,20 +190,45 @@ class PerformancePeriodsTest {
     }
 
     @Test
-    fun `탭이 읽는 범위는 어느 시작일이든 지난 기간 시작부터 이번 기간 끝까지 덮는다`() {
+    fun `탭이 읽는 범위는 어느 시작일이든 실적을 적은 카드는 지난 기간부터, 안 적은 카드는 이번 기간부터 덮는다`() {
         var today = day("2026-01-01")
         repeat(400) {
-            val (first, last) = tabReadRange(today)
             (1..31).forEach { startDay ->
-                val current = currentPeriod(today, startDay)
-                val previous = performancePeriod(current.month.minusMonths(1), startDay)
-                assertTrue("$today $startDay", today in current)
-                assertFalse("$today $startDay", previous.start.isBefore(first.atDay(1)))
-                assertFalse("$today $startDay", current.end.isAfter(last.plusMonths(1).atDay(1)))
+                listOf(null, "300000").forEach { tiers ->
+                    val (first, last) = tabReadRange(today, listOf(card(startDay, tiers)))
+                    val current = currentPeriod(today, startDay)
+                    val from = if (tiers == null) current else performancePeriod(current.month.minusMonths(1), startDay)
+                    assertTrue("$today $startDay", today in current)
+                    assertFalse("$today $startDay $tiers", from.start.isBefore(first.atDay(1)))
+                    assertFalse("$today $startDay $tiers", current.end.isAfter(last.plusMonths(1).atDay(1)))
+                }
             }
             today = today.plusDays(1)
         }
     }
+
+    @Test
+    fun `탭은 카드들의 시작일에 맞춰 필요한 달만 읽는다`() {
+        // 전에는 시작일과 상관없이 두 달 전부터 다음 달까지 넉 달을 읽었다
+        val today = day("2026-10-03")
+        assertEquals(YearMonth.of(2026, 9) to october, tabReadRange(today, listOf(card(1, "300000"), card(1, null))))
+        assertEquals(october to october, tabReadRange(today, listOf(card(1, null))))
+        // 15일 시작 카드는 10월 3일에 9월 실적(9월 15일~10월 14일)이고 지난 기간은 8월 15일부터다
+        assertEquals(YearMonth.of(2026, 8) to october, tabReadRange(today, listOf(card(15, "300000"))))
+        // 현금·계좌이체는 보지 않는다. 볼 카드가 없으면 이번 달 하나다
+        val cash = PaymentMethodEntity(id = 9, uuid = "c", name = "현금", type = PaymentMethodType.CASH, performanceStartDay = 20)
+        assertEquals(october to october, tabReadRange(today, listOf(cash)))
+        assertEquals(october to october, tabReadRange(today, emptyList()))
+    }
+
+    private fun card(startDay: Int, tiers: String?) = PaymentMethodEntity(
+        id = 1,
+        uuid = "u",
+        name = "카드",
+        type = PaymentMethodType.OTHER,
+        performanceTiers = tiers,
+        performanceStartDay = startDay,
+    )
 
     @Test
     fun `상세 기간 넘기기는 그려진 기간이 아니라 고른 기간에서 움직여 빨리 두 번 누르면 두 칸 간다`() {

@@ -1,6 +1,7 @@
 package com.dong.budget.data
 
 import com.dong.budget.data.db.BudgetTime
+import com.dong.budget.data.db.CardSpendRow
 import com.dong.budget.data.db.TransactionDao
 import com.dong.budget.data.db.TransactionEntity
 import com.dong.budget.data.db.TransactionListItem
@@ -52,6 +53,10 @@ class TransactionRepository(private val transactionDao: TransactionDao) {
         .map { rows -> rows.associate { it.paymentMethodId to BudgetTime.toLocalDate(it.firstAt) } }
         // 거래를 쓸 때마다 Room 이 다시 내보내지만 첫 사용일은 거의 그대로다. 같은 값이면 카드실적을 다시 계산하지 않게 거른다.
         .distinctUntilChanged()
+
+    /** [first] 달 1일부터 [last] 달 말일까지 결제수단으로 쓴 지출·환불(쓴 돈을 세는 칸만). 카드실적 탭이 쓴다. */
+    fun observeCardSpending(first: YearMonth, last: YearMonth): Flow<List<CardSpendRow>> =
+        transactionDao.observeCardSpending(BudgetTime.monthRange(first).first, BudgetTime.monthRange(last).second)
 
     /** 결제수단 [paymentMethodId] 를 지출·환불에 처음 쓴 날(서울 기준). 한 번도 안 썼으면 null. 카드실적 상세가 쓴다. */
     fun observeFirstUseDate(paymentMethodId: Long): Flow<LocalDate?> = transactionDao.observeFirstUseOf(paymentMethodId)

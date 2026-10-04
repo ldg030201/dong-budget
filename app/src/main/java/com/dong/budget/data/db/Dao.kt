@@ -74,6 +74,9 @@ data class CategoryWithCount(@Embedded val category: CategoryEntity, val transac
 /** 결제수단 하나를 지출·환불에 처음 쓴 시각. 카드실적이 그 카드로 기록하기 전 기간을 가릴 때 쓴다. */
 data class PaymentMethodFirstUse(val paymentMethodId: Long, val firstAt: Instant)
 
+/** 카드실적 탭이 읽는 거래 한 줄. 쓴 돈(지출 − 환불)을 세는 칸만 둔다. */
+data class CardSpendRow(val paymentMethodId: Long, val type: TransactionType, val amount: Long, val occurredAt: Instant)
+
 /** 기본 분류 코드를 돌려줄지 볼 분류 한 줄([reclaimedCodes]) */
 data class CategoryCodeRow(val id: Long, val scope: CategoryScope, val name: String, val code: String?)
 
@@ -184,6 +187,18 @@ interface TransactionDao {
         """,
     )
     fun observeFirstUseByPaymentMethod(): Flow<List<PaymentMethodFirstUse>>
+
+    /**
+     * 기간 안에 결제수단으로 쓴 지출과 환불. 카드실적 탭이 카드마다 쓴 돈을 센다.
+     * 목록 조회와 달리 분류·결제수단을 붙이지 않고 필요한 칸만 읽어, 분류·결제수단을 고쳐도 다시 읽지 않는다.
+     */
+    @Query(
+        """
+        SELECT paymentMethodId, type, amount, occurredAt FROM transactions
+        WHERE paymentMethodId IS NOT NULL AND type IN ('EXPENSE', 'REFUND') AND occurredAt >= :start AND occurredAt < :end
+        """,
+    )
+    fun observeCardSpending(start: Instant, end: Instant): Flow<List<CardSpendRow>>
 
     /**
      * 결제수단 [paymentMethodId] 하나를 지출·환불에 처음 쓴 시각. 한 번도 안 썼으면 null. 카드실적 상세가 쓴다.

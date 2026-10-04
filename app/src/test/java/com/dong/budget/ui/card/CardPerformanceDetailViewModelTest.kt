@@ -12,13 +12,11 @@ import com.dong.budget.data.db.TransactionListItem
 import com.dong.budget.navigation.CardPerformanceDetailKey
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Test
-import java.lang.reflect.Proxy
 import java.time.Clock
 import java.time.Instant
 import java.time.YearMonth
@@ -38,10 +36,10 @@ class CardPerformanceDetailViewModelTest {
     private val firstUseReads = AtomicInteger()
     private val viewModel =
         CardPerformanceDetailViewModel(
-            PaymentMethodRepository(fake(PaymentMethodDao::class.java) { if (it == "observeById") card else null }),
+            PaymentMethodRepository(fakeDao(PaymentMethodDao::class.java) { name, _ -> if (name == "observeById") card else null }),
             TransactionRepository(
-                fake(TransactionDao::class.java) {
-                    when (it) {
+                fakeDao(TransactionDao::class.java) { name, _ ->
+                    when (name) {
                         "observeByPaymentMethod" -> flowOf(emptyList<TransactionListItem>())
 
                         "observeFirstUseOf" ->
@@ -93,25 +91,4 @@ class CardPerformanceDetailViewModelTest {
         card.value = card.value?.copy(performanceStartDay = 15)
         assertEquals(YearMonth.of(2026, 9), viewModel.uiState.await { it.currentMonth == YearMonth.of(2026, 9) }.period?.month)
     }
-
-    /** 구독하지 않고 값만 들여다보며 [done] 이 될 때까지 기다린다 */
-    private fun <T> StateFlow<T>.await(done: (T) -> Boolean): T {
-        val deadline = System.currentTimeMillis() + 5_000
-        while (!done(value)) {
-            check(System.currentTimeMillis() < deadline) { "기다린 값이 오지 않았다: $value" }
-            Thread.sleep(5)
-        }
-        return value
-    }
-
-    /** [answer] 가 메서드 이름으로 돌려주는 값만 쓰는 가짜 DAO. 쓰지 않을 메서드를 부르면 실패한다. */
-    private fun <T> fake(type: Class<T>, answer: (String) -> Any?): T = type.cast(
-        Proxy.newProxyInstance(type.classLoader, arrayOf(type)) { proxy, method, _ ->
-            when (method.name) {
-                "hashCode" -> System.identityHashCode(proxy)
-                "toString" -> type.simpleName
-                else -> answer(method.name) ?: error("${type.simpleName}.${method.name} 는 이 테스트에서 쓰지 않는다")
-            }
-        },
-    )
 }

@@ -2,6 +2,7 @@ package com.dong.budget.ui.card
 
 import androidx.compose.runtime.Immutable
 import com.dong.budget.data.card.performanceTierList
+import com.dong.budget.data.db.CardSpendRow
 import com.dong.budget.data.db.PaymentMethodEntity
 import com.dong.budget.data.db.TransactionListItem
 import com.dong.budget.ui.home.DayGroup
@@ -70,33 +71,36 @@ data class CardPerformanceUiState(
 /**
  * 탭의 상태를 만든다.
  * @param methods 결제수단 전부(결제수단 순서). 현금·계좌이체는 여기서 뺀다([isPerformanceTarget]).
- * @param rows 모든 결제수단의 거래([tabReadRange] 범위)
+ * @param rows 결제수단으로 쓴 지출·환불([tabReadRange] 범위)
  * @param firstUse 결제수단마다 지출·환불을 처음 쓴 날. 한 번도 안 쓴 결제수단은 없다.
  */
 fun buildCardPerformance(
     methods: List<PaymentMethodEntity>,
-    rows: List<TransactionListItem>,
+    rows: List<CardSpendRow>,
     today: LocalDate,
     firstUse: Map<Long, LocalDate>,
 ): CardPerformanceUiState {
+    // 날짜는 한 줄에 한 번만 구하고, 카드마다 자기 거래만 훑게 한 번에 나눠 둔다
+    val spendsByCard = rows.groupBy({ it.paymentMethodId }) { it.toSpend() }
     val tracked = mutableListOf<TrackedCard>()
     val untracked = mutableListOf<UntrackedCard>()
     methods.filter { it.isPerformanceTarget() }.forEach { method ->
+        val spends = spendsByCard[method.id].orEmpty()
         val tiers = method.performanceTierList
         val period = currentPeriod(today, method.performanceStartDay)
-        val spent = spentIn(rows, method.id, period)
+        val spent = spentIn(spends, period)
         if (tiers.isEmpty()) {
             untracked += UntrackedCard(card = method.toCardInfo(), period = period, spent = spent)
         } else {
             val previous = performancePeriod(period.month.minusMonths(1), method.performanceStartDay)
-            val recorded = hasRecord(previous, effectiveFirstUse(rows, method.id, firstUse[method.id]), period.month)
+            val first = effectiveFirstUse(firstUse[method.id], spends.minOfOrNull { it.date })
             tracked +=
                 TrackedCard(
                     card = method.toCardInfo(),
                     period = period,
                     daysLeft = daysLeft(period, today),
                     progress = TierProgress(spent, tiers),
-                    previous = if (recorded) TierProgress(spentIn(rows, method.id, previous), tiers) else null,
+                    previous = if (hasRecord(previous, first, period.month)) TierProgress(spentIn(spends, previous), tiers) else null,
                 )
         }
     }

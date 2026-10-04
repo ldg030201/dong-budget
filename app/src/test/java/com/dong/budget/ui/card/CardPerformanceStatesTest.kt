@@ -48,7 +48,7 @@ class CardPerformanceStatesTest {
 
     @Test
     fun `현금과 계좌이체는 빼고, 실적을 적은 카드는 결제수단 순서로 둔다`() {
-        val state = buildCardPerformance(methods, rows, today, emptyMap())
+        val state = buildCardPerformance(methods, rows.cardSpending(), today, emptyMap())
         assertTrue(state.loaded)
         assertEquals(listOf("하나카드", "원더카드"), state.tracked.map { it.card.name })
         assertEquals(listOf("체크카드", "토스카드", "신용카드").sorted(), state.untracked.map { it.card.name }.sorted())
@@ -57,7 +57,7 @@ class CardPerformanceStatesTest {
 
     @Test
     fun `실적을 적은 카드는 이번 기간과 바로 앞 기간을 함께 센다`() {
-        val hana = buildCardPerformance(methods, rows, today, emptyMap()).tracked.first()
+        val hana = buildCardPerformance(methods, rows.cardSpending(), today, emptyMap()).tracked.first()
         assertEquals(YearMonth.of(2026, 10), hana.period.month)
         assertEquals(29, hana.daysLeft)
         assertEquals(123_450L, hana.progress.spent)
@@ -69,7 +69,7 @@ class CardPerformanceStatesTest {
 
     @Test
     fun `시작일이 15일인 카드는 10월 3일에 9월 실적 기간에 있다`() {
-        val wonder = buildCardPerformance(methods, rows, today, emptyMap()).tracked.last()
+        val wonder = buildCardPerformance(methods, rows.cardSpending(), today, emptyMap()).tracked.last()
         assertEquals(YearMonth.of(2026, 9), wonder.period.month)
         assertEquals(day("2026-09-15"), wonder.period.start)
         // 9월 20일 40,000 + 10월 1일 30,000. 9월 5일 것은 8월 실적이다
@@ -81,7 +81,7 @@ class CardPerformanceStatesTest {
 
     @Test
     fun `실적을 안 적은 카드는 쓴 돈이 많은 순, 같으면 결제수단 순서다`() {
-        val state = buildCardPerformance(methods, rows, today, emptyMap())
+        val state = buildCardPerformance(methods, rows.cardSpending(), today, emptyMap())
         // 체크카드 50,000, 토스카드 50,000, 신용카드 20,000
         assertEquals(listOf("체크카드", "토스카드", "신용카드"), state.untracked.map { it.card.name })
         assertEquals(listOf(50_000L, 50_000L, 20_000L), state.untracked.map { it.spent })
@@ -89,7 +89,7 @@ class CardPerformanceStatesTest {
 
     @Test
     fun `볼 카드가 하나도 없으면 비어 있다`() {
-        val state = buildCardPerformance(methods.filter { !it.isPerformanceTarget() }, rows, today, emptyMap())
+        val state = buildCardPerformance(methods.filter { !it.isPerformanceTarget() }, rows.cardSpending(), today, emptyMap())
         assertTrue(state.loaded)
         assertFalse(state.hasCards)
     }
@@ -145,7 +145,10 @@ class CardPerformanceStatesTest {
         assertEquals(september.history.last().period, september.period)
         assertEquals(september.history.last().progress, september.progress)
         assertEquals(1, september.count)
-        assertEquals(YearMonth.of(2026, 9), buildCardPerformance(listOf(hana), hanaRows, today, emptyMap()).tracked.single().previousMonth)
+        assertEquals(
+            YearMonth.of(2026, 9),
+            buildCardPerformance(listOf(hana), hanaRows.cardSpending(), today, emptyMap()).tracked.single().previousMonth,
+        )
         // 첫 계산 전에는 기간이 없고 이번 기간도 아니다
         val loading = CardPerformanceDetailUiState.loading(today)
         assertFalse(loading.loaded)
@@ -170,7 +173,7 @@ class CardPerformanceStatesTest {
         val fresh = method(6, "새카드", tiers = "300000")
         val freshRows = listOf(tx("2026-10-02", 20_000, paymentId = 6))
         val firstUse = day("2026-10-02")
-        val card = buildCardPerformance(listOf(fresh), freshRows, today, mapOf(6L to firstUse)).tracked.single()
+        val card = buildCardPerformance(listOf(fresh), freshRows.cardSpending(), today, mapOf(6L to firstUse)).tracked.single()
         assertNull(card.previous)
         assertEquals("9월 실적은 기록이 없어요", previousLine(card.previousMonth, today, card.previous))
         assertEquals(
@@ -203,7 +206,7 @@ class CardPerformanceStatesTest {
         val card = method(6, "새카드", tiers = "300000")
         val cardRows = listOf(tx("2026-09-15", 120_000, paymentId = 6), tx("2026-10-02", 20_000, paymentId = 6))
         val firstUse = day("2026-09-15")
-        val tracked = buildCardPerformance(listOf(card), cardRows, today, mapOf(6L to firstUse)).tracked.single()
+        val tracked = buildCardPerformance(listOf(card), cardRows.cardSpending(), today, mapOf(6L to firstUse)).tracked.single()
         assertEquals("9월 실적 120,000원 · 30만원까지 180,000원 모자랐어요", previousLine(tracked.previousMonth, today, tracked.previous))
 
         val detail = buildCardDetail(card, YearMonth.of(2026, 10), today, cardRows, firstUse)
