@@ -5,6 +5,7 @@ import com.dong.budget.data.db.TransactionListItem
 import com.dong.budget.data.db.TransactionType
 import com.dong.budget.ui.home.localDate
 import com.dong.budget.ui.stats.calc.merchantKey
+import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
@@ -125,7 +126,8 @@ data class FixedExpenseBoard(
  * [month] 의 고정지출을 계산한다. 가게별로 묶고, 가게마다 아래 차례로 센다. 1은 고른 달 말일까지 낸 것만 본다.
  *
  * 1. 평소 날짜([usualDayOf]): 최근 결제일(같은 날은 한 번, 최대 [USUAL_DAY_SAMPLES] 번)의 가운데 값(짝수 개면 이른 쪽).
- *    31일에 낸 적이 있으면 짧은 달 말일도 말일로 센다. 달력 달로 보통 한 번 내는데([calendarCountOf]) 달 초와 달 말에 낸 날이
+ *    앞 달 말일부터 주말만 지나 나간 달 초 결제([isWeekendCarry])는 달 말에 내는 가게면 말일로 센다.
+ *    31일에 낸 적이 있으면 짧은 달 말일도 말일로 센다. 달력 달로 보통 하루 내는데([calendarCountOf]) 달 초와 달 말에 낸 날이
  *    섞여 있으면 달 경계를 이어 센다.
  * 2. 몇 월 몫인지([shareMonths]): 결제마다 낸 달과 그 앞뒤 달 가운데 그 달의 평소 날짜가 가장 가까운 달의 몫이다([nearestShare]).
  *    다른 결제는 보지 않는다. 그렇게 센 몫의 주기가 매달이 아니면 옮기지 않고 낸 달 그대로다.
@@ -202,7 +204,7 @@ private fun fixedItem(key: String, rows: List<TransactionListItem>, month: YearM
     // 평소 날짜는 고른 달까지 낸 것으로만 짐작한다
     val known = rows.filter { !it.localDate().isAfter(month.atEndOfMonth()) }
     if (known.isEmpty()) return null
-    val usualDay = usualDayOf(known.map { it.localDate() }.distinct().sorted().takeLast(USUAL_DAY_SAMPLES), calendarCountOf(known))
+    val usualDay = usualDayOf(known.map { it.localDate() }.distinct().sorted(), calendarCountOf(known))
     val shares = shareMonths(rows, month, usualDay)
     val kept = rows.filter { shares.getValue(it.id) <= month }
     if (kept.isEmpty()) return null
@@ -278,7 +280,13 @@ private fun isCatchUp(previous: MonthPayment, current: MonthPayment, usualCount:
     current.amounts.all { isNear(it, previous.total, previous.count) }
 
 /**
- * 평소 내는 날. [dates] 의 날짜 가운데 값(짝수 개면 이른 쪽)이다.
+ * 평소 내는 날. 낸 날([all], 오래된 것부터 · 같은 날은 한 번)의 최근 [USUAL_DAY_SAMPLES] 개의 가운데 값(짝수 개면 이른 쪽)이다.
+ * 앞 달 말일부터 주말만 지나 나간 달 초 결제([isWeekendCarry])는 말일 것이 밀렸는지 그날 낼 것인지 날짜만으로는 알 수 없다.
+ * 그런 날을 뺀 최근 [CARRY_SIDE_SAMPLES] 개에서 말일에 낸 날이 1일에 낸 날보다 많은 가게면 말일(31)로 센다.
+ * 달 말 · 달 초에 낸 날 수로 가르면, 말일 것을 3번에 1번 이틀 늦게 내는 관리비와 1일 것을 3번에 1번 전 영업일에 미리 내는 월세가
+ * 거꾸로 같은 모양이라 가르지 못한다. 늦게 낸 것은 2~4일, 미리 낸 것은 말일 앞 금요일일 수도 있어 딱 그날인 것으로 가른다.
+ * 말일 관리비가 주말로 밀린 6월 2일 · 9월 1일 · 12월 1일과 밀린 몫을 늦게 낸 10월 2일까지 최근 여섯 날 가운데 넷이 달 초여도
+ * 평소 날짜가 1일로 뒤집히지 않는다(뒤집히면 그 뒤 말일 결제를 모두 다음 달 몫으로 셌다). 1일 월세는 달 초가 더 많아 그날 그대로다.
  * 31일에 낸 적이 있으면 말일에 내는 것으로 보고, 짧은 달의 말일(2월 28일·9월 30일 등)도 31(말일)로 센다.
  * 31일에 낸 적이 없으면(매달 30일에 내는 등) 날짜 그대로 센다.
  *
@@ -287,13 +295,32 @@ private fun isCatchUp(previous: MonthPayment, current: MonthPayment, usualCount:
  * 아니면 달 말 납부(말일 것이 가끔 다음 달 초로 밀림)다. 그냥 가운데 값을 쓰면 말일 것 하나가 1일로 밀린 두 건(8월 31일·10월 1일)에서
  * 평소 날짜가 1일이 된다. 한 달에 두 번 내는 가게(3일 · 28일)는 이어 세지 않는다. 이어 세면 28일이 평소 날짜가 되어 3일 것을 놓쳐도 28일까지 알리지 않는다.
  */
-private fun usualDayOf(dates: List<LocalDate>, usualCount: Int): Int {
+private fun usualDayOf(all: List<LocalDate>, usualCount: Int): Int {
+    val dates = all.takeLast(USUAL_DAY_SAMPLES)
     val paysOnLastDay = dates.any { it.dayOfMonth == LAST_DAY }
-    val days = dates.map { if (paysOnLastDay && it.dayOfMonth == it.lengthOfMonth()) LAST_DAY else it.dayOfMonth }
+    val clear = all.filterNot(::isWeekendCarry).takeLast(CARRY_SIDE_SAMPLES)
+    val endOfMonth = clear.count { it.dayOfMonth == it.lengthOfMonth() } > clear.count { it.dayOfMonth == 1 }
+    val days =
+        dates.map {
+            when {
+                endOfMonth && isWeekendCarry(it) -> LAST_DAY
+                paysOnLastDay && it.dayOfMonth == it.lengthOfMonth() -> LAST_DAY
+                else -> it.dayOfMonth
+            }
+        }
     if (usualCount != 1 || days.none { it <= SHIFT_DAYS } || days.none { it >= LATE_PAY_FROM }) return lowerMedian(days)
     val wrapped = lowerMedian(days.map { if (it <= SHIFT_DAYS) LAST_DAY + it else it })
     return if (wrapped > LAST_DAY) wrapped - LAST_DAY else wrapped
 }
+
+/**
+ * [date] 가 앞 달 말일부터 주말(토 · 일)만 지나 나간 달 초 결제인지(8월 31일 일요일 → 9월 1일 월요일, 5월 31일 토요일 → 6월 2일 월요일).
+ * 말일 자동이체가 주말로 밀린 것일 수도, 1일 · 2일에 낼 것을 제날에 낸 것일 수도 있다. 사흘 이어 주말일 수 없으므로 1일 · 2일만 해당한다.
+ */
+private fun isWeekendCarry(date: LocalDate): Boolean = date.dayOfMonth <= SHIFT_DAYS &&
+    generateSequence(date.withDayOfMonth(1).minusDays(1)) { it.plusDays(1) }
+        .takeWhile { it < date }
+        .all { it.dayOfWeek == DayOfWeek.SATURDAY || it.dayOfWeek == DayOfWeek.SUNDAY }
 
 /**
  * 결제([rows])마다 몇 월 몫인지(거래 id → 몫의 달).
@@ -382,14 +409,15 @@ private fun usualCountOf(payments: List<MonthPayment>): Int =
     if (payments.isEmpty()) 1 else lowerMedian(payments.takeLast(USUAL_COUNT_SHARES).map { it.count })
 
 /**
- * 달력 달로 한 달에 보통 몇 번 내는지. 마지막 결제 달까지 최근 [USUAL_COUNT_MONTHS] 달(결제가 없던 달은 0번)의 결제 수의
+ * 달력 달로 한 달에 보통 며칠 내는지. 마지막 결제 달까지 최근 [USUAL_COUNT_MONTHS] 달(결제가 없던 달은 0번)의 낸 날 수(같은 날 여러 번은 하루)의
  * 가운데 값(짝수 개면 적은 쪽)이고, 적어도 1이다. 평소 날짜([usualDayOf])에서 달 경계를 이어 셀지 가를 때만 쓴다(몫을 정하기 전이라 달력 달로 센다).
  * 말일 것이 휴일로 밀려 빈 달과 두 번 낸 달이 생겨도(1월 0번 · 2월 1번 · 3월 2번) 한 번이다. 결제가 있었던 달만 세면 2가 되어
  * 달 경계를 잇지 못하고, 말일 관리비의 평소 날짜가 3일이 되어 3월 31일 것을 4월 몫으로 셌다.
  * 결제가 있었던 달이 하나뿐이어도 1이다(새로 적기 시작한 관리비가 12월 1일 · 12월 31일 두 건뿐이어도 말일 납부다).
+ * 밀린 몫을 한날 함께 낸 달은 하루다. 건수로 세면 10월 2일 두 건 · 11월 0건 · 12월 1일 · 31일이 2가 되어 말일 관리비의 평소 날짜가 2일이 됐다.
  */
 private fun calendarCountOf(rows: List<TransactionListItem>): Int {
-    val counts = rows.groupingBy { YearMonth.from(it.localDate()) }.eachCount()
+    val counts = rows.map { it.localDate() }.distinct().groupingBy { YearMonth.from(it) }.eachCount()
     val last = counts.keys.max()
     val recent = (0 until USUAL_COUNT_MONTHS).map { counts[last.minusMonths(it.toLong())] ?: 0 }
     return lowerMedian(recent).coerceAtLeast(1)
@@ -453,6 +481,9 @@ private const val CADENCE_GAPS = 5
 
 /** 평소 날짜를 짐작할 때 보는 최근 결제일 수 */
 private const val USUAL_DAY_SAMPLES = 6
+
+/** 달 말에 내는 가게인지([usualDayOf]) 볼 때 보는, 주말을 넘겨 나간 것([isWeekendCarry])을 뺀 최근 결제일 수 */
+private const val CARRY_SIDE_SAMPLES = 12
 
 /** 평소 날짜를 달 경계를 이어 셀지 가를 때 한 달에 몇 번 내는지 보는 최근 달 수(마지막 결제 달까지, [calendarCountOf]) */
 private const val USUAL_COUNT_MONTHS = 3

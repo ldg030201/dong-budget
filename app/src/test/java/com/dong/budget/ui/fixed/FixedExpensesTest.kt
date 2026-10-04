@@ -701,6 +701,71 @@ class FixedExpensesTest {
     }
 
     @Test
+    fun `말일 납부가 주말로 달 초에 여러 번 밀려도 평소 날짜가 1일로 뒤집히지 않는다`() {
+        // 2025년 5월 31일(토) → 6월 2일, 8월 31일(일) → 9월 1일, 11월 30일(일) → 12월 1일에 나갔고 9월 몫은 10월 2일에 10월 몫과 함께 냈다.
+        // 최근 여섯 날 가운데 넷(6월 2일 · 9월 1일 · 10월 2일 · 12월 1일)이 달 초라 평소 날짜가 1일이 되어, 12월이 12월 1일부터 '냈어요' 이고
+        // 그 결제를 11월 · 12월 화면이 함께 썼다. 10월 2일 두 건은 한날이라 하루로 세어야 1월에도 달 경계를 이어 센다.
+        val rows =
+            paid(
+                "관리비",
+                120_000,
+                "2025-03-31",
+                "2025-04-30",
+                "2025-06-02",
+                "2025-06-30",
+                "2025-07-31",
+                "2025-09-01",
+                "2025-10-02",
+                "2025-10-02",
+                "2025-12-01",
+                "2025-12-31",
+            )
+        val december = YearMonth.of(2025, 12)
+        val december15 = day("2025-12-15")
+        val upToDecember15 = rows.filter { !it.localDate().isAfter(december15) }
+        val inDecember = only(readFor(upToDecember15, december), month = december, today = december15)
+        assertEquals(FixedStatus.DUE, inDecember.status)
+        assertEquals(LAST_DAY, inDecember.usualDay)
+        val november = YearMonth.of(2025, 11)
+        assertEquals(day("2025-12-01"), only(readFor(upToDecember15, november), month = november, today = december15).lastPaidOn)
+        val january = YearMonth.of(2026, 1)
+        val inJanuary = only(readFor(rows, january), month = january, today = day("2026-01-15"))
+        assertEquals(FixedStatus.DUE, inJanuary.status)
+        assertEquals(LAST_DAY, inJanuary.usualDay)
+    }
+
+    @Test
+    fun `말일 것을 가끔 이틀 늦게 내도 다음 달 초 결제를 이번 달 몫으로 세지 않는다`() {
+        // 관리비를 손으로 내는데 3번에 1번은 이틀 늦게(6월 3일 · 9월 2일 · 12월 2일 · 3월 4일) 냈고, 주말로 11월 2일 · 2월 1일에 밀렸다.
+        // 달 초 날짜가 많아 평소 날짜가 1일이 되면 2027년 2월이 2월 1일(1월 몫)로, 3월이 3월 4일(2월 몫)로 달 내내 '냈어요' 였다.
+        val rows =
+            paid(
+                "관리비",
+                130_000,
+                "2026-06-03",
+                "2026-06-30",
+                "2026-07-31",
+                "2026-09-02",
+                "2026-09-30",
+                "2026-11-02",
+                "2026-12-02",
+                "2026-12-31",
+                "2027-02-01",
+                "2027-03-04",
+            )
+        listOf("2027-02-15", "2027-03-15").forEach { date ->
+            val today = day(date)
+            val month = YearMonth.from(today)
+            val known = rows.filter { !it.localDate().isAfter(today) }
+            val item = only(readFor(known, month), month = month, today = today)
+            assertEquals(FixedStatus.DUE, item.status)
+            assertEquals(LAST_DAY, item.usualDay)
+            val previous = only(readFor(known, month.minusMonths(1)), month = month.minusMonths(1), today = today)
+            assertEquals(FixedStatus.PAID, previous.status)
+        }
+    }
+
+    @Test
     fun `1일 월세를 두 달 이어 전달 말에 미리 내도 한 달씩 다음 달 몫으로 센다`() {
         // 9월 30일에 10월 몫, 10월 30일에 11월 몫을 미리 냈다. 10월 30일을 10월 몫으로 세면 11월에 '평소보다 2일 지났어요' 와
         // 500,000원 등록하기가 떴고, 9월 30일 결제는 9월에도 10월에도 안 보였다.
