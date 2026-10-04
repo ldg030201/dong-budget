@@ -238,13 +238,12 @@ private fun fixedItem(
     // 자주 내는 가게는 차례 없이 낸 달 몫이고 한 번만 내도 그 달을 냈다
     val frequent = schedule.timesPerMonth != null
     val extraIds = if (frequent) emptySet() else extrasOf(pays.sortedWith(paidByTime))
-    val prior = if (frequent) MonthCounts(emptyMap()) else MonthCounts(pays.filter { it.id !in extraIds }, schedule, dues)
-    val first = if (frequent) matchByMonth(pays) else matchPayments(pays, schedule, prior, month, dues, extraIds)
-    // 달마다 건수와 차례별 나눔을 짝지은 몫으로 다시 세어 한 번 더 짝짓는다(바뀐 달이 없으면 그대로)
-    val counts = if (frequent) prior else MonthCounts.matched(first, schedule)
+    val (matching, counts) = if (frequent) {
+        matchByMonth(pays) to MonthCounts(emptyMap())
+    } else {
+        settledMatching(pays, schedule, MonthCounts(pays.filter { it.id !in extraIds }, schedule, dues), month, dues, extraIds)
+    }
     val slots = schedule.days.size
-    val changed = first.slots.map { it.month }.distinct().any { counts.sharesIn(it, slots) != prior.sharesIn(it, slots) }
-    val matching = if (changed) matchPayments(pays, schedule, counts, month, dues, extraIds) else first
     val slotOf = matching.slotOf
     val shares = pays.filter { it.id in slotOf }.groupBy { slotOf.getValue(it.id).month }
     val extras = matching.extras.groupBy { it.month }
@@ -337,6 +336,33 @@ private fun fixedItem(
     // 낼 날이 지나야 '지났어요' 이고, 지난 날 수는 평소 날짜부터 센다(쉬는 날로 밀린 만큼 덜 세지 않게)
     val from = if (today.isAfter(due)) item.usualDateIn(month) else due
     return item.copy(daysPastUsual = daysBetween(from, today))
+}
+
+/**
+ * [pays] 를 어림 건수 [rough] 로 짝짓고, 그 짝으로 달마다 건수와 차례별 나눔을 다시 세어 다시 짝짓기를 나눔이 그대로일 때까지
+ * (많아야 [MATCH_PASSES] 번) 되풀이한 짝과 그 짝으로 센 건수. 화면은 둘을 함께 써서, 다시 짝지어 결제를 다른 달 · 차례로 옮긴 달의
+ * 건수 · 나눔이 옛 짝으로 남지 않는다(해지한 달의 빈 차례로 끌려갔던 다음 달 결제를 제 달로 옮기면 그 달은 한 건이다).
+ * 나눔이 오가며 그대로가 되지 않으면 마지막 짝과 그 짝으로 센 건수다.
+ */
+private fun settledMatching(
+    pays: List<Paid>,
+    schedule: FixedSchedule,
+    rough: MonthCounts,
+    through: YearMonth,
+    dues: DueDates,
+    extras: Set<Long>,
+): Pair<Matching, MonthCounts> {
+    val slots = schedule.days.size
+    var used = rough
+    var matching = matchPayments(pays, schedule, used, through, dues, extras)
+    repeat(MATCH_PASSES - 1) {
+        val counts = MonthCounts.matched(matching, schedule)
+        val settled = matching.slots.map { it.month }.distinct().all { counts.sharesIn(it, slots) == used.sharesIn(it, slots) }
+        if (settled) return matching to counts
+        used = counts
+        matching = matchPayments(pays, schedule, used, through, dues, extras)
+    }
+    return matching to MonthCounts.matched(matching, schedule)
 }
 
 /**
@@ -461,6 +487,12 @@ internal const val DROP_GRACE_DAYS = 3L
  * 두 번은 들어온다.
  */
 private const val SPREAD_MONTHS = 6
+
+/**
+ * 짝짓기를 되풀이하는 많아야 횟수([settledMatching]). 어림 건수로 한 번, 그 짝으로 센 차례별 나눔으로 한 번 더 짝지으면 대개 그대로가 되고,
+ * 해지한 달의 빈 차례로 끌려갔던 결제를 옮긴 다음에 한 번 더 세면 그 달 건수까지 맞는다. 그보다 길게 오가는 나눔은 마지막 짝을 쓴다.
+ */
+private const val MATCH_PASSES = 4
 
 /** 낼 차례가 된 달부터 이만큼(그 달과 다음 달) '아직 안 냈어요' 로 두고, 그 뒤로는 '한동안 안 냈어요' 로 접는다. */
 private const val DUE_MONTHS = 2
