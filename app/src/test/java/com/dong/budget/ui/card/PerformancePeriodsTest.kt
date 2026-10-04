@@ -87,7 +87,7 @@ class PerformancePeriodsTest {
             tx("2026-11-01T00:00", 40_000, paymentId = 1),
             tx("2026-09-30T23:59", 80_000, paymentId = 1),
         )
-        assertEquals(3_000L, spentIn(rows, 1, period))
+        assertEquals(3_000L, spentIn(rows.spendsOf(1), period))
     }
 
     @Test
@@ -104,13 +104,15 @@ class PerformancePeriodsTest {
             // 앞으로의 날짜로 적어 둔 것도 기간 안이면 든다
             tx("2026-10-29", 7_000, EXPENSE, paymentId = 1),
         )
-        assertEquals(49_000L, spentIn(rows, 1, period))
-        assertEquals(20_000L, spentIn(rows, 2, period))
-        // 탭이 읽는 가는 줄(지출·환불만)로 세도 같다
+        // 탭은 지출·환불만 읽고, 상세는 이 카드 거래 중 지출·환불만 센다
         assertEquals(49_000L, spentIn(rows.spendsOf(1), period))
         assertEquals(20_000L, spentIn(rows.spendsOf(2), period))
+        val card = PaymentMethodEntity(id = 1, uuid = "u", name = "카드", type = PaymentMethodType.OTHER)
+        assertEquals(49_000L, buildCardDetail(card, october, day("2026-10-03"), rows, firstUse = null).progress.spent)
+        assertEquals(0L, signedSpend(INCOME, 3_000_000))
+        assertEquals(0L, signedSpend(TRANSFER, 100_000))
         // 환불이 더 많으면 음수다
-        assertEquals(-8_000L, spentIn(listOf(tx("2026-10-04", 8_000, REFUND, paymentId = 3)), 3, period))
+        assertEquals(-8_000L, spentIn(listOf(tx("2026-10-04", 8_000, REFUND, paymentId = 3)).spendsOf(3), period))
     }
 
     @Test
@@ -296,10 +298,16 @@ class PerformancePeriodsTest {
             tx("2026-08-01", 10_000, paymentId = 7),
         )
         // 첫 거래를 막 등록해 조회 값이 아직 없거나 늦어도 보이는 거래로 센다
-        assertEquals(day("2026-09-20"), effectiveFirstUse(rows, 6, null))
-        assertEquals(day("2026-09-20"), effectiveFirstUse(rows, 6, day("2026-10-02")))
-        assertEquals(day("2026-05-01"), effectiveFirstUse(rows, 6, day("2026-05-01")))
-        assertNull(effectiveFirstUse(rows, 8, null))
+        assertEquals(day("2026-09-20"), effectiveFirstUse(null, day("2026-09-20")))
+        assertEquals(day("2026-09-20"), effectiveFirstUse(day("2026-10-02"), day("2026-09-20")))
+        assertEquals(day("2026-05-01"), effectiveFirstUse(day("2026-05-01"), day("2026-09-20")))
+        assertNull(effectiveFirstUse(null, null))
+        // 상세는 이 카드의 지출·환불 중 가장 이른 날을 보이는 거래로 센다(9월 1일 수입·9월 2일 이체·다른 카드는 아니다)
+        val card = PaymentMethodEntity(id = 6, uuid = "u", name = "카드", type = PaymentMethodType.OTHER, performanceTiers = "300000")
+        val detail = buildCardDetail(card, october, day("2026-10-03"), rows, firstUse = null)
+        assertEquals(listOf(false, false, false, false, true, true), detail.history.map { it.recorded })
+        val before = buildCardDetail(card, october, day("2026-10-03"), rows.filter { it.amount != 1_000L && it.type != EXPENSE }, null)
+        assertEquals(listOf(false, false, false, false, false, true), before.history.map { it.recorded })
     }
 
     @Test

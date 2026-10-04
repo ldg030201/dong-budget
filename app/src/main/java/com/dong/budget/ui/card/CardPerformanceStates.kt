@@ -8,6 +8,7 @@ import com.dong.budget.data.db.TransactionListItem
 import com.dong.budget.ui.home.DayGroup
 import com.dong.budget.ui.home.groupByDay
 import com.dong.budget.ui.home.localDate
+import com.dong.budget.ui.stats.calc.Measure
 import java.time.LocalDate
 import java.time.YearMonth
 
@@ -187,14 +188,25 @@ fun buildCardDetail(
     val startDay = method.performanceStartDay
     val tiers = method.performanceTierList
     val currentMonth = periodMonthOf(today, startDay)
-    val shown = minOf(month, currentMonth)
-    val first = effectiveFirstUse(rows, method.id, firstUse)
+    val periods = historyPeriods(minOf(month, currentMonth), startDay)
+    // 한 번 훑으며 줄마다 날짜를 한 번만 구해 그 기간 칸에 더하고, 고른 기간(마지막 칸)의 줄을 모은다
+    val spent = LongArray(periods.size)
+    val selected = mutableListOf<TransactionListItem>()
+    var earliest: LocalDate? = null
+    for (item in rows) {
+        if (item.paymentMethodId != method.id || !Measure.EXPENSE.includes(item)) continue
+        val date = item.localDate()
+        if (earliest == null || date < earliest) earliest = date
+        val index = periods.indexOfFirst { date in it }
+        if (index < 0) continue
+        spent[index] += signedSpend(item.type, item.amount)
+        if (index == periods.lastIndex) selected += item
+    }
+    val first = effectiveFirstUse(firstUse, earliest)
     val history =
-        historyPeriods(shown, startDay).map {
-            PeriodSpent(it, TierProgress(spentIn(rows, method.id, it), tiers), recorded = hasRecord(it, first, currentMonth))
+        periods.mapIndexed { index, period ->
+            PeriodSpent(period, TierProgress(spent[index], tiers), recorded = hasRecord(period, first, currentMonth))
         }
-    val selected = history.last().period
-    val inPeriod = rows.filter { it.paymentMethodId == method.id && it.localDate() in selected }
     return CardPerformanceDetailUiState(
         gone = false,
         today = today,
@@ -202,6 +214,6 @@ fun buildCardDetail(
         tiers = tiers,
         currentMonth = currentMonth,
         history = history,
-        days = groupByDay(inPeriod),
+        days = groupByDay(selected),
     )
 }

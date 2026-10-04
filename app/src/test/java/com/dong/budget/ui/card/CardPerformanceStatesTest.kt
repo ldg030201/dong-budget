@@ -2,15 +2,20 @@ package com.dong.budget.ui.card
 
 import com.dong.budget.data.db.PaymentMethodEntity
 import com.dong.budget.data.db.PaymentMethodType
+import com.dong.budget.data.db.TransactionListItem
+import com.dong.budget.data.db.TransactionType.EXPENSE
 import com.dong.budget.data.db.TransactionType.REFUND
 import com.dong.budget.testing.day
 import com.dong.budget.testing.tx
+import com.dong.budget.ui.home.localDate
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.time.LocalDateTime
 import java.time.YearMonth
+import kotlin.random.Random
 
 class CardPerformanceStatesTest {
     private val today = day("2026-10-03")
@@ -232,5 +237,26 @@ class CardPerformanceStatesTest {
         val both = rows + tx("2026-10-01", 700_000, paymentId = 6)
         val reached = buildCardDetail(card, YearMonth.of(2026, 10), octoberFirst, both, day("2026-09-05"))
         assertEquals("기록한 2개월 모두 가장 높은 구간을 채웠어요", historySummary(reached.history, reached.tiers, reached.currentMonth))
+    }
+
+    @Test
+    fun `상세는 거래를 한 번만 훑어도 기간마다 따로 센 것과 같다`() {
+        // 전에는 6기간마다 모든 줄의 날짜를 다시 구해 걸렀다. 한 번 훑기로 바꾼 뒤에도 기간 경계·환불·고른 기간 줄이 같아야 한다
+        val random = Random(7)
+        val card = method(2, "하나카드", tiers = "300000", startDay = 15)
+        val rows =
+            List(300) {
+                val at = LocalDateTime.of(2026, 3, 1, 0, 0).plusMinutes(random.nextLong(60L * 24 * 230))
+                tx(at.toString(), random.nextLong(1, 100_000), if (random.nextInt(5) == 0) REFUND else EXPENSE, paymentId = 2)
+            }.sortedWith(compareByDescending<TransactionListItem> { it.occurredAt }.thenByDescending { it.id })
+        listOf(YearMonth.of(2026, 9), YearMonth.of(2026, 7)).forEach { month ->
+            val detail = buildCardDetail(card, month, today, rows, firstUse = null)
+            detail.history.forEach { entry ->
+                val expected = rows.filter { it.localDate() in entry.period }.sumOf { if (it.type == REFUND) -it.amount else it.amount }
+                assertEquals("${entry.period}", expected, entry.progress.spent)
+            }
+            val period = detail.period!!
+            assertEquals(rows.filter { it.localDate() in period }.map { it.id }, detail.days.flatMap { day -> day.items.map { it.id } })
+        }
     }
 }

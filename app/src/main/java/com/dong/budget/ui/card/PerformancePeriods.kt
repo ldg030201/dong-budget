@@ -5,11 +5,7 @@ import com.dong.budget.data.db.BudgetTime
 import com.dong.budget.data.db.CardSpendRow
 import com.dong.budget.data.db.PaymentMethodEntity
 import com.dong.budget.data.db.PaymentMethodType
-import com.dong.budget.data.db.TransactionListItem
 import com.dong.budget.data.db.TransactionType
-import com.dong.budget.ui.home.localDate
-import com.dong.budget.ui.home.totals
-import com.dong.budget.ui.stats.calc.Measure
 import com.dong.budget.ui.stats.calc.trendMonths
 import java.time.LocalDate
 import java.time.YearMonth
@@ -106,24 +102,11 @@ fun hasRecord(period: PerformancePeriod, firstUse: LocalDate?, current: YearMont
     period.month >= current || (firstUse != null && firstUse.isBefore(period.end))
 
 /**
- * 결제수단 [paymentMethodId] 를 지출·환불에 처음 쓴 날. 첫 사용일 조회([firstUse])와 거래 목록([rows])은 따로 방출돼
- * 잠깐 어긋날 수 있다(첫 거래를 막 등록한 직후 등). 보이는 거래보다 늦은 첫 사용일은 있을 수 없어 둘 중 이른 날을 쓴다(통계의 기록 시작일과 같다).
- */
-internal fun effectiveFirstUse(rows: List<TransactionListItem>, paymentMethodId: Long, firstUse: LocalDate?): LocalDate? {
-    val earliestRow = rows.filter { it.paymentMethodId == paymentMethodId && Measure.EXPENSE.includes(it) }.minOfOrNull { it.localDate() }
-    return effectiveFirstUse(firstUse, earliestRow)
-}
-
-/**
  * 카드를 처음 쓴 날. 첫 사용일 조회([firstUse])와 거래 목록은 따로 방출돼 잠깐 어긋날 수 있다(첫 거래를 막 등록한 직후 등).
  * 보이는 거래([earliestSeen] 이 가장 이른 날)보다 늦은 첫 사용일은 있을 수 없어 둘 중 이른 날을 쓴다(통계의 기록 시작일과 같은 규칙).
  */
 internal fun effectiveFirstUse(firstUse: LocalDate?, earliestSeen: LocalDate?): LocalDate? =
     listOfNotNull(firstUse, earliestSeen).minOrNull()
-
-/** [rows] 중 결제수단 [paymentMethodId] 로 [period] 안에 쓴 돈(지출 − 환불). 환불이 더 많으면 음수다. */
-fun spentIn(rows: List<TransactionListItem>, paymentMethodId: Long, period: PerformancePeriod): Long =
-    rows.filter { it.paymentMethodId == paymentMethodId && it.localDate() in period }.totals().expense
 
 /** 쓴 돈 한 건. 날짜(서울 기준)는 한 줄에 한 번만 구해 둔다. 지출은 +, 환불은 − 다. */
 internal class Spend(val date: LocalDate, val amount: Long)
