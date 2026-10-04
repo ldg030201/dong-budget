@@ -24,7 +24,6 @@ internal fun PaymentMethodEntity.toCardInfo(): CardInfo = CardInfo(id = id, name
  * @property period 오늘이 든 기간
  * @property daysLeft 그 기간에 남은 날(오늘도 센다)
  * @property progress 이번 기간에 구간을 얼마나 채웠는지
- * @property previousMonth 바로 앞 기간의 이름 달
  * @property previous 바로 앞 기간. 카드 혜택은 보통 전월 실적으로 정해져서 함께 보여 준다.
  *   그 카드를 처음 쓴 날 전에 끝난 기간이면 기록이 없어 null 이다([hasRecord]).
  */
@@ -33,9 +32,11 @@ data class TrackedCard(
     val period: PerformancePeriod,
     val daysLeft: Int,
     val progress: TierProgress,
-    val previousMonth: YearMonth,
     val previous: TierProgress?,
-)
+) {
+    /** 바로 앞 기간의 이름 달 */
+    val previousMonth: YearMonth get() = period.month.minusMonths(1)
+}
 
 /**
  * 실적을 안 적은 카드 한 줄.
@@ -95,7 +96,6 @@ fun buildCardPerformance(
                     period = period,
                     daysLeft = daysLeft(period, today),
                     progress = TierProgress(spent, tiers),
-                    previousMonth = previous.month,
                     previous = if (recorded) TierProgress(spentIn(rows, method.id, previous), tiers) else null,
                 )
         }
@@ -111,53 +111,58 @@ fun buildCardPerformance(
 data class PeriodSpent(val period: PerformancePeriod, val progress: TierProgress, val recorded: Boolean = true)
 
 /**
- * 카드실적 상세의 상태.
- * @property loaded 첫 계산이 끝났는지
+ * 카드실적 상세의 상태. 고른 기간의 값(기간·쓴 돈·기록 있음)은 막대의 마지막 칸([selected])에서 꺼내 머리와 막대가 어긋나지 않는다.
  * @property gone 결제수단이 없어졌는지(지웠음). 화면을 닫는다.
  * @property card 카드 이름·아이콘·색. 첫 계산 전에는 null
  * @property tiers 구간 금액(오름차순). 실적을 지웠으면 비어 있다.
- * @property period 고른 기간. 이번 기간보다 뒤로는 못 간다.
  * @property currentMonth 오늘이 든 기간의 이름 달
- * @property daysLeft 고른 기간이 이번 기간일 때 남은 날. 지난 기간이면 0
- * @property recorded 고른 기간에 기록이 있는지. 카드를 처음 쓴 날 전에 끝난 지난 기간이면 false 라 채웠는지 따지지 않는다.
- * @property history 고른 기간까지 최근 [HISTORY_PERIODS] 기간(오래된 것이 앞, 마지막이 고른 기간)
+ * @property history 고른 기간까지 최근 6기간(오래된 것이 앞, 마지막이 고른 기간)
  * @property days 고른 기간의 거래를 날짜별로(최근 날이 먼저)
- * @property count 고른 기간의 거래 수(지출·환불)
  */
 @Immutable
 data class CardPerformanceDetailUiState(
-    val loaded: Boolean,
     val gone: Boolean,
     val today: LocalDate,
     val card: CardInfo?,
     val tiers: List<Long>,
-    val period: PerformancePeriod?,
     val currentMonth: YearMonth?,
-    val daysLeft: Int,
-    val recorded: Boolean,
-    val progress: TierProgress,
     val history: List<PeriodSpent>,
     val days: List<DayGroup>,
-    val count: Int,
 ) {
+    /** 첫 계산이 끝났는지 */
+    val loaded: Boolean get() = card != null
+
+    /** 고른 기간(막대의 마지막 칸). 첫 계산 전에는 null. 이번 기간보다 뒤로는 못 간다. */
+    val selected: PeriodSpent? get() = history.lastOrNull()
+
+    val period: PerformancePeriod? get() = selected?.period
+
+    /** 고른 기간에 구간을 얼마나 채웠는지 */
+    val progress: TierProgress get() = selected?.progress ?: NO_PROGRESS
+
+    /** 고른 기간에 기록이 있는지. 카드를 처음 쓴 날 전에 끝난 지난 기간이면 false 라 채웠는지 따지지 않는다. */
+    val recorded: Boolean get() = selected?.recorded ?: true
+
     /** 고른 기간이 오늘이 든 기간인지 */
-    val isCurrent: Boolean get() = period != null && period.month == currentMonth
+    val isCurrent: Boolean get() = period.let { it != null && it.month == currentMonth }
+
+    /** 고른 기간에 남은 날. 지난 기간은 이미 끝나 0 이다. */
+    val daysLeft: Int get() = period?.let { daysLeft(it, today) } ?: 0
+
+    /** 고른 기간의 거래 수(지출·환불) */
+    val count: Int get() = days.sumOf { it.items.size }
 
     companion object {
+        private val NO_PROGRESS = TierProgress(0, emptyList())
+
         fun loading(today: LocalDate, gone: Boolean = false): CardPerformanceDetailUiState = CardPerformanceDetailUiState(
-            loaded = false,
             gone = gone,
             today = today,
             card = null,
             tiers = emptyList(),
-            period = null,
             currentMonth = null,
-            daysLeft = 0,
-            recorded = true,
-            progress = TierProgress(0, emptyList()),
             history = emptyList(),
             days = emptyList(),
-            count = 0,
         )
     }
 }
@@ -184,21 +189,15 @@ fun buildCardDetail(
         historyPeriods(shown, startDay).map {
             PeriodSpent(it, TierProgress(spentIn(rows, method.id, it), tiers), recorded = hasRecord(it, first, currentMonth))
         }
-    val selected = history.last()
-    val inPeriod = rows.filter { it.paymentMethodId == method.id && it.localDate() in selected.period }
+    val selected = history.last().period
+    val inPeriod = rows.filter { it.paymentMethodId == method.id && it.localDate() in selected }
     return CardPerformanceDetailUiState(
-        loaded = true,
         gone = false,
         today = today,
         card = method.toCardInfo(),
         tiers = tiers,
-        period = selected.period,
         currentMonth = currentMonth,
-        daysLeft = if (shown == currentMonth) daysLeft(selected.period, today) else 0,
-        recorded = selected.recorded,
-        progress = selected.progress,
         history = history,
         days = groupByDay(inPeriod),
-        count = inPeriod.size,
     )
 }

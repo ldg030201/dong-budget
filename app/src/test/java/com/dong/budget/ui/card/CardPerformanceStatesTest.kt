@@ -138,6 +138,23 @@ class CardPerformanceStatesTest {
     }
 
     @Test
+    fun `상세 머리의 기간과 쓴 돈은 막대의 마지막 칸에서 꺼내 늘 같다`() {
+        // 전에는 기간·쓴 돈·기록 있음을 막대와 따로 옮겨 담아, 한쪽만 고치면 머리와 막대가 어긋날 수 있었다
+        val september = buildCardDetail(hana, YearMonth.of(2026, 9), today, hanaRows, firstUse = null)
+        assertEquals(september.history.last(), september.selected)
+        assertEquals(september.history.last().period, september.period)
+        assertEquals(september.history.last().progress, september.progress)
+        assertEquals(1, september.count)
+        assertEquals(YearMonth.of(2026, 9), buildCardPerformance(listOf(hana), hanaRows, today, emptyMap()).tracked.single().previousMonth)
+        // 첫 계산 전에는 기간이 없고 이번 기간도 아니다
+        val loading = CardPerformanceDetailUiState.loading(today)
+        assertFalse(loading.loaded)
+        assertNull(loading.period)
+        assertFalse(loading.isCurrent)
+        assertEquals(0, loading.daysLeft)
+    }
+
+    @Test
     fun `실적을 지운 카드도 쓴 돈과 거래는 보여 준다`() {
         val state = buildCardDetail(hana.copy(performanceTiers = null), YearMonth.of(2026, 10), today, hanaRows, firstUse = null)
         assertEquals(emptyList<Long>(), state.tiers)

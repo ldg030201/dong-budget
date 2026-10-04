@@ -90,8 +90,7 @@ fun CardPerformanceDetailScreen(
                 actions = { if (state.loaded) BudgetTextButton(text = EDIT_LABEL, onClick = onEdit) },
             )
             // 첫 계산이 끝나기 전에는 비워 둔다. 기간은 카드의 시작일을 읽어야 정해진다.
-            val period = state.period
-            if (!state.loaded || period == null) return@Column
+            val period = state.period ?: return@Column
             PeriodStepper(
                 period = period,
                 today = state.today,

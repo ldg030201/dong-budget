@@ -106,7 +106,6 @@ class CardPerformanceTextTest {
             period = performancePeriod(october, 1),
             daysLeft = 29,
             progress = TierProgress(123_450, tiers),
-            previousMonth = YearMonth.of(2026, 9),
             previous = TierProgress(523_000, tiers),
         )
         assertEquals(
@@ -129,7 +128,6 @@ class CardPerformanceTextTest {
             period = performancePeriod(october, 1),
             daysLeft = 30,
             progress = TierProgress(0, tiers),
-            previousMonth = YearMonth.of(2026, 9),
             previous = TierProgress(0, tiers),
         )
         // 전에는 카드 이름 아래 '10월 1일 ~ 10월 31일 · 30일 남았어요' 가 320dp 에서 '30일 / 남았어요' 로 꺾였다
