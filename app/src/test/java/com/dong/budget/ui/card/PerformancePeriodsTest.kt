@@ -218,6 +218,21 @@ class PerformancePeriodsTest {
     }
 
     @Test
+    fun `시작일을 바꿔 고른 기간이 이번 기간 이상이 되면 다시 이번 기간을 따라간다`() {
+        // 10월 4일, 시작일 1일 카드에서 ‹ 로 9월을 고른 뒤 시작일을 15일로 바꾸면 이번 기간이 9월이 된다.
+        // 전에는 고른 9월을 그대로 둬서 10월 15일이 지나도 10월로 넘어가지 않고 9월이 지난 기간으로 보였다
+        val picked = previousPick(null, october)
+        val afterChange = periodMonthOf(day("2026-10-04"), 15)
+        assertEquals(picked, afterChange)
+        assertNull(keptPick(picked, afterChange))
+        assertNull(keptPick(YearMonth.of(2026, 11), october))
+        // 이번 기간보다 앞이면 날이 넘어가 새 기간이 시작돼도 일부러 고른 지난 기간을 그대로 본다
+        assertEquals(YearMonth.of(2026, 9), keptPick(YearMonth.of(2026, 9), october))
+        assertEquals(YearMonth.of(2026, 9), keptPick(YearMonth.of(2026, 9), YearMonth.of(2026, 11)))
+        assertNull(keptPick(null, october))
+    }
+
+    @Test
     fun `카드를 처음 쓴 날 전에 끝난 지난 기간만 기록이 없다`() {
         val september = performancePeriod(YearMonth.of(2026, 9), 1)
         assertFalse(hasRecord(september, day("2026-10-02"), october))

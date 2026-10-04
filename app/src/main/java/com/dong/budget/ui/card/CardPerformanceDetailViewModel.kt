@@ -44,13 +44,15 @@ class CardPerformanceDetailViewModel(
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val uiState: StateFlow<CardPerformanceDetailUiState> =
-        combine(paymentMethodRepository.observe(key.paymentMethodId), picked, BudgetTime.today(clock)) { card, picked, today ->
-            Triple(card, picked, today)
+        combine(paymentMethodRepository.observe(key.paymentMethodId), picked, BudgetTime.today(clock)) { card, pick, today ->
+            val kept = card?.let { keptPick(pick, periodMonthOf(today, it.performanceStartDay)) }
+            // 시작일을 바꿔 고른 기간이 이번 기간 이상이 됐으면 다시 이번 기간을 따라간다(다음 기간이 시작되면 넘어가게)
+            if (card != null && kept != pick) picked.compareAndSet(pick, null)
+            Triple(card, kept, today)
         }.distinctUntilChanged()
-            .flatMapLatest { (card, picked, today) ->
+            .flatMapLatest { (card, kept, today) ->
                 if (card == null) return@flatMapLatest flowOf(CardPerformanceDetailUiState.loading(today, gone = true))
-                val current = periodMonthOf(today, card.performanceStartDay)
-                val month = picked?.let { minOf(it, current) } ?: current
+                val month = kept ?: periodMonthOf(today, card.performanceStartDay)
                 val periods = historyPeriods(month, card.performanceStartDay)
                 combine(
                     transactionRepository.observeByPaymentMethod(card.id, periods.first().start, periods.last().end),
