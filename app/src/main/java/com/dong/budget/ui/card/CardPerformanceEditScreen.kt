@@ -193,26 +193,28 @@ fun CardPerformanceEditScreen(
                 Spacer(Modifier.height(BudgetTheme.spacing.sectionGap))
             }
 
+            // 닫히며 내려가거나 다른 입력판으로 바뀌며 사라지는 판도 그동안 누름을 받는다. 누르는 순간 열린 입력판을 읽어
+            // 그 판일 때만 받는다. 열린 줄을 지운 뒤 내려가는 키패드나, 키패드로 바뀌며 사라지는 날짜판의 칸이 눌려 값이 바뀌지 않게 한다.
             AnimatedInputPanel(panel = shown, modifier = Modifier.navigationBarsPadding()) { current ->
                 if (current == START_DAY_PANEL) {
                     InputPanelBox {
                         DayOfMonthGrid(
                             selected = state.startDay,
                             onPick = { day ->
-                                onStartDayChange(day)
-                                panel = null
+                                if (panelAccepts(panel, current)) {
+                                    onStartDayChange(day)
+                                    panel = null
+                                }
                             },
                             describe = ::startDayCellDescription,
                         )
                     }
                 } else {
                     InputPanelBox {
-                        // 닫히며 내려가거나 다른 줄 키패드로 바뀌며 사라지는 키패드도 그동안 누름을 받는다. 누르는 순간 열린 입력판을 읽어
-                        // 이 줄 키패드일 때만 받는다. 열린 줄을 지운 뒤 내려가는 키패드를 누르면 당겨 올라온 다음 줄 금액이 바뀌던 것을 막는다.
                         NumberKeypad(
-                            onDigit = { if (keypadAccepts(panel, current)) onDigit(current, it) },
-                            onDelete = { if (keypadAccepts(panel, current)) onDeleteDigit(current) },
-                            onClear = { if (keypadAccepts(panel, current)) onClearAmount(current) },
+                            onDigit = { if (panelAccepts(panel, current)) onDigit(current, it) },
+                            onDelete = { if (panelAccepts(panel, current)) onDeleteDigit(current) },
+                            onClear = { if (panelAccepts(panel, current)) onClearAmount(current) },
                         )
                     }
                 }

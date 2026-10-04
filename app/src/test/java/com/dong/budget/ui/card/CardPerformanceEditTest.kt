@@ -25,12 +25,20 @@ class CardPerformanceEditTest {
     fun `닫히며 내려가거나 다른 줄로 바뀐 키패드의 누름은 받지 않는다`() {
         // 1구간 키패드가 열린 채 1구간을 지우면 입력판은 닫히고(null) 2구간이 1구간 자리로 올라온다.
         // 내려가는 1구간 키패드(번호 0)를 눌러도 올라온 줄 금액이 바뀌면 안 된다.
-        assertFalse(keypadAccepts(panelAfterRemoval(0, 0), 0))
+        assertFalse(panelAccepts(panelAfterRemoval(0, 0), 0))
         // 위 줄을 지워 열린 키패드가 2구간(1)에서 1구간(0)으로 당겨지면, 사라지는 옛 키패드(1)는 받지 않고 새 키패드(0)만 받는다
         val moved = panelAfterRemoval(1, 0)
-        assertFalse(keypadAccepts(moved, 1))
-        assertTrue(keypadAccepts(moved, 0))
-        assertFalse(keypadAccepts(START_DAY_PANEL, 0))
+        assertFalse(panelAccepts(moved, 1))
+        assertTrue(panelAccepts(moved, 0))
+        assertFalse(panelAccepts(START_DAY_PANEL, 0))
+    }
+
+    @Test
+    fun `닫히며 내려가거나 키패드로 바뀌며 사라지는 날짜판의 누름은 받지 않는다`() {
+        // 전에는 날짜판만 이 확인이 없어, 닫은 날짜판이나 키패드 틈 아래 남은 날짜 칸이 눌려 시작일이 바뀌어 저장됐다
+        assertFalse(panelAccepts(null, START_DAY_PANEL))
+        assertFalse(panelAccepts(0, START_DAY_PANEL))
+        assertTrue(panelAccepts(START_DAY_PANEL, START_DAY_PANEL))
     }
 
     @Test

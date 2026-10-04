@@ -227,10 +227,11 @@ internal suspend fun startPanel(
 }
 
 /**
- * 구간 줄 [keypad] 의 키패드 누름을 받을지. 누르는 순간 열린 입력판([open])이 그 줄일 때만 받는다.
- * 닫히며 내려가는 중(null)이거나 다른 줄로 바뀌며 사라지는 키패드는 옛 줄 번호를 들고 있어서, 받으면 엉뚱한 줄 금액이 바뀐다.
+ * 입력판 [shown](구간 줄 키패드나 시작일 날짜판)의 누름을 받을지. 누르는 순간 열린 입력판([open])이 그것일 때만 받는다.
+ * 닫히며 내려가는 중(null)이거나 다른 입력판으로 바뀌며 사라지는 판도 전환 동안 누름을 받아서, 받으면 닫은 판의 값이 바뀌어 저장된다
+ * (사라지는 날짜판의 칸이 키패드 틈으로 눌려 시작일이 바뀌는 등).
  */
-internal fun keypadAccepts(open: Int?, keypad: Int): Boolean = open == keypad
+internal fun panelAccepts(open: Int?, shown: Int): Boolean = open == shown
 
 /**
  * 실적을 바꿨을 때 남길 로그. 카드 이름과 금액은 적지 않고 구간 개수와 시작일만 적는다. 그대로면 null
