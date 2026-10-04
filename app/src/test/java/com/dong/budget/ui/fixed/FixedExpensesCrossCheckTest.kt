@@ -46,6 +46,10 @@ class FixedExpensesCrossCheckTest {
             paid(merchant, amount, (if (card) usual else KoreanCalendar.nextBusinessDay(usual)).toString())
         }
 
+    /** [from] ~ [to] 날마다 */
+    private fun days(from: String, to: String): List<LocalDate> =
+        generateSequence(day(from)) { it.plusDays(1) }.takeWhile { !it.isAfter(day(to)) }.toList()
+
     @Test
     fun `금액으로 가를 수 없는 두 차례에서 뒤 차례를 해지하면 다음 달 앞 차례 결제는 그 달 몫이라 다음 달부터 한 건이다`() {
         // 3일 · 20일 30,000원 자동이체 가운데 20일 것을 2026년 9월부터 해지
@@ -153,6 +157,47 @@ class FixedExpensesCrossCheckTest {
             assertEquals(date, "PAID 1/1 50000", short(view(saved, OCT, today)))
             assertEquals(date, "PAID 1/2 50000", short(view(saved, SEP, today)))
         }
+    }
+
+    @Test
+    fun `하루 차이 두 청구의 앞 것만 자동이체면 앞 날이 쉬는 날인 달에 뒤 것 카드가 먼저 나가도 그 달 몫이다`() {
+        // 30일 자동이체 10,000원 · 말일 카드 20,000원. 2025년 11월 30일(일)엔 카드분이 그날, 자동이체분이 12월 1일에 나간다.
+        val shop = bill("통신", 10_000, 30, YearMonth.of(2025, 1), YearMonth.of(2026, 1)) +
+            bill("통신", 20_000, LAST_DAY, YearMonth.of(2025, 1), YearMonth.of(2026, 1), card = true)
+        for (today in days("2025-12-01", "2025-12-29")) {
+            assertEquals("$today", "PAID 2/2 30000", short(view(shop, YearMonth.of(2025, 11), today)))
+            assertNull("$today", note(shop, YearMonth.of(2025, 11), today))
+            assertEquals("$today", "DUE 0/2 30000", short(view(shop, YearMonth.of(2025, 12), today)))
+            assertNull("$today", note(shop, YearMonth.of(2025, 12), today))
+        }
+        // 14일 자동이체 30,000원 · 15일 카드 9,000원. 2026년 2월 14일(토) 것은 설 연휴 뒤 19일, 15일(일) 카드분은 그날 나간다.
+        val insurer = bill("보험", 30_000, 14, YearMonth.of(2025, 1), DEC) + bill("보험", 9_000, 15, YearMonth.of(2025, 1), DEC, card = true)
+        for (today in days("2026-02-19", "2026-02-28")) {
+            assertEquals("$today", "PAID 2/2 39000", short(view(insurer, FEB, today)))
+            assertNull("$today", note(insurer, FEB, today))
+        }
+        for (today in days("2026-03-01", "2026-03-14")) assertEquals("$today", "DUE 0/2 39000", short(view(insurer, MAR, today)))
+        // 5일 자동이체 4,400원 · 6일 카드 10,900원. 2025년 4월 5일(토) 것은 7일, 6일(일) 카드분은 그날 나갔다.
+        val apple = bill("애플", 4_400, 5, YearMonth.of(2024, 1), YearMonth.of(2025, 8)) +
+            bill("애플", 10_900, 6, YearMonth.of(2024, 1), YearMonth.of(2025, 8), card = true)
+        assertEquals("DUE 1/2 10900", short(view(apple, YearMonth.of(2025, 6), day("2025-06-05"))))
+        val august = view(apple, YearMonth.of(2025, 8), day("2025-08-05"), morning = true)
+        assertEquals(5, august.dueDay)
+        assertEquals("오늘 낼 차례예요", rowNote(august, YearMonth.of(2025, 8), day("2025-08-05"))?.text)
+    }
+
+    @Test
+    fun `금액이 비슷한 1일 · 말일 두 청구가 쉬는 날로 한날 나가면 기준 금액이 가까운 결제가 앞 달 말일 몫이다`() {
+        // 1일 30,000원 · 말일 33,000원 자동이체. 2026년 2월 28일(토) 것과 3월 1일(일) 것이 3월 3일(2일 대체공휴일)에 함께 나간다.
+        val shop = bill("보험", 30_000, 1, YearMonth.of(2025, 1), YearMonth.of(2026, 4)) +
+            bill("보험", 33_000, LAST_DAY, YearMonth.of(2025, 1), YearMonth.of(2026, 4))
+        for (today in days("2026-03-03", "2026-03-30")) {
+            assertEquals("$today", "DUE 1/2 33000", short(view(shop, MAR, today)))
+            assertEquals("$today", "PAID 2/2 63000", short(view(shop, FEB, today)))
+            assertNull("$today", note(shop, FEB, today))
+        }
+        assertEquals("2번 중 1번 냈고, 남은 건 오늘 낼 차례예요", note(shop, MAR, day("2026-03-31"), morning = true)?.text)
+        assertEquals("PAID 2/2 63000", short(view(shop, MAR, day("2026-04-10"))))
     }
 
     private companion object {
