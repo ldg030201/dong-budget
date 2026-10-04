@@ -51,7 +51,7 @@ enum class FixedStatus {
  * @property timesPerMonth 한 달에 서로 다른 날 여러 번 내는 자주 내는 가게(평일마다 내는 돌봄 · 주 3회 PT)면 한 달에 보통 몇 번 내는지.
  *   차례 없이 달력 달로 보아 그 달에 한 번이라도 냈으면 냈어요이고, 낼 돈은 가장 최근에 낸 달의 합이며 낼 날 알림이 없다. 그 밖에는 null
  * @property dueDay 고른 달에 다음으로 낼 차례의 평소 날. 덜 낸 첫 차례(안 나간 차례 [droppedDays] 는 빼고)이고, 하나도 안 냈는데 모든 차례가
- *   안 나갔으면 마지막 차례, 다 냈으면 건수가 있는 첫 차례다([usualDateIn] · [dueDateIn]).
+ *   안 나갔으면 건수가 있는 마지막 차례(뒤 차례를 해지한 다음 달이면 남은 앞 차례), 다 냈으면 건수가 있는 첫 차례다([usualDateIn] · [dueDateIn]).
  * @property amount 냈으면 고른 달에 낸 돈(그 달 몫의 합에 그 달에 따로 낸 것을 더함). 일부만 냈거나 안 나간 차례가 있으면 남은 차례의 평소 금액,
  *   아니면 이번에 낼 것으로 보는 금액(고른 달 건수만큼 낸 가장 최근 달 몫의 합, 따로 낸 것은 빼고)이다.
  * @property previousAmount 냈어요일 때 그 앞에 고른 달 건수만큼 낸 달 몫의 합. 견줄 수 없으면(앞 달이 없거나 낸 횟수가 다르거나 따로 낸 것이 섞였거나
@@ -271,7 +271,7 @@ private fun fixedItem(
             gap < cadence + DUE_MONTHS -> FixedStatus.DUE
             else -> FixedStatus.STOPPED
         }
-    // 하나도 안 냈는데 모든 차례가 안 나갔으면 그 달을 안 낸 것이다(지난 날 수는 마지막 차례부터 이어 센다)
+    // 하나도 안 냈는데 모든 차례가 안 나갔으면 그 달을 안 낸 것이다(지난 날 수는 건수가 있는 마지막 차례부터 이어 센다)
     val unpaid = here.isEmpty() && state.open.isEmpty() && state.dropped.isNotEmpty()
     val dropped = if (unpaid || here.size >= required) emptyList() else state.dropped
     // 고른 달의 건수만큼 낸 가장 최근 달(고른 달 전). 낼 돈과 지난번 금액은 이 달 몫으로 센다. 그 달마다의 건수가 아니라 고른 달의

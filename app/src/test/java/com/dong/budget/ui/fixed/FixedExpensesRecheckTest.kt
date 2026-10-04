@@ -317,4 +317,16 @@ class FixedExpensesRecheckTest {
         val november = YearMonth.of(2028, 11)
         assertEquals("2번 중 1번만 냈어요", note(rows, november, day("2028-11-02")))
     }
+
+    @Test
+    fun `뒤 차례를 해지한 다음 달에 남은 앞 차례도 안 내면 그 달을 안 낸 것이고 지난 날 수는 건수가 있는 앞 차례부터 센다`() {
+        // 3일 50,000원(1~10월) · 20일 30,000원(1~8월). 20일 것을 9월부터 해지했고 11월엔 3일 것도 안 냈다.
+        val rows = bill("보험", 50_000, 3, YearMonth.of(2026, 1), YearMonth.of(2026, 10)) +
+            bill("보험", 30_000, 20, YearMonth.of(2026, 1), YearMonth.of(2026, 8))
+        val november = YearMonth.of(2026, 11)
+        val item = view(rows, november, day("2026-11-07"))
+        assertEquals(FixedStatus.DUE, item.status)
+        assertEquals(3, item.dueDay)
+        assertEquals("평소보다 4일 지났어요", rowNote(item, november, day("2026-11-07"))?.text)
+    }
 }
