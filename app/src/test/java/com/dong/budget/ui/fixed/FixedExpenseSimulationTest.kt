@@ -8,9 +8,10 @@ import org.junit.Test
 import java.time.LocalDate
 import java.time.YearMonth
 import java.time.temporal.ChronoUnit
+import kotlin.math.abs
 
-/** 진짜로 낸 결제 한 건 */
-private data class Pay(val date: LocalDate, val amount: Long)
+/** 진짜로 낸 결제 한 건. [due] 는 그 결제를 원래 낼 날이다(밀린 몫을 늦게 내거나 다음 몫을 일찍 내면 [date] 와 다르다). */
+private data class Pay(val date: LocalDate, val amount: Long, val due: LocalDate = date)
 
 /**
  * 진짜 몫 하나. [month] 몫을 [payments] 로 냈다. [scheduled] 는 달력대로라면 낼 날(휴일 밀림 · 미리 냄 포함)이다.
@@ -114,6 +115,46 @@ private fun twoLines(): Pattern = Pattern(
 /** 매년 10월 말일 도메인. 2024년부터 냈다. */
 private fun domain(): Pattern = every("도메인", 22_000, 31, step = 12, from = YearMonth.of(2024, 10))
 
+/**
+ * [pays] 달의 몫은 [on] 에 내고(밀린 몫과 다음 몫을 한날 냄), 나머지는 매달 [day] 일(쉬는 날이면 다음 영업일)에 내는 것.
+ * rereview.json rr-fixed-5 의 두 경우다.
+ */
+private fun paidTogether(name: String, amount: Long, day: Int, on: LocalDate, pays: Set<YearMonth>) = Pattern(
+    name = name,
+    monthly = true,
+    oneMonth = amount,
+    shares =
+    months().map { month ->
+        val due = pushed(dayIn(month, day))
+        Share(month, due, listOf(Pay(if (month in pays) on else due, amount, due)))
+    },
+)
+
+/** 말일 관리비를 손으로 내는데 3번에 1번은 이틀 늦게(그 뒤 첫 영업일) 낸다 */
+private fun lateHand(): Pattern = Pattern(
+    name = "관리비C",
+    monthly = true,
+    oneMonth = 130_000,
+    shares =
+    months().mapIndexed { i, month ->
+        val due = pushed(month.atEndOfMonth())
+        val date = if (i % 3 == 1) pushed(due.plusDays(2)) else due
+        Share(month, due, listOf(Pay(date, 130_000, due)))
+    },
+)
+
+/** 한 가게에 매달 3일 33,000원 · 28일 30,000원(금액이 비슷한 두 차례) */
+private fun twoDaysSimilar(): Pattern = Pattern(
+    name = "보험2",
+    monthly = true,
+    oneMonth = 63_000,
+    shares =
+    months().map { month ->
+        val third = pushed(month.atDay(3))
+        Share(month, third, listOf(Pay(third, 33_000), Pay(pushed(month.atDay(28)), 30_000)))
+    },
+)
+
 /** 시뮬레이션에 쓰는 가게들 */
 private fun patterns(): List<Pattern> = listOf(
     every("관리비", 150_000, 31),
@@ -131,6 +172,14 @@ private fun patterns(): List<Pattern> = listOf(
     // 기록 1~2건뿐인 새 항목: 2027년 10월 말일(일요일 → 11월 1일)부터 낸 관리비, 11월 25일부터 낸 구독
     every("새관리비", 120_000, 31, from = YearMonth.of(2027, 10)),
     every("새구독", 9_900, 25, from = YearMonth.of(2027, 11)),
+    // 말일 관리비가 2025년 9월 것을 놓쳐 10월 2일에 9월 몫 · 10월 몫을 함께 냄
+    paidTogether("관리비B", 120_000, 31, LocalDate.of(2025, 10, 2), setOf(YearMonth.of(2025, 9), YearMonth.of(2025, 10))),
+    // 1일 월세가 2025년 10월 것을 놓쳐 10월 28일에 10월 몫 · 11월 몫을 함께 냄
+    paidTogether("월세B", 300_000, 1, LocalDate.of(2025, 10, 28), setOf(YearMonth.of(2025, 10), YearMonth.of(2025, 11))),
+    lateHand(),
+    twoDaysSimilar(),
+    every("구독28", 12_000, 28),
+    every("회비", 20_000, 5),
 )
 
 /** 불변식 위반 하나. [accepted] 는 fixes3.md '받아들이는 모호함' 에 해당하면 그 까닭(테스트를 실패시키지 않는다) */
@@ -173,6 +222,9 @@ private const val I4_LIMIT_PERCENT = 120L
 /** I6: 진짜 낼 날(밀림 포함)보다 며칠 앞서 '평소보다 N일 지났어요' 가 떠도 봐주는지(주말 밀림 이틀) */
 private const val I6_TOLERANCE_DAYS = 2L
 
+/** 평소 날과 이만큼 넘게 떨어진 결제는 가까운 쪽 달 몫으로 봐준다(fixes3.md '받아들이는 모호함') */
+private const val HALF_MONTH_DAYS = 15L
+
 /**
  * 2025-01-01 ~ 2027-12-31 의 실제 한국 달력([KoreanCalendar])으로 진짜 결제를 만들고, 오늘을 날마다 옮기며 그날까지의 기록만으로
  * 이번 달 · 지난 달 화면을 계산해 불변식(fixes3.md '검증 방법' I1~I6)을 본다. 읽는 범위는 화면 모델과 같다
@@ -203,13 +255,13 @@ class FixedExpenseSimulationTest {
         if (found.any { it.accepted == null }) fail(report)
     }
 
-    /** 화면 모델처럼 [month] 의 읽는 범위만 넘겨 계산한 판 */
+    /** 화면 모델처럼 [month] 의 읽는 범위만, 조회처럼 최신순으로 넘겨 계산한 판 */
     private fun boardOf(known: List<TransactionListItem>, month: YearMonth, today: LocalDate): FixedExpenseBoard = buildFixedExpenses(
         month,
         today,
-        known.filter {
-            YearMonth.from(it.localDate()) in fixedHistoryStart(month)..fixedHistoryEnd(month)
-        },
+        known
+            .filter { YearMonth.from(it.localDate()) in fixedHistoryStart(month)..fixedHistoryEnd(month) }
+            .sortedWith(compareByDescending<TransactionListItem> { it.occurredAt }.thenByDescending { it.id }),
     )
 
     private fun viewOf(pattern: Pattern, board: FixedExpenseBoard, month: YearMonth, known: List<TransactionListItem>): View {
@@ -264,7 +316,11 @@ private fun check(pattern: Pattern, day: LocalDate, now: View, before: View, che
     val scheduled = due?.scheduled
     val early = scheduled == null || ChronoUnit.DAYS.between(day, scheduled) > I6_TOLERANCE_DAYS
     judge("I6", now, now.item?.status == FixedStatus.DUE && past != null && past > 0, !early) {
-        "지났어요 없음(진짜 낼 날 ${scheduled ?: "없음"})"
+        // 긴 연휴(설 · 추석 등 평일 공휴일)로 밀린 것은 따로 받아들인다([acceptedReason]). 보기 쉽게 그 수를 적는다.
+        val holidays = scheduled?.let { end ->
+            generateSequence(day) { it.plusDays(1) }.takeWhile { it < end }.count(KoreanCalendar::isWeekdayHoliday)
+        }
+        "지났어요 없음(진짜 낼 날 ${scheduled ?: "없음"}${holidays?.takeIf { it > 0 }?.let { " · 사이 평일 공휴일 ${it}일" }.orEmpty()})"
     }
     return found
 }
@@ -289,11 +345,18 @@ private fun acceptedReason(pattern: Pattern, violation: Violation, day: LocalDat
     if (!pattern.monthly && near.any { share -> share.payments.any { YearMonth.from(it.date) != share.month } }) {
         return "매년·몇 달마다 결제가 달 경계를 넘어 밀림"
     }
-    // 긴 연휴로 밀리면 '평소보다 N일 지났어요' 가 진짜 낼 날보다 일찍 뜬다. 모델은 공휴일 달력을 모르므로, 그날부터 진짜 낼 날 사이의
-    // 평일 공휴일(설 · 추석 · 대체공휴일 등) 수만큼은 주말 밀림 허용치(I6_TOLERANCE_DAYS)에 더해 받아들인다.
+    // 평소 날과 반 달 넘게 떨어진 결제는 가까운 쪽 달 몫이다(밀린 몫과 다음 몫을 한날 내면 한 몫에 둘 다 들어간다)
+    val far =
+        (-1L..1L).mapNotNull { pattern.shareIn(violation.view.plusMonths(it)) }.any { share ->
+            share.payments.any { abs(ChronoUnit.DAYS.between(it.due, it.date)) > HALF_MONTH_DAYS }
+        }
+    if (far) return "평소 날과 반 달 넘게 떨어진 결제는 가까운 달 몫"
+    // 긴 연휴(설 · 추석 · 대체공휴일 등 평일 공휴일)로 밀리면 '평소보다 N일 지났어요' 가 진짜 낼 날보다 일찍 뜬다. 앱은 공휴일 달력이 없어
+    // (fixes3.md 새 모델은 요일 · 공휴일을 보지 않는다) 주말 밀림 허용치(I6_TOLERANCE_DAYS)와 같은 까닭으로, 그날부터 진짜 낼 날 사이의
+    // 평일 공휴일 수만큼 더 받아들인다. 앱에 공휴일 달력을 넣기로 하면 이 줄을 지우고 I6 를 다시 본다(아직 정하지 않음).
     if (violation.invariant == "I6") {
         val scheduled = pattern.shareIn(violation.view)?.scheduled ?: return null
-        val holidays = generateSequence(day) { it.plusDays(1) }.takeWhile { it < scheduled }.count { KoreanCalendar.isWeekdayHoliday(it) }
+        val holidays = generateSequence(day) { it.plusDays(1) }.takeWhile { it < scheduled }.count(KoreanCalendar::isWeekdayHoliday)
         if (holidays > 0 && ChronoUnit.DAYS.between(day, scheduled) <= I6_TOLERANCE_DAYS + holidays) return "긴 연휴 밀림(평일 공휴일 ${holidays}일)"
     }
     return null
