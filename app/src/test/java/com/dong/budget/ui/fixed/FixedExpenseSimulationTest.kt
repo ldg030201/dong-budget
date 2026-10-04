@@ -248,7 +248,7 @@ private data class Violation(
     val accepted: String? = null,
 )
 
-/** 한 날 한 달 화면에서 한 가게를 본 것. [seen] 은 그 화면이 쓴 이 가게의 결제(오늘까지, 다음 달 15일까지) */
+/** 한 날 한 달 화면에서 한 가게를 본 것. [seen] 은 그 화면이 쓴 이 가게의 결제(오늘까지) */
 private class View(val month: YearMonth, val item: FixedExpenseItem?, val seen: List<TransactionListItem>) {
     /**
      * 냈어요의 근거가 될 수 있는 결제 id 묶음들. 첫 결제일(lastPaidOn)에 낸 것을 하나 넣고 그날부터 낸 결제 가운데 낸 횟수만큼이며,
@@ -323,12 +323,11 @@ class FixedExpenseSimulationTest {
         known: List<TransactionListItem>,
         today: LocalDate,
     ): View {
-        val end = month.plusMonths(1).atDay(16)
         val range = fixedHistoryStart(month)..fixedHistoryEnd(month, today)
         return View(
             month = month,
             item = (board.due + board.paid + board.notThisMonth + board.stopped).firstOrNull { it.name == pattern.name },
-            seen = known.filter { it.merchant == pattern.name && YearMonth.from(it.localDate()) in range && it.localDate().isBefore(end) },
+            seen = known.filter { it.merchant == pattern.name && YearMonth.from(it.localDate()) in range },
         )
     }
 }

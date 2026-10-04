@@ -53,17 +53,15 @@ class FixedExpenseTextTest {
 
     @Test
     fun `매년 내는 것이 휴일로 해를 넘겨 밀려도 부제의 달과 다음 낼 달이 서로 맞는다`() {
-        // 매년 12월 31일에 내던 것이 올해는 2027년 1월 2일에 나갔다. 매년 내는 것은 옆 달 몫으로 옮기지 않는다.
-        // 새 모델: 매년 · 몇 달마다 내는 것은 달 경계를 넘어 밀려도 낸 달 몫으로 본다(받아들이는 모호함). 부제와 다음 낼 달은 1월로 맞는다.
+        // 매년 12월 31일에 내던 것이 올해는 2027년 1월 2일에 나갔다.
+        // 새 일정 모델: 매년 내는 것도 차례 달(12월)의 낼 날에 가까우면 그 달 몫이라 12월 몫이다(전에는 낸 달 1월로 보았다).
+        // 부제의 달은 낸 날의 달(1월)이 아니라 몇 월 몫인지로 적고, 다음 낼 달도 그 달에서 센다.
         val february = YearMonth.of(2027, 2)
         val today = day("2027-02-10")
         val yearly = item(paid("2024-12-31", "2025-12-31", "2027-01-02"), month = february, today = today)
-        assertEquals("매년 1월 말일쯤 · 하나카드", rowSubtitle(yearly, february))
-        assertEquals("다음은 2028년 1월에 내요", rowNote(yearly, february, today)?.text)
-        // 매년 부제의 달은 낸 날의 달이 아니라 몇 월 몫인지로 적는다
-        val shifted = yearly.copy(lastShareMonth = YearMonth.of(2026, 12), nextMonth = YearMonth.of(2027, 12))
-        assertEquals("매년 12월 말일쯤 · 하나카드", rowSubtitle(shifted, february))
-        assertEquals("다음은 12월에 내요", rowNote(shifted, february, today)?.text)
+        assertEquals(day("2027-01-02"), yearly.lastPaidOn)
+        assertEquals("매년 12월 말일쯤 · 하나카드", rowSubtitle(yearly, february))
+        assertEquals("다음은 12월에 내요", rowNote(yearly, february, today)?.text)
     }
 
     @Test
