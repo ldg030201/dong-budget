@@ -211,6 +211,33 @@ class FixedExpensesCrossCheckTest {
         assertEquals("오늘 낼 차례예요", note(sub, AUG, day("2026-08-06"), morning = true)?.text)
     }
 
+    @Test
+    fun `두 차례 가게의 한 청구 금액이 바뀌어 다른 청구와 같아지거나 맞바뀌어도 그 결제는 제 차례 몫이다`() {
+        // 1일 50,000원 · 15일 30,000원 자동이체에서 2027년 6월부터 15일 것도 50,000원
+        val same = bill("보험", 50_000, 1, YearMonth.of(2025, 1), YearMonth.of(2027, 12)) +
+            bill("보험", 30_000, 15, YearMonth.of(2025, 1), YearMonth.of(2027, 5)) +
+            bill("보험", 50_000, 15, YearMonth.of(2027, 6), YearMonth.of(2027, 12))
+        for (today in days("2027-07-01", "2027-07-14")) {
+            val item = view(same, YearMonth.of(2027, 7), today)
+            assertEquals("$today", "DUE 1/2 50000 15", "${short(item)} ${item.dueDay}")
+        }
+        assertEquals("PAID 2/2 100000", short(view(same, YearMonth.of(2027, 6), day("2027-07-10"))))
+        for (today in days(
+            "2027-08-02",
+            "2027-08-16",
+        )) {
+            assertEquals("$today", "DUE 1/2 50000", short(view(same, YearMonth.of(2027, 8), today)))
+        }
+        // 3일 50,000원 · 20일 30,000원 금액이 2026년 6월부터 맞바뀜(6월 3일 지방선거로 4일, 20일(토)은 22일에 나간다)
+        val swapped = bill("보험", 50_000, 3, YearMonth.of(2025, 1), MAY) + bill("보험", 30_000, 20, YearMonth.of(2025, 1), MAY) +
+            bill("보험", 30_000, 3, JUN, DEC) + bill("보험", 50_000, 20, JUN, DEC)
+        for (today in days("2026-06-04", "2026-06-21")) {
+            assertEquals("$today", "DUE 1/2", view(swapped, JUN, today).let { "${it.status} ${it.paidCount}/${it.requiredCount}" })
+            assertNotEquals("$today", NoteTone.WARNING, note(swapped, JUN, today)?.tone)
+        }
+        for (today in days("2026-07-01", "2026-07-02")) assertEquals("$today", FixedStatus.DUE, view(swapped, JUL, today).status)
+    }
+
     private companion object {
         val JAN: YearMonth = YearMonth.of(2026, 1)
         val FEB: YearMonth = YearMonth.of(2026, 2)

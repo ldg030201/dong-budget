@@ -308,6 +308,8 @@ private fun phaseOf(recent: List<Paid>, days: List<Int>, cadence: Int, dues: Due
 
 /**
  * 두 차례 가게의 차례마다 평소 금액(가까운 차례로 나눈 결제 금액의 가운데 값). 두 금액이 비슷하면 금액으로 가를 수 없어 null.
+ * 어느 차례든 가장 최근 결제가 평소 금액과 비슷하지 않으면(금액을 바꾸는 중) 그것도 null 이다. 가운데 값은 바뀐 금액을 몇 달 늦게 따라가서,
+ * 15일 것이 1일 것과 같은 금액으로 바뀌거나 두 금액이 맞바뀐 뒤 그동안 바뀐 결제를 다른 차례 금액으로 보아 제 차례를 메우지 못했다.
  * 두 차례가 같은 날이라(30일 · 말일 두 청구의 30일 달, 둘이 쉬는 날로 한날 밀린 달) 날짜로 어느 차례인지 모르는 결제는 빼고 센다.
  * 그런 결제를 앞 차례로 세면 두 금액이 섞여 금액으로 가를 수 없게 되고, 한 청구를 해지한 뒤 남은 결제가 해지한 차례에 짝지어진다.
  */
@@ -318,7 +320,10 @@ private fun slotAmountsOf(recent: List<Paid>, days: List<Int>, dues: DueDates): 
         val distances = days.map { dues.distance(pay.date, month, it) }
         distances.indices.minBy { distances[it] }.takeIf { nearest -> distances.count { it == distances[nearest] } == 1 }
     }
-    val amounts = days.indices.map { slot -> bySlot[slot]?.let { pays -> lowerMedian(pays.map { it.amount }) } ?: return null }
+    val amounts = days.indices.map { slot ->
+        val pays = bySlot[slot] ?: return null
+        lowerMedian(pays.map { it.amount }).takeIf { isNear(pays.last().amount, it) } ?: return null
+    }
     return amounts.takeUnless { isNear(it[0], it[1]) || isNear(it[1], it[0]) }
 }
 
