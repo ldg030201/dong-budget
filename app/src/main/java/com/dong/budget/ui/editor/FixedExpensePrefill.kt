@@ -20,15 +20,17 @@ import java.time.YearMonth
  *   평소 날짜가 쉬는 날이어도 낼 날(다음 영업일, [FixedExpenseItem.dueDateIn])로 밀지 않는다. 카드 결제 · 구독은 쉬는 날에도 그날 나가고
  *   은행 자동이체만 밀리는데 기록으로는 어느 쪽인지 모른다. '지났어요' 는 늦게 알려도 덜 성가셔 낼 날로 세지만, 적는 날짜는 평소 날짜 그대로 두고
  *   사용자가 등록창에서 고친다.
+ * - 자주 내는 가게([FixedExpenseItem.timesPerMonth], 평일마다 내는 돌봄 등)는 한 달 합이 아니라 지난번 한 번 낸 금액을, 평소 날짜가 없으니 오늘로 채운다.
  * - 같은 결제를 막을 열쇠는 두지 않는다. 한 달에 두 번 내는 것(밀린 달 몫 등)도 등록할 수 있어야 하고,
  *   냈는지는 열쇠가 아니라 그 달 '고정지출' 분류 지출로 가린다.
  */
 fun fixedExpensePrefill(item: FixedExpenseItem, today: LocalDate): EditorPrefill {
-    val date = minOf(today, item.usualDateIn(YearMonth.from(today)))
+    val frequent = item.timesPerMonth != null
+    val date = if (frequent) today else minOf(today, item.usualDateIn(YearMonth.from(today)))
     val time = BudgetTime.toLocalTime(item.latestAt)
     return EditorPrefill(
         // 한 달에 여러 번 낸 합이 등록창이 받는 가장 큰 금액을 넘을 수 있다
-        amount = item.amount.coerceIn(0, MAX_AMOUNT),
+        amount = (if (frequent) item.latestAmount else item.amount).coerceIn(0, MAX_AMOUNT),
         merchant = item.merchant.orEmpty(),
         paymentName = null,
         memo = null,

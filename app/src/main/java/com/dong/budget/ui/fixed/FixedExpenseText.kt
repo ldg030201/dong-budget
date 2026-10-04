@@ -29,12 +29,15 @@ internal fun usualDaysText(days: List<Int>): String =
 /**
  * 평소 언제 내는지. "매달 25일쯤", "2달마다 25일쯤", 한 달에 두 차례면 "매달 3일, 28일쯤",
  * 매년이면 마지막으로 낸 몫의 달을 붙여 "매년 3월 25일쯤". 낸 날의 달이 아니라 몇 월 몫인지로 적는다.
- * 덧붙임의 '다음은 …에 내요' 도 몫의 달에서 센다.
+ * 덧붙임의 '다음은 …에 내요' 도 몫의 달에서 센다. 자주 내는 가게는 평소 날 없이 "한 달에 13번쯤" 이다.
  */
-internal fun scheduleText(item: FixedExpenseItem): String = if (item.cadence >= YEARLY) {
-    "매년 ${item.lastShareMonth.monthValue}월 ${usualDaysText(item.usualDays)}"
-} else {
-    "${cadenceText(item.cadence)} ${usualDaysText(item.usualDays)}"
+internal fun scheduleText(item: FixedExpenseItem): String {
+    val times = item.timesPerMonth
+    return when {
+        times != null -> "한 달에 ${times}번쯤"
+        item.cadence >= YEARLY -> "매년 ${item.lastShareMonth.monthValue}월 ${usualDaysText(item.usualDays)}"
+        else -> "${cadenceText(item.cadence)} ${usualDaysText(item.usualDays)}"
+    }
 }
 
 /**
@@ -96,7 +99,7 @@ internal fun rowNote(item: FixedExpenseItem, month: YearMonth, today: LocalDate)
     FixedStatus.STOPPED -> null
 }
 
-/** 아직 안 냈어요 줄의 낼 날 알림(일부만 낸 것은 남은 차례의 낼 날). 없으면 null */
+/** 아직 안 냈어요 줄의 낼 날 알림(일부만 낸 것은 남은 차례의 낼 날). 자주 내는 가게는 낼 날이 없어 놓친 달만 알린다. 없으면 null */
 private fun dueNote(item: FixedExpenseItem, month: YearMonth, today: LocalDate): RowNote? {
     val missed = item.missedMonth
     val waiting = item.waitingMonth
@@ -105,6 +108,7 @@ private fun dueNote(item: FixedExpenseItem, month: YearMonth, today: LocalDate):
     return when {
         missed != null -> RowNote(missedText(item, missed, month, today), NoteTone.WARNING)
         waiting != null -> waitingNote(waiting, dueDateOf(waiting, item.usualDays.last()), month, today)
+        item.timesPerMonth != null -> null
         past != null && past > 0 -> RowNote("평소보다 ${past}일 지났어요", NoteTone.WARNING)
         past == 0 || (past == null && due == today) -> RowNote("오늘 낼 차례예요", NoteTone.TODAY)
         past == null && due.isAfter(today) -> RowNote("${dateText(due, month)}에 낼 차례예요", NoteTone.PLAIN)

@@ -75,6 +75,7 @@ internal class DueDates {
  * @property cadence 몇 달마다. 1, 2~[MAX_EVERY_MONTHS], [YEARLY]
  * @property phase 몇 달마다 내면 달 번호([index])를 [cadence] 로 나눈 나머지가 이것인 달이 차례 달이다(매달이면 0)
  * @property sample 따로 낸 결제([isExtra])를 가를 때 견주는 최근 금액들
+ * @property timesPerMonth 자주 내는 가게([frequentTimes])면 한 달에 보통 몇 번 내는지. 차례 없이 달력 달로 본다(그 밖에는 null).
  */
 internal class FixedSchedule(
     val days: List<Int>,
@@ -82,6 +83,7 @@ internal class FixedSchedule(
     val cadence: Int,
     val phase: Int,
     private val sample: List<Long>,
+    val timesPerMonth: Int? = null,
 ) {
     fun isSlotMonth(month: YearMonth): Boolean = Math.floorMod(month.index() - phase, cadence) == 0
 
@@ -107,10 +109,14 @@ internal class FixedSchedule(
  *    (한 날로 다 맞는다), 말일 것을 가끔 이틀 늦게 내도(두 날이 붙어 있고 달마다 한 번이다) 한 차례다.
  * 3. 주기: 결제마다 가장 가까운 차례의 달을 모아 최근 [CADENCE_GAPS] 간격의 가운데 값(짝수 개면 짧은 쪽, 늦게 알리는 것보다 일찍 알리는 게 낫다).
  * 4. 몇 달마다면 차례 달: 최근 결제가 가장 덜 떨어지는 달들(같으면 마지막 결제의 달을 지나는 쪽)이다.
+ * 자주 내는 가게([frequentTimes], 평일마다 내는 돌봄 · 주 3회 PT)는 차례를 짐작하지 않고 매달 내는 것으로 둔다.
  */
 internal fun estimateSchedule(estimation: List<Paid>, base: YearMonth, dues: DueDates): FixedSchedule {
     val sorted = estimation.sortedBy { it.date }
     val sample = sorted.takeLast(EXTRA_SAMPLES).map { it.amount }
+    frequentTimes(sorted, base)?.let { times ->
+        return FixedSchedule(listOf(1), slotAmounts = null, cadence = 1, phase = 0, sample = sample, timesPerMonth = times)
+    }
     val regular = sorted.filter { !isExtra(it.amount, sample) }.ifEmpty { sorted }
     // 같은 날 여러 건(밀린 몫을 함께 냄 · 나눠 냄)은 한 번으로 센다
     val dates = regular.map { it.date }.distinct()
@@ -132,6 +138,18 @@ internal fun estimateSchedule(estimation: List<Paid>, base: YearMonth, dues: Due
         phase = phaseOf(recent, days, cadence, dues),
         sample = sample,
     )
+}
+
+/**
+ * 자주 내는 가게면 한 달에 보통 몇 번 내는지, 아니면 null. 최근 [SLOT_COUNT_SPAN] 달력 달(결제가 있던 달, [base] 달 앞. 그런 달이 없으면
+ * 있는 달)마다 서로 다른 결제일 수의 가운데 값이 [FREQUENT_TIMES] 를 넘는 가게다. 다른 달이 있으면 중간에 시작한 첫 달은 뺀다.
+ * 날마다 · 요일마다 내는 것을 몇 월 몫의 몇 번째 차례로 나누면 이어 낸 결제가 앞뒤 달 몫으로 흩어진다.
+ */
+private fun frequentTimes(sorted: List<Paid>, base: YearMonth): Int? {
+    val byMonth = sorted.groupBy { it.month }
+    val months = byMonth.keys.filter { it < base }.ifEmpty { byMonth.keys }.sorted()
+    val counted = months.drop(if (months.size > 1) 1 else 0).takeLast(SLOT_COUNT_SPAN)
+    return lowerMedian(counted.map { month -> byMonth.getValue(month).map { it.date }.distinct().size }).takeIf { it > FREQUENT_TIMES }
 }
 
 /**
@@ -281,6 +299,9 @@ private const val SLOT_COUNT_SPAN = 6
 
 /** 두 차례로 보는 두 평소 날의 가장 짧은 사이(앞 날에서 달 경계를 돌아 뒤 날까지 · 뒤 날에서 다음 달 앞 날까지 가운데 짧은 쪽) */
 private const val SLOT_GAP_DAYS = 6
+
+/** 한 달에 서로 다른 날 이보다 많이 내면 자주 내는 가게다([frequentTimes]) */
+private const val FREQUENT_TIMES = 3
 
 /** 한 달 차례는 많아야 둘이다(셋 넘게 나눠 내는 가게는 두 차례에 건수를 나눈다) */
 internal const val MAX_SLOTS = 2

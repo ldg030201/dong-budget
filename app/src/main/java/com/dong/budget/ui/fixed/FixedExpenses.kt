@@ -45,10 +45,13 @@ enum class FixedStatus {
  * @property cadence 몇 달마다 내는지. 1(매달), 2~10(그 달마다), 12(매년)
  * @property usualDay 평소 내는 날(1~31). 한 달에 두 차례 내면 이른 차례의 날이다. 그 달에 없는 날이면 말일로 보고, 쉬는 날이면 다음 영업일에 낸다.
  * @property usualDays 차례마다 평소 내는 날, 이른 차례부터(3일 · 28일). 한 달에 한 번이면 [usualDay] 하나다.
+ * @property timesPerMonth 한 달에 서로 다른 날 여러 번 내는 자주 내는 가게(평일마다 내는 돌봄 · 주 3회 PT)면 한 달에 보통 몇 번 내는지.
+ *   차례 없이 달력 달로 보아 그 달에 한 번이라도 냈으면 냈어요이고, 낼 돈은 가장 최근에 낸 달의 합이며 낼 날 알림이 없다. 그 밖에는 null
  * @property dueDay 고른 달에 다음으로 낼 차례의 평소 날. 일부만 냈으면 아직 안 낸 첫 차례, 아니면 [usualDay] 다([usualDateIn] · [dueDateIn]).
  * @property amount 냈으면 고른 달에 낸 돈(그 달 몫의 합에 그 달에 따로 낸 것을 더함). 일부만 냈으면 남은 차례의 평소 금액,
  *   아니면 이번에 낼 것으로 보는 금액(가장 최근에 다 낸 달 몫의 합, 따로 낸 것은 빼고)이다.
- * @property previousAmount 냈어요일 때 그 앞에 다 낸 달 몫의 합. 견줄 수 없으면(앞 달이 없거나 낸 횟수가 다르거나 따로 낸 것이 섞였으면) null
+ * @property previousAmount 냈어요일 때 그 앞에 다 낸 달 몫의 합. 견줄 수 없으면(앞 달이 없거나 낸 횟수가 다르거나 따로 낸 것이 섞였거나
+ *   자주 내는 가게라 달마다 낸 횟수가 다르면) null
  * @property lastPaidOn 가장 최근에 낸 몫의 첫 결제일. 냈으면 고른 달 몫을 낸 날이다(미리 냈으면 전달, 밀려 냈으면 다음 달 날짜다).
  *   '냈어요' · '마지막' 날짜에만 쓴다. 몇 월 몫인지는 [lastShareMonth] 다.
  * @property lastShareMonth 가장 최근에 낸 몫이 몇 월 몫인지. 매년 내는 것의 '매년 3월' 은 이 달로 적는다(낸 날의 달과 다를 수 있다).
@@ -66,6 +69,7 @@ enum class FixedStatus {
  *   남은 날의 음수다. 그 밖에는 null
  * @property latestId 가장 최근 거래. 줄을 누르면 이 거래의 상세가 열리고, 거기서 같은 가게의 최근 1년 내역을 본다.
  * @property latestAt 가장 최근 거래의 때. '등록하기' 의 시각을 여기서 가져온다.
+ * @property latestAmount 가장 최근 거래의 금액. 자주 내는 가게의 '등록하기' 는 한 달 합이 아니라 이 금액이다.
  * @property paymentMethodId 가장 최근 거래의 결제수단. 지웠거나 비웠으면 null이고, 이름·아이콘·색도 같다.
  * @property categoryIcon 가장 최근 거래의 분류 아이콘(결제수단이 없을 때 뱃지에 쓴다)
  */
@@ -78,6 +82,7 @@ data class FixedExpenseItem(
     val cadence: Int,
     val usualDay: Int,
     val usualDays: List<Int>,
+    val timesPerMonth: Int?,
     val dueDay: Int,
     val amount: Long,
     val previousAmount: Long?,
@@ -93,6 +98,7 @@ data class FixedExpenseItem(
     val daysPastUsual: Int?,
     val latestId: Long,
     val latestAt: Instant,
+    val latestAmount: Long,
     val paymentMethodId: Long?,
     val paymentMethodName: String?,
     val paymentMethodIcon: String?,
@@ -199,8 +205,10 @@ fun fixedHistoryEnd(month: YearMonth, today: LocalDate): YearMonth = maxOf(month
  */
 private fun fixedItem(key: String, pays: List<Paid>, schedule: FixedSchedule, month: YearMonth, today: LocalDate): FixedExpenseItem? {
     val dues = DueDates()
-    val counts = MonthCounts(pays.filter { !schedule.isExtra(it.amount) }, schedule.days, dues)
-    val matching = matchPayments(pays, schedule, counts, month, dues)
+    // 자주 내는 가게는 차례 없이 낸 달 몫이고 한 번만 내도 그 달을 냈다
+    val frequent = schedule.timesPerMonth != null
+    val counts = MonthCounts(if (frequent) emptyList() else pays.filter { !schedule.isExtra(it.amount) }, schedule.days, dues)
+    val matching = if (frequent) matchByMonth(pays) else matchPayments(pays, schedule, counts, month, dues)
     val slotOf = matching.slotOf
     val shares = pays.filter { it.id in slotOf }.groupBy { slotOf.getValue(it.id).month }
     val extras = matching.extras.groupBy { it.month }
@@ -235,6 +243,7 @@ private fun fixedItem(key: String, pays: List<Paid>, schedule: FixedSchedule, mo
             cadence = cadence,
             usualDay = days.first(),
             usualDays = days,
+            timesPerMonth = schedule.timesPerMonth,
             dueDay = days[openSlot(here, slotOf, days.size, required)],
             amount =
             when {
@@ -244,7 +253,7 @@ private fun fixedItem(key: String, pays: List<Paid>, schedule: FixedSchedule, mo
             },
             previousAmount =
             full?.let(shares::getValue)?.takeIf {
-                status == FixedStatus.PAID && extraHere.isEmpty() && it.size == here.size
+                status == FixedStatus.PAID && extraHere.isEmpty() && it.size == here.size && !frequent
             }?.sumOf { it.amount },
             lastPaidOn = lastPays.minOf { it.date },
             lastShareMonth = last,
@@ -258,6 +267,7 @@ private fun fixedItem(key: String, pays: List<Paid>, schedule: FixedSchedule, mo
             daysPastUsual = null,
             latestId = latest.id,
             latestAt = latest.row.occurredAt,
+            latestAmount = latest.amount,
             paymentMethodId = latest.row.paymentMethodId,
             paymentMethodName = latest.row.paymentMethodName,
             paymentMethodIcon = latest.row.paymentMethodIcon,
@@ -265,8 +275,8 @@ private fun fixedItem(key: String, pays: List<Paid>, schedule: FixedSchedule, mo
             categoryIcon = latest.row.categoryIcon,
             categoryColor = latest.row.categoryColor,
         )
-    // 낼 날을 넘겼는지는 이번 달에만 센다. 지난 달은 이미 끝났다.
-    if (status != FixedStatus.DUE || month != YearMonth.from(today)) return item
+    // 낼 날을 넘겼는지는 이번 달에만 센다. 지난 달은 이미 끝났다. 자주 내는 가게는 낼 날이 없다.
+    if (status != FixedStatus.DUE || month != YearMonth.from(today) || frequent) return item
     val due = item.dueDateIn(month)
     // 낼 날이 지나야 '지났어요' 이고, 지난 날 수는 평소 날짜부터 센다(쉬는 날로 밀린 만큼 덜 세지 않게)
     val from = if (today.isAfter(due)) item.usualDateIn(month) else due

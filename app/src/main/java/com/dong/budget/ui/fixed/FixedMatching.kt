@@ -96,6 +96,10 @@ private fun orderOf(pays: List<Paid>, sameDay: (Paid) -> Int): List<Paid> {
     return byDate.sortedBy { rank.getValue(it.id) }
 }
 
+/** 자주 내는 가게([FixedSchedule.timesPerMonth])의 짝. 차례 없이 결제마다 낸 달 몫이다. */
+internal fun matchByMonth(pays: List<Paid>): Matching =
+    Matching(pays.associate { it.id to Slot(it.month, index = 0, day = 1, cap = 1, need = 0) }, extras = emptyList())
+
 /** 짝지은 길을 거슬러 결제마다 차례를 읽는다 */
 private fun resultOf(best: Node, ordered: List<Paid>, slots: List<Slot>): Matching {
     val slotOf = HashMap<Long, Slot>()
