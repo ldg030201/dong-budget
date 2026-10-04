@@ -59,7 +59,10 @@ enum class FixedStatus {
  * @property paidCount 고른 달 몫으로 낸 횟수(따로 낸 것 빼고). [requiredCount] 보다 적고 0보다 크면 일부만 낸 것이다.
  * @property requiredCount 고른 달에 내야 하는 횟수(한 달에 두 차례 내거나 한 차례에 두 건씩 내면 2)
  * @property paidAmount 고른 달에 낸 돈(그 달 몫과 그 달에 따로 낸 것). 아무것도 안 냈으면 0
- * @property nextMonth [FixedStatus.NOT_THIS_MONTH] 일 때 다음에 낼 달. 그 밖에는 null
+ * @property nextMonth [FixedStatus.NOT_THIS_MONTH] 일 때 다음에 낼 달. 다음 차례 몫을 미리 냈으면([prepaidMonth]) 그다음 차례 달이다. 그 밖에는 null
+ * @property prepaidMonth [FixedStatus.NOT_THIS_MONTH] 인데 다음 차례 몫을 고른 달이 끝나기 전에 미리 냈으면 그 몫의 달(매년 3월 것을 2월에 갱신).
+ *   그 결제는 그 몫의 달에 낸 돈이라 고른 달 낸 돈에는 들지 않는다. 그 밖에는 null
+ * @property prepaidOn [prepaidMonth] 몫을 낸 첫 결제일. 그 밖에는 null
  * @property missedMonth [FixedStatus.DUE] 이고 고른 달 몫을 하나도 안 냈는데, 바로 앞 차례 달도 비었고 그 달의 낼 날이 오늘 전이면 그 달.
  *   말일이 쉬는 날이라 다음 달 초에 나가는 차례는 그날이 와야 지났다고 한다([waitingMonth]). 그 밖에는 null
  * @property waitingMonth [missedMonth] 와 같은데 그 달의 낼 날이 아직 안 왔으면(말일이 쉬는 날이라 이번 달 초에 나가는 차례) 그 달.
@@ -93,6 +96,8 @@ data class FixedExpenseItem(
     val requiredCount: Int,
     val paidAmount: Long,
     val nextMonth: YearMonth?,
+    val prepaidMonth: YearMonth?,
+    val prepaidOn: LocalDate?,
     val missedMonth: YearMonth?,
     val waitingMonth: YearMonth?,
     val daysPastUsual: Int?,
@@ -236,6 +241,9 @@ private fun fixedItem(key: String, pays: List<Paid>, schedule: FixedSchedule, mo
     val days = schedule.days
     // 고른 달 몫을 하나도 안 냈는데 그 앞 차례 달도 비었으면 그 달(낼 날이 지났으면 놓친 것, 아직이면 기다리는 것)
     val skipped = last.plusMonths(cadence.toLong()).takeIf { status == FixedStatus.DUE && here.isEmpty() && gap > cadence }
+    // 몇 달마다 · 매년 내는 것의 다음 차례 몫을 고른 달이 끝나기 전에 미리 냈으면 그 몫. 다음 차례는 그다음이다.
+    val ahead = last.plusMonths(cadence.toLong())
+    val prepaidOn = shares[ahead]?.minOf { it.date }?.takeIf { status == FixedStatus.NOT_THIS_MONTH && it <= month.atEndOfMonth() }
     val lastPays = (shares.getValue(last) + extras[last].orEmpty()).sortedWith(paidByTime)
     val latest = (shares.filterKeys { it <= month }.values.flatten() + matching.extras.filter { it.month <= month }).maxWith(paidByTime)
     val name = latest.row.merchant?.trim()?.takeIf { key != NO_MERCHANT_KEY }
@@ -266,7 +274,9 @@ private fun fixedItem(key: String, pays: List<Paid>, schedule: FixedSchedule, mo
             paidCount = here.size,
             requiredCount = required,
             paidAmount = (here + extraHere).sumOf { it.amount },
-            nextMonth = last.plusMonths(cadence.toLong()).takeIf { status == FixedStatus.NOT_THIS_MONTH },
+            nextMonth = ahead.plusMonths(if (prepaidOn != null) cadence.toLong() else 0).takeIf { status == FixedStatus.NOT_THIS_MONTH },
+            prepaidMonth = ahead.takeIf { prepaidOn != null },
+            prepaidOn = prepaidOn,
             missedMonth = skipped?.takeIf { today.isAfter(dues.due(it, days.last())) },
             waitingMonth = skipped?.takeIf { !today.isAfter(dues.due(it, days.last())) },
             daysPastUsual = null,

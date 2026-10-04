@@ -73,7 +73,7 @@ internal data class RowNote(val text: String, val tone: NoteTone)
  *   오늘이면 "오늘 낼 차례예요". 지난 달인데 그 달 낼 날이 아직이면(말일이 쉬는 날이라 다음 달 초에 나감) "11월 2일에 낼 차례예요".
  *   한 달 몫을 여러 번에 나눠 내는데 일부만 냈으면 앞에 "2번 중 1번 냈어요" 를 붙인다("2번 중 1번 냈고, 남은 건 평소보다 2일 지났어요").
  * - 냈어요: 지난번과 금액이 다르면 "지난번보다 1,000원 올랐어요" / "내렸어요"
- * - 이번 달엔 안 내요: "다음은 12월에 내요"
+ * - 이번 달엔 안 내요: "다음은 12월에 내요". 다음 차례 몫을 미리 냈으면 "3월 몫을 2월 22일에 미리 냈어요"
  */
 internal fun rowNote(item: FixedExpenseItem, month: YearMonth, today: LocalDate): RowNote? = when (item.status) {
     FixedStatus.DUE -> {
@@ -94,7 +94,14 @@ internal fun rowNote(item: FixedExpenseItem, month: YearMonth, today: LocalDate)
         }
     }
 
-    FixedStatus.NOT_THIS_MONTH -> item.nextMonth?.let { RowNote("다음은 ${monthName(it, month)}에 내요", NoteTone.PLAIN) }
+    FixedStatus.NOT_THIS_MONTH -> {
+        val prepaid = item.prepaidMonth
+        val on = item.prepaidOn
+        when {
+            prepaid != null && on != null -> RowNote("${monthName(prepaid, month)} 몫을 ${dateText(on, month)}에 미리 냈어요", NoteTone.PLAIN)
+            else -> item.nextMonth?.let { RowNote("다음은 ${monthName(it, month)}에 내요", NoteTone.PLAIN) }
+        }
+    }
 
     FixedStatus.STOPPED -> null
 }

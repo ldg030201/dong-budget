@@ -204,4 +204,24 @@ class FixedExpensesVerifyTest {
         assertEquals(FixedStatus.DUE, view(late, september, day("2026-09-10")).status)
         assertEquals(FixedStatus.PAID, view(late, september, day("2026-09-11")).status)
     }
+
+    @Test
+    fun `7 - 매년 내는 것을 앞 달에 미리 내면 낸 달 화면이 그 몫을 미리 냈다고 알리고 다음 차례는 그다음 해다`() {
+        val car = paid("자동차보험", 800_000, "2024-03-15", "2025-03-14", "2026-02-22")
+        val february = YearMonth.of(2026, 2)
+        val early = view(car, february, day("2026-02-23"))
+        assertEquals(FixedStatus.NOT_THIS_MONTH, early.status)
+        assertEquals(YearMonth.of(2026, 3), early.prepaidMonth)
+        assertEquals(YearMonth.of(2027, 3), early.nextMonth)
+        assertEquals("3월 몫을 2월 22일에 미리 냈어요", rowNote(early, february, day("2026-02-23"))?.text)
+        // 그 결제는 3월 몫이라 2월 낸 돈에는 들지 않고, 3월 화면은 냈어요다
+        assertEquals(0L, early.paidAmount)
+        val march = view(car, YearMonth.of(2026, 3), day("2026-03-20"))
+        assertEquals(FixedStatus.PAID, march.status)
+        assertEquals(day("2026-02-22"), march.lastPaidOn)
+        // 아직 미리 내지 않았으면 2월 화면이 다음 차례를 알린다
+        val onTime = view(paid("자동차보험", 800_000, "2024-03-15", "2025-03-14"), february, day("2026-02-20"))
+        assertNull(onTime.prepaidMonth)
+        assertEquals("다음은 3월에 내요", rowNote(onTime, february, day("2026-02-20"))?.text)
+    }
 }
