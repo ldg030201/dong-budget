@@ -7,18 +7,24 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import com.dong.budget.ui.theme.BudgetTheme
 import com.dong.budget.ui.theme.Motion
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
 
 /**
- * 화면 아래의 입력판 자리(키패드·아이콘 표·달력·시계). 등록창과 월급 설정이 같이 쓴다.
+ * 화면 아래의 입력판 자리(키패드·아이콘 표·달력·시계). 등록창·월급 설정·카드 실적 편집이 같이 쓴다.
  * 닫혀 있다가 열리면 아래에서 올라오고, 닫으면 아래로 내려간다. 다른 입력판으로 바꾸면 제자리에서 겹쳐 바뀐다.
  * 입력판마다 따로 그려져서(targetState 가 다르면 content 도 다르다) 앞 입력판의 상태가 다음 입력판에 남지 않는다.
  *
@@ -68,5 +74,28 @@ fun InputPanelBox(content: @Composable () -> Unit) {
     }
 }
 
+/**
+ * 입력판을 연 줄이 입력판에 가려지지 않게 끌어올린다. 입력판이 열리면 [scrollState] 의 보이는 높이가 그만큼 줄어서
+ * 아래쪽 줄을 누르면 방금 누른 줄이 가려질 수 있다. 열리는 도중에 맞추면 줄어들기 전 높이로 계산해 여전히 가려지므로,
+ * 높이가 멈춘 뒤에 맞춘다. 등록창·월급 설정·카드 실적 편집이 같이 쓴다.
+ * @param requesters 입력판마다 그 입력판을 여는 줄. [panel] 이 null 이거나 여기에 없으면 맞추지 않는다.
+ */
+@Composable
+fun <T : Any> BringPanelRowIntoView(panel: T?, scrollState: ScrollState, requesters: Map<T, BringIntoViewRequester>) {
+    LaunchedEffect(panel) {
+        val requester = requesters[panel] ?: return@LaunchedEffect
+        snapshotFlow { scrollState.viewportSize }.collectLatest {
+            delay(PANEL_SETTLE_MS)
+            requester.bringIntoView()
+        }
+    }
+}
+
 /** 입력판이 열리고 닫힐 때 움직이는 거리. 입력판 높이의 1/4 */
 private const val PANEL_RISE_DIVISOR = 4
+
+/**
+ * 칸 목록의 높이가 이만큼 멈춰 있으면 입력판이 다 열렸다고 본다.
+ * 애니메이션 중에는 매 프레임(16ms) 높이가 바뀌므로 그보다 넉넉하면 된다.
+ */
+private const val PANEL_SETTLE_MS = 100L

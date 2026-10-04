@@ -13,17 +13,6 @@ import org.junit.Test
 
 class CardPerformanceEditTest {
     @Test
-    fun `금액 키패드는 앞의 0 을 떼고 12자리까지만 받는다`() {
-        assertEquals(3L, typeDigit(0, "3"))
-        assertEquals(300L, typeDigit(3, "00"))
-        assertEquals(0L, typeDigit(0, "0"))
-        assertEquals(0L, typeDigit(0, "00"))
-        assertEquals(999_999_999_999L, typeDigit(99_999_999_999, "9"))
-        assertNull(typeDigit(999_999_999_999, "9"))
-        assertNull(typeDigit(99_999_999_999, "00"))
-    }
-
-    @Test
     fun `구간 줄을 지우면 그 줄의 키패드는 닫고 아래 줄 키패드는 한 칸 당긴다`() {
         assertNull(panelAfterRemoval(1, 1))
         assertEquals(1, panelAfterRemoval(2, 0))

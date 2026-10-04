@@ -3,7 +3,6 @@ package com.dong.budget.ui.card
 import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.dong.budget.data.MAX_AMOUNT_DIGITS
 import com.dong.budget.data.PaymentMethodRepository
 import com.dong.budget.data.card.MAX_PERFORMANCE_TIERS
 import com.dong.budget.data.card.normalizePerformanceStartDay
@@ -12,6 +11,8 @@ import com.dong.budget.data.card.performanceTierList
 import com.dong.budget.data.db.BudgetTime
 import com.dong.budget.data.devlog.DevLog
 import com.dong.budget.data.devlog.LogTag
+import com.dong.budget.ui.components.appendAmountDigit
+import com.dong.budget.ui.components.deleteAmountDigit
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -109,9 +110,9 @@ class CardPerformanceEditViewModel(
     }
 
     /** 구간 줄 [index] 의 금액 키패드. 앞의 0 은 떼고, 12자리를 넘으면 받지 않는다. */
-    fun appendDigit(index: Int, digit: String) = editRow(index) { typeDigit(it, digit) }
+    fun appendDigit(index: Int, digit: String) = editRow(index) { appendAmountDigit(it, digit) }
 
-    fun deleteDigit(index: Int) = editRow(index) { it / DECIMAL }
+    fun deleteDigit(index: Int) = editRow(index) { deleteAmountDigit(it) }
 
     fun clearAmount(index: Int) = editRow(index) { 0 }
 
@@ -184,8 +185,6 @@ class CardPerformanceEditViewModel(
     }
 
     private companion object {
-        const val DECIMAL = 10L
-
         /** 지운 실적. 구간이 없고 1일부터 센다(새 결제수단과 같다). */
         val CLEARED = SavedPerformance(emptyList(), 1)
     }
@@ -193,16 +192,6 @@ class CardPerformanceEditViewModel(
 
 /** 저장된(저장할) 실적. 구간은 정리한 것이다. */
 internal data class SavedPerformance(val tiers: List<Long>, val startDay: Int)
-
-/**
- * 금액 키패드 한 번 누름. 앞의 0 은 떼고, 12자리를 넘으면 받지 않는다(null). 월급 설정과 같은 규칙이다.
- * @param digit 키패드가 주는 글자("0"~"9", "00")
- */
-internal fun typeDigit(amount: Long, digit: String): Long? {
-    val digits = (amount.takeIf { it > 0 }?.toString().orEmpty() + digit).trimStart('0')
-    if (digits.length > MAX_AMOUNT_DIGITS) return null
-    return digits.toLongOrNull() ?: 0
-}
 
 /** 시작일 입력판. 구간 줄 입력판은 줄 번호(0 부터)다. 저장 상태에 Int 하나로 들어간다. */
 internal const val START_DAY_PANEL = -1

@@ -23,6 +23,8 @@ import com.dong.budget.navigation.EditorPrefill
 import com.dong.budget.navigation.PrefillSource
 import com.dong.budget.ui.category.AddTarget
 import com.dong.budget.ui.category.message
+import com.dong.budget.ui.components.appendAmountDigit
+import com.dong.budget.ui.components.deleteAmountDigit
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
@@ -279,15 +281,16 @@ class TransactionEditorViewModel(
         _uiState.update { it.copy(type = type) }
     }
 
+    // 숫자 규칙은 월급 설정·카드 실적 편집과 같은 것을 쓴다. 0 이면 빈 칸(안내 글)으로 둔다.
     fun appendDigit(digit: String) {
         _uiState.update { state ->
-            val next = (state.amountDigits + digit).trimStart('0')
-            if (next.length > MAX_AMOUNT_DIGITS) state else state.copy(amountDigits = next)
+            val next = appendAmountDigit(state.amount, digit) ?: return@update state
+            state.copy(amountDigits = amountText(next))
         }
     }
 
     fun deleteDigit() {
-        _uiState.update { it.copy(amountDigits = it.amountDigits.dropLast(1)) }
+        _uiState.update { it.copy(amountDigits = amountText(deleteAmountDigit(it.amount))) }
     }
 
     fun clearAmount() {
@@ -473,3 +476,6 @@ class TransactionEditorViewModel(
 }
 
 fun TransactionType.categoryScope(): CategoryScope = if (this == TransactionType.INCOME) CategoryScope.INCOME else CategoryScope.EXPENSE
+
+/** 키패드 금액 칸에 둘 숫자. 0 이면 아직 적지 않은 것이라 비운다. */
+private fun amountText(amount: Long): String = amount.takeIf { it > 0 }?.toString().orEmpty()

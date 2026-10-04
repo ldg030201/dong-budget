@@ -31,7 +31,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -43,6 +42,7 @@ import com.dong.budget.R
 import com.dong.budget.data.card.MAX_PERFORMANCE_TIERS
 import com.dong.budget.ui.components.ActionRow
 import com.dong.budget.ui.components.AnimatedInputPanel
+import com.dong.budget.ui.components.BringPanelRowIntoView
 import com.dong.budget.ui.components.BudgetIconButton
 import com.dong.budget.ui.components.BudgetTopAppBar
 import com.dong.budget.ui.components.ConfirmDialog
@@ -54,8 +54,6 @@ import com.dong.budget.ui.settings.SettingsGroup
 import com.dong.budget.ui.theme.BudgetTheme
 import com.dong.budget.ui.theme.Motion
 import com.dong.budget.ui.theme.pressScaleClickable
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
 
 /**
@@ -124,16 +122,10 @@ fun CardPerformanceEditScreen(
     // 입력판이 열려 있으면 뒤로가기는 화면이 아니라 입력판을 닫는다
     BackHandler(enabled = shown != null) { panel = null }
 
-    // 아래쪽 줄을 누르면 열린 입력판에 가려질 수 있다. 입력판 높이가 멈춘 뒤 누른 줄이 보이게 올린다(월급 설정과 같다).
+    // 아래쪽 줄을 누르면 열린 입력판에 가려질 수 있다. 입력판 높이가 멈춘 뒤 누른 줄이 보이게 올린다.
     val scrollState = rememberScrollState()
     val requesters = remember { (listOf(START_DAY_PANEL) + (0 until MAX_PERFORMANCE_TIERS)).associateWith { BringIntoViewRequester() } }
-    LaunchedEffect(shown) {
-        val requester = requesters[shown] ?: return@LaunchedEffect
-        snapshotFlow { scrollState.viewportSize }.collectLatest {
-            delay(PANEL_SETTLE_MS)
-            requester.bringIntoView()
-        }
-    }
+    BringPanelRowIntoView(panel = shown, scrollState = scrollState, requesters = requesters)
 
     Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -287,6 +279,3 @@ private fun AddTierRow(onClick: () -> Unit) {
 private const val CLEAR_MESSAGE = "적은 구간을 모두 지우고 시작일을 매달 1일로 돌려요. 가계부에 등록한 거래는 그대로예요."
 
 private const val CLEAR_DESCRIPTION = "적은 구간과 시작일을 지워요. 가계부 거래는 그대로예요"
-
-/** 입력판이 열린 뒤 줄을 끌어올리기까지 기다리는 시간(월급 설정과 같다) */
-private const val PANEL_SETTLE_MS = 100L

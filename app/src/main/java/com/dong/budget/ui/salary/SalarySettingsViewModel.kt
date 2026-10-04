@@ -2,11 +2,12 @@ package com.dong.budget.ui.salary
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.dong.budget.data.MAX_AMOUNT_DIGITS
 import com.dong.budget.data.devlog.DevLog
 import com.dong.budget.data.devlog.LogTag
 import com.dong.budget.data.salary.SalaryRepository
 import com.dong.budget.data.salary.SalarySettings
+import com.dong.budget.ui.components.appendAmountDigit
+import com.dong.budget.ui.components.deleteAmountDigit
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -49,15 +50,13 @@ class SalarySettingsViewModel(
     /** 금액 키패드. 앞의 0 은 떼고, 12자리를 넘으면 받지 않는다. [takeHome] 이면 실수령, 아니면 세전 금액을 고친다. */
     fun appendDigit(takeHome: Boolean, digit: String) {
         val current = _settings.value ?: return
-        val now = if (takeHome) current.takeHome else current.amount
-        val digits = (now.takeIf { it > 0 }?.toString().orEmpty() + digit).trimStart('0')
-        if (digits.length > MAX_AMOUNT_DIGITS) return
-        setAmount(current, takeHome, digits.toLongOrNull() ?: 0)
+        val next = appendAmountDigit(if (takeHome) current.takeHome else current.amount, digit) ?: return
+        setAmount(current, takeHome, next)
     }
 
     fun deleteDigit(takeHome: Boolean) {
         val current = _settings.value ?: return
-        setAmount(current, takeHome, (if (takeHome) current.takeHome else current.amount) / DECIMAL)
+        setAmount(current, takeHome, deleteAmountDigit(if (takeHome) current.takeHome else current.amount))
     }
 
     fun clearAmount(takeHome: Boolean) {
@@ -85,9 +84,5 @@ class SalarySettingsViewModel(
     override fun onCleared() {
         val last = _settings.value
         if (last != null && last != opened) DevLog.info(LogTag.SALARY, "월급 설정을 바꿨어요 · ${repository.describe(last)}")
-    }
-
-    private companion object {
-        const val DECIMAL = 10L
     }
 }

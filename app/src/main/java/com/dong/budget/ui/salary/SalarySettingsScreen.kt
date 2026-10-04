@@ -15,13 +15,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -31,6 +29,7 @@ import com.dong.budget.data.salary.PayBasis
 import com.dong.budget.data.salary.SalarySettings
 import com.dong.budget.ui.components.ActionRow
 import com.dong.budget.ui.components.AnimatedInputPanel
+import com.dong.budget.ui.components.BringPanelRowIntoView
 import com.dong.budget.ui.components.BudgetTextButton
 import com.dong.budget.ui.components.BudgetTopAppBar
 import com.dong.budget.ui.components.ConfirmDialog
@@ -50,8 +49,6 @@ import com.dong.budget.ui.lock.LockControls
 import com.dong.budget.ui.lock.LockGroup
 import com.dong.budget.ui.settings.SettingsGroup
 import com.dong.budget.ui.theme.BudgetTheme
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.collectLatest
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
@@ -98,16 +95,10 @@ fun SalarySettingsScreen(
     // 입력판이 열려 있으면 뒤로가기는 화면이 아니라 입력판을 닫는다
     BackHandler(enabled = panel != null) { panel = null }
 
-    // 아래쪽 줄을 누르면 열린 입력판에 가려질 수 있다. 입력판 높이가 멈춘 뒤 누른 줄이 보이게 올린다(등록창과 같다).
+    // 아래쪽 줄을 누르면 열린 입력판에 가려질 수 있다. 입력판 높이가 멈춘 뒤 누른 줄이 보이게 올린다.
     val scrollState = rememberScrollState()
     val requesters = remember { SalaryPanel.entries.associateWith { BringIntoViewRequester() } }
-    LaunchedEffect(panel) {
-        val requester = requesters[panel] ?: return@LaunchedEffect
-        snapshotFlow { scrollState.viewportSize }.collectLatest {
-            delay(PANEL_SETTLE_MS)
-            requester.bringIntoView()
-        }
-    }
+    BringPanelRowIntoView(panel = panel, scrollState = scrollState, requesters = requesters)
 
     Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -358,6 +349,3 @@ private fun takeHomeHint(settings: SalarySettings): String = if (settings.takeHo
 } else {
     "적으면 통장에 들어오는 돈으로 쌓여요. 비워 두면 세전으로 쌓여요"
 }
-
-/** 입력판이 열린 뒤 줄을 끌어올리기까지 기다리는 시간(등록창과 같다) */
-private const val PANEL_SETTLE_MS = 100L

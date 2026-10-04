@@ -31,7 +31,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
@@ -49,6 +48,7 @@ import com.dong.budget.ui.category.PickerPreview
 import com.dong.budget.ui.components.AnimatedErrorText
 import com.dong.budget.ui.components.AnimatedHintText
 import com.dong.budget.ui.components.AnimatedInputPanel
+import com.dong.budget.ui.components.BringPanelRowIntoView
 import com.dong.budget.ui.components.BudgetPrimaryButton
 import com.dong.budget.ui.components.BudgetTextButton
 import com.dong.budget.ui.components.BudgetTopAppBar
@@ -71,19 +71,11 @@ import com.dong.budget.ui.format.formatKoreanWon
 import com.dong.budget.ui.format.formatTime
 import com.dong.budget.ui.theme.BudgetTheme
 import com.dong.budget.ui.theme.Motion
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.collectLatest
 import java.time.LocalDate
 
 /** 화면 아래에 열리는 입력판. 한 번에 하나만 열린다. */
 enum class EditorPanel { AMOUNT, CATEGORY, PAYMENT, DATE, TIME }
-
-/**
- * 칸 목록의 높이가 이만큼 멈춰 있으면 입력판이 다 열렸다고 본다.
- * 애니메이션 중에는 매 프레임(16ms) 높이가 바뀌므로 그보다 넉넉하면 된다.
- */
-private const val PANEL_SETTLE_MS = 100L
 
 /** 저장을 눌렀는데 이 칸이 비어 있을 때 칸 밑에 나오는 안내. 무엇을 해야 하는지 칸 이름으로 알려준다. */
 private fun RequiredField.missingMessage(): String = when (this) {
@@ -158,18 +150,10 @@ fun TransactionEditorScreen(
         panel = if (panel == target) null else target
     }
 
-    // 입력판이 열리면 칸 목록이 그만큼 줄어든다. 날짜·시간처럼 목록 아래쪽 칸을 누르면
-    // 방금 누른 칸이 입력판에 밀려 가려질 수 있어서, 열린 칸이 보이도록 스크롤을 맞춘다.
-    // 열리는 도중에 맞추면 줄어들기 전 높이로 계산해 여전히 가려지므로, 높이가 멈춘 뒤에 맞춘다.
+    // 날짜·시간처럼 목록 아래쪽 칸을 누르면 방금 누른 칸이 입력판에 밀려 가려질 수 있어서, 열린 칸이 보이도록 스크롤을 맞춘다.
     val scrollState = rememberScrollState()
     val requesters = remember { EditorPanel.entries.associateWith { BringIntoViewRequester() } }
-    LaunchedEffect(panel) {
-        val requester = requesters[panel] ?: return@LaunchedEffect
-        snapshotFlow { scrollState.viewportSize }.collectLatest {
-            delay(PANEL_SETTLE_MS)
-            requester.bringIntoView()
-        }
-    }
+    BringPanelRowIntoView(panel = panel, scrollState = scrollState, requesters = requesters)
 
     fun fieldModifier(target: EditorPanel) = Modifier.bringIntoViewRequester(requesters.getValue(target))
 
