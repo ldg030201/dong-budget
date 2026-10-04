@@ -12,7 +12,7 @@ import java.time.YearMonth
 //   새 회선이 같은 날 · 열흘 뒤에 생긴 달은 그 달 합으로 두고, 이미 찬 앞 달 대신 이번 달을 낸 것(등록하기로 오늘 적은 것)은 이번 달 몫이 된다.
 // - 첫 결제 차례부터 마지막 결제일까지 낼 날이 왔는데 빈 건수마다 [MISSING]. 밀린 몫을 늦게 함께 냈으면 빈 차례를 메운다
 //   (말일 관리비를 놓쳐 10월 2일에 두 건을 내면 하나는 9월, 하나는 10월 몫). 함께 나가던 건 가운데 일부만 나간 차례의 남은 건은
-//   그 뒤 사흘 안에 결제가 이어지는 동안만 센다([missingAt], 그 뒤엔 해지했거나 건너뛴 것이다).
+//   그 뒤 사흘 안에, 또는 이미 낸 건과 금액이 다른 결제가 이어지는 동안만 센다([missingAt], 같은 금액이 이어지면 해지했거나 건너뛴 것이다).
 // - 따로 낸 결제(연간 결제 등, [extrasOf])는 짝짓지 않는다. 평소 낼 날 가까이 나갔어도 그 달 차례를 채우지 않는다(매달 것보다
 //   하루 이틀 먼저 나간 연간 결제로 그 달이 '냈어요' 가 되지 않게). 값을 바꾼 것이면 다음 결제부터 따로 낸 것이 아니다.
 // 결제는 가장 가까운 차례에서 앞뒤 한 주기 안의 차례에만 짝짓는다.
@@ -31,23 +31,30 @@ internal class Matching(val slotOf: Map<Long, Slot>, val extras: List<Paid>, val
 
 /**
  * 짝짓기 중의 한 갈래. [slot] 은 마지막으로 짝지은 차례(아직 없으면 -1), [count] 는 그 차례에 짝지은 수([Slot.cap] 까지만 센다),
- * [fits] 는 그 가운데 금액이 그 차례와 맞는 수([OTHER_SLOT] 이 붙지 않은 것), [since] 는 금액이 맞는 결제가 건수보다 적게 있으면 그 차례 낼 날과 그 첫 결제
- * 가운데 늦은 날의 에포크 날 수다(그 밖에는 [NO_DAY], [missingAt]).
+ * [fits] 는 그 가운데 금액이 그 차례와 맞는 수([OTHER_SLOT] 이 붙지 않은 것), [partly] 는 금액이 맞는 결제가 건수보다 적게 있으면 그 차례에서
+ * 남은 건을 기다리는 모양([Partly], [missingAt])이고 그 밖에는 null 이다.
  */
 private class Node(
     val cost: Int,
     val slot: Int,
     val count: Int,
     val fits: Int,
-    val since: Int,
+    val partly: Partly?,
     val first: Boolean,
     val prev: Node?,
     val assigned: Int,
 ) {
     /** 같은 열쇠의 갈래는 앞으로 더할 값이 같아 값이 작은 것만 남긴다 */
-    val key: Long
-        get() = (since.toLong() shl Int.SIZE_BITS) or (((slot + 1L) * KEY_SLOT + count * KEY_COUNT + fits) * 2 + if (first) 1 else 0)
+    val key: Any get() = if (partly == null) state else Pair(state, partly)
+
+    private val state: Long get() = ((slot + 1L) * KEY_SLOT + count * KEY_COUNT + fits) * 2 + if (first) 1 else 0
 }
+
+/**
+ * 함께 나가던 건 가운데 일부만 나간 차례가 남은 건을 기다리는 모양. [since] 는 그 차례 낼 날과 첫 결제 가운데 늦은 날의 에포크 날 수,
+ * [amount] 는 그 첫 결제 금액이다.
+ */
+private data class Partly(val since: Int, val amount: Long)
 
 /**
  * [pays] 를 [schedule] 의 차례에 짝짓는다. 차례는 결제가 있는 달 앞뒤 한 주기와 [through] 달까지 있다.
@@ -71,23 +78,22 @@ internal fun matchPayments(
     fun total(node: Node): Int = if (node.slot < 0) {
         node.cost
     } else {
-        node.cost + (if (node.first) 0 else missingAt(slots[node.slot], node.fits, node.since, next = null)) +
+        node.cost + (if (node.first) 0 else missingAt(slots[node.slot], node.fits, node.partly, next = null)) +
             missingBefore[slots.size] - missingBefore[node.slot + 1]
     }
-    var nodes = listOf(Node(0, -1, 0, 0, NO_DAY, false, null, -1))
+    var nodes = listOf(Node(0, -1, 0, 0, null, false, null, -1))
     for (pay in ordered) {
         val near = nearest.getValue(pay.id)
         val reach = maxOf(0, near - schedule.days.size)..minOf(slots.lastIndex, near + schedule.days.size)
-        val day = pay.date.toEpochDay().toInt()
         val byAmount = schedule.slotByAmount(pay.amount)
-        val next = HashMap<Long, Node>()
+        val next = HashMap<Any, Node>()
         fun offer(node: Node) {
             val key = node.key
             if ((next[key]?.cost ?: Int.MAX_VALUE) > node.cost) next[key] = node
         }
         for (node in nodes) {
             if (pay.id in extras) {
-                offer(Node(node.cost, node.slot, node.count, node.fits, node.since, node.first, node, -1))
+                offer(Node(node.cost, node.slot, node.count, node.fits, node.partly, node.first, node, -1))
                 continue
             }
             // 닿는 차례가 모두 이미 지난 차례 앞이면 그 차례에 넘치게 넣는다(어느 갈래도 끊기지 않게, 갈래가 없으면 짝을 못 고른다)
@@ -99,17 +105,17 @@ internal fun matchPayments(
                 if (target == node.slot) {
                     val over = if (node.count >= slot.cap) OVERFLOW else 0
                     val fits = minOf(node.fits + fit, slot.cap)
-                    val since = when {
-                        node.fits == 0 && fit > 0 -> sinceOf(slot, fits, day, dues)
-                        fits < slot.need -> node.since
-                        else -> NO_DAY
+                    val partly = when {
+                        node.fits == 0 && fit > 0 -> partlyOf(slot, fits, pay, dues)
+                        fits < slot.need -> node.partly
+                        else -> null
                     }
-                    offer(Node(cost + over, target, minOf(node.count + 1, slot.cap), fits, since, node.first, node, target))
+                    offer(Node(cost + over, target, minOf(node.count + 1, slot.cap), fits, partly, node.first, node, target))
                 } else {
-                    val left = if (node.slot < 0 || node.first) 0 else missingAt(slots[node.slot], node.fits, node.since, day)
+                    val left = if (node.slot < 0 || node.first) 0 else missingAt(slots[node.slot], node.fits, node.partly, pay)
                     val between = if (node.slot < 0) 0 else missingBefore[target] - missingBefore[node.slot + 1]
-                    val since = if (fit > 0) sinceOf(slot, fit, day, dues) else NO_DAY
-                    offer(Node(cost + left + between, target, 1, fit, since, node.slot < 0, node, target))
+                    val partly = if (fit > 0) partlyOf(slot, fit, pay, dues) else null
+                    offer(Node(cost + left + between, target, 1, fit, partly, node.slot < 0, node, target))
                 }
             }
         }
@@ -200,25 +206,27 @@ private fun amountOrder(pay: Paid, slots: List<Slot>, near: Int, schedule: Fixed
 
 /**
  * [slot] 에 금액이 맞는 결제 [fits] 건을 짝지었을 때 모자라는 건수의 값. 하나도 없으면 모자라는 건수마다 [MISSING] 이다(밀린 몫을 늦게 내면
- * 메운다). 하나라도 있으면(함께 나가던 건 가운데 일부만 나감) 그 차례 낼 날과 첫 결제 가운데 늦은 날 [since] 뒤 [DROP_GRACE_DAYS] 일 안에
- * 다음 결제 [next](에포크 날 수, 기록 끝이면 null)가 오는 동안만 센다. 그 뒤로 결제가 이어졌으면 남은 건은 안 나간 것(해지했거나 건너뜀)이라
- * 다음 달 몫을 미리 · 일찍 낸 결제를 끌어와 메우지 않는다(화면이 같은 날 회선을 안 나간 것으로 보는 것과 같다).
+ * 메운다). 하나라도 있으면(함께 나가던 건 가운데 일부만 나감, [partly]) 다음 결제 [next](기록 끝이면 null)가 그 차례 낼 날과 첫 결제 가운데
+ * 늦은 날 뒤 [DROP_GRACE_DAYS] 일 안에 오거나 이미 낸 건과 금액이 달라 남은 건일 수 있을 때만 센다. 그 뒤로 이미 낸 건과 같은 금액의
+ * 결제가 이어졌으면 남은 건은 안 나간 것(해지했거나 건너뜀)이라 다음 달 몫을 미리 · 일찍 낸 결제를 끌어와 메우지 않는다(화면이 같은 날
+ * 회선을 안 나간 것으로 보는 것과 같다). 늦게 메운 남은 회선(금액이 다름)은 그대로 그 달 몫이다.
  */
-private fun missingAt(slot: Slot, fits: Int, since: Int, next: Int?): Int {
+private fun missingAt(slot: Slot, fits: Int, partly: Partly?, next: Paid?): Int {
     val short = slot.need - minOf(fits, slot.need)
-    return when {
-        short <= 0 -> 0
-        fits == 0 || next == null || next <= since + DROP_GRACE_DAYS -> short * MISSING
-        else -> 0
-    }
+    val waiting = partly == null || next == null || next.date.toEpochDay() <= partly.since + DROP_GRACE_DAYS ||
+        !isNear(next.amount, partly.amount)
+    return if (short > 0 && (fits == 0 || waiting)) short * MISSING else 0
 }
 
 /**
- * [slot] 에 금액이 맞는 결제가 [fits] 건 짝지어졌을 때의 [Node.since]. 첫 결제일 [day] 와 그 차례 낼 날 가운데 늦은 날이고,
- * 건수가 다 찼거나 낼 날이 아직 안 와 셀 것이 없으면 [NO_DAY] 다(갈래를 쓸데없이 나누지 않게).
+ * [slot] 에 금액이 맞는 결제가 [fits] 건 짝지어졌을 때 남은 건을 기다리는 모양. 첫 결제 [pay] 의 날과 그 차례 낼 날 가운데 늦은 날, 그 금액이고,
+ * 건수가 다 찼거나 낼 날이 아직 안 와 셀 것이 없으면 null 이다(갈래를 쓸데없이 나누지 않게).
  */
-private fun sinceOf(slot: Slot, fits: Int, day: Int, dues: DueDates): Int =
-    if (fits < slot.need) maxOf(dues.due(slot.month, slot.day).toEpochDay().toInt(), day) else NO_DAY
+private fun partlyOf(slot: Slot, fits: Int, pay: Paid, dues: DueDates): Partly? = if (fits < slot.need) {
+    Partly(maxOf(dues.due(slot.month, slot.day), pay.date).toEpochDay().toInt(), pay.amount)
+} else {
+    null
+}
 
 /** 낸 달이 아닌 달의 차례에 짝지을 때 더하는 값(낸 달 몫이 기본이다) */
 private const val OTHER_MONTH = 20
@@ -240,9 +248,6 @@ private const val OCCASION_DAYS = 3
 
 /** 결제 무리 안에서 같은 금액끼리 몇 번째인지를 무리의 첫 자리와 섞는 자릿수(한 무리의 같은 금액이 이만큼 많지 않다) */
 private const val RANK_SCALE = 1_000
-
-/** 남은 건수를 기다리지 않는 차례의 [Node.since] */
-private const val NO_DAY = Int.MIN_VALUE
 
 /** 갈래 열쇠에서 차례 하나가 차지하는 칸 수(건수 × [KEY_COUNT] + 맞는 수가 이보다 작다) */
 private const val KEY_SLOT = 256L

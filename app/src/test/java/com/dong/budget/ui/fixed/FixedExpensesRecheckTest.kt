@@ -128,7 +128,7 @@ class FixedExpensesRecheckTest {
     }
 
     @Test
-    fun `같은 날 회선 하나를 해지한 다음 달에 남은 회선을 일찍 등록해도 그 달 몫이고 둘 다 놓쳐 함께 늦게 내면 앞 달 몫이다`() {
+    fun `같은 날 회선 하나를 해지한 다음 달에 남은 회선을 일찍 등록해도 그 달 몫이고 놓친 회선을 늦게 내면 앞 달 몫이다`() {
         // 21일 45,000원 · 33,000원 두 회선 가운데 33,000원을 9월부터 해지했다. 10월 화면의 등록하기로 남은 회선을 그날 적는다.
         val september = YearMonth.of(2026, 9)
         val october = YearMonth.of(2026, 10)
@@ -159,6 +159,14 @@ class FixedExpensesRecheckTest {
         val waiting = view(both, october, day("2026-10-03"))
         assertEquals(FixedStatus.DUE, waiting.status)
         assertEquals(2, waiting.requiredCount)
+        // 9월에 33,000원 회선만 놓쳐 10월 2일에 늦게 냈으면(이미 낸 회선과 금액이 다름) 9월 몫이고 10월은 아직 두 건을 기다린다
+        val one = lines + paid("통신사", 33_000, "2026-10-02")
+        val lateLine = view(one, september, day("2026-10-03"))
+        assertEquals(FixedStatus.PAID, lateLine.status)
+        assertEquals(2, lateLine.paidCount)
+        val october3 = view(one, october, day("2026-10-03"))
+        assertEquals(FixedStatus.DUE, october3.status)
+        assertEquals(0, october3.paidCount)
     }
 
     @Test
