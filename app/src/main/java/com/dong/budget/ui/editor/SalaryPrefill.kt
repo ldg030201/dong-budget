@@ -1,6 +1,6 @@
 package com.dong.budget.ui.editor
 
-import com.dong.budget.data.MAX_AMOUNT_DIGITS
+import com.dong.budget.data.MAX_AMOUNT
 import com.dong.budget.data.db.BudgetTime
 import com.dong.budget.data.db.SALARY_CATEGORY_CODE
 import com.dong.budget.data.salary.SalarySettings
@@ -36,6 +36,3 @@ const val SALARY_MERCHANT = "월급"
 
 /** 월급을 받는 결제수단. 기본 결제수단 이름이다. */
 private const val SALARY_PAYMENT = "계좌이체"
-
-/** 등록창이 받는 가장 큰 금액(12자리) */
-private val MAX_AMOUNT = "9".repeat(MAX_AMOUNT_DIGITS).toLong()

@@ -1,6 +1,6 @@
 package com.dong.budget.data.backup
 
-import com.dong.budget.data.MAX_AMOUNT_DIGITS
+import com.dong.budget.data.MAX_AMOUNT
 import com.dong.budget.data.card.MAX_PERFORMANCE_START_DAY
 import com.dong.budget.data.card.encodePerformanceTiers
 import com.dong.budget.data.card.normalizePerformanceStartDay
@@ -204,9 +204,6 @@ internal fun problemOf(backup: Backup): String? {
     }
     return null
 }
-
-/** 등록 화면이 받는 가장 큰 금액(12자리) */
-private val MAX_AMOUNT = "9".repeat(MAX_AMOUNT_DIGITS).toLong()
 
 private fun <T> duplicateOf(values: List<T>): T? {
     val seen = HashSet<T>()

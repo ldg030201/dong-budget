@@ -1,6 +1,6 @@
 package com.dong.budget.ui.editor
 
-import com.dong.budget.data.MAX_AMOUNT_DIGITS
+import com.dong.budget.data.MAX_AMOUNT
 import com.dong.budget.data.db.BudgetTime
 import com.dong.budget.data.db.FIXED_CATEGORY_CODE
 import com.dong.budget.navigation.EditorPrefill
@@ -27,6 +27,7 @@ fun fixedExpensePrefill(item: FixedExpenseItem, today: LocalDate): EditorPrefill
     val date = minOf(today, item.usualDateIn(YearMonth.from(today)))
     val time = BudgetTime.toLocalTime(item.latestAt)
     return EditorPrefill(
+        // 한 달에 여러 번 낸 합이 등록창이 받는 가장 큰 금액을 넘을 수 있다
         amount = item.amount.coerceIn(0, MAX_AMOUNT),
         merchant = item.merchant.orEmpty(),
         paymentName = null,
@@ -40,6 +41,3 @@ fun fixedExpensePrefill(item: FixedExpenseItem, today: LocalDate): EditorPrefill
         paymentMethodId = item.paymentMethodId,
     )
 }
-
-/** 등록창이 받는 가장 큰 금액(12자리). 한 달에 여러 번 낸 합이 넘을 수 있다. */
-private val MAX_AMOUNT = "9".repeat(MAX_AMOUNT_DIGITS).toLong()

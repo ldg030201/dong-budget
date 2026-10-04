@@ -1,5 +1,6 @@
 package com.dong.budget.data.card
 
+import com.dong.budget.data.MAX_AMOUNT
 import com.dong.budget.data.db.PaymentMethodEntity
 import com.dong.budget.data.db.PaymentMethodType
 import org.junit.Assert.assertEquals
@@ -21,7 +22,7 @@ class CardPerformanceTest {
         assertEquals(listOf(500L), parsePerformanceTiers("abc,,0,-5,1000000000000,500,1.5"))
         // 12자리 끝까지는 받는다
         assertEquals(listOf(999_999_999_999L), parsePerformanceTiers("999999999999"))
-        assertEquals(999_999_999_999L, MAX_PERFORMANCE_AMOUNT)
+        assertEquals(999_999_999_999L, MAX_AMOUNT)
     }
 
     @Test
