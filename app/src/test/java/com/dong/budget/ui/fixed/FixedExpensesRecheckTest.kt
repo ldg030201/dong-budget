@@ -248,15 +248,25 @@ class FixedExpensesRecheckTest {
         val apple = bill("애플", 4_400, 1, YearMonth.of(2025, 1), YearMonth.of(2025, 6), card = true) +
             bill("애플", 10_900, 2, YearMonth.of(2025, 1), YearMonth.of(2025, 6), card = true)
         assertEquals("2번 중 1번 냈고, 남은 건 오늘 낼 차례예요", note(apple, YearMonth.of(2025, 4), day("2025-04-02"), morning = true))
-        // 2달마다(홀수 달) 10일 · 12일 두 회선은 10일 것만 낸 10 · 11일에 지났다고 하지 않는다
+        // 2달마다(홀수 달) 10일 · 12일 두 회선은 10일 것만 낸 10 · 11일과 12일(일) 아침에 지났다고 하지 않는다. 12일이 쉬는 날이라
+        // 자동이체라면 다음 영업일에 나가므로 그때까지 기다린다(카드는 그날 나가 냈어요가 된다).
         val purifier = bill("정수기", 45_000, 10, YearMonth.of(2025, 1), YearMonth.of(2026, 11), card = true, step = 2) +
             bill("정수기", 33_000, 12, YearMonth.of(2025, 1), YearMonth.of(2026, 11), card = true, step = 2)
         val july = YearMonth.of(2026, 7)
-        for (today in listOf(day("2026-07-10"), day("2026-07-11"))) {
-            assertEquals("$today", "2번 중 1번 냈어요", note(purifier, july, today))
+        for (today in listOf(day("2026-07-10"), day("2026-07-11"), day("2026-07-12"))) {
+            assertEquals("$today", "2번 중 1번 냈어요", note(purifier, july, today, morning = today.dayOfMonth == 12))
         }
-        assertEquals("2번 중 1번 냈고, 남은 건 오늘 낼 차례예요", note(purifier, july, day("2026-07-12"), morning = true))
         assertEquals(FixedStatus.PAID, view(purifier, july, day("2026-07-12")).status)
+        // 자동이체 2일 · 3일을 2025년 2월부터 냈다(한 차례로 본다). 5월 3일(토) 것은 연휴를 지나 7일에 나가므로 그 전에 안 나간 것으로 보지 않는다.
+        val gym = bill("헬스", 4_400, 2, YearMonth.of(2025, 2), YearMonth.of(2025, 8)) +
+            bill("헬스", 10_900, 3, YearMonth.of(2025, 2), YearMonth.of(2025, 8))
+        val may = YearMonth.of(2025, 5)
+        for (today in (4..6).map { may.atDay(it) }) {
+            val item = view(gym, may, today)
+            assertEquals("$today", FixedStatus.DUE, item.status)
+            assertEquals("$today", "2번 중 1번 냈어요", rowNote(item, may, today)?.text)
+        }
+        assertEquals("2번 중 1번 냈고, 남은 건 오늘 낼 차례예요", note(gym, may, day("2025-05-07"), morning = true))
     }
 
     @Test

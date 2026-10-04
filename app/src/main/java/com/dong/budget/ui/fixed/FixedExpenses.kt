@@ -3,6 +3,7 @@ package com.dong.budget.ui.fixed
 import androidx.compose.runtime.Immutable
 import com.dong.budget.data.db.TransactionListItem
 import com.dong.budget.data.db.TransactionType
+import com.dong.budget.data.holiday.KoreanHolidays
 import com.dong.budget.ui.home.localDate
 import com.dong.budget.ui.stats.calc.merchantKey
 import java.time.Instant
@@ -349,7 +350,7 @@ private class SlotState(val open: List<Int>, val dropped: List<Int>, val openDue
  * [month] 의 덜 낸 차례(차례마다 건수 [split] 보다 그 달 몫으로 짝지은 결제가 적은 것)를 [today] 에 아직 낼 것과 안 나간 것으로 가른다.
  * 화면 계산에서만 오늘에 따라 보고 짝짓기는 오늘과 상관없다. 덜 낸 차례 가운데
  * - 그 차례에 이번 결제가 있으면(같은 날 함께 나가던 회선) 이번 첫 결제가 늦은 날 수([lateness])에 평소 벌어짐([usualSpread])을 더한 만큼
- *   그 차례 낼 날 뒤의 날이,
+ *   그 차례 낼 날 뒤의 날(쉬는 날이면 다음 영업일, 하루 차이 두 청구의 뒤 것이 연휴로 밀려 나간다)이,
  * - 그 차례에 결제가 없으면(날이 따로인 차례) 낼 날 뒤 [DROP_GRACE_DAYS] 일이
  * 지나면 안 나간 것이다. 정말 깜빡한 회선이면 그 뒤로 알리지 않는 대신, 해지한 달이 끝까지 '덜 냈어요' 로 남지 않는다.
  * [weighs] 가 아니면(앞 차례 달까지 비어 놓친 차례를 알리는 달) 안 나간 것으로 보지 않는다.
@@ -372,7 +373,9 @@ private fun slotState(
         val due = dues.due(month, days[slot])
         val inSlot = bySlot[slot] ?: return@associateWith due.plusDays(DROP_GRACE_DAYS)
         val spread = usualSpread(slot, month, days, shares, slotOf, counts, dues, split.size)
-        due.plusDays(maxOf(0, lateness(inSlot.minOf { it.date }, month, days[slot], dues) + spread).toLong())
+        val late = lateness(inSlot.minOf { it.date }, month, days[slot], dues) + spread
+        // 남은 건이 나올 날이 쉬는 날이면 자동이체는 다음 영업일에 나가므로 그날까지 기다린다
+        KoreanHolidays.nextBusinessDay(due.plusDays(maxOf(0, late).toLong()))
     }
     val dropped = if (weighs) short.filter { today.isAfter(until.getValue(it)) } else emptyList()
     val open = short - dropped.toSet()
