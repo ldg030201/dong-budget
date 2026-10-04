@@ -115,6 +115,25 @@ class SalaryTest {
     }
 
     @Test
+    fun `올해 지난 날들의 합은 날마다 한 번 구해 넘겨도 매번 센 벌이와 같다`() {
+        listOf("2026-03-02T08:00:00", "2026-09-29T10:30:00", "2026-10-23T18:00:00", "2027-01-05T10:00:00").forEach { text ->
+            val now = at(text)
+            assertEquals(salary.earningsAt(now), salary.earningsAt(now, earnedBefore = salary.earnedThisYearBefore(now.toLocalDate())))
+        }
+        // 오늘 몫은 넣지 않는다. 3월 2일(월) 출근 전이면 어제까지의 합이 곧 올해 번 돈이다.
+        val march = at("2026-03-02T08:00:00")
+        assertWon(salary.earningsAt(march).year, salary.earnedThisYearBefore(march.toLocalDate()))
+        // 같은 날이면 아침에 구한 합에 오늘 번 돈만 더한다(9월 29일 화요일 퇴근 뒤: 하루치)
+        val before = salary.earnedThisYearBefore(LocalDate.of(2026, 9, 29))
+        assertWon(before + daily, salary.earningsAt(at("2026-09-29T18:00:00"), earnedBefore = before).year)
+        // 기간을 한 번만 세어도 초당 버는 돈·기간 합은 따로 구한 값과 같다
+        val tuesday = salary.earningsAt(at("2026-09-29T10:30:00"))
+        assertEquals(salary.perSecond(october), tuesday.perSecond, 0.0)
+        assertEquals(salary.earnedInPeriod(october), tuesday.periodTotal, 0.0)
+        assertEquals(0.0, SalarySettings().earnedThisYearBefore(LocalDate.of(2026, 9, 29)), 0.0)
+    }
+
+    @Test
     fun `해가 바뀌면 올해는 1월 1일부터 다시 센다`() {
         // 2026년 12월 25일(금)이 성탄절이라 12월 월급날은 24일(목)이다. 그래서 2027년 1월 월급 기간은 2026-12-25~2027-01-25(평일 22일).
         // 1월 5일 오전 10시는 1일(금, 신정이지만 일하는 요일이라 센다)·4일(월) 이틀과 오늘 1시간

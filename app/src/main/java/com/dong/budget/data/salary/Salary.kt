@@ -90,7 +90,9 @@ data class SalarySettings(
     }
 
     /** [payMonth] 월급 기간의 일하는 요일 수. 시작일과 상관없이 센다(하루치를 정하는 데 쓴다). */
-    fun workdaysIn(payMonth: YearMonth): Int = payPeriod(payMonth).dates().count { it.dayOfWeek in workdays }
+    fun workdaysIn(payMonth: YearMonth): Int = workdaysIn(payPeriod(payMonth))
+
+    private fun workdaysIn(period: ClosedRange<LocalDate>): Int = period.dates().count { it.dayOfWeek in workdays }
 
     /** [payMonth] 월급 기간에 하루 일하면 버는 돈 */
     fun dailyAmount(payMonth: YearMonth): Double = workdaysIn(payMonth).let { days -> if (days == 0) 0.0 else monthly / days }
@@ -122,15 +124,10 @@ data class SalarySettings(
      * [payMonth] 월급 기간에서 [days] 일(하루 몫 소수 포함)을 일하고 번 돈. 월급 × 일한 날 ÷ 기간의 일하는 날로 곱하고 나서 나눈다.
      * 하루치(월급 ÷ 일하는 날)를 먼저 구해 곱하면 소수 오차로 월급날 퇴근 때 2,999,999.9999… 원이 되어 한 원 모자라 보인다.
      */
-    private fun shareOf(payMonth: YearMonth, days: Double): Double = workdaysIn(payMonth).let { total ->
-        if (total ==
-            0
-        ) {
-            0.0
-        } else {
-            monthly * days / total
-        }
-    }
+    private fun shareOf(payMonth: YearMonth, days: Double): Double = share(workdaysIn(payMonth), days)
+
+    /** [shareOf] 를 일하는 날 수([total])를 이미 셌을 때. 매초 도는 [earningsAt] 이 기간을 여러 번 다시 세지 않게 한다. */
+    private fun share(total: Int, days: Double): Double = if (total == 0) 0.0 else monthly * days / total
 
     /**
      * [payMonth] 월급으로 받을 돈(원). 월급날 알림과 등록창이 채우는 금액이다. 입사한 달은 입사일부터 일한 날만큼(일할 계산)이고,
@@ -251,43 +248,56 @@ data class SalarySettings(
         }
     }
 
-    /** [now](서울 시각)에 본 벌이. 아직 다 정하지 않았으면 모두 0 이다. */
-    fun earningsAt(now: LocalDateTime): Earnings {
+    /**
+     * [now](서울 시각)에 본 벌이. 아직 다 정하지 않았으면 모두 0 이다.
+     * @param earnedBefore [now] 의 날짜로 구한 [earnedThisYearBefore]. 하루 동안 같아서, 매초 부르는 화면은 날마다 한 번 구해 넘긴다.
+     */
+    fun earningsAt(now: LocalDateTime, earnedBefore: Double = earnedThisYearBefore(now.toLocalDate())): Earnings {
         val today = now.toLocalDate()
         val status = statusAt(now)
         if (!isReady) return Earnings(status = status)
         val payMonth = payMonthFor(today)
         val period = payPeriod(payMonth)
+        // 이번 월급 기간의 일하는 날 수는 한 번만 센다(오늘·월급날부터·기간 합·초당 버는 돈이 함께 쓴다)
+        val total = workdaysIn(period)
         val secondOfDay = now.toLocalTime().toSecondOfDay() + now.nano / NANOS_PER_SECOND
 
         val daySeconds = workSecondsPerDay.toDouble()
         val worked = workedSeconds(secondOfDay)
         val todayShare = if (earnsOn(today)) worked / daySeconds else 0.0
-        val earnedToday = shareOf(payMonth, todayShare)
-        val earnedPeriod = shareOf(payMonth, countEarnDays(period.start, today) + todayShare)
+        val earnedToday = share(total, todayShare)
+        return Earnings(
+            status = status,
+            today = earnedToday,
+            period = share(total, countEarnDays(period.start, today) + todayShare),
+            year = earnedBefore + earnedToday,
+            dayProgress = if (earnsOn(today)) (worked / daySeconds).toFloat() else 0f,
+            // 하루치 ÷ 하루 일하는 초. perSecond(payMonth) 와 같은 값이다.
+            perSecond = share(total, 1.0) / daySeconds,
+            payMonth = payMonth,
+            periodStart = period.start,
+            periodTotal = share(total, period.dates().count(::earnsOn).toDouble()),
+        )
+    }
 
-        // 올해: 1월 1일부터 오늘 전까지 지나간 날들을 그날이 든 월급 기간의 하루치로 더하고 오늘을 더한다
+    /**
+     * 올해 1월 1일부터 [today] 전날까지 번 돈. 지나간 날들을 그날이 든 월급 기간의 하루치로 더한다.
+     * 오늘 몫은 넣지 않는다([earningsAt] 이 더한다). 아직 다 정하지 않았으면 0 이다.
+     */
+    fun earnedThisYearBefore(today: LocalDate): Double {
+        if (!isReady) return 0.0
         val newYear = LocalDate.of(today.year, 1, 1)
-        var earnedYear = earnedToday
+        val payMonth = payMonthFor(today)
+        var earned = 0.0
         var month = payMonthFor(newYear)
         while (month <= payMonth) {
             val range = payPeriod(month)
             val from = maxOf(range.start, newYear)
             val until = minOf(range.endInclusive.plusDays(1), today)
-            earnedYear += shareOf(month, countEarnDays(from, until).toDouble())
+            earned += shareOf(month, countEarnDays(from, until).toDouble())
             month = month.plusMonths(1)
         }
-        return Earnings(
-            status = status,
-            today = earnedToday,
-            period = earnedPeriod,
-            year = earnedYear,
-            dayProgress = if (earnsOn(today)) (worked / daySeconds).toFloat() else 0f,
-            perSecond = perSecond(payMonth),
-            payMonth = payMonth,
-            periodStart = period.start,
-            periodTotal = earnedInPeriod(payMonth),
-        )
+        return earned
     }
 
     /** [from] 부터 [until] 전날까지 버는 날 수. [until] 이 [from] 과 같거나 앞이면 0 */

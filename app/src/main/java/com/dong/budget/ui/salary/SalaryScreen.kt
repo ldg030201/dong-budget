@@ -19,6 +19,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -35,6 +36,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.dong.budget.R
 import com.dong.budget.data.db.BudgetTime
 import com.dong.budget.data.db.TransactionListItem
+import com.dong.budget.data.salary.Earnings
 import com.dong.budget.data.salary.SalarySettings
 import com.dong.budget.data.salary.WorkStatus
 import com.dong.budget.ui.components.BudgetIconButton
@@ -85,14 +87,21 @@ fun SalaryScreen(
             return@Column
         }
         val now = rememberNow(clock)
+        val earnings = rememberEarnings(settings, now)
         Column(
             modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(BudgetTheme.spacing.itemGap),
         ) {
             // 카드는 화면 여백 안에, 최근 내역 줄은 내역 목록처럼 끝까지 눌리게 여백을 줄이 가진다
             val card = Modifier.padding(horizontal = BudgetTheme.spacing.screenHorizontal)
-            TodayCard(settings = settings, now = { now.value }, spentToday = state.spentToday, modifier = card)
-            TotalsCard(settings = settings, now = { now.value }, modifier = card)
+            TodayCard(
+                settings = settings,
+                now = { now.value },
+                earningsNow = { earnings.value },
+                spentToday = state.spentToday,
+                modifier = card,
+            )
+            TotalsCard(settings = settings, now = { now.value }, earningsNow = { earnings.value }, modifier = card)
             PaydayCard(
                 settings = settings,
                 today = state.today,
@@ -112,6 +121,25 @@ private fun rememberNow(clock: Clock): State<LocalDateTime> {
     val ticks = remember(clock) { BudgetTime.everySecond(clock).map { it.atZone(BudgetTime.ZONE).toLocalDateTime() } }
     val initial = remember(clock) { clock.instant().atZone(BudgetTime.ZONE).toLocalDateTime() }
     return ticks.collectAsStateWithLifecycle(initialValue = initial)
+}
+
+/**
+ * [now] 의 벌이. 틱마다 한 번만 세서 두 카드가 함께 읽는다.
+ * 올해 지난 날들의 합은 하루 동안 같아서 날이 바뀔 때만 다시 센다(매초 올해의 월급 기간을 모두 다시 돌지 않게).
+ */
+@Composable
+private fun rememberEarnings(settings: SalarySettings, now: State<LocalDateTime>): State<Earnings> = remember(settings, now) {
+    var day: LocalDate? = null
+    var before = 0.0
+    derivedStateOf {
+        val time = now.value
+        val today = time.toLocalDate()
+        if (today != day) {
+            before = settings.earnedThisYearBefore(today)
+            day = today
+        }
+        settings.earningsAt(time, earnedBefore = before)
+    }
 }
 
 /** 탭 머리. 오른쪽 톱니로 월급 설정을 연다. 잠겨 있거나 처음 안내 중이면 톱니를 두지 않는다([onOpenSettings] 가 null). */
@@ -149,9 +177,15 @@ private fun EmptySalary(onOpenSettings: () -> Unit) {
  * 쓴 돈은 번 돈과 나란히 놓여서 빨갛게 쓴다(한 자리에 수입·지출이 함께 있을 때만 지출에 색을 쓰는 규칙).
  */
 @Composable
-private fun TodayCard(settings: SalarySettings, now: () -> LocalDateTime, spentToday: Long, modifier: Modifier = Modifier) {
+private fun TodayCard(
+    settings: SalarySettings,
+    now: () -> LocalDateTime,
+    earningsNow: () -> Earnings,
+    spentToday: Long,
+    modifier: Modifier = Modifier,
+) {
     val time = now()
-    val earnings = settings.earningsAt(time)
+    val earnings = earningsNow()
     Column(modifier = modifier.fillMaxWidth().sectionBlock()) {
         StatusRow(status = earnings.status, text = statusLine(settings, time))
         Spacer(Modifier.height(BudgetTheme.spacing.itemGap))
@@ -222,9 +256,11 @@ private fun StatusRow(status: WorkStatus, text: String) {
 
 /** 월급날부터와 올해 번 돈. 초마다 따라 오르지만 글자가 굴러가지는 않는다(움직이는 것은 오늘 번 돈 하나로 둔다). */
 @Composable
-private fun TotalsCard(settings: SalarySettings, now: () -> LocalDateTime, modifier: Modifier = Modifier) {
+private fun TotalsCard(settings: SalarySettings, now: () -> LocalDateTime, earningsNow: () -> Earnings, modifier: Modifier = Modifier) {
     val time = now()
-    val earnings = settings.earningsAt(time)
+    val earnings = earningsNow()
+    // 시급 줄은 월급 기간이 바뀔 때만 달라진다
+    val hourly = remember(settings, earnings.payMonth) { hourlyLine(settings, earnings.payMonth) }
     Column(modifier = modifier.fillMaxWidth().sectionBlock()) {
         TotalRow(label = "월급날부터 번 돈", amount = earnings.period, caption = periodCaption(earnings))
         Spacer(Modifier.height(BudgetTheme.spacing.inlineGap))
@@ -234,7 +270,7 @@ private fun TotalsCard(settings: SalarySettings, now: () -> LocalDateTime, modif
         Spacer(Modifier.height(BudgetTheme.spacing.sectionPadding))
         HintText(basisLine(settings))
         // ₩/h 가 통상시급보다 높게 보이는 까닭(주휴 시간을 빼고 실제로 일하는 시간으로 나눔). 화면 읽기에는 말로 푼 문장을 읽힌다.
-        hourlyLine(settings, earnings.payMonth)?.let { line ->
+        hourly?.let { line ->
             HintText(line.text, modifier = Modifier.clearAndSetSemantics { contentDescription = line.spoken })
         }
     }
