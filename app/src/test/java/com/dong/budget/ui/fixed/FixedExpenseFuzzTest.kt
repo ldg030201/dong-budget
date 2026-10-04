@@ -11,7 +11,8 @@ import java.time.YearMonth
 import kotlin.random.Random
 
 /**
- * 아무렇게나 낸 가게(날마다 · 요일마다 · 며칠마다 · 한 달에 몇 번 · 몇 달마다 · 하루 차이 두 청구, 금액이 바뀌고 밀리고 빠지고 겹친다)를 수천 개 만들어
+ * 아무렇게나 낸 가게(날마다 · 요일마다 · 며칠마다 · 한 달에 몇 번 · 몇 달마다 · 하루 차이 두 청구 · 두 청구 가운데 하나를 해지,
+ * 금액이 바뀌고 밀리고 빠지고 겹친다)를 수천 개 만들어
  * 고정지출 계산이 어떤 기록에도 예외를 던지지 않는지 본다(리뷰 검증: 자주 내는 가게에서 금액이 바뀌면 짝짓기가 죽었다).
  * 읽는 범위는 화면 모델과 같다([fixedHistoryStart] ~ [fixedHistoryEnd]). 씨앗을 박아 두어 늘 같은 기록을 본다.
  */
@@ -32,7 +33,10 @@ class FixedExpenseFuzzTest {
                 checked++
                 try {
                     val board = buildFixedExpenses(month, today, read(rows, month, today))
-                    (board.due + board.paid + board.notThisMonth + board.stopped).forEach { check(it.amount >= 0 && it.paidAmount >= 0) }
+                    (board.due + board.paid + board.notThisMonth + board.stopped).forEach { item ->
+                        check(item.amount >= 0 && item.paidAmount >= 0)
+                        check(item.droppedDays.all { it in item.usualDays })
+                    }
                 } catch (e: Exception) {
                     failures += "가게$n(종류 $kind) $month@$today: $e · ${rows.joinToString { "${it.localDate()}=${it.amount}" }}"
                 }
@@ -51,18 +55,20 @@ class FixedExpenseFuzzTest {
         val end = start.plusDays(random.nextLong(1, 800))
         val base = AMOUNTS[random.nextInt(AMOUNTS.size)]
         val changeAt = start.plusDays(random.nextLong(0, daysBetween(start, end) + 1L))
-        val changed = base * CHANGES[random.nextInt(CHANGES.size)] / 10
-        val dates =
+        val ratio = CHANGES[random.nextInt(CHANGES.size)]
+        // 결제일마다 그 청구의 금액(바뀌기 전)
+        val claims =
             when (kind) {
-                0 -> List(random.nextInt(1, 80)) { start.plusDays(random.nextLong(0, daysBetween(start, end) + 1L)) }
-                1 -> weekdays(random, start, end)
-                2 -> stepped(random.nextInt(1, 12), start, end)
-                3 -> monthly(random, start, end, List(random.nextInt(1, 4)) { random.nextInt(1, LAST_DAY + 1) })
-                4 -> periodic(random, start, end)
-                else -> nextDays(random, start, end)
-            }.ifEmpty { listOf(start) }
-        return dates.flatMap { date ->
-            val amount = if (date < changeAt) base else changed
+                0 -> List(random.nextInt(1, 80)) { start.plusDays(random.nextLong(0, daysBetween(start, end) + 1L)) }.map { it to base }
+                1 -> weekdays(random, start, end).map { it to base }
+                2 -> stepped(random.nextInt(1, 12), start, end).map { it to base }
+                3 -> monthly(random, start, end, List(random.nextInt(1, 4)) { random.nextInt(1, LAST_DAY + 1) }).map { it to base }
+                4 -> periodic(random, start, end).map { it to base }
+                5 -> nextDays(random, start, end).map { it to base }
+                else -> cancelled(random, start, end, base)
+            }.ifEmpty { listOf(start to base) }
+        return claims.flatMap { (date, claim) ->
+            val amount = if (date < changeAt) claim else claim * ratio / 10
             val odd = if (random.nextInt(ODD_ONE_IN) == 0) amount * ODD_RATIOS[random.nextInt(ODD_RATIOS.size)] / 10 else amount
             List(if (random.nextInt(TWICE_ONE_IN) == 0) 2 else 1) { tx(date.toString(), maxOf(1, odd), categoryId = 4, merchant = name) }
         }
@@ -97,6 +103,21 @@ class FixedExpenseFuzzTest {
     private fun nextDays(random: Random, start: LocalDate, end: LocalDate): List<LocalDate> =
         random.nextInt(1, LAST_DAY).let { monthly(random, start, end, listOf(it, it + 1)) }
 
+    /**
+     * 두 청구(같은 날 두 회선 · 하루 차이 · 날이 따로인 두 차례, 금액은 따로) 가운데 하나를 어느 날부터 해지한 것. 앞 청구를 해지할 때도
+     * 뒤 청구를 해지할 때도 있다. 흔들림은 [monthly] 와 같다.
+     */
+    private fun cancelled(random: Random, start: LocalDate, end: LocalDate, base: Long): List<Pair<LocalDate, Long>> {
+        val first = random.nextInt(1, LAST_DAY + 1)
+        val second = minOf(LAST_DAY, first + listOf(0, 1, random.nextInt(2, LAST_DAY))[random.nextInt(3)])
+        val other = AMOUNTS[random.nextInt(AMOUNTS.size)]
+        val cancelAt = start.plusDays(random.nextLong(0, daysBetween(start, end) + 1L))
+        val dropFirst = random.nextBoolean()
+        val firsts = monthly(random, start, end, listOf(first)).filter { !dropFirst || it < cancelAt }
+        val seconds = monthly(random, start, end, listOf(second)).filter { dropFirst || it < cancelAt }
+        return firsts.map { it to base } + seconds.map { it to other }
+    }
+
     /** 몇 달마다 · 매년, 낼 날에서 앞뒤로 흔들리게 */
     private fun periodic(random: Random, start: LocalDate, end: LocalDate): List<LocalDate> {
         val step = listOf(2, 3, 4, 6, 12)[random.nextInt(5)].toLong()
@@ -110,7 +131,7 @@ class FixedExpenseFuzzTest {
 
 private const val SEED = 20_261_004
 private const val PATTERNS = 3_000
-private const val KINDS = 6
+private const val KINDS = 7
 private const val SHOWN = 10
 private const val ODD_ONE_IN = 15
 private const val TWICE_ONE_IN = 25
