@@ -16,7 +16,7 @@ import org.junit.runner.RunWith
 /**
  * 0.1.2 이하(DB 1)·1.6.1 이하(DB 2)에서 올리는 사용자의 가계부가 마이그레이션 뒤에도 그대로 남는지 실제 SQLite 로 확인한다.
  *
- * 옛 앱이 첫 설치 때 넣던 기본 분류·결제수단(v0.1.2 의 SeedCallback)을 그대로 만들고, 거래를 몇 건 넣은 뒤 2·3 으로 올린다.
+ * 옛 앱이 첫 설치 때 넣던 기본 분류·결제수단(v0.1.2 의 SeedCallback)을 그대로 만들고, 거래를 몇 건 넣은 뒤 2·3·4 로 올린다.
  * 원칙은 '거래는 하나도 잃지 않는다' 다(Migration1To2).
  *
  * 기기에서 돈다. 테스트용 DB 이름을 따로 써서 기기에 있는 실제 가계부(dong-budget.db)는 건드리지 않는다.
@@ -179,6 +179,58 @@ class MigrationTest {
         )
     }
 
+    @Test
+    fun `3 에서 4 로 올리면 결제수단·시각 인덱스가 생기고 거래는 그대로다`() {
+        helper.createDatabase(TEST_DB, 3).apply {
+            execSQL(
+                "INSERT INTO payment_methods (uuid, name, type, sortOrder, isSystem, icon, color, performanceTiers, performanceStartDay) " +
+                    "VALUES ('user:hana', '하나카드', 'OTHER', 10, 0, 'credit_card', 'red', '300000', 15)",
+            )
+            execSQL(
+                "INSERT INTO transactions " +
+                    "(uuid, type, amount, occurredAt, occurredDate, paymentMethodId, merchant, createdAt, updatedAt) " +
+                    "VALUES ('t1', 'EXPENSE', 17000, 1758783600000, 20250925, " +
+                    "(SELECT id FROM payment_methods WHERE uuid = 'user:hana'), '넷플릭스', 0, 0)",
+            )
+            close()
+        }
+        val db = helper.runMigrationsAndValidate(TEST_DB, 4, true)
+        assertEquals(1, db.count("SELECT COUNT(*) FROM transactions WHERE paymentMethodId IS NOT NULL"))
+        assertEquals(1, db.count("SELECT COUNT(*) FROM payment_methods WHERE performanceTiers = '300000' AND performanceStartDay = 15"))
+        assertTrue(db.exists(INDEX_SQL + "'index_transactions_paymentMethodId_occurredAt'"))
+        assertFalse(db.exists(INDEX_SQL + "'index_transactions_paymentMethodId'"))
+    }
+
+    @Test
+    fun `옛 가계부를 1 이나 2 에서 4 까지 한 번에 올려도 거래는 그대로다`() {
+        helper.createDatabase(TEST_DB, 1).apply {
+            seedLikeVersion1()
+            insertTransaction("t1", "EXPENSE", 12_000, categoryCode = "FOOD", payment = "CHECK_CARD")
+            close()
+        }
+        val fromOne = helper.runMigrationsAndValidate(TEST_DB, 4, true)
+        assertEquals("식비", fromOne.categoryNameOf("t1"))
+        assertTrue(fromOne.exists(INDEX_SQL + "'index_transactions_paymentMethodId_occurredAt'"))
+        fromOne.close()
+
+        helper.createDatabase(TEST_DB_2, 2).apply {
+            DEFAULT_PAYMENT_METHODS.forEach { m ->
+                execSQL(
+                    "INSERT INTO payment_methods (uuid, name, type, sortOrder, isSystem, icon, color) VALUES (?, ?, ?, ?, 0, ?, ?)",
+                    arrayOf<Any?>(m.uuid, m.name, m.type.name, m.sortOrder, m.icon, m.color),
+                )
+            }
+            execSQL(
+                "INSERT INTO transactions (uuid, type, amount, occurredAt, occurredDate, paymentMethodId, createdAt, updatedAt) " +
+                    "VALUES ('t2', 'EXPENSE', 5000, 1758783600000, 20250925, (SELECT MIN(id) FROM payment_methods), 0, 0)",
+            )
+            close()
+        }
+        val fromTwo = helper.runMigrationsAndValidate(TEST_DB_2, 4, true)
+        assertEquals(1, fromTwo.count("SELECT COUNT(*) FROM transactions WHERE uuid = 't2' AND paymentMethodId IS NOT NULL"))
+        assertEquals(DEFAULT_PAYMENT_METHODS.size, fromTwo.count("SELECT COUNT(*) FROM payment_methods WHERE performanceStartDay = 1"))
+    }
+
     /** v0.1.2 의 SeedCallback 이 첫 설치 때 넣던 그대로 */
     private fun SupportSQLiteDatabase.seedLikeVersion1() {
         V1_CATEGORIES.forEachIndexed { index, (scope, code, name) ->
@@ -235,6 +287,10 @@ class MigrationTest {
 
     private companion object {
         const val TEST_DB = "migration-test.db"
+        const val TEST_DB_2 = "migration-test-2.db"
+
+        /** 이름이 뒤에 붙는 인덱스가 있는지 보는 SELECT */
+        const val INDEX_SQL = "SELECT 1 FROM sqlite_master WHERE type = 'index' AND name = "
 
         /** v0.1.2 의 기본 분류(범위, 코드, 이름) */
         val V1_CATEGORIES =

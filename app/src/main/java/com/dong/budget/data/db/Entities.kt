@@ -41,6 +41,8 @@ enum class PaymentMethodType {
 // 그래서 (categoryId, occurredDate) 같은 복합 인덱스를 만들면 선두 컬럼이 비어
 // SQLite 가 skip-scan 으로 떨어진다. 복합 인덱스는 선두가 등치로 고정될 때만 의미가 있다.
 // 결론: 기간 필터용 인덱스 + 외래키용 단일 컬럼 인덱스로 간다.
+// 예외: 카드실적은 결제수단 하나(등치)의 기간을 읽어서 (paymentMethodId, occurredAt) 복합 인덱스를 둔다(DB 4).
+// 선두가 paymentMethodId 라 외래키 인덱스도 겸해 단일 paymentMethodId 인덱스는 지웠다.
 // ─────────────────────────────────────────────────────────────────────
 
 @Entity(
@@ -49,7 +51,7 @@ enum class PaymentMethodType {
         Index("occurredAt"),
         Index("occurredDate"),
         Index("categoryId"),
-        Index("paymentMethodId"),
+        Index("paymentMethodId", "occurredAt"),
         Index("relatedTransactionId"),
         Index(value = ["uuid"], unique = true),
         Index(value = ["dedupKey"], unique = true),

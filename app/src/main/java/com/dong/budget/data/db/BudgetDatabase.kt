@@ -15,7 +15,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         CategoryEntity::class,
         PaymentMethodEntity::class,
     ],
-    version = 3,
+    version = 4,
     exportSchema = true,
     autoMigrations = [
         // 1 → 2: 분류에 아이콘·색 칸을 추가하고 기본 분류를 새 목록으로 바꾼다.
@@ -23,6 +23,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         AutoMigration(from = 1, to = 2, spec = Migration1To2::class),
         // 2 → 3: 결제수단에 카드 실적 칸(구간·시작일)을 추가한다. 칸 추가뿐이라 정리할 데이터가 없다(기존 줄은 기본값: 실적 없음, 1일).
         AutoMigration(from = 2, to = 3),
+        // 3 → 4: 거래에 (결제수단, 시각) 복합 인덱스를 두고 결제수단 단일 인덱스를 지운다. 카드실적 상세가 카드 하나의 6기간을
+        // 그 카드 기록 전부를 읽지 않고 바로 찾는다. 인덱스만 바뀌어 데이터는 그대로다.
+        AutoMigration(from = 3, to = 4),
     ],
 )
 @TypeConverters(Converters::class)
