@@ -582,6 +582,31 @@ class FixedExpensesTest {
     }
 
     @Test
+    fun `두 차례 금액이 비슷한 가게의 28일 것이 다음 달 초에 밀리면 앞 달에 덜 낸 만큼 앞 달 몫이다`() {
+        // 보험에 매달 3일 33,000원, 28일 30,000원을 낸다. 금액이 비슷해 어느 차례인지 금액으로 가를 수 없어 낸 달 그대로 셌더니
+        // 2027년 2월 28일(일) 것이 3월 2일에 나가자 3월이 3월 2일부터 '냈어요', 4월 낼 돈이 3월 몫 세 건 93,000원이었다.
+        val before = (11..12).flatMap { paid("보험", 33_000, "2026-$it-03") + paid("보험", 30_000, "2026-$it-28") } +
+            paid("보험", 33_000, "2027-01-03", "2027-02-03") + paid("보험", 30_000, "2027-01-28")
+        val rows = before + paid("보험", 30_000, "2027-03-02") + paid("보험", 33_000, "2027-03-03") + paid("보험", 30_000, "2027-03-29")
+        val march = YearMonth.of(2027, 3)
+        val march2 = day("2027-03-02")
+        val upToMarch2 = rows.filter { !it.localDate().isAfter(march2) }
+        assertEquals(FixedStatus.DUE, only(readFor(upToMarch2, march), month = march, today = march2).status)
+        val february = YearMonth.of(2027, 2)
+        assertEquals(63_000L, only(readFor(upToMarch2, february), month = february, today = march2).amount)
+        val april = YearMonth.of(2027, 4)
+        assertEquals(63_000L, only(readFor(rows, april), month = april, today = day("2027-04-01")).amount)
+        // 2026년엔 2월 28일 것이 3월 3일 것과 한날 나갔다. 3월에 세 번 낸 뒤엔 30,000원 하나가 2월 몫이다.
+        val sameDay =
+            paid("보험", 33_000, "2025-12-03", "2026-01-03", "2026-02-03") + paid("보험", 30_000, "2025-12-28", "2026-01-28") +
+                paid("보험", 30_000, "2026-03-03") + paid("보험", 33_000, "2026-03-03") + paid("보험", 30_000, "2026-03-30")
+        val april2026 = YearMonth.of(2026, 4)
+        assertEquals(63_000L, only(readFor(sameDay, april2026), month = april2026, today = day("2026-04-01")).amount)
+        val march2026 = YearMonth.of(2026, 3)
+        assertEquals(2, only(readFor(sameDay, march2026), month = march2026, today = day("2026-04-01")).lastPaidCount)
+    }
+
+    @Test
     fun `달 초에 내는 가게에 달 말 구독을 새로 더하면 자리 잡기 전까지 그 결제는 다음 달 몫이다`() {
         // 구글에 매달 3일 14,900원을 내다 9월 28일에 2,400원 구독을 처음 더했다.
         // 새 모델: 다른 결제를 보지 않아 9월 28일은 10월 3일이 가까운 10월 몫이다(받아들이는 모호함). 10월은 냈어요다.

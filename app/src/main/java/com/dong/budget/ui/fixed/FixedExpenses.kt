@@ -131,7 +131,8 @@ data class FixedExpenseBoard(
  *    섞여 있으면 달 경계를 이어 센다.
  * 2. 몇 월 몫인지([shareMonths]): 결제마다 낸 달과 그 앞뒤 달 가운데 그 달의 평소 날짜가 가장 가까운 달의 몫이다([nearestShare]).
  *    다른 결제는 보지 않는다. 그렇게 센 몫의 주기가 매달이 아니면 옮기지 않고 낸 달 그대로다.
- *    한 몫을 보통 이틀에 나눠 내면 금액이 비슷한 차례의 평소 날짜로 정한다([splitShare]).
+ *    한 몫을 보통 이틀에 나눠 내면 금액이 비슷한 차례의 평소 날짜로 정한다([splitShare]). 두 차례 금액이 서로 비슷하면
+ *    낸 달 그대로이되 앞 달에 덜 낸 만큼 달 초 결제 하나를 앞 달 몫으로 센다([carriedShares]).
  *    고른 달 뒤의 몫은 뺀다.
  * 3. 같은 몫끼리 합친다. 그 몫의 날짜는 첫 결제일이다(실제로 낸 날 그대로).
  * 4. 보통 건수([usualCountOf]): 최근 [USUAL_COUNT_SHARES] 몫에 낸 횟수의 가운데 값(짝수 개면 적은 쪽).
@@ -340,6 +341,7 @@ private fun shareMonths(rows: List<TransactionListItem>, month: YearMonth, usual
     if (cadenceOf(payments, usualCountOf(payments)) != 1) return rows.associate { it.id to YearMonth.from(it.localDate()) }
     if (!split) return nearest
     val slots = slotsOf(rows.filter { !it.localDate().isAfter(month.atEndOfMonth()) })
+    if (slots.size == 2 && isNear(slots[0].amount, slots.sumOf { it.amount }, 2)) return carriedShares(rows, slots)
     return rows.associate { it.id to splitShare(it, slots) }
 }
 
@@ -366,13 +368,39 @@ private fun slotsOf(rows: List<TransactionListItem>): List<Slot> {
 /**
  * 한 몫을 이틀에 나눠 내는 가게에서 [row] 가 몇 월 몫인지. 두 차례([slots]) 금액이 서로 다르면(3일 50,000원 · 28일 30,000원)
  * 금액이 비슷한 차례의 평소 날짜가 가장 가까운 달의 몫이다([nearestShare]). 28일 것이 휴일로 다음 달 2~3일에 밀려 3일 것과 함께
- * 나가도 앞 달 몫이다. 두 차례 금액이 비슷하거나 어느 차례와도 금액이 다르면 낸 달 그대로다.
+ * 나가도 앞 달 몫이다. 어느 차례와도 금액이 다르면 낸 달 그대로다. 두 차례 금액이 비슷하면 [carriedShares] 로 정한다.
  */
 private fun splitShare(row: TransactionListItem, slots: List<Slot>): YearMonth {
     val own = YearMonth.from(row.localDate())
-    if (slots.size != 2 || isNear(slots[0].amount, slots.sumOf { it.amount }, 2)) return own
+    if (slots.size != 2) return own
     val slot = slots.filter { isNear(row.amount, it.amount, 1) }.minByOrNull { abs(row.amount - it.amount) } ?: return own
     return nearestShare(row.localDate(), slot.day)
+}
+
+/**
+ * 두 차례([slots]) 금액이 비슷한 가게(3일 33,000원 · 28일 30,000원)에서 결제([rows])마다 몇 월 몫인지(거래 id → 몫의 달).
+ * 금액으로는 어느 차례인지 알 수 없어 낸 달 그대로 보되, 늦은 차례가 달 말([LATE_PAY_FROM] 일 이후)이고 앞 달에 두 번보다 적게 냈으면
+ * 그 달 초(1~[SHIFT_DAYS] 일) 결제 하나를 앞 달 몫으로 센다(28일 것이 휴일로 다음 달 2~3일에 밀림). 그 달에 두 번보다 많이 냈으면
+ * 늦은 차례 금액에 가장 가까운 것(같으면 먼저 적은 것), 아니면 이른 차례 날짜보다 앞서 낸 것이다(3일 것보다 먼저 나간 3월 2일 30,000원).
+ * 그대로 두면 2월 28일 것이 3월 2일 · 3일에 밀린 3월이 3월 2일부터 '냈어요'이고 4월에 3월 몫 세 건 93,000원을 낼 돈으로 봤다.
+ */
+private fun carriedShares(rows: List<TransactionListItem>, slots: List<Slot>): Map<Long, YearMonth> {
+    val shares = rows.associate { it.id to YearMonth.from(it.localDate()) }.toMutableMap()
+    if (slots[1].day < LATE_PAY_FROM) return shares
+    val byMonth = rows.groupBy { YearMonth.from(it.localDate()) }
+    val closest = compareBy<TransactionListItem> { abs(it.amount - slots[1].amount) }.then(byTime)
+    for ((month, items) in byMonth) {
+        if ((byMonth[month.minusMonths(1)]?.size ?: 0) >= slots.size) continue
+        val early = items.filter { it.localDate().dayOfMonth <= SHIFT_DAYS }
+        val carried =
+            if (items.size > slots.size) {
+                early.minWithOrNull(closest)
+            } else {
+                early.filter { it.localDate().dayOfMonth < slots[0].day }.minWithOrNull(byTime)
+            }
+        if (carried != null) shares[carried.id] = month.minusMonths(1)
+    }
+    return shares
 }
 
 /**
