@@ -35,7 +35,8 @@ internal class Matching(val slotOf: Map<Long, Slot>, val extras: List<Paid>, val
 /**
  * 짝짓기 중의 한 갈래. [slot] 은 마지막으로 짝지은 차례(아직 없으면 -1), [count] 는 그 차례에 짝지은 수([Slot.cap] 까지만 센다),
  * [fits] 는 그 가운데 금액이 그 차례와 맞는 수([OTHER_SLOT] 이 붙지 않은 것), [partly] 는 금액이 맞는 결제가 건수보다 적게 있으면 그 차례에서
- * 남은 건을 기다리는 모양([Partly], [missingAt])이고 그 밖에는 null 이다.
+ * 남은 건을 기다리는 모양([Partly], [missingAt])이고 그 밖에는 null 이다. [astray] 는 그 차례의 첫 결제가 같은 달 뒤 차례의 기준 금액에 더
+ * 가까운지(뒤 차례 몫처럼 보이면 뒤 차례를 안 나간 것으로 보지 않는다)다.
  */
 private class Node(
     val cost: Int,
@@ -44,13 +45,14 @@ private class Node(
     val fits: Int,
     val partly: Partly?,
     val first: Boolean,
+    val astray: Boolean,
     val prev: Node?,
     val assigned: Int,
 ) {
     /** 같은 열쇠의 갈래는 앞으로 더할 값이 같아 값이 작은 것만 남긴다 */
     val key: Any get() = if (partly == null) state else Pair(state, partly)
 
-    private val state: Long get() = ((slot + 1L) * KEY_SLOT + count * KEY_COUNT + fits) * 2 + if (first) 1 else 0
+    private val state: Long get() = ((slot + 1L) * KEY_SLOT + count * KEY_COUNT + fits) * 4 + (if (first) 1 else 0) + if (astray) 2 else 0
 }
 
 /**
@@ -82,10 +84,17 @@ internal fun matchPayments(
     val missingBefore = IntArray(slots.size + 1)
     slots.forEachIndexed { i, slot -> missingBefore[i + 1] = missingBefore[i] + slot.need * MISSING }
 
+    // [pay] 를 [target] 차례의 첫 결제로 넣을 때, 그 금액이 같은 달 뒤 차례의 기준 금액에 더 가까운지([Node.astray])
+    fun astray(pay: Paid, target: Int, byAmount: Int?): Boolean = (target + 1 until slots.size).asSequence()
+        .takeWhile { slots[it].month == slots[target].month }
+        .any { looksLike(pay.amount, lines[it], lines[target], fallback = byAmount == slots[it].index) }
+
     // 결제가 있는 달(마지막으로 짝지은 차례 [from] 의 달, [pay] 를 넣는 차례 [to] 의 달)의 빈 차례는 낼 날 뒤 [DROP_GRACE_DAYS] 일이 지나
     // [pay] 가 왔고 그 금액이 빈 차례 쪽이 아니면 안 나간 것(해지했거나 건너뜀)이라 세지 않는다. 화면이 날이 따로인 차례를 안 나간 것으로
-    // 보는 것과 같아서, 해지한 달의 빈 차례가 다음 달 결제를 끌어오지 않는다. 결제가 하나도 없는 달은 그대로 센다(밀린 몫을 늦게 메운다).
-    fun between(from: Int, to: Int, pay: Paid, byAmount: Int?): Int {
+    // 보는 것과 같아서, 해지한 달의 빈 차례가 다음 달 결제를 끌어오지 않는다. [from] 의 결제가 그 빈 차례 몫처럼 보이면([strayed])
+    // 그 달 결제가 있다고 하지 않는다(앞 차례를 해지한 달에 뒤 차례 결제를 하루 가까운 앞 차례에 넣고 뒤 차례를 안 나간 것으로 보지 않게).
+    // 결제가 하나도 없는 달은 그대로 센다(밀린 몫을 늦게 메운다).
+    fun between(from: Int, to: Int, pay: Paid, byAmount: Int?, strayed: Boolean): Int {
         if (from < 0) return 0
         var cost = missingBefore[to] - missingBefore[from + 1]
         fun waive(k: Int) {
@@ -94,7 +103,10 @@ internal fun matchPayments(
             if (dropped) cost -= slots[k].need * MISSING
         }
         var k = from + 1
-        while (k < to && slots[k].month == slots[from].month) waive(k++)
+        while (k < to && slots[k].month == slots[from].month) {
+            if (!strayed) waive(k)
+            k++
+        }
         var j = to - 1
         while (j >= k && slots[j].month == slots[to].month) waive(j--)
         return cost
@@ -107,7 +119,7 @@ internal fun matchPayments(
         node.cost + (if (node.first) 0 else missingAt(slots[node.slot], node.fits, node.partly, next = null)) +
             missingBefore[slots.size] - missingBefore[node.slot + 1]
     }
-    var nodes = listOf(Node(0, -1, 0, 0, null, false, null, -1))
+    var nodes = listOf(Node(0, -1, 0, 0, null, first = false, astray = false, prev = null, assigned = -1))
     for (pay in ordered) {
         val near = nearest.getValue(pay.id)
         val reach = maxOf(0, near - schedule.days.size)..minOf(slots.lastIndex, near + schedule.days.size)
@@ -119,7 +131,7 @@ internal fun matchPayments(
         }
         for (node in nodes) {
             if (pay.id in extras) {
-                offer(Node(node.cost, node.slot, node.count, node.fits, node.partly, node.first, node, -1))
+                offer(Node(node.cost, node.slot, node.count, node.fits, node.partly, node.first, node.astray, node, -1))
                 continue
             }
             // 닿는 차례가 모두 이미 지난 차례 앞이면 그 차례에 넘치게 넣는다(어느 갈래도 끊기지 않게, 갈래가 없으면 짝을 못 고른다)
@@ -136,12 +148,13 @@ internal fun matchPayments(
                         fits < slot.need -> node.partly
                         else -> null
                     }
-                    offer(Node(cost + over, target, minOf(node.count + 1, slot.cap), fits, partly, node.first, node, target))
+                    offer(Node(cost + over, target, minOf(node.count + 1, slot.cap), fits, partly, node.first, node.astray, node, target))
                 } else {
                     val left = if (node.slot < 0 || node.first) 0 else missingAt(slots[node.slot], node.fits, node.partly, pay)
-                    val skipped = between(node.slot, target, pay, byAmount)
+                    val skipped = between(node.slot, target, pay, byAmount, node.astray)
                     val partly = if (fit > 0) partlyOf(slot, fit, pay, lines[target], dues) else null
-                    offer(Node(cost + left + skipped, target, 1, fit, partly, node.slot < 0, node, target))
+                    val strays = astray(pay, target, byAmount)
+                    offer(Node(cost + left + skipped, target, 1, fit, partly, node.slot < 0, strays, node, target))
                 }
             }
         }

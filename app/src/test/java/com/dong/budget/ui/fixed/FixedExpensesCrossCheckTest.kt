@@ -200,6 +200,17 @@ class FixedExpensesCrossCheckTest {
         assertEquals("PAID 2/2 63000", short(view(shop, MAR, day("2026-04-10"))))
     }
 
+    @Test
+    fun `금액이 비슷한 하루 차이 두 청구의 앞 것을 해지하면 남은 청구를 하루 가까운 앞 차례에 넣지 않아 뒤 차례를 기다린다`() {
+        // 카드 5일 10,000원 · 6일 11,000원 가운데 5일 것을 2026년 6월부터 해지. 7월 5일(일) 것의 낼 날이 6일이라 7월 6일 결제는 두 차례와 거리가 같다.
+        val sub = bill("구독", 10_000, 5, YearMonth.of(2025, 1), MAY, card = true) +
+            bill("구독", 11_000, 6, YearMonth.of(2025, 1), SEP, card = true)
+        val august = view(sub, AUG, day("2026-08-05"), morning = true)
+        assertEquals(6, august.dueDay)
+        assertNull(rowNote(august, AUG, day("2026-08-05")))
+        assertEquals("오늘 낼 차례예요", note(sub, AUG, day("2026-08-06"), morning = true)?.text)
+    }
+
     private companion object {
         val JAN: YearMonth = YearMonth.of(2026, 1)
         val FEB: YearMonth = YearMonth.of(2026, 2)
