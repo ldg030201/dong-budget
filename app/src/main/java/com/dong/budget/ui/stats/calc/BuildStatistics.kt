@@ -83,14 +83,17 @@ private fun goneCategories(expenseByCategory: Breakdown, window: ComparisonWindo
     return breakdown(window.previous, Measure.EXPENSE, Grouping.CATEGORY, window).entries.filter { it.key !in shown }
 }
 
+/** 기록 시작일. [rows] 중 기록(이체 말고)의 가장 이른 날과 조회한 시작일([firstRecord])로 [effectiveFirstDate] 를 고른다. */
+internal fun effectiveFirstRecord(rows: List<TransactionListItem>, firstRecord: LocalDate?): LocalDate? =
+    effectiveFirstDate(firstRecord, rows.filter { it.isRecord }.minOfOrNull { it.localDate() })
+
 /**
- * 기록 시작일. 거래 목록과 시작일 조회는 따로 방출되어 잠깐 어긋날 수 있다(첫 거래를 막 등록한 직후 등).
- * 보이는 거래보다 늦은 시작일은 있을 수 없으므로 둘 중 이른 날을 쓴다.
+ * 처음 기록한 날. 시작일 조회([queried])와 거래 목록은 따로 방출되어 잠깐 어긋날 수 있다(첫 거래를 막 등록한 직후 등).
+ * 보이는 거래(가장 이른 날 [earliestSeen])보다 늦은 시작일은 있을 수 없으므로 둘 중 이른 날을 쓴다.
+ * 통계의 기록 시작일과 카드실적의 카드를 처음 쓴 날이 같이 쓴다.
  */
-internal fun effectiveFirstRecord(rows: List<TransactionListItem>, firstRecord: LocalDate?): LocalDate? {
-    val earliestRow = rows.filter { it.isRecord }.minOfOrNull { it.localDate() }
-    return listOfNotNull(firstRecord, earliestRow).minOrNull()
-}
+internal fun effectiveFirstDate(queried: LocalDate?, earliestSeen: LocalDate?): LocalDate? =
+    listOfNotNull(queried, earliestSeen).minOrNull()
 
 private fun monthlyStats(
     month: YearMonth,

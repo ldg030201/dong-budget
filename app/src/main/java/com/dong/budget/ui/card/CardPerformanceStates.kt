@@ -9,6 +9,7 @@ import com.dong.budget.ui.home.DayGroup
 import com.dong.budget.ui.home.groupByDay
 import com.dong.budget.ui.home.localDate
 import com.dong.budget.ui.stats.calc.Measure
+import com.dong.budget.ui.stats.calc.effectiveFirstDate
 import java.time.LocalDate
 import java.time.YearMonth
 
@@ -94,7 +95,7 @@ fun buildCardPerformance(
             untracked += UntrackedCard(card = method.toCardInfo(), period = period, spent = spent)
         } else {
             val previous = performancePeriod(period.month.minusMonths(1), method.performanceStartDay)
-            val first = effectiveFirstUse(firstUse[method.id], spends.minOfOrNull { it.date })
+            val first = effectiveFirstDate(firstUse[method.id], spends.minOfOrNull { it.date })
             tracked +=
                 TrackedCard(
                     card = method.toCardInfo(),
@@ -202,7 +203,7 @@ fun buildCardDetail(
         spent[index] += signedSpend(item.type, item.amount)
         if (index == periods.lastIndex) selected += item
     }
-    val first = effectiveFirstUse(firstUse, earliest)
+    val first = effectiveFirstDate(firstUse, earliest)
     val history =
         periods.mapIndexed { index, period ->
             PeriodSpent(period, TierProgress(spent[index], tiers), recorded = hasRecord(period, first, currentMonth))

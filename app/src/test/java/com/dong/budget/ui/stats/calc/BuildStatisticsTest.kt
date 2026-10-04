@@ -100,6 +100,11 @@ class BuildStatisticsTest {
         assertEquals(3..27, state.daily.counted)
         // 창 밖에 더 이른 기록이 있으면 조회한 시작일을 쓴다
         assertEquals(day("2025-01-10"), effectiveFirstRecord(rows, day("2025-01-10")))
+        // 날짜만으로도 같은 규칙이다(카드실적의 카드를 처음 쓴 날이 쓴다)
+        assertEquals(day("2026-09-20"), effectiveFirstDate(null, day("2026-09-20")))
+        assertEquals(day("2026-09-20"), effectiveFirstDate(day("2026-10-02"), day("2026-09-20")))
+        assertEquals(day("2026-05-01"), effectiveFirstDate(day("2026-05-01"), day("2026-09-20")))
+        assertNull(effectiveFirstDate(null, null))
     }
 
     @Test

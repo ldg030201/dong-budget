@@ -8,6 +8,7 @@ import com.dong.budget.data.db.TransactionType.REFUND
 import com.dong.budget.data.db.TransactionType.TRANSFER
 import com.dong.budget.testing.day
 import com.dong.budget.testing.tx
+import com.dong.budget.ui.stats.calc.effectiveFirstRecord
 import com.dong.budget.ui.stats.calc.trendMonths
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -297,17 +298,30 @@ class PerformancePeriodsTest {
             tx("2026-09-02", 10_000, TRANSFER, paymentId = 6),
             tx("2026-08-01", 10_000, paymentId = 7),
         )
-        // 첫 거래를 막 등록해 조회 값이 아직 없거나 늦어도 보이는 거래로 센다
-        assertEquals(day("2026-09-20"), effectiveFirstUse(null, day("2026-09-20")))
-        assertEquals(day("2026-09-20"), effectiveFirstUse(day("2026-10-02"), day("2026-09-20")))
-        assertEquals(day("2026-05-01"), effectiveFirstUse(day("2026-05-01"), day("2026-09-20")))
-        assertNull(effectiveFirstUse(null, null))
+        // 둘 중 이른 날을 고르는 규칙은 통계와 같이 쓴다(BuildStatisticsTest·아래 '통계의 기록 시작일과 같은 규칙')
         // 상세는 이 카드의 지출·환불 중 가장 이른 날을 보이는 거래로 센다(9월 1일 수입·9월 2일 이체·다른 카드는 아니다)
         val card = PaymentMethodEntity(id = 6, uuid = "u", name = "카드", type = PaymentMethodType.OTHER, performanceTiers = "300000")
         val detail = buildCardDetail(card, october, day("2026-10-03"), rows, firstUse = null)
         assertEquals(listOf(false, false, false, false, true, true), detail.history.map { it.recorded })
         val before = buildCardDetail(card, october, day("2026-10-03"), rows.filter { it.amount != 1_000L && it.type != EXPENSE }, null)
         assertEquals(listOf(false, false, false, false, false, true), before.history.map { it.recorded })
+    }
+
+    @Test
+    fun `카드를 처음 쓴 날은 통계의 기록 시작일과 같은 규칙으로 고른다`() {
+        // 통계의 기록 시작일 규칙을 바꾸면 카드실적 탭과 상세도 함께 바뀌게 같은 도우미를 쓴다
+        val card = PaymentMethodEntity(id = 6, uuid = "u", name = "카드", type = PaymentMethodType.OTHER, performanceTiers = "300000")
+        val rows = listOf(tx("2026-09-03", 10_000, paymentId = 6))
+        val today = day("2026-10-03")
+        listOf(null, day("2026-10-02"), day("2026-05-01")).forEach { queried ->
+            val first = effectiveFirstRecord(rows, queried)
+            val detail = buildCardDetail(card, october, today, rows, queried)
+            val expected = trendMonths(october).map { hasRecord(performancePeriod(it, 1), first, october) }
+            assertEquals("조회 값 $queried", expected, detail.history.map { it.recorded })
+            val tab = buildCardPerformance(listOf(card), rows.cardSpending(), today, listOfNotNull(queried).associateBy { 6L })
+            val september = performancePeriod(YearMonth.of(2026, 9), 1)
+            assertEquals("조회 값 $queried", hasRecord(september, first, october), tab.tracked.single().previous != null)
+        }
     }
 
     @Test

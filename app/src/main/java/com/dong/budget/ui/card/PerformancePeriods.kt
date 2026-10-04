@@ -101,13 +101,6 @@ fun PaymentMethodEntity.isPerformanceTarget(): Boolean = type != PaymentMethodTy
 fun hasRecord(period: PerformancePeriod, firstUse: LocalDate?, current: YearMonth): Boolean =
     period.month >= current || (firstUse != null && firstUse.isBefore(period.end))
 
-/**
- * 카드를 처음 쓴 날. 첫 사용일 조회([firstUse])와 거래 목록은 따로 방출돼 잠깐 어긋날 수 있다(첫 거래를 막 등록한 직후 등).
- * 보이는 거래([earliestSeen] 이 가장 이른 날)보다 늦은 첫 사용일은 있을 수 없어 둘 중 이른 날을 쓴다(통계의 기록 시작일과 같은 규칙).
- */
-internal fun effectiveFirstUse(firstUse: LocalDate?, earliestSeen: LocalDate?): LocalDate? =
-    listOfNotNull(firstUse, earliestSeen).minOrNull()
-
 /** 쓴 돈 한 건. 날짜(서울 기준)는 한 줄에 한 번만 구해 둔다. 지출은 +, 환불은 − 다. */
 internal class Spend(val date: LocalDate, val amount: Long)
 
