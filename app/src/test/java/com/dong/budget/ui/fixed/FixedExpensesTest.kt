@@ -28,8 +28,8 @@ class FixedExpensesTest {
     }
 
     /** 화면 모델처럼 [month] 를 볼 때 읽는 범위([fixedHistoryStart] ~ [fixedHistoryEnd])의 행만 */
-    private fun readFor(rows: List<TransactionListItem>, month: YearMonth) =
-        rows.filter { YearMonth.from(it.localDate()) in fixedHistoryStart(month)..fixedHistoryEnd(month) }
+    private fun readFor(rows: List<TransactionListItem>, month: YearMonth, today: LocalDate = month.atDay(1)) =
+        rows.filter { YearMonth.from(it.localDate()) in fixedHistoryStart(month)..fixedHistoryEnd(month, today) }
 
     /** [dates] 마다 같은 가게에 [amount] 를 낸 기록 */
     private fun paid(merchant: String, amount: Long, vararg dates: String, paymentId: Long? = 10) =
@@ -430,7 +430,7 @@ class FixedExpensesTest {
     fun `말일에 낼 것이 다음 달 초로 밀렸으면 앞 달 몫으로 센다`() {
         // 9월 30일 자동이체가 휴일이라 10월 1일에 나갔다
         val rows = paid("관리비", 120_000, "2026-07-31", "2026-08-31", "2026-10-01")
-        assertEquals(YearMonth.of(2026, 11), fixedHistoryEnd(october))
+        assertEquals(YearMonth.of(2026, 11), fixedHistoryEnd(october, day("2026-10-15")))
         val september = only(rows, month = YearMonth.of(2026, 9), today = day("2026-10-15"))
         assertEquals(FixedStatus.PAID, september.status)
         assertEquals(day("2026-10-01"), september.lastPaidOn)
@@ -456,17 +456,18 @@ class FixedExpensesTest {
         assertEquals(LAST_DAY, inOctober.usualDay)
         assertEquals("매달 말일쯤", scheduleText(inOctober))
         assertNull(inOctober.missedMonth)
-        // 표본 넷 중 둘이 밀렸어도(5월 31일·7월 1일·7월 31일·9월 1일) 말일 납부다. 9월 1일은 8월 몫이고 9월은 아직이다.
+        // 넷 중 둘(7월 1일 · 9월 1일)을 앞 날이 평일인 딱 1일에 냈으면(5월 31일 · 7월 31일) 1일에 내다 두 번 미리 낸 것과 가를 수 없어 1일 납부로 본다.
+        // 어느 쪽으로 보든 같은 날 본 지난 달 · 이번 달 화면이 한 결제를 함께 세지 않는다.
         val half = paid("관리비", 120_000, "2026-05-31", "2026-07-01", "2026-07-31", "2026-09-01")
         val september10 = day("2026-09-10")
         val august = YearMonth.of(2026, 8)
-        val inAugust = only(readFor(half, august), month = august, today = september10)
+        val inAugust = only(readFor(half, august, september10), month = august, today = september10)
+        val inSeptember1 = only(readFor(half, september, september10), month = september, today = september10)
+        assertEquals(1, inSeptember1.usualDay)
         assertEquals(FixedStatus.PAID, inAugust.status)
-        assertEquals(day("2026-09-01"), inAugust.lastPaidOn)
-        val dueSeptember = only(readFor(half, september), month = september, today = september10)
-        assertEquals(FixedStatus.DUE, dueSeptember.status)
-        assertEquals(LAST_DAY, dueSeptember.usualDay)
-        assertNull(dueSeptember.missedMonth)
+        assertEquals(day("2026-07-31"), inAugust.lastPaidOn)
+        assertEquals(FixedStatus.PAID, inSeptember1.status)
+        assertEquals(day("2026-09-01"), inSeptember1.lastPaidOn)
     }
 
     @Test
@@ -491,12 +492,12 @@ class FixedExpensesTest {
         val utility = paid("관리비", 120_000, "2026-12-01", "2026-12-31")
         val january = YearMonth.of(2027, 1)
         val january10 = day("2027-01-10")
-        val inJanuary = board(readFor(utility, january), month = january, today = january10)
-        assertEquals(FixedStatus.DUE, inJanuary.due.single().status)
-        assertEquals(120_000L, inJanuary.dueTotal)
+        // 두 건으로는 말일 납부(12월 1일이 밀린 11월 몫)인지 1일 납부(12월 31일이 1월 몫을 미리 냄)인지 가를 수 없다.
+        // 12월 1일은 앞 날(11월 30일)이 평일인 딱 1일이라 1일 납부로 보고, 어느 쪽이든 1월은 한 달 치 120,000원이다.
+        val inJanuary = board(readFor(utility, january, january10), month = january, today = january10)
+        assertEquals(120_000L, inJanuary.dueTotal + inJanuary.paidTotal)
         val december = YearMonth.of(2026, 12)
-        val inDecember = only(readFor(utility, december), month = december, today = january10)
-        assertEquals(day("2026-12-31"), inDecember.lastPaidOn)
+        val inDecember = only(readFor(utility, december, january10), month = december, today = january10)
         assertEquals(1, inDecember.lastPaidCount)
         // 새 월세를 9월 1일 · 9월 30일에 냈다. 1,000,000원 등록하기가 뜨지 않는다.
         // (9월 30일이 10월 몫을 미리 낸 것인지 평소 말일에 내는 것인지 두 건으로는 가를 수 없어 10월은 '아직 안 냈어요' 다)

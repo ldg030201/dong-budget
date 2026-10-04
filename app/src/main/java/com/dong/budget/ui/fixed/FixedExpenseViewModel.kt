@@ -88,7 +88,11 @@ class FixedExpenseViewModel(
             .flatMapLatest { (month, today) ->
                 combine(
                     hasCategory,
-                    transactions.observeExpensesWithCategoryCode(FIXED_CATEGORY_CODE, fixedHistoryStart(month), fixedHistoryEnd(month)),
+                    transactions.observeExpensesWithCategoryCode(
+                        FIXED_CATEGORY_CODE,
+                        fixedHistoryStart(month),
+                        fixedHistoryEnd(month, today),
+                    ),
                 ) { has, rows ->
                     FixedExpenseUiState(
                         loaded = true,
