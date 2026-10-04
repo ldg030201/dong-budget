@@ -195,4 +195,59 @@ class FixedExpensesRecheckTest {
             }
         }
     }
+
+    @Test
+    fun `카드 · 자동이체 회선이 섞인 같은 날 가게는 쉬는 날로 벌어진 날을 평소 벌어짐으로 세지 않아 해지한 다음 날 냈어요다`() {
+        // 21일 카드 45,000원(그날 나감) · 자동이체 33,000원(쉬는 날이면 다음 영업일). 11월 21일(토)엔 카드분 21일, 자동이체분 23일에 나갔다.
+        val december = YearMonth.of(2026, 12)
+        val lines = bill("통신사", 45_000, 21, YearMonth.of(2026, 1), december, card = true) +
+            bill("통신사", 33_000, 21, YearMonth.of(2026, 1), YearMonth.of(2026, 11))
+        assertEquals("2번 중 1번 냈고, 남은 건 오늘 낼 차례예요", note(lines, december, day("2026-12-21")))
+        for (today in (22..24).map { december.atDay(it) }) {
+            val item = view(lines, december, today)
+            assertEquals("$today", FixedStatus.PAID, item.status)
+            assertEquals("$today", "2번 중 1번만 냈어요", rowNote(item, december, today)?.text)
+        }
+        // 카드 회선을 11월부터 해지하면 11월 21일(토) 것은 자동이체분이 23일에 나가 24일엔 냈어요다
+        val november = YearMonth.of(2026, 11)
+        val card = bill("통신사", 45_000, 21, YearMonth.of(2026, 1), YearMonth.of(2026, 10), card = true) +
+            bill("통신사", 33_000, 21, YearMonth.of(2026, 1), december)
+        assertEquals("2번 중 1번만 냈어요", note(card, november, day("2026-11-24")))
+    }
+
+    @Test
+    fun `한 번 늦게 메운 회선은 평소 벌어짐이 아니라 해지한 달도 남은 회선이 나간 다음 날 냈어요다`() {
+        // 21일 45,000원 · 33,000원 가운데 5월 것 33,000원을 6월 3일에 늦게 냈고, 9월부터 33,000원을 해지했다
+        val lines = bill("통신사", 45_000, 21, YearMonth.of(2026, 1), YearMonth.of(2026, 12)) +
+            bill("통신사", 33_000, 21, YearMonth.of(2026, 1), YearMonth.of(2026, 8)).filter { it.localDate() != day("2026-05-21") } +
+            paid("통신사", 33_000, "2026-06-03")
+        val september = YearMonth.of(2026, 9)
+        for (date in listOf("2026-09-22", "2026-09-30", "2026-10-04")) {
+            val item = view(lines, september, day(date))
+            assertEquals(date, FixedStatus.PAID, item.status)
+            assertEquals(date, "2번 중 1번만 냈어요", rowNote(item, september, day(date))?.text)
+        }
+    }
+
+    @Test
+    fun `한 차례로 본 두 청구의 남은 것은 평소 벌어짐이 끝나는 날이 낼 날이라 그날 아침엔 오늘 낼 차례다`() {
+        // 자동이체 6일 4,400원 · 7일 10,900원을 2025년 4월부터 냈다. 쉬는 날로 한날 나간 달이 많아 갈린 달이 8월 하나뿐이라 한 차례(6일)로 본다.
+        val school = bill("학원", 4_400, 6, YearMonth.of(2025, 4), YearMonth.of(2025, 12)) +
+            bill("학원", 10_900, 7, YearMonth.of(2025, 4), YearMonth.of(2025, 12))
+        val november = YearMonth.of(2025, 11)
+        assertEquals("2번 중 1번 냈고, 남은 건 오늘 낼 차례예요", note(school, november, day("2025-11-07"), morning = true))
+        // 카드 1일 4,400원 · 2일 10,900원을 2025년 1월부터 냈다. 2 · 3월은 1일 토요일 · 2일 일요일에 따로 나갔다.
+        val apple = bill("애플", 4_400, 1, YearMonth.of(2025, 1), YearMonth.of(2025, 6), card = true) +
+            bill("애플", 10_900, 2, YearMonth.of(2025, 1), YearMonth.of(2025, 6), card = true)
+        assertEquals("2번 중 1번 냈고, 남은 건 오늘 낼 차례예요", note(apple, YearMonth.of(2025, 4), day("2025-04-02"), morning = true))
+        // 2달마다(홀수 달) 10일 · 12일 두 회선은 10일 것만 낸 10 · 11일에 지났다고 하지 않는다
+        val purifier = bill("정수기", 45_000, 10, YearMonth.of(2025, 1), YearMonth.of(2026, 11), card = true, step = 2) +
+            bill("정수기", 33_000, 12, YearMonth.of(2025, 1), YearMonth.of(2026, 11), card = true, step = 2)
+        val july = YearMonth.of(2026, 7)
+        for (today in listOf(day("2026-07-10"), day("2026-07-11"))) {
+            assertEquals("$today", "2번 중 1번 냈어요", note(purifier, july, today))
+        }
+        assertEquals("2번 중 1번 냈고, 남은 건 오늘 낼 차례예요", note(purifier, july, day("2026-07-12"), morning = true))
+        assertEquals(FixedStatus.PAID, view(purifier, july, day("2026-07-12")).status)
+    }
 }

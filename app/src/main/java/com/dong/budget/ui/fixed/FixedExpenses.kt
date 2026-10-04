@@ -8,6 +8,7 @@ import com.dong.budget.ui.stats.calc.merchantKey
 import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
+import kotlin.math.abs
 
 // ─────────────────────────────────────────────────────────────────────
 // 고정지출 계산. '고정지출' 분류로 적은 지출을 가게별로 묶고, 고른 달에 냈는지 · 낼 차례인지를 가린다.
@@ -78,7 +79,8 @@ enum class FixedStatus {
  *   그사이 '등록하기' 로 적은 결제는 그 달 몫이 되므로 줄에 함께 알린다. 그 밖에는 null
  * @property daysPastUsual [FixedStatus.DUE] 이고 고른 달이 이번 달일 때, 낼 날([dueDateIn], 평소 날짜가 쉬는 날이면 다음 영업일)이
  *   지났으면 평소 날짜([usualDateIn])에서 며칠 지났는지(25일 것이 연휴로 28일에 나가는 달은 29일에 4). 낼 날이면 0, 아직이면 낼 날까지
- *   남은 날의 음수다. 그 밖에는 null
+ *   남은 날의 음수다. 함께 나가던 건 가운데 일부만 나간 차례는 평소 벌어짐이 끝나는 날이 낼 날이다(그 뒤엔 안 나간 것이라 지났다고 하지 않는다).
+ *   그 밖에는 null
  * @property latestId 가장 최근 거래. 줄을 누르면 이 거래의 상세가 열리고, 거기서 같은 가게의 최근 1년 내역을 본다.
  * @property latestAt 가장 최근 거래의 때. '등록하기' 의 시각을 여기서 가져온다.
  * @property latestAmount 가장 최근 거래의 금액. 자주 내는 가게의 '등록하기' 는 한 달 합이 아니라 이 금액이다.
@@ -330,19 +332,25 @@ private fun fixedItem(
         )
     // 낼 날을 넘겼는지는 이번 달에만 센다. 지난 달은 이미 끝났다. 자주 내는 가게는 낼 날이 없다.
     if (status != FixedStatus.DUE || month != YearMonth.from(today) || frequent) return item
-    val due = item.dueDateIn(month)
+    // 일부만 나간 차례의 남은 건은 평소 벌어짐이 끝나는 날이 낼 날이다(이튿날 나눠 내는 몫을 그날 아침 지났다고 하지 않게)
+    val due = state.openDue ?: item.dueDateIn(month)
     // 낼 날이 지나야 '지났어요' 이고, 지난 날 수는 평소 날짜부터 센다(쉬는 날로 밀린 만큼 덜 세지 않게)
     val from = if (today.isAfter(due)) item.usualDateIn(month) else due
     return item.copy(daysPastUsual = daysBetween(from, today))
 }
 
-/** 고른 달의 덜 낸 차례(번호, 이른 차례부터). [open] 은 아직 낼 차례, [dropped] 는 안 나간 것으로 보는 차례(해지했거나 건너뜀)다. */
-private class SlotState(val open: List<Int>, val dropped: List<Int>)
+/**
+ * 고른 달의 덜 낸 차례(번호, 이른 차례부터). [open] 은 아직 낼 차례, [dropped] 는 안 나간 것으로 보는 차례(해지했거나 건너뜀)다.
+ * [openDue] 는 첫 [open] 차례를 낼 날이다. 함께 나가던 건 가운데 일부만 나간 차례면 평소 벌어짐이 끝나는 날([slotState])이라 그날까지는
+ * 지났다고 하지 않는다(그 뒤엔 안 나간 것이다). 아니면 그 차례 낼 날이고, 아직 낼 차례가 없으면 null 이다.
+ */
+private class SlotState(val open: List<Int>, val dropped: List<Int>, val openDue: LocalDate?)
 
 /**
  * [month] 의 덜 낸 차례(차례마다 건수 [split] 보다 그 달 몫으로 짝지은 결제가 적은 것)를 [today] 에 아직 낼 것과 안 나간 것으로 가른다.
  * 화면 계산에서만 오늘에 따라 보고 짝짓기는 오늘과 상관없다. 덜 낸 차례 가운데
- * - 그 차례에 이번 결제가 있으면(같은 날 함께 나가던 회선) 그 차례 낼 날과 이번 첫 결제일에 평소 벌어짐([usualSpread])을 더한 날 가운데 늦은 날이,
+ * - 그 차례에 이번 결제가 있으면(같은 날 함께 나가던 회선) 이번 첫 결제가 늦은 날 수([lateness])에 평소 벌어짐([usualSpread])을 더한 만큼
+ *   그 차례 낼 날 뒤의 날이,
  * - 그 차례에 결제가 없으면(날이 따로인 차례) 낼 날 뒤 [DROP_GRACE_DAYS] 일이
  * 지나면 안 나간 것이다. 정말 깜빡한 회선이면 그 뒤로 알리지 않는 대신, 해지한 달이 끝까지 '덜 냈어요' 로 남지 않는다.
  * [weighs] 가 아니면(앞 차례 달까지 비어 놓친 차례를 알리는 달) 안 나간 것으로 보지 않는다.
@@ -360,30 +368,43 @@ private fun slotState(
 ): SlotState {
     val bySlot = shares[month].orEmpty().groupBy { slotOf.getValue(it.id).index }
     val short = split.indices.filter { (bySlot[it]?.size ?: 0) < split[it] }
-    if (!weighs) return SlotState(short, emptyList())
-    val dropped = short.filter { slot ->
+    // 덜 낸 차례마다 기다리는 마지막 날
+    val until = short.associateWith { slot ->
         val due = dues.due(month, days[slot])
-        val inSlot = bySlot[slot]
-        val until = if (inSlot == null) {
-            due.plusDays(DROP_GRACE_DAYS)
-        } else {
-            maxOf(due, inSlot.minOf { it.date }.plusDays(usualSpread(slot, month, shares, slotOf, counts, split.size).toLong()))
-        }
-        today.isAfter(until)
+        val inSlot = bySlot[slot] ?: return@associateWith due.plusDays(DROP_GRACE_DAYS)
+        val spread = usualSpread(slot, month, days, shares, slotOf, counts, dues, split.size)
+        due.plusDays(maxOf(0, lateness(inSlot.minOf { it.date }, month, days[slot], dues) + spread).toLong())
     }
-    return SlotState(short - dropped.toSet(), dropped)
+    val dropped = if (weighs) short.filter { today.isAfter(until.getValue(it)) } else emptyList()
+    val open = short - dropped.toSet()
+    val openDue = open.firstOrNull()?.let { slot -> if (bySlot[slot] == null) dues.due(month, days[slot]) else until.getValue(slot) }
+    return SlotState(open, dropped, openDue)
+}
+
+/**
+ * [date] 가 [month] 의 평소 [day] 일 차례보다 며칠 늦게 나갔는지. 낼 날이거나 그 뒤면 낼 날부터, 그 전이면 평소 날짜부터 센다.
+ * 쉬는 날에 카드는 그날(평소 날짜), 자동이체는 다음 영업일(낼 날)에 나가므로 둘 다 0이고, 1일 · 2일에 나눠 내는 카드는 쉬는 날이 끼어도
+ * 2일 것이 1이다.
+ */
+private fun lateness(date: LocalDate, month: YearMonth, day: Int, dues: DueDates): Int {
+    val due = dues.due(month, day)
+    return if (date < due) daysBetween(usualDateOf(month, day), date) else daysBetween(due, date)
 }
 
 /**
  * [slot] 차례로 함께 나가던 결제가 평소 며칠에 걸쳐 나가는지. [month] 앞 최근 다 낸 달들(그 차례 건수만큼 낸 달, [SPREAD_MONTHS] 달까지)에서
- * 그 차례 첫 결제와 마지막 결제가 며칠 떨어졌는지의 가장 큰 값이다(늘 같은 날이면 0, 나눠 낸 몫을 가끔 이튿날 내면 1).
+ * 그 차례 결제들이 늦은 날 수([lateness])의 가장 큰 값과 가장 작은 값의 차이 가운데 가장 큰 값이다(늘 같은 날이면 0, 나눠 낸 몫을 가끔 이튿날
+ * 내면 1). 쉬는 날에 카드분은 그날, 자동이체분은 다음 영업일에 나가 벌어진 날은 늦은 것이 아니라 들지 않는다. [DROP_GRACE_DAYS] 일을
+ * 넘겨 늦게 메우거나 일찍 낸 결제도 평소 벌어짐이 아니라 빼고 잰다(그달에 그랬다면 안 나간 것으로 보았을 결제다).
  */
 private fun usualSpread(
     slot: Int,
     month: YearMonth,
+    days: List<Int>,
     shares: Map<YearMonth, List<Paid>>,
     slotOf: Map<Long, Slot>,
     counts: MonthCounts,
+    dues: DueDates,
     slots: Int,
 ): Int = shares.keys
     .filter { it < month }
@@ -392,7 +413,10 @@ private fun usualSpread(
     .map { it to shares.getValue(it).filter { pay -> slotOf.getValue(pay.id).index == slot } }
     .filter { (paidMonth, inSlot) -> inSlot.isNotEmpty() && inSlot.size >= counts.sharesIn(paidMonth, slots).counts[slot] }
     .take(SPREAD_MONTHS)
-    .maxOfOrNull { (_, inSlot) -> daysBetween(inSlot.minOf { it.date }, inSlot.maxOf { it.date }) } ?: 0
+    .maxOfOrNull { (paidMonth, inSlot) ->
+        val late = inSlot.map { lateness(it.date, paidMonth, days[slot], dues) }.filter { abs(it) <= DROP_GRACE_DAYS }
+        if (late.isEmpty()) 0 else late.max() - late.min()
+    } ?: 0
 
 /**
  * 아직 낼 차례 [open] 의 남은 금액. 차례마다 기준 달([reference]) 그 차례의 합에서 이번에 그 차례로 낸 것([here])을 뺀다
