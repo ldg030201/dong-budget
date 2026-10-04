@@ -56,7 +56,8 @@ internal fun matchPayments(pays: List<Paid>, schedule: FixedSchedule, counts: Mo
         }
         for (node in nodes) {
             if (schedule.isExtra(pay.amount)) offer(Node(node.cost + EXTRA_SKIP, node.slot, node.count, node.first, node, -1))
-            for (target in reach) {
+            // 닿는 차례가 모두 이미 지난 차례 앞이면 그 차례에 넘치게 넣는다(어느 갈래도 끊기지 않게, 갈래가 없으면 짝을 못 고른다)
+            for (target in if (reach.last < node.slot) node.slot..node.slot else reach) {
                 if (target < node.slot) continue
                 val slot = slots[target]
                 val cost = node.cost + assignCost(pay, slot, schedule, dues)
@@ -76,8 +77,9 @@ internal fun matchPayments(pays: List<Paid>, schedule: FixedSchedule, counts: Mo
 }
 
 /**
- * 짝지을 결제 차례. 날짜 차례이되, [OCCASION_DAYS] 일 안에 이어 낸 결제 무리 안에서는 같은 금액끼리 몇 번째인지로 먼저 줄 세운다.
+ * 짝지을 결제 차례. 날짜 차례이되, 무리의 첫 결제부터 [OCCASION_DAYS] 일 안에 낸 결제 무리 안에서는 같은 금액끼리 몇 번째인지로 먼저 줄 세운다.
  * 밀린 몫과 이번 몫을 260,000원 · 260,000원 · 240,000원 · 240,000원 차례로 냈어도 앞 달 몫과 이번 달 몫이 한 벌씩이 된다.
+ * 무리는 첫 결제에서 재므로 사흘 안팎으로 이어 낸 결제가 몇 달 이어져도(평일마다 내는 돌봄) 몇 달 뒤 결제를 앞으로 당기지 않는다.
  * 같은 날 낸 것끼리는 [sameDay] 차례다.
  */
 private fun orderOf(pays: List<Paid>, sameDay: (Paid) -> Int): List<Paid> {
@@ -85,7 +87,7 @@ private fun orderOf(pays: List<Paid>, sameDay: (Paid) -> Int): List<Paid> {
     val rank = HashMap<Long, Int>()
     var start = 0
     for (end in byDate.indices) {
-        val last = end == byDate.lastIndex || daysBetween(byDate[end].date, byDate[end + 1].date) > OCCASION_DAYS
+        val last = end == byDate.lastIndex || daysBetween(byDate[start].date, byDate[end + 1].date) > OCCASION_DAYS
         if (!last) continue
         val seen = HashMap<Long, Int>()
         for (pay in byDate.subList(start, end + 1)) rank[pay.id] = start * RANK_SCALE + seen.merge(pay.amount, 1, Int::plus)!!
