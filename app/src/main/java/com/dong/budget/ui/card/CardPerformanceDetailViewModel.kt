@@ -9,7 +9,6 @@ import com.dong.budget.navigation.CardPerformanceDetailKey
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -17,7 +16,6 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.stateIn
 import java.time.Clock
 import java.time.YearMonth
 
@@ -26,7 +24,8 @@ import java.time.YearMonth
  *
  * 기간은 이 화면만 따로 가진다. 처음에는 오늘이 든 기간이고, 앞으로 넘겨 지난 기간을 볼 수 있다(이번 기간보다 뒤로는 못 간다).
  * 고른 기간까지 최근 6기간의 이 카드 지출·환불과 이 카드를 처음 쓴 날을 읽어 순수 함수([buildCardDetail])로 계산한다.
- * 실적(구간·시작일)이나 거래를 고치면 바로 다시 계산된다. 결제수단을 지웠으면 [CardPerformanceDetailUiState.gone] 이다.
+ * 실적(구간·시작일)이나 거래를 고치면 바로 다시 계산된다. 백스택에 있는 동안 계속 구독해 편집 화면에서 돌아와도 옛 값을 먼저 그리지 않는다([stateWhileAlive]).
+ * 결제수단을 지웠으면 [CardPerformanceDetailUiState.gone] 이다.
  *
  * @param clock 지금 시각. 테스트에서 날짜를 고정하려고 바꿀 수 있게 둔다.
  */
@@ -61,11 +60,7 @@ class CardPerformanceDetailViewModel(
                 ) { rows, firstUse -> buildCardDetail(card, month, today, rows, firstUse) }
                     // 계산만 기본 풀에서 한다. 조회는 Room 이 자기 스레드에서 한다.
                     .flowOn(Dispatchers.Default)
-            }.stateIn(
-                scope = viewModelScope,
-                started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS),
-                initialValue = CardPerformanceDetailUiState.loading(BudgetTime.toLocalDate(clock.instant())),
-            )
+            }.stateWhileAlive(viewModelScope, CardPerformanceDetailUiState.loading(BudgetTime.toLocalDate(clock.instant())))
 
     /**
      * 앞 기간. 그려진 기간(uiState)이 아니라 고른 값에서 바로 움직인다. 그려진 기간은 조회와 계산을 거쳐 한 박자 늦게 바뀌어서,
@@ -86,9 +81,5 @@ class CardPerformanceDetailViewModel(
     /** 기간 줄 오른쪽 '이번 달'(시작일이 1일이 아니면 '이번 기간'). 다시 오늘이 든 기간을 따라간다. */
     fun showCurrentPeriod() {
         picked.value = null
-    }
-
-    private companion object {
-        const val STOP_TIMEOUT_MS = 5_000L
     }
 }
