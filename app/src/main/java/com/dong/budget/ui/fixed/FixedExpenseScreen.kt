@@ -188,7 +188,7 @@ private fun LazyListScope.statusGroup(
     animatedItem(key = "title-${status.name}") {
         // 줄은 스스로 좌우 여백을 가진다(거래 줄과 같다). 제목만 화면 여백 안에 넣는다.
         SectionTitle(
-            text = statusTitle(status, state.month, state.today),
+            text = statusTitle(status, state.month, state.today, isStillOpen(state.board, state.month, state.today)),
             modifier =
             Modifier
                 .padding(horizontal = BudgetTheme.spacing.screenHorizontal)
@@ -238,7 +238,7 @@ private fun SummaryBlock(state: FixedExpenseUiState) {
             Spacer(Modifier.height(BudgetTheme.spacing.sectionPadding))
             Column(verticalArrangement = Arrangement.spacedBy(BudgetTheme.spacing.tightGap)) {
                 SummaryLine(label = PAID_LABEL, amount = board.paidTotal)
-                SummaryLine(label = dueLabel(state.month, state.today), amount = board.dueTotal)
+                SummaryLine(label = dueLabel(board, state.month, state.today), amount = board.dueTotal)
             }
         }
     }
@@ -273,7 +273,7 @@ private fun FixedRow(
     onOpenTransaction: (Long) -> Unit,
 ) {
     val note = rowNote(item, state.month, state.today)
-    val status = statusTitle(item.status, state.month, state.today)
+    val status = rowStatus(item, state.month, state.today)
     val canRegister = item.status == FixedStatus.DUE && state.isThisMonth && item.merchant != null
     // 이번 달 돈이 아닌 줄(안 내는 달, 그만둔 것)은 금액을 흐리게 둔다
     val quiet = item.status == FixedStatus.NOT_THIS_MONTH || item.status == FixedStatus.STOPPED

@@ -274,7 +274,7 @@ private const val I4_LIMIT_PERCENT = 120L
 
 /**
  * 2025-01-01 ~ 2035-12-31(공휴일 표가 있는 해까지)의 실제 한국 달력([KoreanCalendar])으로 진짜 결제를 만들고, 오늘을 날마다 옮기며
- * 그날까지의 기록만으로 이번 달 · 지난 달 화면을 계산해 불변식(fixes3.md '검증 방법' I1~I6, 일부 냄 I7)을 본다. 읽는 범위는 화면 모델과 같다
+ * 그날까지의 기록만으로 이번 달 · 지난 달 화면을 계산해 불변식(fixes3.md '검증 방법' I1~I6, 일부 냄 I7, 지난 달 낼 날 I8)을 본다. 읽는 범위는 화면 모델과 같다
  * ([fixedHistoryStart] ~ [fixedHistoryEnd]). 위반은 모아서 한 번에 보여 준다.
  */
 class FixedExpenseSimulationTest {
@@ -366,6 +366,11 @@ private fun check(pattern: Pattern, day: LocalDate, now: View, before: View, che
         judge("I7", view, partly, view.item?.status != FixedStatus.PAID) {
             "냈어요 아님(${pays.joinToString { it.date.toString() }} 가운데 일부만 냄)"
         }
+    }
+    // I8(리뷰 c7): 지난 달 몫의 진짜 낼 날이 아직이면(말일이 쉬는 날이라 이번 달 초에 나감) 지난 달 화면도 끝난 달로 적지 않는다
+    val waiting = share != null && !day.isAfter(share.scheduled) && before.item?.status == FixedStatus.DUE
+    judge("I8", before, waiting, before.item?.let { rowStatus(it, before.month, day) }?.startsWith("아직") == true) {
+        "아직 안 냈어요(진짜 낼 날 ${share?.scheduled})"
     }
     // I3: 한 결제가 두 달 화면에서 함께 냈어요의 근거가 되지 않는다
     val nowBases = now.paidBases()

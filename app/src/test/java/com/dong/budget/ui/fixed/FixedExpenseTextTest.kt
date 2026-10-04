@@ -238,4 +238,100 @@ class FixedExpenseTextTest {
         assertEquals("고정지출로 등록한 지출이 없어요", emptyTitle(october, today))
         assertEquals("8월까지는 고정지출로 등록한 지출이 없어요", emptyTitle(YearMonth.of(2026, 8), today))
     }
+
+    /** [from] ~ [to] 달마다 [day] 일(쉬는 날이면 다음 영업일)에 [merchant] 에 [amount] 를 낸 기록 */
+    private fun monthly(merchant: String, amount: Long, day: Int, from: YearMonth, to: YearMonth) =
+        generateSequence(from) { it.plusMonths(1) }.takeWhile { it <= to }.map {
+            tx(
+                KoreanCalendar.nextBusinessDay(usualDateOf(it, day)).toString(),
+                amount,
+                categoryId = 4,
+                paymentId = 10,
+                merchant = merchant,
+                paymentName = "하나카드",
+            )
+        }.toList()
+
+    @Test
+    fun `c7 - 지난 달 낼 날이 쉬는 날로 밀려 아직이면 지난 달 화면은 안 냈어요가 아니고 낼 날을 알린다`() {
+        // 말일 관리비. 10월 31일(토) 몫은 11월 2일(월)에 나간다
+        val rows = monthly("관리비", 150_000, LAST_DAY, YearMonth.of(2026, 7), YearMonth.of(2026, 9))
+        val november1 = day("2026-11-01")
+        val board = buildFixedExpenses(october, november1, rows)
+        val item = board.due.single()
+        assertEquals(RowNote("11월 2일에 낼 차례예요", NoteTone.PLAIN), rowNote(item, october, november1))
+        assertEquals("아직 안 냈어요", rowStatus(item, october, november1))
+        assertEquals("아직 안 냈어요", statusTitle(FixedStatus.DUE, october, november1, isStillOpen(board, october, november1)))
+        assertEquals("10월 고정지출. 1개 중 0개 냈어요. 낸 돈 0원, 낼 돈 150,000원", summarySpoken(board, october, november1))
+        // 낼 날이면 오늘이라고, 지나면 끝난 달에 맞게 적는다
+        val november2 = day("2026-11-02")
+        assertEquals(RowNote("오늘 낼 차례예요", NoteTone.TODAY), rowNote(item, october, november2))
+        val november3 = day("2026-11-03")
+        val after = buildFixedExpenses(october, november3, rows)
+        assertNull(rowNote(after.due.single(), october, november3))
+        assertEquals("안 냈어요", rowStatus(after.due.single(), october, november3))
+        assertEquals("안 냈어요", statusTitle(FixedStatus.DUE, october, november3, isStillOpen(after, october, november3)))
+        assertEquals("10월 고정지출. 1개 중 0개 냈어요. 낸 돈 0원, 안 낸 돈 150,000원", summarySpoken(after, october, november3))
+    }
+
+    @Test
+    fun `c7 - 같은 날 이번 달 화면은 낼 날이 아직인 앞 달 차례를 함께 알리고 지나면 놓쳤다고 한다`() {
+        val rows = monthly("관리비", 150_000, LAST_DAY, YearMonth.of(2026, 7), YearMonth.of(2026, 9))
+        val november = YearMonth.of(2026, 11)
+        val waiting = item(rows, november, day("2026-11-01"))
+        assertEquals(october, waiting.waitingMonth)
+        assertNull(waiting.missedMonth)
+        assertEquals(RowNote("10월 차례는 11월 2일에 내요", NoteTone.PLAIN), rowNote(waiting, november, day("2026-11-01")))
+        assertEquals(
+            RowNote("10월 차례는 오늘 내요", NoteTone.TODAY),
+            rowNote(item(rows, november, day("2026-11-02")), november, day("2026-11-02")),
+        )
+        val missed = item(rows, november, day("2026-11-03"))
+        assertNull(missed.waitingMonth)
+        assertEquals(RowNote("10월 차례도 안 냈어요", NoteTone.WARNING), rowNote(missed, november, day("2026-11-03")))
+    }
+
+    @Test
+    fun `s1 - 일부만 낸 줄은 몇 번 중 몇 번 냈는지와 남은 차례의 낼 날을 알리고 금액은 남은 돈이다`() {
+        // 보험에 매달 3일 50,000원 · 28일 30,000원을 낸다. 10월에는 5일 50,000원만 냈다.
+        val rows = monthly("보험", 50_000, 3, YearMonth.of(2026, 4), YearMonth.of(2026, 9)) +
+            monthly("보험", 30_000, 28, YearMonth.of(2026, 4), YearMonth.of(2026, 9)) +
+            tx("2026-10-05", 50_000, categoryId = 4, paymentId = 10, merchant = "보험", paymentName = "하나카드")
+        val october20 = day("2026-10-20")
+        val partly = item(rows, october, october20)
+        assertEquals("매달 3일, 28일쯤 · 하나카드", rowSubtitle(partly, october))
+        assertEquals(RowNote("2번 중 1번 냈어요", NoteTone.PLAIN), rowNote(partly, october, october20))
+        assertEquals("30,000원", rowAmount(partly))
+        assertEquals("아직 덜 냈어요", rowStatus(partly, october, october20))
+        val october28 = day("2026-10-28")
+        assertEquals(RowNote("2번 중 1번 냈고, 남은 건 오늘 낼 차례예요", NoteTone.TODAY), rowNote(item(rows, october, october28), october, october28))
+        val october30 = day("2026-10-30")
+        assertEquals(
+            RowNote("2번 중 1번 냈고, 남은 건 평소보다 2일 지났어요", NoteTone.WARNING),
+            rowNote(item(rows, october, october30), october, october30),
+        )
+        val board = buildFixedExpenses(october, october30, rows)
+        assertEquals("이번 달 고정지출. 1개 중 0개 냈어요. 낸 돈 50,000원, 낼 돈 30,000원", summarySpoken(board, october, october30))
+        // 끝난 지난 달로 보면 덜 냈다고 적는다
+        val november10 = day("2026-11-10")
+        val ended = item(rows, october, november10)
+        assertEquals(RowNote("2번 중 1번 냈어요", NoteTone.PLAIN), rowNote(ended, october, november10))
+        assertEquals("덜 냈어요", rowStatus(ended, october, november10))
+        assertEquals(
+            "안 냈어요",
+            statusTitle(
+                FixedStatus.DUE,
+                october,
+                november10,
+                isStillOpen(buildFixedExpenses(october, november10, rows), october, november10),
+            ),
+        )
+    }
+
+    @Test
+    fun `한 달에 두 차례 내는 것은 두 날을 함께 적는다`() {
+        assertEquals("3일, 28일쯤", usualDaysText(listOf(3, 28)))
+        assertEquals("15일, 말일쯤", usualDaysText(listOf(15, LAST_DAY)))
+        assertEquals("말일쯤", usualDaysText(listOf(LAST_DAY)))
+    }
 }

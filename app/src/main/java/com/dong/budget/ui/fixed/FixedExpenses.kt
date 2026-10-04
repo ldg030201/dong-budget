@@ -58,7 +58,9 @@ enum class FixedStatus {
  * @property paidAmount 고른 달에 낸 돈(그 달 몫과 그 달에 따로 낸 것). 아무것도 안 냈으면 0
  * @property nextMonth [FixedStatus.NOT_THIS_MONTH] 일 때 다음에 낼 달. 그 밖에는 null
  * @property missedMonth [FixedStatus.DUE] 이고 고른 달 몫을 하나도 안 냈는데, 바로 앞 차례 달도 비었고 그 달의 낼 날이 오늘 전이면 그 달.
- *   말일이 쉬는 날이라 다음 달 초에 나가는 차례는 그날이 와야 지났다고 한다. 그 밖에는 null
+ *   말일이 쉬는 날이라 다음 달 초에 나가는 차례는 그날이 와야 지났다고 한다([waitingMonth]). 그 밖에는 null
+ * @property waitingMonth [missedMonth] 와 같은데 그 달의 낼 날이 아직 안 왔으면(말일이 쉬는 날이라 이번 달 초에 나가는 차례) 그 달.
+ *   그사이 '등록하기' 로 적은 결제는 그 달 몫이 되므로 줄에 함께 알린다. 그 밖에는 null
  * @property daysPastUsual [FixedStatus.DUE] 이고 고른 달이 이번 달일 때, 낼 날([dueDateIn], 평소 날짜가 쉬는 날이면 다음 영업일)이
  *   지났으면 평소 날짜([usualDateIn])에서 며칠 지났는지(25일 것이 연휴로 28일에 나가는 달은 29일에 4). 낼 날이면 0, 아직이면 낼 날까지
  *   남은 날의 음수다. 그 밖에는 null
@@ -87,6 +89,7 @@ data class FixedExpenseItem(
     val paidAmount: Long,
     val nextMonth: YearMonth?,
     val missedMonth: YearMonth?,
+    val waitingMonth: YearMonth?,
     val daysPastUsual: Int?,
     val latestId: Long,
     val latestAt: Instant,
@@ -218,6 +221,8 @@ private fun fixedItem(key: String, pays: List<Paid>, schedule: FixedSchedule, mo
     // 가장 최근에 다 낸 달(고른 달 전). 낼 돈과 지난번 금액은 이 달 몫으로 센다.
     val full = shares.keys.filter { it < month && shares.getValue(it).size >= counts.requiredIn(it) }.maxOrNull()
     val days = schedule.days
+    // 고른 달 몫을 하나도 안 냈는데 그 앞 차례 달도 비었으면 그 달(낼 날이 지났으면 놓친 것, 아직이면 기다리는 것)
+    val skipped = last.plusMonths(cadence.toLong()).takeIf { status == FixedStatus.DUE && here.isEmpty() && gap > cadence }
     val lastPays = (shares.getValue(last) + extras[last].orEmpty()).sortedWith(paidByTime)
     val latest = (shares.filterKeys { it <= month }.values.flatten() + matching.extras.filter { it.month <= month }).maxWith(paidByTime)
     val name = latest.row.merchant?.trim()?.takeIf { key != NO_MERCHANT_KEY }
@@ -248,10 +253,8 @@ private fun fixedItem(key: String, pays: List<Paid>, schedule: FixedSchedule, mo
             requiredCount = required,
             paidAmount = (here + extraHere).sumOf { it.amount },
             nextMonth = last.plusMonths(cadence.toLong()).takeIf { status == FixedStatus.NOT_THIS_MONTH },
-            missedMonth =
-            last.plusMonths(cadence.toLong()).takeIf {
-                status == FixedStatus.DUE && here.isEmpty() && gap > cadence && today.isAfter(dues.due(it, days.last()))
-            },
+            missedMonth = skipped?.takeIf { today.isAfter(dues.due(it, days.last())) },
+            waitingMonth = skipped?.takeIf { !today.isAfter(dues.due(it, days.last())) },
             daysPastUsual = null,
             latestId = latest.id,
             latestAt = latest.row.occurredAt,

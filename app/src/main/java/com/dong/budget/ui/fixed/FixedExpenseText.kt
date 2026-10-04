@@ -22,14 +22,19 @@ internal fun cadenceText(cadence: Int): String = when {
 /** 평소 내는 날. "25일쯤", 31일이면 달마다 날이 달라 "말일쯤" */
 internal fun usualDayText(day: Int): String = if (day >= LAST_DAY) "말일쯤" else "${day}일쯤"
 
+/** 차례마다 평소 내는 날. 한 차례면 [usualDayText], 한 달에 두 차례면 "3일, 28일쯤" · "15일, 말일쯤" */
+internal fun usualDaysText(days: List<Int>): String =
+    (days.dropLast(1).map { if (it >= LAST_DAY) "말일" else "${it}일" } + usualDayText(days.last())).joinToString(", ")
+
 /**
- * 평소 언제 내는지. "매달 25일쯤", "2달마다 25일쯤", 매년이면 마지막으로 낸 몫의 달을 붙여 "매년 3월 25일쯤".
- * 낸 날의 달이 아니라 몇 월 몫인지로 적는다. 덧붙임의 '다음은 …에 내요' 도 몫의 달에서 센다.
+ * 평소 언제 내는지. "매달 25일쯤", "2달마다 25일쯤", 한 달에 두 차례면 "매달 3일, 28일쯤",
+ * 매년이면 마지막으로 낸 몫의 달을 붙여 "매년 3월 25일쯤". 낸 날의 달이 아니라 몇 월 몫인지로 적는다.
+ * 덧붙임의 '다음은 …에 내요' 도 몫의 달에서 센다.
  */
 internal fun scheduleText(item: FixedExpenseItem): String = if (item.cadence >= YEARLY) {
-    "매년 ${item.lastShareMonth.monthValue}월 ${usualDayText(item.usualDay)}"
+    "매년 ${item.lastShareMonth.monthValue}월 ${usualDaysText(item.usualDays)}"
 } else {
-    "${cadenceText(item.cadence)} ${usualDayText(item.usualDay)}"
+    "${cadenceText(item.cadence)} ${usualDaysText(item.usualDays)}"
 }
 
 /**
@@ -60,20 +65,20 @@ internal data class RowNote(val text: String, val tone: NoteTone)
 
 /**
  * 줄 부제 아래에 덧붙일 한 줄. 없으면 null
- * - 아직 안 냈어요: 지난 차례를 놓쳤으면 [missedText], 이번 달 낼 날(평소 날짜가 쉬는 날이면 다음 영업일,
- *   [FixedExpenseItem.dueDateIn])이 지났으면 "평소보다 3일 지났어요", 오늘이면 "오늘 낼 차례예요"
+ * - 아직 안 냈어요: 지난 차례를 놓쳤으면 [missedText], 앞 차례의 낼 날이 아직이면 "10월 차례는 11월 2일에 내요",
+ *   이번 달 낼 날(평소 날짜가 쉬는 날이면 다음 영업일, [FixedExpenseItem.dueDateIn])이 지났으면 "평소보다 3일 지났어요",
+ *   오늘이면 "오늘 낼 차례예요". 지난 달인데 그 달 낼 날이 아직이면(말일이 쉬는 날이라 다음 달 초에 나감) "11월 2일에 낼 차례예요".
+ *   한 달 몫을 여러 번에 나눠 내는데 일부만 냈으면 앞에 "2번 중 1번 냈어요" 를 붙인다("2번 중 1번 냈고, 남은 건 평소보다 2일 지났어요").
  * - 냈어요: 지난번과 금액이 다르면 "지난번보다 1,000원 올랐어요" / "내렸어요"
  * - 이번 달엔 안 내요: "다음은 12월에 내요"
  */
 internal fun rowNote(item: FixedExpenseItem, month: YearMonth, today: LocalDate): RowNote? = when (item.status) {
     FixedStatus.DUE -> {
-        val missed = item.missedMonth
-        val past = item.daysPastUsual
+        val due = dueNote(item, month, today)
         when {
-            missed != null -> RowNote(missedText(item, missed, month, today), NoteTone.WARNING)
-            past != null && past > 0 -> RowNote("평소보다 ${past}일 지났어요", NoteTone.WARNING)
-            past == 0 -> RowNote("오늘 낼 차례예요", NoteTone.TODAY)
-            else -> null
+            item.paidCount <= 0 -> due
+            due == null -> RowNote(partlyText(item) + "어요", NoteTone.PLAIN)
+            else -> RowNote("${partlyText(item)}고, 남은 건 ${due.text}", due.tone)
         }
     }
 
@@ -91,6 +96,35 @@ internal fun rowNote(item: FixedExpenseItem, month: YearMonth, today: LocalDate)
     FixedStatus.STOPPED -> null
 }
 
+/** 아직 안 냈어요 줄의 낼 날 알림(일부만 낸 것은 남은 차례의 낼 날). 없으면 null */
+private fun dueNote(item: FixedExpenseItem, month: YearMonth, today: LocalDate): RowNote? {
+    val missed = item.missedMonth
+    val waiting = item.waitingMonth
+    val past = item.daysPastUsual
+    val due = item.dueDateIn(month)
+    return when {
+        missed != null -> RowNote(missedText(item, missed, month, today), NoteTone.WARNING)
+        waiting != null -> waitingNote(waiting, dueDateOf(waiting, item.usualDays.last()), month, today)
+        past != null && past > 0 -> RowNote("평소보다 ${past}일 지났어요", NoteTone.WARNING)
+        past == 0 || (past == null && due == today) -> RowNote("오늘 낼 차례예요", NoteTone.TODAY)
+        past == null && due.isAfter(today) -> RowNote("${dateText(due, month)}에 낼 차례예요", NoteTone.PLAIN)
+        else -> null
+    }
+}
+
+/** 앞 차례 달([waiting])이 비었는데 그 낼 날([due])이 아직이다. "10월 차례는 11월 2일에 내요", 그날이면 "10월 차례는 오늘 내요" */
+private fun waitingNote(waiting: YearMonth, due: LocalDate, month: YearMonth, today: LocalDate): RowNote {
+    val name = monthName(waiting, month)
+    return if (due == today) {
+        RowNote("$name 차례는 오늘 내요", NoteTone.TODAY)
+    } else {
+        RowNote("$name 차례는 ${dateText(due, month)}에 내요", NoteTone.PLAIN)
+    }
+}
+
+/** 한 달 몫을 여러 번에 나눠 내는데 일부만 냈다. 뒤에 '어요' · '고' 를 붙인다: "2번 중 1번 냈" */
+private fun partlyText(item: FixedExpenseItem): String = "${item.requiredCount}번 중 ${item.paidCount}번 냈"
+
 /**
  * 놓친 차례. 매달 내는 것은 보는 달도 낼 차례라 "9월 차례도 안 냈어요".
  * 몇 달마다·매년 내는 것은 보는 달이 낼 차례가 아니라(놓친 차례 다음 달이다) '도' 없이 "10월 차례를 아직 안 냈어요",
@@ -105,7 +139,7 @@ private fun missedText(item: FixedExpenseItem, missed: YearMonth, month: YearMon
     }
 }
 
-/** 줄 오른쪽 금액. 냈으면 낸 돈, 아니면 지난번에 낸 돈. 부호 없이 "17,000원" */
+/** 줄 오른쪽 금액. 냈으면 낸 돈, 일부만 냈으면 남은 돈, 아니면 지난번에 낸 돈. 부호 없이 "17,000원" */
 internal fun rowAmount(item: FixedExpenseItem): String = "${formatAmount(item.amount)}원"
 
 /** '등록하기' 버튼. 줄마다 같은 버튼이라 화면 읽기에는 가게 이름을 붙인다: "넷플릭스 등록하기" */
@@ -118,16 +152,40 @@ internal const val ROW_CLICK_LABEL = "최근 거래 보기"
 
 // ── 묶음 제목 ────────────────────────────────────────────────────────
 
-/** 묶음 제목이자 줄의 상태(화면 읽기). 지난 달을 보면 끝난 달에 맞게 적는다. */
-internal fun statusTitle(status: FixedStatus, month: YearMonth, today: LocalDate): String {
+/**
+ * 묶음 제목. 지난 달을 보면 끝난 달에 맞게 적는다. 다만 아직 안 낸 것은 [open] 이면(이번 달, 또는 지난 달에 낼 날이 아직 안 온 줄이 있으면,
+ * [isStillOpen]) '아직 안 냈어요' 다. 줄의 상태는 [rowStatus] 다.
+ */
+internal fun statusTitle(status: FixedStatus, month: YearMonth, today: LocalDate, open: Boolean = month >= YearMonth.from(today)): String {
     val thisMonth = month == YearMonth.from(today)
     return when (status) {
-        FixedStatus.DUE -> if (thisMonth) "아직 안 냈어요" else "안 냈어요"
+        FixedStatus.DUE -> if (open) "아직 안 냈어요" else "안 냈어요"
         FixedStatus.PAID -> "냈어요"
         FixedStatus.NOT_THIS_MONTH -> if (thisMonth) "이번 달엔 안 내요" else "${monthLabel(month, today)}엔 낼 차례가 아니었어요"
         FixedStatus.STOPPED -> STOPPED_TITLE
     }
 }
+
+/**
+ * 줄의 상태(화면 읽기). 묶음 제목과 같되 줄마다 본다. 지난 달이어도 그 줄의 낼 날이 아직이면 '아직 안 냈어요' 이고([isStillDue]),
+ * 한 달 몫을 여러 번에 나눠 내는데 일부만 냈으면 "아직 덜 냈어요"(끝난 지난 달이면 "덜 냈어요") 다.
+ */
+internal fun rowStatus(item: FixedExpenseItem, month: YearMonth, today: LocalDate): String {
+    val open = isStillDue(item, month, today)
+    if (item.status != FixedStatus.DUE || item.paidCount <= 0) return statusTitle(item.status, month, today, open)
+    return if (open) "아직 덜 냈어요" else "덜 냈어요"
+}
+
+/**
+ * 아직 안 낸 줄을 [month] 에 아직 낼 수 있는지. 이번 달이면 늘 그렇고, 지난 달이면 그 달 낼 날([FixedExpenseItem.dueDateIn])이
+ * 아직 안 왔을 때다(말일이 쉬는 날이라 다음 달 초에 나가는 차례). 같은 날 본 이번 달 화면도 그 차례를 놓쳤다고 하지 않는다.
+ */
+internal fun isStillDue(item: FixedExpenseItem, month: YearMonth, today: LocalDate): Boolean =
+    month >= YearMonth.from(today) || !today.isAfter(item.dueDateIn(month))
+
+/** [month] 에 아직 낼 수 있는 것이 남았는지. 이번 달이거나, 지난 달인데 낼 날이 아직 안 온 줄이 있을 때다([isStillDue]). */
+internal fun isStillOpen(board: FixedExpenseBoard, month: YearMonth, today: LocalDate): Boolean =
+    month >= YearMonth.from(today) || board.due.any { isStillDue(it, month, today) }
 
 /** 접어 두는 묶음의 제목. 달과 상관없이 같다. */
 internal const val STOPPED_TITLE = "한동안 안 냈어요"
@@ -145,8 +203,12 @@ internal fun summaryTitle(month: YearMonth, today: LocalDate): String = "${month
 
 internal const val PAID_LABEL = "낸 돈"
 
-/** 아직 안 낸 것들의 합. 이번 달이면 앞으로 낼 돈이고, 지난 달이면 끝내 안 낸 돈이다. */
-internal fun dueLabel(month: YearMonth, today: LocalDate): String = if (month == YearMonth.from(today)) "낼 돈" else "안 낸 돈"
+/**
+ * 아직 안 낸 것들의 합. 이번 달이면 앞으로 낼 돈이고, 지난 달이면 끝내 안 낸 돈이다. 지난 달이어도 낼 날이 아직 안 온 줄이 있으면
+ * 앞으로 낼 돈이다([isStillOpen], 묶음 제목 '아직 안 냈어요' 와 맞춘다).
+ */
+internal fun dueLabel(board: FixedExpenseBoard, month: YearMonth, today: LocalDate): String =
+    if (isStillOpen(board, month, today)) "낼 돈" else "안 낸 돈"
 
 /** 요약 문장. "6개 중 4개 냈어요", "4개 모두 냈어요", "이번 달에 낼 고정지출이 없어요" */
 internal fun countSentence(board: FixedExpenseBoard, month: YearMonth, today: LocalDate): String {
@@ -163,7 +225,7 @@ internal fun countSentence(board: FixedExpenseBoard, month: YearMonth, today: Lo
 internal fun summarySpoken(board: FixedExpenseBoard, month: YearMonth, today: LocalDate): String {
     val parts = mutableListOf(summaryTitle(month, today), countSentence(board, month, today))
     if (board.dueCount > 0) {
-        parts += "$PAID_LABEL ${formatAmount(board.paidTotal)}원, ${dueLabel(month, today)} ${formatAmount(board.dueTotal)}원"
+        parts += "$PAID_LABEL ${formatAmount(board.paidTotal)}원, ${dueLabel(board, month, today)} ${formatAmount(board.dueTotal)}원"
     }
     return parts.joinToString(". ")
 }
