@@ -5,6 +5,8 @@ import androidx.lifecycle.viewModelScope
 import com.dong.budget.data.PaymentMethodRepository
 import com.dong.budget.data.TransactionRepository
 import com.dong.budget.data.db.BudgetTime
+import com.dong.budget.data.db.PaymentMethodEntity
+import com.dong.budget.data.db.TransactionListItem
 import com.dong.budget.navigation.CardPerformanceDetailKey
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -17,6 +19,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import java.time.Clock
+import java.time.LocalDate
 import java.time.YearMonth
 
 /**
@@ -43,24 +46,31 @@ class CardPerformanceDetailViewModel(
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val uiState: StateFlow<CardPerformanceDetailUiState> =
-        combine(paymentMethodRepository.observe(key.paymentMethodId), picked, BudgetTime.today(clock)) { card, pick, today ->
-            val kept = card?.let { keptPick(pick, periodMonthOf(today, it.performanceStartDay)) }
-            // 시작일을 바꿔 고른 기간이 이번 기간 이상이 됐으면 다시 이번 기간을 따라간다(다음 기간이 시작되면 넘어가게)
-            if (card != null && kept != pick) picked.compareAndSet(pick, null)
-            Triple(card, kept, today)
-        }.distinctUntilChanged()
-            .flatMapLatest { (card, kept, today) ->
-                if (card == null) return@flatMapLatest flowOf(CardPerformanceDetailUiState.loading(today, gone = true))
-                val month = kept ?: periodMonthOf(today, card.performanceStartDay)
-                val periods = historyPeriods(month, card.performanceStartDay)
-                combine(
-                    transactionRepository.observeByPaymentMethod(card.id, periods.first().start, periods.last().end),
-                    // 이 카드를 처음 쓴 날. 그 전에 끝난 기간은 기록이 없는 기간으로 둔다.
-                    transactionRepository.observeFirstUseDates().map { it[card.id] }.distinctUntilChanged(),
-                ) { rows, firstUse -> buildCardDetail(card, month, today, rows, firstUse) }
-                    // 계산만 기본 풀에서 한다. 조회는 Room 이 자기 스레드에서 한다.
-                    .flowOn(Dispatchers.Default)
-            }.stateWhileAlive(viewModelScope, CardPerformanceDetailUiState.loading(BudgetTime.toLocalDate(clock.instant())))
+        combine(
+            combine(paymentMethodRepository.observe(key.paymentMethodId), picked, BudgetTime.today(clock)) { card, pick, today ->
+                val kept = card?.let { keptPick(pick, periodMonthOf(today, it.performanceStartDay)) }
+                // 시작일을 바꿔 고른 기간이 이번 기간 이상이 됐으면 다시 이번 기간을 따라간다(다음 기간이 시작되면 넘어가게)
+                if (card != null && kept != pick) picked.compareAndSet(pick, null)
+                Triple(card, kept, today)
+            }.distinctUntilChanged()
+                .flatMapLatest { (card, kept, today) ->
+                    if (card == null) return@flatMapLatest flowOf(DetailRows(null, YearMonth.from(today), today, emptyList()))
+                    val month = kept ?: periodMonthOf(today, card.performanceStartDay)
+                    val periods = historyPeriods(month, card.performanceStartDay)
+                    transactionRepository
+                        .observeByPaymentMethod(card.id, periods.first().start, periods.last().end)
+                        .map { rows -> DetailRows(card, month, today, rows) }
+                },
+            // 이 카드를 처음 쓴 날. 그 전에 끝난 기간은 기록이 없는 기간으로 둔다. 기간과 상관없어 기간을 넘기거나 실적을 고쳐도
+            // 다시 구독하지 않게 위 흐름 밖에서 한 번만 구독한다.
+            transactionRepository.observeFirstUseDate(key.paymentMethodId),
+        ) { input, firstUse ->
+            input.card?.let { buildCardDetail(it, input.month, input.today, input.rows, firstUse) }
+                ?: CardPerformanceDetailUiState.loading(input.today, gone = true)
+        }
+            // 계산만 기본 풀에서 한다. 조회는 Room 이 자기 스레드에서 한다.
+            .flowOn(Dispatchers.Default)
+            .stateWhileAlive(viewModelScope, CardPerformanceDetailUiState.loading(BudgetTime.toLocalDate(clock.instant())))
 
     /**
      * 앞 기간. 그려진 기간(uiState)이 아니라 고른 값에서 바로 움직인다. 그려진 기간은 조회와 계산을 거쳐 한 박자 늦게 바뀌어서,
@@ -83,3 +93,6 @@ class CardPerformanceDetailViewModel(
         picked.value = null
     }
 }
+
+/** 상세를 계산할 카드·고른 기간·오늘·그 6기간 거래. 카드가 null 이면 결제수단이 없어졌다. */
+private class DetailRows(val card: PaymentMethodEntity?, val month: YearMonth, val today: LocalDate, val rows: List<TransactionListItem>)

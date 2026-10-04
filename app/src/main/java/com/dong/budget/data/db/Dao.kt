@@ -185,6 +185,13 @@ interface TransactionDao {
     )
     fun observeFirstUseByPaymentMethod(): Flow<List<PaymentMethodFirstUse>>
 
+    /**
+     * 결제수단 [paymentMethodId] 하나를 지출·환불에 처음 쓴 시각. 한 번도 안 썼으면 null. 카드실적 상세가 쓴다.
+     * 모든 결제수단을 묶어 세는 위 조회와 달리 (결제수단, 시각) 인덱스로 그 카드 기록만 본다.
+     */
+    @Query("SELECT MIN(occurredAt) FROM transactions WHERE paymentMethodId = :paymentMethodId AND type IN ('EXPENSE', 'REFUND')")
+    fun observeFirstUseOf(paymentMethodId: Long): Flow<Instant?>
+
     /** 알림에서 읽은 결제가 이미 등록됐는지 */
     @Query("SELECT EXISTS(SELECT 1 FROM transactions WHERE dedupKey = :key)")
     suspend fun existsByDedupKey(key: String): Boolean
