@@ -27,6 +27,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -39,7 +40,6 @@ import androidx.compose.ui.res.vectorResource
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.dong.budget.R
-import com.dong.budget.data.card.MAX_PERFORMANCE_TIERS
 import com.dong.budget.ui.components.ActionRow
 import com.dong.budget.ui.components.AnimatedInputPanel
 import com.dong.budget.ui.components.BringPanelRowIntoView
@@ -62,18 +62,19 @@ import kotlinx.coroutines.flow.first
  * 실적이 없는 카드로 처음 열면 화면이 다 밀려 들어온 뒤 빈 1구간 줄의 키패드를 연다.
  *
  * @param state 지금 값. 결제수단을 다 읽기 전에는 null 이다.
- * @param onAddRow 빈 구간 줄을 더한다. 더한 줄의 번호를 돌려주면 그 키패드를 연다.
- * @param onRemoveRow 구간 줄을 지운다. 지웠으면 true(열린 키패드를 그에 맞춰 옮긴다)
+ * @param onDigit 구간 줄(줄 id)의 금액 키패드 누름. 지움·전체 지움도 같다.
+ * @param onAddRow 빈 구간 줄을 더한다. 더한 줄의 id 를 돌려주면 그 키패드를 연다.
+ * @param onRemoveRow 구간 줄(줄 id)을 지운다. 지웠으면 true(그 줄의 키패드가 열려 있었으면 닫는다)
  * @param onClear '실적 지우기' 를 확인했을 때. 구간을 비우고 시작일을 1일로 돌린 뒤 화면을 닫는다.
  */
 @Composable
 fun CardPerformanceEditScreen(
     state: CardPerformanceEditState?,
-    onDigit: (index: Int, digit: String) -> Unit,
-    onDeleteDigit: (index: Int) -> Unit,
-    onClearAmount: (index: Int) -> Unit,
+    onDigit: (rowId: Int, digit: String) -> Unit,
+    onDeleteDigit: (rowId: Int) -> Unit,
+    onClearAmount: (rowId: Int) -> Unit,
     onAddRow: () -> Int?,
-    onRemoveRow: (index: Int) -> Boolean,
+    onRemoveRow: (rowId: Int) -> Boolean,
     onStartDayChange: (Int) -> Unit,
     onClear: () -> Unit,
     onBack: () -> Unit,
@@ -93,27 +94,26 @@ fun CardPerformanceEditScreen(
         )
     }
 
-    // 열린 입력판. 구간 줄 번호(0 부터)이거나 START_DAY_PANEL. 화면을 돌려도 남게 Int 하나로 둔다.
+    // 열린 입력판. 구간 줄 id 이거나 START_DAY_PANEL. 화면을 돌리거나 프로세스가 죽었다 돌아와도 남게 Int 하나로 둔다.
+    // 줄 id 는 화면 모델이 줄 목록과 함께 저장 상태에 두어 되살아난 뒤에도 같은 줄을 가리킨다.
     var panel by rememberSaveable { mutableStateOf<Int?>(null) }
-    // 실적이 없는 카드로 처음 열었으면 빈 1구간 줄의 키패드를 연다. 화면을 돌린 뒤에는 다시 열지 않는다.
+    // 실적이 없는 카드로 처음 열었으면 빈 1구간 줄의 키패드를 연다. 화면을 돌리거나 되살아난 뒤에는 다시 열지 않는다.
     var started by rememberSaveable { mutableStateOf(false) }
-    // 첫 그림에 값이 없었으면 화면 모델을 새로 만든 것이다(처음 열었거나, 프로세스가 죽었다 돌아와 화면 상태만 되살아났다).
-    // 화면을 돌린 경우는 화면 모델이 남아 첫 그림부터 값이 있다.
-    val recreated = remember { state == null }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     val loaded = state != null
     LaunchedEffect(loaded) {
         val first = state ?: return@LaunchedEffect
+        if (started) return@LaunchedEffect
         panel =
-            startPanel(panel = { panel }, started = started, recreated = recreated, startWithKeypad = first.startWithKeypad) {
+            startPanel(panel = { panel }, keypadRow = first.startKeypadRow) {
                 // 화면이 다 밀려 들어와야(RESUMED) 고침을 받는다(DongBudgetApp 의 settled). 그 전에 연 키패드를 누르면 숫자가 버려진다.
                 lifecycle.currentStateFlow.first { it.isAtLeast(Lifecycle.State.RESUMED) }
             }
         started = true
     }
     val rows = state?.rows.orEmpty()
-    // 줄을 지워 줄 수가 줄었으면 없는 줄의 입력판은 닫힌 것으로 본다
-    val shown = panel?.takeIf { it == START_DAY_PANEL || it in rows.indices }
+    // 지운 줄의 입력판은 닫힌 것으로 본다
+    val shown = panel?.takeIf { open -> open == START_DAY_PANEL || rows.any { it.id == open } }
 
     fun toggle(target: Int) {
         panel = if (shown == target) null else target
@@ -124,7 +124,8 @@ fun CardPerformanceEditScreen(
 
     // 아래쪽 줄을 누르면 열린 입력판에 가려질 수 있다. 입력판 높이가 멈춘 뒤 누른 줄이 보이게 올린다.
     val scrollState = rememberScrollState()
-    val requesters = remember { (listOf(START_DAY_PANEL) + (0 until MAX_PERFORMANCE_TIERS)).associateWith { BringIntoViewRequester() } }
+    // 줄 id 는 줄을 더할 때마다 늘어서 줄마다 처음 그릴 때 만든다
+    val requesters = remember { mutableMapOf(START_DAY_PANEL to BringIntoViewRequester()) }
     BringPanelRowIntoView(panel = shown, scrollState = scrollState, requesters = requesters)
 
     Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
@@ -145,16 +146,21 @@ fun CardPerformanceEditScreen(
             ) {
                 // 줄을 더하거나 지우면 판이 한 번에 늘고 줄지 않게 부드럽게 맞춘다
                 SettingsGroup("실적 구간", modifier = Modifier.animateContentSize(Motion.standard())) {
-                    rows.forEachIndexed { index, amount ->
-                        TierEditRow(
-                            index = index,
-                            amount = amount,
-                            valueColor = if (shown == index) activeColor else idleColor,
-                            onClick = { toggle(index) },
-                            onRemove = { if (onRemoveRow(index)) panel = panelAfterRemoval(shown, index) },
-                            modifier = Modifier.bringIntoViewRequester(requesters.getValue(index)),
-                        )
-                        tierRowHint(rows, index)?.let { HintText(it, modifier = Modifier.padding(bottom = BudgetTheme.spacing.tightGap)) }
+                    val amounts = state.amounts
+                    rows.forEachIndexed { index, row ->
+                        key(row.id) {
+                            TierEditRow(
+                                index = index,
+                                amount = row.amount,
+                                valueColor = if (shown == row.id) activeColor else idleColor,
+                                onClick = { toggle(row.id) },
+                                onRemove = { if (onRemoveRow(row.id) && panel == row.id) panel = null },
+                                modifier = Modifier.bringIntoViewRequester(requesters.getOrPut(row.id) { BringIntoViewRequester() }),
+                            )
+                            tierRowHint(amounts, index)?.let {
+                                HintText(it, modifier = Modifier.padding(bottom = BudgetTheme.spacing.tightGap))
+                            }
+                        }
                     }
                     if (state.canAddRow) {
                         AddTierRow(onClick = { onAddRow()?.let { panel = it } })

@@ -1,5 +1,6 @@
 package com.dong.budget.ui.card
 
+import androidx.lifecycle.SavedStateHandle
 import com.dong.budget.testing.day
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
@@ -13,23 +14,12 @@ import org.junit.Test
 
 class CardPerformanceEditTest {
     @Test
-    fun `구간 줄을 지우면 그 줄의 키패드는 닫고 아래 줄 키패드는 한 칸 당긴다`() {
-        assertNull(panelAfterRemoval(1, 1))
-        assertEquals(1, panelAfterRemoval(2, 0))
-        assertEquals(0, panelAfterRemoval(0, 2))
-        assertEquals(START_DAY_PANEL, panelAfterRemoval(START_DAY_PANEL, 0))
-        assertNull(panelAfterRemoval(null, 0))
-    }
-
-    @Test
     fun `닫히며 내려가거나 다른 줄로 바뀐 키패드의 누름은 받지 않는다`() {
-        // 1구간 키패드가 열린 채 1구간을 지우면 입력판은 닫히고(null) 2구간이 1구간 자리로 올라온다.
-        // 내려가는 1구간 키패드(번호 0)를 눌러도 올라온 줄 금액이 바뀌면 안 된다.
-        assertFalse(panelAccepts(panelAfterRemoval(0, 0), 0))
-        // 위 줄을 지워 열린 키패드가 2구간(1)에서 1구간(0)으로 당겨지면, 사라지는 옛 키패드(1)는 받지 않고 새 키패드(0)만 받는다
-        val moved = panelAfterRemoval(1, 0)
-        assertFalse(panelAccepts(moved, 1))
-        assertTrue(panelAccepts(moved, 0))
+        // 1구간(id 0) 키패드가 열린 채 1구간을 지우면 입력판은 닫힌다(null). 내려가는 키패드를 눌러도 받지 않는다.
+        assertFalse(panelAccepts(null, 0))
+        // 2구간(id 1) 키패드로 바꾸는 동안 사라지는 1구간 키패드는 받지 않고 새 키패드만 받는다
+        assertFalse(panelAccepts(1, 0))
+        assertTrue(panelAccepts(1, 1))
         assertFalse(panelAccepts(START_DAY_PANEL, 0))
     }
 
@@ -45,7 +35,7 @@ class CardPerformanceEditTest {
     fun `실적 추가로 처음 열면 화면이 다 들어와 누름을 받을 수 있게 된 뒤에 키패드를 연다`() = runBlocking {
         // 전에는 값을 읽자마자 키패드를 열어, 화면이 밀려 들어오는 동안 친 숫자가 말없이 버려졌다
         val ready = CompletableDeferred<Unit>()
-        val opening = async { startPanel({ null }, started = false, recreated = true, startWithKeypad = true) { ready.await() } }
+        val opening = async { startPanel({ null }, keypadRow = 0) { ready.await() } }
         yield()
         assertFalse(opening.isCompleted)
         ready.complete(Unit)
@@ -53,38 +43,28 @@ class CardPerformanceEditTest {
 
         val now: suspend () -> Unit = {}
         // 들어오는 동안 사용자가 시작일 판을 열었으면 그대로 둔다
-        assertEquals(
-            START_DAY_PANEL,
-            startPanel({
-                START_DAY_PANEL
-            }, started = false, recreated = true, startWithKeypad = true, awaitReady = now),
-        )
+        assertEquals(START_DAY_PANEL, startPanel({ START_DAY_PANEL }, keypadRow = 0, awaitReady = now))
         // 실적이 있는 카드면 아무것도 열지 않는다
-        assertNull(startPanel({ null }, started = false, recreated = true, startWithKeypad = false, awaitReady = now))
+        assertNull(startPanel({ null }, keypadRow = null, awaitReady = now))
     }
 
     @Test
-    fun `프로세스가 되살아나면 구간 키패드는 닫고, 화면을 돌렸으면 그대로 둔다`() = runBlocking {
-        val never: suspend () -> Unit = { error("이미 시작한 화면은 기다리지 않는다") }
-        // 친 순서 [700,000, 300,000] 의 2구간 키패드(1)가 열린 채 되살아나면 줄이 [300,000, 700,000] 으로 다시 읽혀
-        // 전에는 키패드가 700,000 줄에 붙었다
-        assertNull(startPanel({ 1 }, started = true, recreated = true, startWithKeypad = false, awaitReady = never))
-        assertEquals(
-            START_DAY_PANEL,
-            startPanel({
-                START_DAY_PANEL
-            }, started = true, recreated = true, startWithKeypad = false, awaitReady = never),
-        )
-        // 화면을 돌리면 화면 모델이 남아 줄 순서도 그대로라 열린 키패드를 둔다
-        assertEquals(1, startPanel({ 1 }, started = true, recreated = false, startWithKeypad = false, awaitReady = never))
-        assertNull(startPanel({ null }, started = true, recreated = false, startWithKeypad = true, awaitReady = never))
+    fun `줄은 id 로 가리켜 앞 줄을 지워도 열린 키패드가 다른 줄 금액을 바꾸지 않는다`() {
+        val rows = state(listOf(700_000, 300_000, 0))
+        // 1구간(id 0)을 지우면 2구간이 1구간 자리로 올라오지만 id 는 1 그대로다
+        val removed = rows.copy(rows = rows.rows.filter { it.id != 0 })
+        assertEquals(TierRow(1, 3_000_001), removed.changeRow(1) { it * 10 + 1 }?.rows?.first())
+        // 지운 줄 id 로 오는 누름(내려가는 키패드)은 아무 줄도 바꾸지 않는다
+        assertNull(removed.changeRow(0) { it * 10 + 1 })
+        // 바뀌지 않는 누름도 null 이다
+        assertNull(removed.changeRow(2) { 0 })
     }
 
     private fun state(rows: List<Long>, startDay: Int = 1) = CardPerformanceEditState(
         card = CardInfo(id = 1, name = "하나카드", icon = "credit_card", color = "blue"),
-        rows = rows,
+        rows = rows.mapIndexed { id, amount -> TierRow(id, amount) },
         startDay = startDay,
-        startWithKeypad = false,
+        startKeypadRow = null,
         today = day("2026-10-03"),
     )
 
@@ -113,5 +93,21 @@ class CardPerformanceEditTest {
         )
         assertEquals("카드 실적을 바꿨어요 · 구간 1개 · 매달 말일부터", performanceChangeLog(opened, SavedPerformance(listOf(300_000), 31)))
         assertEquals("카드 실적을 지웠어요", performanceChangeLog(opened, SavedPerformance(emptyList(), 1)))
+    }
+
+    @Test
+    fun `프로세스가 죽었다 돌아와도 적던 순서와 빈 줄과 줄 id 를 그대로 잇는다`() {
+        // 전에는 DB 의 정리된 값을 다시 읽어 [700,000, 300,000, 빈 줄] 이 [300,000, 700,000] 이 되고 열린 키패드를 닫았다
+        val handle = SavedStateHandle()
+        assertNull(handle.readEditBuffer())
+        val buffer =
+            EditBuffer(
+                rows = listOf(TierRow(2, 700_000), TierRow(0, 300_000), TierRow(5, 0)),
+                startDay = 15,
+                nextRowId = 6,
+                opened = SavedPerformance(listOf(300_000), 1),
+            )
+        handle.writeEditBuffer(buffer)
+        assertEquals(buffer, handle.readEditBuffer())
     }
 }

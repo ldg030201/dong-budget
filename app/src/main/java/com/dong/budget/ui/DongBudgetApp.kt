@@ -41,6 +41,7 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.LifecycleStartEffect
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.createSavedStateHandle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
@@ -695,11 +696,11 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
                             val settled = rememberSettled()
                             CardPerformanceEditScreen(
                                 state = state,
-                                onDigit = { index, pressed -> if (settled()) viewModel.appendDigit(index, pressed) },
-                                onDeleteDigit = { index -> if (settled()) viewModel.deleteDigit(index) },
-                                onClearAmount = { index -> if (settled()) viewModel.clearAmount(index) },
+                                onDigit = { row, pressed -> if (settled()) viewModel.appendDigit(row, pressed) },
+                                onDeleteDigit = { row -> if (settled()) viewModel.deleteDigit(row) },
+                                onClearAmount = { row -> if (settled()) viewModel.clearAmount(row) },
                                 onAddRow = { if (settled()) viewModel.addRow() else null },
-                                onRemoveRow = { index -> settled() && viewModel.removeRow(index) },
+                                onRemoveRow = { row -> settled() && viewModel.removeRow(row) },
                                 onStartDayChange = { day -> if (settled()) viewModel.setStartDay(day) },
                                 onClear = viewModel::clear,
                                 onBack = { if (settled()) navigator.closeIfTop(key) },
@@ -1008,5 +1009,6 @@ private fun cardPerformanceDetailViewModelFactory(container: AppContainer, key: 
 }
 
 private fun cardPerformanceEditViewModelFactory(container: AppContainer, key: CardPerformanceEditKey) = viewModelFactory {
-    initializer { CardPerformanceEditViewModel(container.paymentMethodRepository, key.paymentMethodId) }
+    // 고치던 줄(순서·빈 줄)을 프로세스가 죽었다 돌아와도 잇게 저장 상태를 넘긴다
+    initializer { CardPerformanceEditViewModel(container.paymentMethodRepository, key.paymentMethodId, createSavedStateHandle()) }
 }

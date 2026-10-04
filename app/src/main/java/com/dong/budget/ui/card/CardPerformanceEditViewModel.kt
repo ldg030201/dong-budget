@@ -1,6 +1,7 @@
 package com.dong.budget.ui.card
 
 import androidx.compose.runtime.Immutable
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dong.budget.data.PaymentMethodRepository
@@ -26,23 +27,33 @@ import java.time.Clock
 import java.time.LocalDate
 
 /**
+ * 편집 화면의 구간 줄 하나.
+ * @property id 줄을 더할 때 정해져 줄을 지우거나 앞 줄이 없어져도 바뀌지 않는다. 열린 키패드가 이것으로 줄을 가리킨다.
+ * @property amount 금액. 0 은 아직 금액을 안 적은 줄이라 저장하지 않는다.
+ */
+data class TierRow(val id: Int, val amount: Long)
+
+/**
  * 카드 실적 정하기 화면의 값.
- * @property rows 화면의 구간 줄 금액. 고치는 동안은 적은 순서 그대로 두고(줄이 갑자기 자리를 바꾸지 않게) 저장할 때만 정리한다.
- *   다음에 열면 작은 금액부터 보인다. 0 은 아직 금액을 안 적은 줄이라 저장하지 않는다.
+ * @property rows 화면의 구간 줄. 고치는 동안은 적은 순서 그대로 두고(줄이 갑자기 자리를 바꾸지 않게) 저장할 때만 정리한다.
+ *   다음에 열면 작은 금액부터 보인다.
  * @property startDay 실적 시작일(매달 1~31일)
- * @property startWithKeypad 실적이 없는 카드로 처음 열었는지. 빈 1구간 줄의 키패드를 연 채 시작한다.
+ * @property startKeypadRow 처음 열 때 키패드를 열 줄. 실적이 없는 카드로 처음 열면 빈 1구간 줄이고, 아니면 null 이다.
  * @property today 시작일 아래 예시 기간을 셀 날(화면을 연 날)
  */
 @Immutable
 data class CardPerformanceEditState(
     val card: CardInfo,
-    val rows: List<Long>,
+    val rows: List<TierRow>,
     val startDay: Int,
-    val startWithKeypad: Boolean,
+    val startKeypadRow: Int?,
     val today: LocalDate,
 ) {
+    /** 줄 금액(적은 순서) */
+    val amounts: List<Long> get() = rows.map { it.amount }
+
     /** 저장할 구간(0원 빼고, 같은 금액은 하나로, 오름차순) */
-    val tiers: List<Long> get() = normalizePerformanceTiers(rows)
+    val tiers: List<Long> get() = normalizePerformanceTiers(amounts)
 
     /** 지울 실적이 있는지(구간을 적었거나 시작일을 바꿨다). 없으면 '실적 지우기' 를 두지 않는다. */
     val hasPerformance: Boolean get() = tiers.isNotEmpty() || startDay != 1
@@ -55,12 +66,14 @@ data class CardPerformanceEditState(
  * 카드 실적(구간 금액·시작일) 정하기. 바꾸는 대로 바로 저장한다(따로 저장 버튼이 없다, 월급 설정과 같다).
  * 화면이 그리는 값은 여기 있는 것이 기준이다. 저장소에서 다시 읽은 값을 기다리면 키패드를 빨리 누를 때 숫자가 빠진다.
  * 저장은 누른 차례대로 하고, 화면을 떠나도 끝까지 한다(마지막으로 누른 숫자가 빠지지 않게).
+ * 고치는 값(줄 순서·빈 줄·줄 id·시작일)은 [savedState] 에도 둔다. 프로세스가 죽었다 돌아와도 DB 의 정리된 값 대신 적던 그대로 잇는다.
  *
  * @param clock 지금 시각. 시작일 예시 기간을 세는 데 쓴다.
  */
 class CardPerformanceEditViewModel(
     private val repository: PaymentMethodRepository,
     private val paymentMethodId: Long,
+    private val savedState: SavedStateHandle,
     private val clock: Clock = Clock.system(BudgetTime.ZONE),
 ) : ViewModel() {
     /** 지금 값. 결제수단을 다 읽기 전에는 null 이다. */
@@ -83,6 +96,9 @@ class CardPerformanceEditViewModel(
     /** 저장을 누른 차례대로 하게 한다(Mutex 는 먼저 온 쪽부터 잠금을 준다) */
     private val writes = Mutex()
 
+    /** 다음에 더할 줄의 id. 지운 줄의 id 를 다시 쓰지 않게 늘기만 한다. */
+    private var nextRowId = 0
+
     init {
         viewModelScope.launch {
             val card = repository.observe(paymentMethodId).first()
@@ -90,59 +106,61 @@ class CardPerformanceEditViewModel(
                 _closed.value = true
                 return@launch
             }
-            val tiers = card.performanceTierList
-            val saved = SavedPerformance(tiers, card.performanceStartDay)
-            opened = saved
+            val saved = SavedPerformance(card.performanceTierList, card.performanceStartDay)
             lastSaved = saved
-            _state.value =
-                CardPerformanceEditState(
-                    card = card.toCardInfo(),
-                    // 실적이 없으면 빈 1구간 줄 하나를 두고 시작한다
-                    rows = tiers.ifEmpty { listOf(0L) },
-                    startDay = card.performanceStartDay,
-                    startWithKeypad = tiers.isEmpty(),
-                    today = BudgetTime.toLocalDate(clock.instant()),
-                )
+            val today = BudgetTime.toLocalDate(clock.instant())
+            val buffer = savedState.readEditBuffer()
+            if (buffer == null) {
+                opened = saved
+                // 실적이 없으면 빈 1구간 줄 하나를 두고 그 키패드를 연 채 시작한다
+                val rows = saved.tiers.ifEmpty { listOf(0L) }.mapIndexed { id, amount -> TierRow(id, amount) }
+                nextRowId = rows.size
+                val startKeypadRow = rows.first().id.takeIf { saved.tiers.isEmpty() }
+                show(CardPerformanceEditState(card.toCardInfo(), rows, saved.startDay, startKeypadRow, today))
+            } else {
+                // 프로세스가 죽었다 돌아왔다. 적던 줄을 그대로 잇고, 마지막 누름이 저장되기 전에 죽었으면 여기서 마저 저장한다.
+                opened = buffer.opened
+                nextRowId = buffer.nextRowId
+                update(CardPerformanceEditState(card.toCardInfo(), buffer.rows, buffer.startDay, startKeypadRow = null, today))
+            }
             // 고치는 동안 결제수단이 지워지면(드물다) 닫는다
             repository.observe(paymentMethodId).first { it == null }
             _closed.value = true
         }
     }
 
-    /** 구간 줄 [index] 의 금액 키패드. 앞의 0 은 떼고, 12자리를 넘으면 받지 않는다. */
-    fun appendDigit(index: Int, digit: String) = editRow(index) { appendAmountDigit(it, digit) }
+    /** 구간 줄 [rowId] 의 금액 키패드. 앞의 0 은 떼고, 12자리를 넘으면 받지 않는다. 지운 줄이면 아무것도 하지 않는다. */
+    fun appendDigit(rowId: Int, digit: String) = editRow(rowId) { appendAmountDigit(it, digit) }
 
-    fun deleteDigit(index: Int) = editRow(index) { deleteAmountDigit(it) }
+    fun deleteDigit(rowId: Int) = editRow(rowId) { deleteAmountDigit(it) }
 
-    fun clearAmount(index: Int) = editRow(index) { 0 }
+    fun clearAmount(rowId: Int) = editRow(rowId) { 0 }
 
-    private inline fun editRow(index: Int, change: (Long) -> Long?) {
+    private inline fun editRow(rowId: Int, change: (Long) -> Long?) {
         val current = _state.value ?: return
-        val now = current.rows.getOrNull(index) ?: return
-        val next = change(now) ?: return
-        if (next == now) return
-        update(current.copy(rows = current.rows.toMutableList().also { it[index] = next }))
+        update(current.changeRow(rowId, change) ?: return)
     }
 
     /**
      * 빈 구간 줄을 맨 아래에 하나 더한다. 금액을 적기 전이라 저장할 것은 없다.
-     * @return 더한 줄의 번호(화면이 그 줄의 키패드를 연다). 더 둘 수 없으면 null
+     * @return 더한 줄의 id(화면이 그 줄의 키패드를 연다). 더 둘 수 없으면 null
      */
     fun addRow(): Int? {
         val current = _state.value ?: return null
         if (cleared || !current.canAddRow) return null
-        _state.value = current.copy(rows = current.rows + 0L)
-        return current.rows.size
+        val row = TierRow(nextRowId++, 0L)
+        show(current.copy(rows = current.rows + row))
+        return row.id
     }
 
     /**
-     * 구간 줄 [index] 를 지운다. 줄을 다 지우면 실적을 안 적은 카드가 된다.
+     * 구간 줄 [rowId] 를 지운다. 줄을 다 지우면 실적을 안 적은 카드가 된다.
      * @return 지웠는지. 없는 줄이거나 실적을 지우고 닫는 중이면 false
      */
-    fun removeRow(index: Int): Boolean {
+    fun removeRow(rowId: Int): Boolean {
         val current = _state.value ?: return false
-        if (cleared || index !in current.rows.indices) return false
-        update(current.copy(rows = current.rows.filterIndexed { i, _ -> i != index }))
+        if (cleared || current.rows.none { it.id == rowId }) return false
+        update(current.copy(rows = current.rows.filter { it.id != rowId }))
         return true
     }
 
@@ -164,8 +182,15 @@ class CardPerformanceEditViewModel(
 
     private fun update(next: CardPerformanceEditState) {
         if (cleared) return
-        _state.value = next
+        show(next)
         save(SavedPerformance(next.tiers, next.startDay))
+    }
+
+    /** 화면 값을 바꾸고 저장 상태에도 둔다(프로세스가 죽었다 돌아와도 잇게) */
+    private fun show(next: CardPerformanceEditState) {
+        _state.value = next
+        val first = opened ?: return
+        savedState.writeEditBuffer(EditBuffer(next.rows, next.startDay, nextRowId, first))
     }
 
     private fun save(saving: SavedPerformance) {
@@ -193,38 +218,63 @@ class CardPerformanceEditViewModel(
 /** 저장된(저장할) 실적. 구간은 정리한 것이다. */
 internal data class SavedPerformance(val tiers: List<Long>, val startDay: Int)
 
-/** 시작일 입력판. 구간 줄 입력판은 줄 번호(0 부터)다. 저장 상태에 Int 하나로 들어간다. */
+/** 시작일 입력판. 구간 줄 입력판은 줄 id(0 부터)다. 저장 상태에 Int 하나로 들어간다. */
 internal const val START_DAY_PANEL = -1
 
-/** 구간 줄 [removed] 를 지운 뒤 열려 있을 입력판. 지운 줄의 키패드면 닫고, 아래 줄이면 한 칸 당긴다. 시작일 판은 그대로다. */
-internal fun panelAfterRemoval(panel: Int?, removed: Int): Int? = when {
-    panel == null || panel == START_DAY_PANEL -> panel
-    panel == removed -> null
-    panel > removed -> panel - 1
-    else -> panel
+/** 줄 [rowId] 의 금액을 [change] 로 바꾼 값. 없는 줄(지운 줄)이거나 바뀌지 않으면 null 이다. */
+internal inline fun CardPerformanceEditState.changeRow(rowId: Int, change: (Long) -> Long?): CardPerformanceEditState? {
+    val index = rows.indexOfFirst { it.id == rowId }
+    if (index < 0) return null
+    val now = rows[index].amount
+    val next = change(now)?.takeIf { it != now } ?: return null
+    return copy(rows = rows.toMutableList().also { it[index] = TierRow(rowId, next) })
 }
 
 /**
- * 편집 화면이 값을 처음 받았을 때 열어 둘 입력판.
- * - 처음 연 화면([started] 가 false): 입력을 받을 수 있을 때([awaitReady], 화면이 다 밀려 들어와 RESUMED)까지 기다린 뒤,
- *   실적이 없는 카드면 빈 1구간 키패드를 연다. 밀려 들어오는 동안은 키패드 누름을 받지 않아서, 먼저 열면 그동안 친 숫자가
- *   말없이 버려지고 남은 숫자로 저장된다(1,500,000 을 빨리 치면 500,000). 기다리는 동안 사용자가 연 입력판이 있으면 그대로 둔다.
- * - 화면 상태만 되살아난 화면([recreated], 프로세스가 죽었다 돌아왔다): 구간 줄을 저장된 정렬 순서로 새로 읽어서 남아 있던
- *   키패드 번호가 다른 줄을 가리킬 수 있다. 그래서 구간 키패드는 닫는다. 시작일 판은 줄 번호와 상관없어 그대로 둔다.
- * - 화면을 돌린 화면(화면 모델이 남아 있다)은 그대로 둔다.
+ * 처음 연 편집 화면에 열어 둘 입력판. 입력을 받을 수 있을 때([awaitReady], 화면이 다 밀려 들어와 RESUMED)까지 기다린 뒤,
+ * 실적이 없는 카드면 빈 1구간 키패드([keypadRow])를 연다. 밀려 들어오는 동안은 키패드 누름을 받지 않아서, 먼저 열면 그동안 친 숫자가
+ * 말없이 버려지고 남은 숫자로 저장된다(1,500,000 을 빨리 치면 500,000). 기다리는 동안 사용자가 연 입력판이 있으면 그대로 둔다.
  * @param panel 지금 입력판. 기다린 뒤의 값을 읽도록 함수로 받는다.
  */
-internal suspend fun startPanel(
-    panel: () -> Int?,
-    started: Boolean,
-    recreated: Boolean,
-    startWithKeypad: Boolean,
-    awaitReady: suspend () -> Unit,
-): Int? {
-    if (started) return panel().takeIf { !recreated || it == START_DAY_PANEL }
+internal suspend fun startPanel(panel: () -> Int?, keypadRow: Int?, awaitReady: suspend () -> Unit): Int? {
     awaitReady()
-    return panel() ?: 0.takeIf { startWithKeypad }
+    return panel() ?: keypadRow
 }
+
+/**
+ * 프로세스가 죽었다 돌아와도 이을 편집 값. 화면 값([CardPerformanceEditState])과 함께 저장 상태에 둔다.
+ * @property nextRowId 다음에 더할 줄의 id. 되살아난 뒤 더한 줄이 남아 있던 줄 id 와 겹치지 않게 함께 둔다.
+ * @property opened 화면을 처음 열 때의 실적(닫을 때 남길 로그의 비교 기준)
+ */
+internal data class EditBuffer(val rows: List<TierRow>, val startDay: Int, val nextRowId: Int, val opened: SavedPerformance)
+
+internal fun SavedStateHandle.writeEditBuffer(buffer: EditBuffer) {
+    this[KEY_ROW_IDS] = buffer.rows.map { it.id }.toIntArray()
+    this[KEY_ROW_AMOUNTS] = buffer.rows.map { it.amount }.toLongArray()
+    this[KEY_START_DAY] = buffer.startDay
+    this[KEY_NEXT_ROW_ID] = buffer.nextRowId
+    this[KEY_OPENED_TIERS] = buffer.opened.tiers.toLongArray()
+    this[KEY_OPENED_START_DAY] = buffer.opened.startDay
+}
+
+/** 저장 상태의 편집 값. 처음 연 화면이면(또는 값이 온전하지 않으면) null 이다. */
+internal fun SavedStateHandle.readEditBuffer(): EditBuffer? {
+    val ids = get<IntArray>(KEY_ROW_IDS) ?: return null
+    val amounts = get<LongArray>(KEY_ROW_AMOUNTS)?.takeIf { it.size == ids.size } ?: return null
+    return EditBuffer(
+        rows = ids.zip(amounts.toList()) { id, amount -> TierRow(id, amount) },
+        startDay = get<Int>(KEY_START_DAY) ?: return null,
+        nextRowId = get<Int>(KEY_NEXT_ROW_ID) ?: return null,
+        opened = SavedPerformance(get<LongArray>(KEY_OPENED_TIERS)?.toList() ?: return null, get<Int>(KEY_OPENED_START_DAY) ?: return null),
+    )
+}
+
+private const val KEY_ROW_IDS = "rowIds"
+private const val KEY_ROW_AMOUNTS = "rowAmounts"
+private const val KEY_START_DAY = "startDay"
+private const val KEY_NEXT_ROW_ID = "nextRowId"
+private const val KEY_OPENED_TIERS = "openedTiers"
+private const val KEY_OPENED_START_DAY = "openedStartDay"
 
 /**
  * 입력판 [shown](구간 줄 키패드나 시작일 날짜판)의 누름을 받을지. 누르는 순간 열린 입력판([open])이 그것일 때만 받는다.
