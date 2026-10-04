@@ -69,14 +69,17 @@ internal fun paydayLine(payday: LocalDate, today: LocalDate): String = when (val
 internal fun perSecondBadge(perSecond: Double): String = "₩${String.format(Locale.KOREA, "%,.2f", perSecond)}/s"
 
 /** 1시간에 버는 돈. 원 아래는 반올림한다. "₩17,045/h" */
-internal fun perHourBadge(perSecond: Double): String = "₩${formatAmount((perSecond * SECONDS_PER_HOUR).roundToLong())}/h"
+internal fun perHourBadge(perSecond: Double): String = "₩${formatAmount(perHour(perSecond))}/h"
+
+/** 1시간에 버는 돈(원). 원 아래는 반올림한다. */
+private fun perHour(perSecond: Double): Long = (perSecond * SECONDS_PER_HOUR).roundToLong()
 
 /** 오늘 번 돈 옆에 나란히 두는 빠르기. "₩4.73/s · ₩17,045/h" */
 internal fun rateBadge(perSecond: Double): String = "${perSecondBadge(perSecond)} · ${perHourBadge(perSecond)}"
 
 /** 화면 읽기로 읽을 빠르기. "1초에 4.73원, 1시간에 17,045원" */
 internal fun spokenRate(perSecond: Double): String =
-    "1초에 ${String.format(Locale.KOREA, "%.2f", perSecond)}원, 1시간에 ${formatAmount((perSecond * SECONDS_PER_HOUR).roundToLong())}원"
+    "1초에 ${String.format(Locale.KOREA, "%.2f", perSecond)}원, 1시간에 ${formatAmount(perHour(perSecond))}원"
 
 /** 번 돈 카드 밑 안내. 무엇으로 쌓는지. "실수령 기준으로 쌓여요" */
 internal fun basisLine(settings: SalarySettings): String = if (settings.usesTakeHome) "실수령 기준으로 쌓여요" else "세전 기준으로 쌓여요"
@@ -88,18 +91,32 @@ internal fun basisLine(settings: SalarySettings): String = if (settings.usesTake
  * "주휴수당 포함: ₩13,481/h" / "통상시급: ₩10,320/h"
  * 실수령으로 쌓이면 ₩/h 는 실수령, 통상시급은 세전이라 (실수령)·(세전) 을 붙인다. 세전을 적지 않았으면 통상시급 줄은 뺀다.
  * 주휴가 없으면(주 15시간 미만) 위 줄은 '실제 근무 기준' 이라 한다.
+ * 화면 읽기에는 ₩·/h·괄호 대신 말로 푼 문장([HourlyLine.spoken])을 읽힌다.
  * @return 이번 월급 기간에 일하는 날이 없으면 null
  */
-internal fun hourlyLine(settings: SalarySettings, payMonth: YearMonth?): String? {
+internal fun hourlyLine(settings: SalarySettings, payMonth: YearMonth?): HourlyLine? {
     payMonth ?: return null
     if (settings.workdaysIn(payMonth) == 0 || settings.workSecondsPerDay == 0L) return null
     val takeHome = settings.usesTakeHome
     val label = if (settings.hasWeeklyRest) "주휴수당 포함" else "실제 근무 기준"
-    val rate = "$label${if (takeHome) "(실수령)" else ""}: ${perHourBadge(settings.perSecond(payMonth))}"
-    val wage = settings.ordinaryHourlyWage
-    if (wage <= 0) return rate
-    return "$rate\n통상시급${if (takeHome) "(세전)" else ""}: ₩${formatAmount(floor(wage).toLong())}/h"
+    val perSecond = settings.perSecond(payMonth)
+    val rate = "$label${if (takeHome) "(실수령)" else ""}: ${perHourBadge(perSecond)}"
+    val spokenRate = "$label${if (takeHome) " 실수령" else ""} 1시간에 ${formatAmount(perHour(perSecond))}원"
+    val ordinary = settings.ordinaryHourlyWage
+    if (ordinary <= 0) return HourlyLine(text = rate, spoken = spokenRate)
+    val wage = formatAmount(floor(ordinary).toLong())
+    return HourlyLine(
+        text = "$rate\n통상시급${if (takeHome) "(세전)" else ""}: ₩$wage/h",
+        spoken = "$spokenRate, ${if (takeHome) "세전 " else ""}통상시급 ${wage}원",
+    )
 }
+
+/**
+ * 번 돈 카드 밑 시급 줄.
+ * @property text 화면 글. "주휴수당 포함: ₩17,045/h\n통상시급: ₩14,354/h"
+ * @property spoken 화면 읽기 문장. "주휴수당 포함 1시간에 17,045원, 통상시급 14,354원"
+ */
+internal data class HourlyLine(val text: String, val spoken: String)
 
 /**
  * '월급날부터 번 돈' 밑 안내. 언제부터 셌고, 이번 월급의 몇 %를 벌었는지.

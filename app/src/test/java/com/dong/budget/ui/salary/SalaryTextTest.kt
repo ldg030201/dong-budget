@@ -71,13 +71,13 @@ class SalaryTextTest {
         // 10월 월급 기간 9월 24일~10월 23일(9월 월급날 25일이 추석이라 23일로 당겨짐): 평일 22일 × 8시간 = 176시간
         // → 3,000,000 ÷ 176 = 17,045.45 → 17,045
         val october = YearMonth.of(2026, 10)
-        assertEquals("주휴수당 포함: ₩17,045/h\n통상시급: ₩14,354/h", hourlyLine(salary, october))
+        assertEquals("주휴수당 포함: ₩17,045/h\n통상시급: ₩14,354/h", hourlyLine(salary, october)?.text)
         // 오늘 번 돈 옆 ₩/h 와 같은 값이다
         assertEquals("₩17,045/h", perHourBadge(salary.perSecond(october)))
         // 실수령으로 쌓이면 위 줄은 실수령, 통상시급은 세전이다: 2,600,000 ÷ 176 = 14,772.73 → 14,773
-        assertEquals("주휴수당 포함(실수령): ₩14,773/h\n통상시급(세전): ₩14,354/h", hourlyLine(salary.copy(takeHome = 2_600_000), october))
+        assertEquals("주휴수당 포함(실수령): ₩14,773/h\n통상시급(세전): ₩14,354/h", hourlyLine(salary.copy(takeHome = 2_600_000), october)?.text)
         // 세전을 적지 않으면 통상시급 줄은 뺀다
-        assertEquals("주휴수당 포함(실수령): ₩14,773/h", hourlyLine(SalarySettings(takeHome = 2_600_000), october))
+        assertEquals("주휴수당 포함(실수령): ₩14,773/h", hourlyLine(SalarySettings(takeHome = 2_600_000), october)?.text)
         // 주 15시간이 안 되면 주휴가 없다(주 3일 하루 4시간)
         val partTime = salary.copy(
             workStart = LocalTime.of(9, 0),
@@ -85,8 +85,24 @@ class SalaryTextTest {
             skipLunch = false,
             workdays = setOf(DayOfWeek.MONDAY, DayOfWeek.WEDNESDAY, DayOfWeek.FRIDAY),
         )
-        assertTrue(hourlyLine(partTime, october)!!.startsWith("실제 근무 기준: "))
+        assertTrue(hourlyLine(partTime, october)!!.text.startsWith("실제 근무 기준: "))
         assertEquals(null, hourlyLine(salary, null))
+    }
+
+    @Test
+    fun `시급 줄은 화면 읽기에 ₩·h 기호 대신 말로 푼 문장을 읽힌다`() {
+        val october = YearMonth.of(2026, 10)
+        assertEquals("주휴수당 포함 1시간에 17,045원, 통상시급 14,354원", hourlyLine(salary, october)?.spoken)
+        // 실수령으로 쌓이면 무엇 기준인지도 읽는다
+        assertEquals(
+            "주휴수당 포함 실수령 1시간에 14,773원, 세전 통상시급 14,354원",
+            hourlyLine(salary.copy(takeHome = 2_600_000), october)?.spoken,
+        )
+        assertEquals("주휴수당 포함 실수령 1시간에 14,773원", hourlyLine(SalarySettings(takeHome = 2_600_000), october)?.spoken)
+        // 주휴가 없으면(월요일만 하루 4시간): 10월 월급 기간 월요일 4번 × 4시간 = 16시간 → 3,000,000 ÷ 16 = 187,500
+        // 통상시급은 4 × 365 ÷ 7 ÷ 12 = 17.4 → 18시간으로 나눠 166,666
+        val partTime = salary.copy(workEnd = LocalTime.of(13, 0), skipLunch = false, workdays = setOf(DayOfWeek.MONDAY))
+        assertEquals("실제 근무 기준 1시간에 187,500원, 통상시급 166,666원", hourlyLine(partTime, october)?.spoken)
     }
 
     @Test

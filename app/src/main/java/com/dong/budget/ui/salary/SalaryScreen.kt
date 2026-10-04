@@ -233,8 +233,10 @@ private fun TotalsCard(settings: SalarySettings, now: () -> LocalDateTime, modif
         TotalRow(label = "올해 번 돈", amount = earnings.year, caption = yearCaption(settings, time.toLocalDate()))
         Spacer(Modifier.height(BudgetTheme.spacing.sectionPadding))
         HintText(basisLine(settings))
-        // ₩/h 가 통상시급보다 높게 보이는 까닭(주휴 시간을 빼고 실제로 일하는 시간으로 나눔)
-        hourlyLine(settings, earnings.payMonth)?.let { HintText(it) }
+        // ₩/h 가 통상시급보다 높게 보이는 까닭(주휴 시간을 빼고 실제로 일하는 시간으로 나눔). 화면 읽기에는 말로 푼 문장을 읽힌다.
+        hourlyLine(settings, earnings.payMonth)?.let { line ->
+            HintText(line.text, modifier = Modifier.clearAndSetSemantics { contentDescription = line.spoken })
+        }
     }
 }
 
