@@ -3,6 +3,7 @@ package com.dong.budget.ui.fixed
 import com.dong.budget.data.db.TransactionListItem
 import com.dong.budget.testing.day
 import com.dong.budget.testing.tx
+import com.dong.budget.ui.editor.fixedExpensePrefill
 import com.dong.budget.ui.home.localDate
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -59,6 +60,41 @@ class FixedExpensesCrossCheckTest {
         // 3일 것만 20% 넘게 올라도(50,000원 → 65,000원) 금액으로 차례를 가르지 못해 같다
         val raised = bill("보장", 50_000, 3, JAN, SEP) + bill("보장", 65_000, 3, OCT, MAR27) + bill("보장", 30_000, 20, JAN, AUG)
         for (today in listOf("2026-10-06", "2026-10-22")) assertEquals(today, "PAID 1/1 65000", short(view(raised, OCT, day(today))))
+    }
+
+    @Test
+    fun `같은 금액 카드 두 차례에서 뒤 차례를 해지한 다음 달 앞 차례가 쉬는 날 낼 날 전에 나가도 그 달 몫이다`() {
+        // 카드 5일 · 21일 20,000원 가운데 21일 것을 2026년 9월부터 해지. 10월 5일은 대체공휴일이라 카드는 5일, 낼 날은 6일이다.
+        val rows = bill("카드", 20_000, 5, JAN, MAR27, card = true) + bill("카드", 20_000, 21, JAN, AUG, card = true)
+        assertEquals("PAID 1/2 20000", short(view(rows, SEP, day("2026-10-05"))))
+        for (today in listOf("2026-10-05", "2026-10-07", "2026-10-21", "2026-10-25", "2026-10-31")) {
+            assertEquals(today, "PAID 1/1 20000", short(view(rows, OCT, day(today))))
+            assertNull(today, note(rows, OCT, day(today)))
+        }
+        assertNull(view(rows, NOV, day("2026-11-02")).missedMonth)
+    }
+
+    @Test
+    fun `날이 따로인 두 차례 금액이 비슷해도 뒤 차례를 해지한 다음 달 앞 차례 결제는 그 달 몫이다`() {
+        // 3일 50,000원 · 20일 45,000원(서로 20% 안) 가운데 20일 것을 2026년 9월부터 해지. 10월 3일(토 · 개천절)엔 카드는 그날 나간다.
+        for (card in listOf(false, true)) {
+            val rows = bill("보험", 50_000, 3, YearMonth.of(2025, 1), DEC, card) + bill("보험", 45_000, 20, YearMonth.of(2025, 1), AUG, card)
+            for (today in listOf("2026-10-07", "2026-10-22")) {
+                assertEquals("card=$card $today", "PAID 1/1 50000", short(view(rows, OCT, day(today))))
+                assertNull("card=$card $today", note(rows, OCT, day(today)))
+            }
+            assertEquals("card=$card", "PAID 1/2 50000", short(view(rows, SEP, day("2026-10-07"))))
+            assertEquals("card=$card", "DUE 0/1 50000", short(view(rows, NOV, day("2026-11-01"))))
+            assertEquals("card=$card", "PAID 1/1 50000", short(view(rows, NOV, day("2026-11-22"))))
+        }
+        // 자동이체를 해지한 다음 달 10월 1일 · 2일에 등록하기로 적어도 그 달 몫이다
+        val rows = bill("보험", 50_000, 3, YearMonth.of(2025, 1), SEP) + bill("보험", 45_000, 20, YearMonth.of(2025, 1), AUG)
+        for (date in listOf("2026-10-01", "2026-10-02")) {
+            val today = day(date)
+            val saved = rows + paid("보험", fixedExpensePrefill(view(rows, OCT, today), today).amount, date)
+            assertEquals(date, "PAID 1/1 50000", short(view(saved, OCT, today)))
+            assertEquals(date, "PAID 1/2 50000", short(view(saved, SEP, today)))
+        }
     }
 
     private companion object {

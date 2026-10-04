@@ -1,6 +1,7 @@
 package com.dong.budget.ui.fixed
 
 import java.time.YearMonth
+import kotlin.math.abs
 
 // ─────────────────────────────────────────────────────────────────────
 // 고정지출 결제를 차례(몇 월 몫의 몇 번째)에 짝짓는다. 결제를 날짜 차례대로, 차례를 낼 날 차례대로 두고 차례를 거스르지 않게
@@ -13,6 +14,7 @@ import java.time.YearMonth
 // - 첫 결제 차례부터 마지막 결제일까지 낼 날이 왔는데 빈 건수마다 [MISSING]. 밀린 몫을 늦게 함께 냈으면 빈 차례를 메운다
 //   (말일 관리비를 놓쳐 10월 2일에 두 건을 내면 하나는 9월, 하나는 10월 몫). 함께 나가던 건 가운데 일부만 나간 차례의 남은 건은
 //   그 뒤 사흘 안에, 또는 이미 낸 건과 금액이 다른 결제가 이어지는 동안만 센다([missingAt], 같은 금액이 이어지면 해지했거나 건너뛴 것이다).
+//   결제가 있는 달의 빈 차례(날이 따로인 차례)도 낼 날 뒤 사흘이 지나 그 차례 금액으로 보이지 않는 결제가 오면 세지 않는다([linesOf]).
 // - 따로 낸 결제(연간 결제 등, [extrasOf])는 짝짓지 않는다. 평소 낼 날 가까이 나갔어도 그 달 차례를 채우지 않는다(매달 것보다
 //   하루 이틀 먼저 나간 연간 결제로 그 달이 '냈어요' 가 되지 않게). 값을 바꾼 것이면 다음 결제부터 따로 낸 것이 아니다.
 // 결제는 가장 가까운 차례에서 앞뒤 한 주기 안의 차례에만 짝짓는다.
@@ -70,10 +72,32 @@ internal fun matchPayments(
     extras: Set<Long>,
 ): Matching {
     val slots = slotsFor(pays, schedule, counts, through, dues)
-    val nearest = pays.associate { pay -> pay.id to slots.indices.minBy { slotDistance(pay, slots[it], dues) } }
+    val distances = pays.associate { pay -> pay.id to IntArray(slots.size) { slotDistance(pay, slots[it], dues) } }
+    val nearest = distances.mapValues { (_, distance) -> distance.indices.minBy { distance[it] } }
+    val lines = linesOf(pays, slots, schedule.days.size, distances, extras)
+    val dueDays = LongArray(slots.size) { dues.due(slots[it].month, slots[it].day).toEpochDay() }
     val ordered = orderOf(pays) { amountOrder(it, slots, nearest.getValue(it.id), schedule, dues) }
     val missingBefore = IntArray(slots.size + 1)
     slots.forEachIndexed { i, slot -> missingBefore[i + 1] = missingBefore[i] + slot.need * MISSING }
+
+    // 결제가 있는 달(마지막으로 짝지은 차례 [from] 의 달, [pay] 를 넣는 차례 [to] 의 달)의 빈 차례는 낼 날 뒤 [DROP_GRACE_DAYS] 일이 지나
+    // [pay] 가 왔고 그 금액이 빈 차례 쪽이 아니면 안 나간 것(해지했거나 건너뜀)이라 세지 않는다. 화면이 날이 따로인 차례를 안 나간 것으로
+    // 보는 것과 같아서, 해지한 달의 빈 차례가 다음 달 결제를 끌어오지 않는다. 결제가 하나도 없는 달은 그대로 센다(밀린 몫을 늦게 메운다).
+    fun between(from: Int, to: Int, pay: Paid, byAmount: Int?): Int {
+        if (from < 0) return 0
+        var cost = missingBefore[to] - missingBefore[from + 1]
+        fun waive(k: Int) {
+            val dropped = pay.date.toEpochDay() > dueDays[k] + DROP_GRACE_DAYS &&
+                !looksLike(pay.amount, lines[k], lines[to], fallback = byAmount == slots[k].index)
+            if (dropped) cost -= slots[k].need * MISSING
+        }
+        var k = from + 1
+        while (k < to && slots[k].month == slots[from].month) waive(k++)
+        var j = to - 1
+        while (j >= k && slots[j].month == slots[to].month) waive(j--)
+        return cost
+    }
+
     // 마지막으로 짝지은 차례 뒤로도 마지막 결제일까지 낼 날이 온 차례가 비면 센다(빈 달 뒤의 결제를 빈 달로 끌어가지 않게)
     fun total(node: Node): Int = if (node.slot < 0) {
         node.cost
@@ -113,9 +137,9 @@ internal fun matchPayments(
                     offer(Node(cost + over, target, minOf(node.count + 1, slot.cap), fits, partly, node.first, node, target))
                 } else {
                     val left = if (node.slot < 0 || node.first) 0 else missingAt(slots[node.slot], node.fits, node.partly, pay)
-                    val between = if (node.slot < 0) 0 else missingBefore[target] - missingBefore[node.slot + 1]
+                    val skipped = between(node.slot, target, pay, byAmount)
                     val partly = if (fit > 0) partlyOf(slot, fit, pay, dues) else null
-                    offer(Node(cost + left + between, target, 1, fit, partly, node.slot < 0, node, target))
+                    offer(Node(cost + left + skipped, target, 1, fit, partly, node.slot < 0, node, target))
                 }
             }
         }
@@ -188,6 +212,43 @@ private fun slotsFor(pays: List<Paid>, schedule: FixedSchedule, counts: MonthCou
 }
 
 private fun slotDistance(pay: Paid, slot: Slot, dues: DueDates): Int = dues.distance(pay.date, slot.month, slot.day)
+
+/**
+ * 차례마다 기준 금액들. 같은 번호의 앞 차례 가운데 그 차례 건수([Slot.cap])만큼 결제가 가장 가까웠던 가장 최근 차례의 그 결제 금액이다
+ * (같은 날 두 회선이면 두 금액). [distances] 는 결제마다 차례들과의 거리다. 두 차례와 거리가 같아 어느 차례인지 모르는 결제와
+ * 따로 낸 결제([extras])는 세지 않는다. 그런 앞 차례가 없으면 비었다.
+ */
+private fun linesOf(
+    pays: List<Paid>,
+    slots: List<Slot>,
+    perMonth: Int,
+    distances: Map<Long, IntArray>,
+    extras: Set<Long>,
+): List<List<Long>> {
+    val amounts = HashMap<Int, MutableList<Long>>()
+    for (pay in pays) {
+        if (pay.id in extras) continue
+        val distance = distances.getValue(pay.id)
+        val best = distance.min()
+        if (distance.count { it == best } == 1) amounts.getOrPut(distance.indexOf(best)) { mutableListOf() } += pay.amount
+    }
+    return slots.indices.map { slot ->
+        generateSequence(slot - perMonth) { it - perMonth }
+            .takeWhile { it >= 0 }
+            .firstNotNullOfOrNull { before -> amounts[before]?.takeIf { it.size >= slots[slot].cap } }
+            .orEmpty()
+    }
+}
+
+/**
+ * 금액 [amount] 가 빈 건의 기준 금액 [missing] 쪽인지(늦게 메운 결제인지). [missing] 가운데 가장 가까운 것이 견줄 기준 금액 [other]
+ * 가운데 가장 가까운 것보다 더 가까우면 그렇다(같으면 가를 수 없어 아니다). 기준 금액을 모르면 [fallback] 이다.
+ */
+private fun looksLike(amount: Long, missing: List<Long>, other: List<Long>, fallback: Boolean): Boolean =
+    if (missing.isEmpty() || other.isEmpty()) fallback else gapTo(amount, missing) < gapTo(amount, other)
+
+/** [amount] 와 [amounts] 가운데 가장 가까운 것의 차이 */
+private fun gapTo(amount: Long, amounts: List<Long>): Long = amounts.minOf { abs(amount - it) }
 
 /** [pay] 를 [slot] 에 짝지을 때 더하는 값. [byAmount] 는 금액으로 본 [pay] 의 차례([FixedSchedule.slotByAmount])다. */
 private fun assignCost(pay: Paid, slot: Slot, byAmount: Int?, dues: DueDates): Int = slotDistance(pay, slot, dues) +
