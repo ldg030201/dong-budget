@@ -93,12 +93,12 @@ class FixedScheduleTest {
         val bill = pays(120_000, "2026-06-30", "2026-07-31", "2026-08-31", "2026-10-02", "2026-10-02")
         val dues = DueDates()
         val item = estimateSchedule(bill, YearMonth.of(2026, 10), dues)
-        val matched = matchPayments(bill, item, MonthCounts(bill, item.days, dues), YearMonth.of(2026, 10), dues, emptySet())
+        val matched = matchPayments(bill, item, MonthCounts(bill, item, dues), YearMonth.of(2026, 10), dues, emptySet())
         assertEquals(listOf(6, 7, 8, 9, 10), bill.map { matched.slotOf.getValue(it.id).month.monthValue }.sorted())
         // 25일 넷플릭스를 9월에 냈는데 10월 2일에 또 냈다(등록하기로 오늘 날짜에 적음, 리뷰 c1). 이미 찬 9월이 아니라 10월 몫이다.
         val netflix = pays(17_000, "2026-08-25", "2026-09-25", "2026-10-02")
         val schedule = estimateSchedule(netflix, YearMonth.of(2026, 10), dues)
-        val second = matchPayments(netflix, schedule, MonthCounts(netflix, schedule.days, dues), YearMonth.of(2026, 10), dues, emptySet())
+        val second = matchPayments(netflix, schedule, MonthCounts(netflix, schedule, dues), YearMonth.of(2026, 10), dues, emptySet())
         assertEquals(YearMonth.of(2026, 10), second.slotOf.getValue(netflix.last().id).month)
     }
 }
