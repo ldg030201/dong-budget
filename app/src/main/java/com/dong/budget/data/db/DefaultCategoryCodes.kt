@@ -1,6 +1,8 @@
 package com.dong.budget.data.db
 
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.dong.budget.data.devlog.DevLog
+import com.dong.budget.data.devlog.LogTag
 
 // ─────────────────────────────────────────────────────────────────────
 // 기능이 코드로 찾는 기본 분류('고정지출'·'급여')를 지운 뒤 같은 이름으로 다시 만들었을 때 코드를 돌려주는 규칙.
@@ -27,6 +29,18 @@ internal fun reclaimedCodes(rows: List<CategoryCodeRow>): Map<Long, String> = RE
         val name = d.name.withoutSpaces()
         rows.firstOrNull { it.scope == d.scope && it.code == null && it.name.withoutSpaces() == name }?.let { it.id to d.code }
     }.toMap()
+
+/**
+ * DB 를 열 때(onOpen) 부른다. [reclaimDefaultCodes] 가 실패해도(저장공간이 꽉 차 쓰지 못하는 등) DB 열기를 막지 않는다.
+ * 여기서 던지면 Room 이 DB 를 열지 못해 모든 화면·알림이 멈춘다. 코드 돌려주기는 다음에 열 때 다시 해도 되니 로그만 남기고 넘어간다.
+ */
+internal fun reclaimDefaultCodesOnOpen(db: SupportSQLiteDatabase) {
+    try {
+        reclaimDefaultCodes(db)
+    } catch (e: Exception) {
+        DevLog.warn(LogTag.APP, "기본 분류 코드를 돌려주지 못했어요. 다음에 DB 를 열 때 다시 해요", e)
+    }
+}
 
 /**
  * DB 를 열 때 [CategoryDao.reclaimDefaultCodes] 와 같은 일을 한다. 여는 중에는 DAO 를 쓸 수 없어서 같은 조회를 직접 돌린다.

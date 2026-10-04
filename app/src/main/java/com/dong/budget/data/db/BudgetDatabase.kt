@@ -116,7 +116,7 @@ private object SeedCallback : RoomDatabase.Callback() {
     }
 
     override fun onOpen(db: SupportSQLiteDatabase) {
-        reclaimDefaultCodes(db)
+        reclaimDefaultCodesOnOpen(db)
     }
 }
 
