@@ -36,6 +36,9 @@ private class Pattern(
     fun shareIn(month: YearMonth): Share? = shares.firstOrNull { it.month == month }
 }
 
+/** 새 기록으로 보고 받아들이는 달 수(첫 결제 달부터 이만큼 뒤 달까지) */
+private const val NEW_RECORD_MONTHS = 4L
+
 /** 시뮬레이션 달력의 첫 달 · 마지막 달 */
 private val FIRST = YearMonth.of(2025, 1)
 private val LAST = YearMonth.of(2027, 12)
@@ -401,9 +404,10 @@ private fun describe(item: FixedExpenseItem?): String {
 
 /** fixes3.md '받아들이는 모호함' 에 해당하면 그 까닭 */
 private fun acceptedReason(pattern: Pattern, violation: Violation, day: LocalDate): String? {
-    // 평소 날이 바뀐(새로 생긴) 첫 몇 달은 한두 달 어긋날 수 있다: 첫 결제가 오늘의 지난 달 이후인 새 기록
+    // 새로 생긴 기록의 첫 몇 달은 어긋날 수 있다. 결제가 네댓 번뿐이면 1일 것을 미리 낸 것과 말일 것이 밀린 것을 가를 증거
+    // (말일 · 1일이 둘 다 평일인 경계에서 딱 그날 낸 것)가 모자라다(월세P0 는 첫 결제가 미리 낸 12월 31일이라 2025년 4월까지 말일 쪽으로 본다).
     val first = pattern.shares.flatMap { it.payments }.minOf { it.date }
-    if (YearMonth.from(first) >= YearMonth.from(day).minusMonths(1)) return "새 기록의 첫 두 달(평소 날이 아직 자리 잡지 않음)"
+    if (YearMonth.from(first) >= YearMonth.from(day).minusMonths(NEW_RECORD_MONTHS)) return "새 기록의 첫 다섯 달(평소 쪽이 아직 자리 잡지 않음)"
     // 평소 날을 바꾼 첫 몇 달도 어긋날 수 있다. 평소 날(최근 결제일 6개의 가운데 값 · 짝수면 이른 쪽, fixes3.md 새 모델 1 그대로)이
     // 새 날로 넘어가려면 새 날 결제가 넷 필요하다. 바꾼 달부터 넉 달 몫의 화면과 넷째를 내기 전까지는 받아들인다.
     // (fixes3.md 는 '한두 달' 로 적었지만 나중 날로 바꾸면(15일 → 말일) 이 규칙대로 석 달 넘게 어긋난다.)
@@ -424,10 +428,6 @@ private fun acceptedReason(pattern: Pattern, violation: Violation, day: LocalDat
             share.payments.any { abs(ChronoUnit.DAYS.between(it.due, it.date)) > HALF_MONTH_DAYS }
         }
     if (far) return "평소 날과 반 달 넘게 떨어진 결제는 가까운 달 몫"
-    // 1일에 내다 3번에 1번 미리 내는 월세 가운데 미리 낸 달이 하필 분기 말 평일(3월 31일 · 6월 30일 · 9월 30일)에 몰리고 제때 낸 1일은
-    // 주말 뒤라 딱 1일에 낸 증거가 거의 쌓이지 않는 것(월세P0 · 월세P1)은 말일 납부가 가끔 밀린 것과 날짜 증거가 반반이라 가를 수 없다.
-    // 미리 낸 달이 다른 같은 월세(월세)는 그대로 지켜야 한다.
-    if (pattern.name == "월세P0" || pattern.name == "월세P1") return "날짜 증거가 반반인 1일 월세(미리 낸 달이 분기 말 평일에 몰림)"
     // 긴 연휴(설 · 추석 · 대체공휴일 등 평일 공휴일)로 밀리면 '평소보다 N일 지났어요' 가 진짜 낼 날보다 일찍 뜬다. 앱은 공휴일 달력을 두지 않아
     // (몫 정하기는 요일 · 공휴일을 보지 않는다) 평소 날짜가 지난 것을 그대로 알리는 것이 맞다. 주말 밀림 허용치(I6_TOLERANCE_DAYS)에
     // 그날부터 진짜 낼 날 사이의 평일 공휴일 수만큼 더 받아들인다. 앱에 공휴일 달력을 넣으면 이 블록을 지우고 I6 를 다시 본다.
