@@ -17,7 +17,7 @@ class KoreanHolidaysTest {
         // 주말과 겹친 공휴일도 센다. 2024 · 2025년은 공휴일 19일에 은행이 쉰 근로자의 날(5월 1일)을 더했다.
         val expected =
             mapOf(
-                2024 to 20, 2025 to 20, 2026 to 22, 2027 to 24, 2028 to 18, 2029 to 20,
+                2023 to 19, 2024 to 20, 2025 to 20, 2026 to 22, 2027 to 24, 2028 to 18, 2029 to 20,
                 2030 to 21, 2031 to 18, 2032 to 26, 2033 to 22, 2034 to 19, 2035 to 20,
             )
         val actual = (KoreanHolidays.FIRST_KNOWN_YEAR..KoreanHolidays.LAST_KNOWN_YEAR).associateWith { year ->
@@ -83,10 +83,10 @@ class KoreanHolidaysTest {
         val fixed = listOf("01-01", "03-01", "05-01", "05-05", "06-06", "07-17", "08-15", "10-03", "10-09", "12-25")
         fixed.forEach { assertTrue(it, KoreanHolidays.isHoliday(day("2036-$it"))) }
         assertEquals(fixed.size, daysOf(2036).count(KoreanHolidays::isHoliday))
-        // 2023년은 제헌절이 공휴일이 아니었다
+        // 표 안의 2023년은 제헌절이 공휴일이 아니었고, 설 연휴(1/21~23)와 대체공휴일(1/24 · 5/29) · 임시공휴일(10/2)이 있다
         assertTrue(KoreanHolidays.isHoliday(day("2023-05-01")))
         assertFalse(KoreanHolidays.isHoliday(day("2023-07-17")))
-        assertEquals(9, daysOf(2023).count(KoreanHolidays::isHoliday))
+        listOf("2023-01-24", "2023-05-29", "2023-10-02").forEach { assertTrue(it, KoreanHolidays.isHoliday(day(it))) }
     }
 
     @Test
