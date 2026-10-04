@@ -345,18 +345,17 @@ private fun usualCountOf(payments: List<MonthPayment>): Int =
     if (payments.isEmpty()) 1 else lowerMedian(payments.takeLast(USUAL_COUNT_SHARES).map { it.count })
 
 /**
- * 달력 달로 한 달에 보통 몇 번 내는지. 결제가 있었던 최근 [USUAL_COUNT_MONTHS] 달의 결제 수의 가운데 값(짝수 개면 적은 쪽)이다.
- * 평소 날짜([usualDayOf])에서 달 경계를 이어 셀지 가를 때만 쓴다(몫을 정하기 전이라 달력 달로 센다).
- * 결제가 있었던 달이 하나뿐이면 1로 본다(새로 적기 시작한 관리비가 12월 1일 · 12월 31일 두 건뿐이어도 말일 납부다).
+ * 달력 달로 한 달에 보통 몇 번 내는지. 마지막 결제 달까지 최근 [USUAL_COUNT_MONTHS] 달(결제가 없던 달은 0번)의 결제 수의
+ * 가운데 값(짝수 개면 적은 쪽)이고, 적어도 1이다. 평소 날짜([usualDayOf])에서 달 경계를 이어 셀지 가를 때만 쓴다(몫을 정하기 전이라 달력 달로 센다).
+ * 말일 것이 휴일로 밀려 빈 달과 두 번 낸 달이 생겨도(1월 0번 · 2월 1번 · 3월 2번) 한 번이다. 결제가 있었던 달만 세면 2가 되어
+ * 달 경계를 잇지 못하고, 말일 관리비의 평소 날짜가 3일이 되어 3월 31일 것을 4월 몫으로 셌다.
+ * 결제가 있었던 달이 하나뿐이어도 1이다(새로 적기 시작한 관리비가 12월 1일 · 12월 31일 두 건뿐이어도 말일 납부다).
  */
 private fun calendarCountOf(rows: List<TransactionListItem>): Int {
-    val counts =
-        rows
-            .groupBy { YearMonth.from(it.localDate()) }
-            .toSortedMap()
-            .values
-            .map { it.size }
-    return if (counts.size < 2) 1 else lowerMedian(counts.takeLast(USUAL_COUNT_MONTHS))
+    val counts = rows.groupingBy { YearMonth.from(it.localDate()) }.eachCount()
+    val last = counts.keys.max()
+    val recent = (0 until USUAL_COUNT_MONTHS).map { counts[last.minusMonths(it.toLong())] ?: 0 }
+    return lowerMedian(recent).coerceAtLeast(1)
 }
 
 /**
@@ -418,7 +417,7 @@ private const val CADENCE_GAPS = 5
 /** 평소 날짜를 짐작할 때 보는 최근 결제일 수 */
 private const val USUAL_DAY_SAMPLES = 6
 
-/** 평소 날짜를 달 경계를 이어 셀지 가를 때 한 달에 몇 번 내는지 보는 최근 결제 달 수([calendarCountOf]) */
+/** 평소 날짜를 달 경계를 이어 셀지 가를 때 한 달에 몇 번 내는지 보는 최근 달 수(마지막 결제 달까지, [calendarCountOf]) */
 private const val USUAL_COUNT_MONTHS = 3
 
 /** 한 몫에 보통 몇 번 내는지 · 며칠에 나눠 내는지 볼 때 보는 최근 몫 수([usualCountOf], [shareMonths]) */

@@ -643,6 +643,25 @@ class FixedExpensesTest {
     }
 
     @Test
+    fun `말일 납부가 밀려 빈 달과 두 번 낸 달이 생겨도 평소 날짜는 말일이다`() {
+        // 2025년 11월 30일(일) → 12월 1일, 2026년 1월 31일(토) → 2월 2일, 2월 28일(토)·3월 2일(대체공휴일) → 3월 3일에 나갔다.
+        // 결제가 있었던 달만 세면 최근 석 달이 12월 2번 · 2월 1번 · 3월 2번이라 한 달 두 번으로 보아 평소 날짜가 3일이 되고,
+        // 3월 31일 것을 4월 몫으로 세어 4월 1일부터 '냈어요', 3월 3일을 2월 · 3월 화면이 함께 '냈어요' 로 셌다.
+        val rows = paid("관리비", 150_000, "2025-10-31", "2025-12-01", "2025-12-31", "2026-02-02", "2026-03-03", "2026-03-31")
+        val april = YearMonth.of(2026, 4)
+        val april1 = day("2026-04-01")
+        val inApril = only(readFor(rows, april), month = april, today = april1)
+        assertEquals(FixedStatus.DUE, inApril.status)
+        assertEquals(LAST_DAY, inApril.usualDay)
+        val march = YearMonth.of(2026, 3)
+        val inMarch = only(readFor(rows, march), month = march, today = april1)
+        assertEquals(FixedStatus.PAID, inMarch.status)
+        assertEquals(day("2026-03-31"), inMarch.lastPaidOn)
+        val february = YearMonth.of(2026, 2)
+        assertEquals(day("2026-03-03"), only(readFor(rows, february), month = february, today = april1).lastPaidOn)
+    }
+
+    @Test
     fun `1일 월세를 두 달 이어 전달 말에 미리 내도 한 달씩 다음 달 몫으로 센다`() {
         // 9월 30일에 10월 몫, 10월 30일에 11월 몫을 미리 냈다. 10월 30일을 10월 몫으로 세면 11월에 '평소보다 2일 지났어요' 와
         // 500,000원 등록하기가 떴고, 9월 30일 결제는 9월에도 10월에도 안 보였다.
