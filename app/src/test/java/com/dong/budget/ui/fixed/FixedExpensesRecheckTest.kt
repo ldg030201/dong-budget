@@ -267,4 +267,22 @@ class FixedExpensesRecheckTest {
         assertEquals(listOf(30, LAST_DAY), july.usualDays)
         assertEquals("오늘 낼 차례예요", rowNote(july, YearMonth.of(2025, 7), today)?.text)
     }
+
+    @Test
+    fun `쉬는 날 앞 영업일에 미리 빼 가는 것은 낼 날이 다음 달로 넘어가는 차례만이라 26일 자동이체를 뒤 날로 보지 않는다`() {
+        // 26일 자동이체를 2027년 11월부터 냈다. 26일이 쉬는 날이면 다음 영업일(27 · 28일)에 나간다.
+        val rows = bill("구독", 30_000, 26, YearMonth.of(2027, 11), YearMonth.of(2028, 12))
+        for (date in listOf("2028-03-27", "2028-04-26")) {
+            val today = day(date)
+            val item = view(rows, YearMonth.from(today), today, morning = true)
+            assertEquals(date, listOf(26), item.usualDays)
+            assertEquals(date, "오늘 낼 차례예요", rowNote(item, YearMonth.from(today), today)?.text)
+        }
+        // 1일 300,000원 · 2일 200,000원 자동이체 월세는 연휴가 몰린 해에도 두 차례(1일 · 2일)라 1일 아침에 낼 차례를 알린다
+        val rent = bill("월세", 300_000, 1, YearMonth.of(2024, 1), YearMonth.of(2025, 12)) +
+            bill("월세", 200_000, 2, YearMonth.of(2024, 1), YearMonth.of(2025, 12))
+        val july = view(rent, YearMonth.of(2025, 7), day("2025-07-01"), morning = true)
+        assertEquals(listOf(1, 2), july.usualDays)
+        assertEquals("오늘 낼 차례예요", rowNote(july, YearMonth.of(2025, 7), day("2025-07-01"))?.text)
+    }
 }

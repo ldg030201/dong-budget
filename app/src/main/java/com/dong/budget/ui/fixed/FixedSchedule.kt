@@ -11,7 +11,8 @@ import kotlin.math.abs
 // 고정지출 한 가게의 일정 짐작. 한 달에 몇 번 · 며칠에 · 몇 달마다 내는지를 한 가지 원리로 고른다:
 // 결제마다 가장 가까운 차례의 '낼 날' 과 며칠 떨어졌는지를 더해 가장 덜 떨어지는 일정이다.
 // 낼 날은 평소 날짜부터 그날이 쉬는 날(주말 · 공휴일, KoreanHolidays)이면 다음 영업일까지다(카드는 그날, 자동이체는 다음 영업일에 나간다).
-// 쉬는 날 앞 영업일에 미리 빼 가는 자동이체도 있어, 그날도 딱 맞는 날로 센다(알림은 낼 날이 지나야 한다).
+// 다음 영업일이 다음 달로 넘어가는 말일 것은 그 달 안의 앞 영업일에 미리 빼 가는 자동이체도 있어, 그날도 딱 맞는 날로 센다
+// (알림은 낼 날이 지나야 한다).
 // 그래서 주말 · 연휴로 밀리거나 당겨진 결제도, 31일이 없는 달의 말일도 따로 가리지 않고 같은 셈으로 들어온다.
 // ─────────────────────────────────────────────────────────────────────
 
@@ -69,16 +70,18 @@ internal fun isExtraAt(amounts: List<Long>, index: Int): Boolean {
 /**
  * (달, 평소 날) 한 차례가 나갈 수 있는 날들. 거리를 뺄셈으로 세게 날짜를 에포크 날 수로도 들고 있다.
  * @property due 낼 날([dueDateOf]). 평소 날짜가 쉬는 날이면 다음 영업일이다(자동이체).
- * @property early 쉬는 날 앞에 미리 빼 가면 나가는 날. 평소 날짜가 쉬는 날이면 그 달 안의 앞 영업일, 아니면 평소 날짜다
- *   ([KoreanHolidays.previousBusinessDay]). 앞 영업일이 앞 달이면(1일부터 쉬는 날) 앞 달 말일 납부와 가를 수 없어 평소 날짜로 둔다.
+ * @property early 쉬는 날 앞에 미리 빼 가면 나가는 날. 낼 날이 다음 달로 넘어가면(말일 것이 쉬는 날) 그 달 안에 내려고 그 달 안의 앞 영업일에
+ *   미리 빼 가는 자동이체가 있어 그날이고([KoreanHolidays.previousBusinessDay]), 아니면 평소 날짜다. 낼 날이 그 달 안이면 다음 영업일에
+ *   나가므로 미리 빼 가지 않는다(모든 날에 앞 영업일을 맞는 날로 보면 30일 · 8일 자동이체가 쉬는 날이 낀 달마다 말일 · 10일에도 맞아
+ *   평소 날을 뒤 날로 잘못 골랐다). 앞 영업일이 앞 달이면(1일부터 쉬는 날) 앞 달 말일 납부와 가를 수 없어 평소 날짜로 둔다.
  *   짐작과 짝짓기에서만 딱 맞는 날로 보고, 알림은 낼 날이 지나야 한다.
  */
 internal class DueWindow(month: YearMonth, day: Int) {
     val due: LocalDate = dueDateOf(month, day)
     private val dueDay = due.toEpochDay()
     private val usual = usualDateOf(month, day).toEpochDay()
-    private val early =
-        KoreanHolidays.previousBusinessDay(usualDateOf(month, day)).takeIf { YearMonth.from(it) == month }?.toEpochDay() ?: usual
+    private val early = KoreanHolidays.previousBusinessDay(usualDateOf(month, day))
+        .takeIf { YearMonth.from(due) != month && YearMonth.from(it) == month }?.toEpochDay() ?: usual
 
     /** 에포크 날 수 [epochDay] 가 평소 날짜와 며칠 떨어졌는지 */
     fun plain(epochDay: Long): Int = abs(epochDay - usual).toInt()
