@@ -126,11 +126,11 @@ class FixedExpenseTextTest {
 
     @Test
     fun `평소 날짜가 쉬는 날이면 다음 영업일부터 오늘 낼 차례로 알린다`() {
-        // 10일은 2026년 10월엔 토요일이라 12일(월)에 나간다. 10 · 11일엔 알리지 않고 12일이 오늘, 13일부터 지났어요다.
+        // 10일은 2026년 10월엔 토요일이라 12일(월)에 나간다. 10 · 11일엔 알리지 않고 12일이 오늘, 13일부터 지났어요다(평소 날짜 10일부터 3일).
         val rows = paid("2026-08-10", "2026-09-10")
         assertNull(rowNote(item(rows, today = day("2026-10-10")), october, today))
         assertEquals(RowNote("오늘 낼 차례예요", NoteTone.TODAY), rowNote(item(rows), october, today))
-        assertEquals(RowNote("평소보다 1일 지났어요", NoteTone.WARNING), rowNote(item(rows, today = day("2026-10-13")), october, today))
+        assertEquals(RowNote("평소보다 3일 지났어요", NoteTone.WARNING), rowNote(item(rows, today = day("2026-10-13")), october, today))
     }
 
     @Test

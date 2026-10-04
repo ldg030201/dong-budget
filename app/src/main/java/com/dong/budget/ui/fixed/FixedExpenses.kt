@@ -65,9 +65,11 @@ enum class FixedStatus {
  * @property lastShareMonth 가장 최근에 낸 몫이 몇 월 몫인지. 매년 내는 것의 '매년 3월' 은 이 달로 적는다(낸 날의 달과 다를 수 있다).
  * @property lastPaidCount 그 몫으로 낸 횟수
  * @property nextMonth [FixedStatus.NOT_THIS_MONTH] 일 때 다음에 낼 달. 그 밖에는 null
- * @property missedMonth [FixedStatus.DUE] 인데 고른 달 전에 이미 낼 차례가 한 번 지났으면 그 달. 그 밖에는 null
- * @property daysPastUsual [FixedStatus.DUE] 이고 고른 달이 이번 달일 때, 오늘이 그 달 낼 날([dueDateIn], 평소 날짜가 쉬는 날이면
- *   다음 영업일)에서 며칠 지났는지. 그날이면 0, 아직이면 음수다. 그 밖에는 null
+ * @property missedMonth [FixedStatus.DUE] 인데 고른 달 전에 이미 낼 차례가 한 번 지났으면 그 달. 그 달의 낼 날([dueDateIn])이
+ *   아직 오지 않았으면(말일이 쉬는 날이라 다음 달 초에 나감) 지났다고 하지 않는다. 그 밖에는 null
+ * @property daysPastUsual [FixedStatus.DUE] 이고 고른 달이 이번 달일 때, 낼 날([dueDateIn], 평소 날짜가 쉬는 날이면 다음 영업일)이
+ *   지났으면 평소 날짜([usualDateIn])에서 며칠 지났는지(25일 것이 연휴로 28일에 나가는 달은 29일에 4). 낼 날이면 0, 아직이면 낼 날까지
+ *   남은 날의 음수다. 그 밖에는 null
  * @property latestId 가장 최근 거래. 줄을 누르면 이 거래의 상세가 열리고, 거기서 같은 가게의 최근 1년 내역을 본다.
  * @property latestAt 가장 최근 거래의 때. '등록하기' 의 시각을 여기서 가져온다.
  * @property paymentMethodId 가장 최근 거래의 결제수단. 지웠거나 비웠으면 null이고, 이름·아이콘·색도 같다.
@@ -257,7 +259,10 @@ private fun fixedItem(
             lastShareMonth = last.month,
             lastPaidCount = last.count,
             nextMonth = last.month.plusMonths(cadence.toLong()).takeIf { status == FixedStatus.NOT_THIS_MONTH },
-            missedMonth = last.month.plusMonths(cadence.toLong()).takeIf { status == FixedStatus.DUE && gap > cadence },
+            missedMonth =
+            last.month.plusMonths(cadence.toLong()).takeIf {
+                status == FixedStatus.DUE && gap > cadence && today.isAfter(dueDateOf(it, usualDay))
+            },
             daysPastUsual = null,
             latestId = latest.id,
             latestAt = latest.occurredAt,
@@ -270,7 +275,10 @@ private fun fixedItem(
         )
     // 낼 날을 넘겼는지는 이번 달에만 센다. 지난 달은 이미 끝났다.
     if (status != FixedStatus.DUE || month != YearMonth.from(today)) return item
-    return item.copy(daysPastUsual = ChronoUnit.DAYS.between(item.dueDateIn(month), today).toInt())
+    val due = item.dueDateIn(month)
+    // 낼 날이 지나야 '지났어요' 이고, 지난 날 수는 평소 날짜부터 센다(쉬는 날로 밀린 만큼 덜 세지 않게)
+    val from = if (today.isAfter(due)) item.usualDateIn(month) else due
+    return item.copy(daysPastUsual = ChronoUnit.DAYS.between(from, today).toInt())
 }
 
 /**
