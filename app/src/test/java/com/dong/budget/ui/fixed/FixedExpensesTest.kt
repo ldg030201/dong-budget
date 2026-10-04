@@ -43,8 +43,9 @@ class FixedExpensesTest {
         assertEquals(25, item.usualDay)
         assertEquals(17_000L, item.amount)
         assertEquals(day("2026-09-25"), item.lastPaidOn)
-        // 평소 날짜(25일)까지 아직 13일 남았다
-        assertEquals(-13, item.daysPastUsual)
+        // 평소 날짜(10월 25일)가 일요일이라 낼 날은 26일(월)이고, 아직 14일 남았다
+        assertEquals(day("2026-10-26"), item.dueDateIn(october))
+        assertEquals(-14, item.daysPastUsual)
         assertNull(item.missedMonth)
     }
 
@@ -200,17 +201,20 @@ class FixedExpensesTest {
         assertEquals(day("2026-02-28"), item.usualDateIn(YearMonth.of(2026, 2)))
         assertEquals(day("2028-02-29"), item.usualDateIn(YearMonth.of(2028, 2)))
         assertEquals(day("2026-04-30"), item.usualDateIn(YearMonth.of(2026, 4)))
-        // 2월 말일이 오늘이라 딱 그날이다
-        assertEquals(0, item.daysPastUsual)
+        // 2026년 2월 28일은 토요일이고 3월 1일(일) · 2일(대체공휴일)까지 쉬어 낼 날은 3월 3일이다. 2월 말일이 와도 아직이다.
+        assertEquals(day("2026-03-03"), item.dueDateIn(YearMonth.of(2026, 2)))
+        assertEquals(-3, item.daysPastUsual)
     }
 
     @Test
     fun `말일에 내면 짧은 달의 말일도 말일로 세어 평소 날짜가 그 달 말일이다`() {
-        // 8월 31일 · 9월 30일 → 10월 31일에 '평소보다 1일 지났어요' 가 아니라 오늘이 그날이다
+        // 8월 31일 · 9월 30일 → 10월 31일에 '평소보다 1일 지났어요' 가 아니다. 평소 날짜는 10월 31일이고,
+        // 그날이 토요일이라 낼 날은 11월 2일(월)이다.
         val october31 = only(paid("가", 1_000, "2026-08-31", "2026-09-30"), today = day("2026-10-31"))
         assertEquals(LAST_DAY, october31.usualDay)
         assertEquals(day("2026-10-31"), october31.usualDateIn(october))
-        assertEquals(0, october31.daysPastUsual)
+        assertEquals(day("2026-11-02"), october31.dueDateIn(october))
+        assertEquals(-2, october31.daysPastUsual)
         // 1월 31일 · 2월 28일 → 3월 31일도 그날이다(28일이 아니다)
         val march = only(paid("가", 1_000, "2026-01-31", "2026-02-28"), month = YearMonth.of(2026, 3), today = day("2026-03-31"))
         assertEquals(LAST_DAY, march.usualDay)
@@ -236,19 +240,60 @@ class FixedExpensesTest {
 
     @Test
     fun `평소 날짜를 넘겼으면 며칠 지났는지 센다`() {
-        val item = only(paid("가", 1_000, "2026-08-05", "2026-09-05"))
-        assertEquals(7, item.daysPastUsual)
+        val item = only(paid("가", 1_000, "2026-08-07", "2026-09-07"))
+        assertEquals(5, item.daysPastUsual)
+        // 2026년 10월 5일은 개천절 대체공휴일이라 5일에 내는 것은 6일이 낼 날이고, 12일엔 6일 지났다
+        assertEquals(6, only(paid("가", 1_000, "2026-08-05", "2026-09-05")).daysPastUsual)
     }
 
     @Test
-    fun `긴 연휴로 밀려도 평소 날짜 다음 날부터 지났다고 센다`() {
-        // 매달 15일 통신비가 2026년 2월 15일(일)·설 연휴(16~18일)로 19일에 나간다.
-        // 이 경우는 이렇게 본다(받아들이는 모호함): 공휴일 달력을 모르므로 16일에 '평소보다 1일 지났어요' 다.
+    fun `긴 연휴로 밀리면 낼 날(연휴 뒤 첫 영업일) 다음 날부터 지났다고 센다`() {
+        // 매달 15일 통신비가 2026년 2월 15일(일)·설 연휴(16~18일)로 19일에 나간다. 16~18일엔 알리지 않고 19일이 낼 날이다.
         val february = YearMonth.of(2026, 2)
-        val february16 = day("2026-02-16")
-        val item = only(paid("통신비", 55_000, "2025-12-15", "2026-01-15"), month = february, today = february16)
-        assertEquals(1, item.daysPastUsual)
-        assertEquals(RowNote("평소보다 1일 지났어요", NoteTone.WARNING), rowNote(item, february, february16))
+        val rows = paid("통신비", 55_000, "2025-12-15", "2026-01-15")
+        val february16 = only(rows, month = february, today = day("2026-02-16"))
+        assertEquals(day("2026-02-15"), february16.usualDateIn(february))
+        assertEquals(day("2026-02-19"), february16.dueDateIn(february))
+        assertEquals(-3, february16.daysPastUsual)
+        assertNull(rowNote(february16, february, day("2026-02-16")))
+        val february19 = only(rows, month = february, today = day("2026-02-19"))
+        assertEquals(RowNote("오늘 낼 차례예요", NoteTone.TODAY), rowNote(february19, february, day("2026-02-19")))
+        val february20 = only(rows, month = february, today = day("2026-02-20"))
+        assertEquals(RowNote("평소보다 1일 지났어요", NoteTone.WARNING), rowNote(february20, february, day("2026-02-20")))
+    }
+
+    @Test
+    fun `25일 구독이 추석 연휴로 밀리면 낼 날 전에는 지났다고 하지 않는다`() {
+        // 2026년 9월 24~26일 추석(25일 금요일 포함)과 27일(일)을 지나 28일(월)에 나간다. 추석이 토요일과 겹쳐도 대체공휴일은 없다.
+        val september = YearMonth.of(2026, 9)
+        val netflix = paid("넷플릭스", 17_000, "2026-06-25", "2026-07-25", "2026-08-25")
+        assertEquals(day("2026-09-28"), only(netflix, month = september, today = day("2026-09-25")).dueDateIn(september))
+        listOf("2026-09-24" to -4, "2026-09-25" to -3, "2026-09-27" to -1, "2026-09-28" to 0, "2026-09-29" to 1).forEach { (date, past) ->
+            val item = only(netflix, month = september, today = day(date))
+            assertEquals(date, FixedStatus.DUE, item.status)
+            assertEquals(date, past, item.daysPastUsual)
+        }
+        assertNull(rowNote(only(netflix, month = september, today = day("2026-09-26")), september, day("2026-09-26")))
+        // 28일에 나간 것은 9월 몫이다(10월 25일보다 9월의 낼 날 28일에 가깝다)
+        val paidOn28 = netflix + paid("넷플릭스", 17_000, "2026-09-28")
+        assertEquals(FixedStatus.PAID, only(paidOn28, month = september, today = day("2026-09-28")).status)
+        assertEquals(FixedStatus.DUE, only(paidOn28, today = day("2026-10-01")).status)
+    }
+
+    @Test
+    fun `3일 회비가 개천절부터 한글날까지 이어진 연휴로 밀리면 10일까지 지났다고 하지 않는다`() {
+        // 2025년 10월 3일(금) 개천절, 4일(토), 5~8일 추석 · 대체공휴일, 9일 한글날을 지나 10일(금)에 나간다.
+        val october2025 = YearMonth.of(2025, 10)
+        val dues = paid("회비", 20_000, "2025-07-03", "2025-08-04", "2025-09-03")
+        listOf("2025-10-04" to -6, "2025-10-09" to -1, "2025-10-10" to 0, "2025-10-11" to 1).forEach { (date, past) ->
+            val item = only(dues, month = october2025, today = day(date))
+            assertEquals(date, 3, item.usualDay)
+            assertEquals(date, day("2025-10-10"), item.dueDateIn(october2025))
+            assertEquals(date, past, item.daysPastUsual)
+        }
+        // 25일 넷플릭스는 그 달엔 25일(토) → 27일(월)이 낼 날이다
+        val netflix = paid("넷플릭스", 17_000, "2025-07-25", "2025-08-25", "2025-09-25")
+        assertEquals(-1, only(netflix, month = october2025, today = day("2025-10-26")).daysPastUsual)
     }
 
     @Test
@@ -313,12 +358,12 @@ class FixedExpensesTest {
         val inAugust = board(readFor(first, august), month = august, today = day("2026-08-05"))
         assertEquals(98_000L, inAugust.due.single().amount)
         assertEquals(98_000L, inAugust.dueTotal)
-        // 7~9월 석 달을 두 건씩 냈으면 10월도 98,000원이고, 평소 날짜(10일)가 지나면 알린다
+        // 7~9월 석 달을 두 건씩 냈으면 10월도 98,000원이고, 낼 날(10일이 토요일이라 12일)이 지나면 알린다
         val three = first + paid("통신비", 50_000, "2026-08-10", "2026-09-10") + paid("통신비", 48_000, "2026-08-20", "2026-09-20")
         assertEquals(98_000L, only(readFor(three, october), today = day("2026-10-05")).amount)
         val october15 = only(readFor(three, october), today = day("2026-10-15"))
         assertEquals(98_000L, october15.amount)
-        assertEquals(5, october15.daysPastUsual)
+        assertEquals(3, october15.daysPastUsual)
     }
 
     @Test
@@ -434,12 +479,12 @@ class FixedExpensesTest {
         val september = only(rows, month = YearMonth.of(2026, 9), today = day("2026-10-15"))
         assertEquals(FixedStatus.PAID, september.status)
         assertEquals(day("2026-10-01"), september.lastPaidOn)
-        // 10월 몫은 아직이고, 9월 차례를 놓쳤다고 하지 않으며 평소 날짜(말일)도 아직이다
+        // 10월 몫은 아직이고, 9월 차례를 놓쳤다고 하지 않으며 낼 날(10월 31일이 토요일이라 11월 2일)도 아직이다
         val october15 = only(rows, today = day("2026-10-15"))
         assertEquals(FixedStatus.DUE, october15.status)
         assertEquals(LAST_DAY, october15.usualDay)
         assertNull(october15.missedMonth)
-        assertEquals(-16, october15.daysPastUsual)
+        assertEquals(-18, october15.daysPastUsual)
     }
 
     @Test
@@ -535,11 +580,12 @@ class FixedExpensesTest {
         assertEquals(80_000L, october1.dueTotal)
         assertTrue(october1.paid.isEmpty())
         // 평소 날짜는 앞 결제(3일)다. 달 경계를 이어 세 28일로 잡으면 3일 것을 놓쳐도 28일까지 알리지 않았다.
+        // 10월 3일은 토요일(개천절)이고 5일이 대체공휴일이라 낼 날은 6일이다.
         val october10 = day("2026-10-10")
         val late = only(readFor(monthly, october), today = october10)
         assertEquals(3, late.usualDay)
-        assertEquals(7, late.daysPastUsual)
-        assertEquals(RowNote("평소보다 7일 지났어요", NoteTone.WARNING), rowNote(late, october, october10))
+        assertEquals(4, late.daysPastUsual)
+        assertEquals(RowNote("평소보다 4일 지났어요", NoteTone.WARNING), rowNote(late, october, october10))
         // 10월에도 두 번 냈으면 10월 화면에 둘 다 보이고, 11월 2일에도 11월은 아직이다
         val withOctober = monthly + paid("보험", 50_000, "2026-10-03") + paid("보험", 30_000, "2026-10-28")
         val inOctober = only(readFor(withOctober, october), today = day("2026-11-02"))
@@ -619,7 +665,8 @@ class FixedExpensesTest {
         val october15 = only(readFor(google, october, day("2026-10-15")), today = day("2026-10-15"))
         assertEquals(FixedStatus.DUE, october15.status)
         assertEquals(17_300L, october15.amount)
-        assertEquals(12, october15.daysPastUsual)
+        // 10월 3일(토) · 4일(일) · 5일(대체공휴일)을 지나 낼 날은 6일이다
+        assertEquals(9, october15.daysPastUsual)
         val september = YearMonth.of(2026, 9)
         val inSeptember = only(readFor(google, september, day("2026-10-15")), month = september, today = day("2026-10-15"))
         assertEquals(17_300L, inSeptember.amount)
@@ -629,7 +676,7 @@ class FixedExpensesTest {
         assertEquals(FixedStatus.DUE, only(readFor(recent, october, day("2026-10-10")), today = day("2026-10-10")).status)
         // 28일 30,000원을 4월부터 냈으면 몫마다 이틀에 나눠 내는 가게다. 10월 3일 것을 놓치면 알린다.
         val insurance = (4..9).flatMap { paid("보험", 50_000, "2026-0$it-03") + paid("보험", 30_000, "2026-0$it-28") }
-        listOf("2026-10-01" to -2, "2026-10-10" to 7, "2026-10-20" to 17).forEach { (date, past) ->
+        listOf("2026-10-01" to -5, "2026-10-10" to 4, "2026-10-20" to 14).forEach { (date, past) ->
             val item = only(readFor(insurance, october), today = day(date))
             assertEquals(FixedStatus.DUE, item.status)
             assertEquals(80_000L, item.amount)

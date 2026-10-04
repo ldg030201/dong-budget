@@ -76,9 +76,17 @@ class FixedExpenseTextTest {
 
     @Test
     fun `말일에 내면 30일에 낸 달이 섞여도 말일쯤이고 그달 말일이 오늘이면 지났다고 하지 않는다`() {
-        val lastDay = item(paid("2026-08-31", "2026-09-30"), today = day("2026-10-31"))
-        assertEquals("매달 말일쯤 · 하나카드", rowSubtitle(lastDay, october))
-        assertEquals(RowNote("오늘 낼 차례예요", NoteTone.TODAY), rowNote(lastDay, october, today))
+        // 6월 30일 · 7월 31일 → 8월 31일(월)이 오늘이면 그날이다(30일로 보면 '평소보다 1일 지났어요' 였다)
+        val august = YearMonth.of(2026, 8)
+        val august31 = day("2026-08-31")
+        val lastDay = item(paid("2026-06-30", "2026-07-31"), month = august, today = august31)
+        assertEquals("매달 말일쯤 · 하나카드", rowSubtitle(lastDay, august))
+        assertEquals(RowNote("오늘 낼 차례예요", NoteTone.TODAY), rowNote(lastDay, august, august31))
+        // 10월 31일은 토요일이라 낼 날이 11월 2일(월)이다. 그달 말일이 와도 아무것도 알리지 않는다.
+        val october31 = day("2026-10-31")
+        val saturday = item(paid("2026-08-31", "2026-09-30"), today = october31)
+        assertEquals("매달 말일쯤 · 하나카드", rowSubtitle(saturday, october))
+        assertNull(rowNote(saturday, october, october31))
     }
 
     @Test
@@ -110,10 +118,19 @@ class FixedExpenseTextTest {
 
     @Test
     fun `아직 안 냈어요 줄은 평소 날짜가 지났거나 오늘이면 알린다`() {
+        val rows = paid("2026-08-07", "2026-09-07")
+        assertEquals(RowNote("평소보다 5일 지났어요", NoteTone.WARNING), rowNote(item(rows), october, today))
+        assertEquals(RowNote("오늘 낼 차례예요", NoteTone.TODAY), rowNote(item(rows, today = day("2026-10-07")), october, today))
+        assertNull(rowNote(item(rows, today = day("2026-10-06")), october, today))
+    }
+
+    @Test
+    fun `평소 날짜가 쉬는 날이면 다음 영업일부터 오늘 낼 차례로 알린다`() {
+        // 10일은 2026년 10월엔 토요일이라 12일(월)에 나간다. 10 · 11일엔 알리지 않고 12일이 오늘, 13일부터 지났어요다.
         val rows = paid("2026-08-10", "2026-09-10")
-        assertEquals(RowNote("평소보다 2일 지났어요", NoteTone.WARNING), rowNote(item(rows), october, today))
-        assertEquals(RowNote("오늘 낼 차례예요", NoteTone.TODAY), rowNote(item(rows, today = day("2026-10-10")), october, today))
-        assertNull(rowNote(item(rows, today = day("2026-10-09")), october, today))
+        assertNull(rowNote(item(rows, today = day("2026-10-10")), october, today))
+        assertEquals(RowNote("오늘 낼 차례예요", NoteTone.TODAY), rowNote(item(rows), october, today))
+        assertEquals(RowNote("평소보다 1일 지났어요", NoteTone.WARNING), rowNote(item(rows, today = day("2026-10-13")), october, today))
     }
 
     @Test

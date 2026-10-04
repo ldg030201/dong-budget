@@ -3,9 +3,9 @@ package com.dong.budget.ui.fixed
 import androidx.compose.runtime.Immutable
 import com.dong.budget.data.db.TransactionListItem
 import com.dong.budget.data.db.TransactionType
+import com.dong.budget.data.holiday.KoreanHolidays
 import com.dong.budget.ui.home.localDate
 import com.dong.budget.ui.stats.calc.merchantKey
-import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
@@ -21,12 +21,14 @@ import kotlin.math.abs
 // - 평소 날짜를 먼저 짐작한다. 31일에 낸 적이 있으면 짧은 달 말일(9월 30일 등)도 말일로 센다.
 //   보통 한 번 내는데 달 초와 달 말에 낸 날이 섞여 있으면 어느 쪽에 내는 가게인지 가려 달 경계를 이어 센다
 //   (말일 것이 1일로 밀렸거나 1일 것을 전달 말에 미리 낸 날이 평소 날짜가 되지 않게).
-// - 결제는 낸 달이 아니라 '몇 월 몫인지' 로 센다. 결제마다 낸 달과 그 앞뒤 달 가운데 평소 날짜가 가장 가까운 달의 몫이다.
+// - 평소 날짜가 쉬는 날(주말 · 공휴일, KoreanHolidays)이면 그 달에 낼 날은 다음 영업일이다(자동이체가 그날 나간다).
+//   '평소보다 N일 지났어요' 와 몇 월 몫인지는 이 낼 날로 센다. 추석 연휴로 밀린 결제를 지났다고 먼저 알리지 않는다.
+// - 결제는 낸 달이 아니라 '몇 월 몫인지' 로 센다. 결제마다 낸 달과 그 앞뒤 달 가운데 낼 날이 가장 가까운 달의 몫이다.
 //   1일에 내는 월세를 전달 말에 미리 냈으면 다음 달 몫이고, 말일 자동이체가 휴일로 다음 달 초에 밀렸으면 앞 달 몫이다.
 //   그래서 다음 달 15일까지는 읽는다. 한날 낸 것은 함께 보되, 그날 낸 돈이 평소 하루치와 다르면 낸 달 그대로다
 //   (같은 가게에 새로 더한 구독 · 연간 결제). 하루치의 두 배쯤이면 하루치만 옆 달 몫이다(밀린 몫과 이번 몫을 한날 냄).
 //   매년 · 몇 달마다 내는 것은 옮기지 않고 낸 달 몫이다. 한 몫을 이틀에 나눠 내는 가게(3일 50,000원 · 28일 30,000원)는
-//   결제마다 금액이 비슷한 차례의 평소 날짜가 가장 가까운 달의 몫이다(두 차례 금액이 비슷하면 낸 달 그대로이되,
+//   결제마다 금액이 비슷한 차례의 낼 날이 가장 가까운 달의 몫이다(두 차례 금액이 비슷하면 낸 달 그대로이되,
 //   늦은 차례가 달 말이고 앞 달에 덜 냈으면 달 초 결제 하나를 앞 달 몫으로 센다).
 // - 주기는 최근 간격 몇 개로만 본다. 내는 주기가 바뀌면 금방 따라간다. 밀린 몫을 함께 낸 달은 빠진 차례를 메운 것으로 센다.
 // - 다음에 낼 금액은 마지막 몫의 합이지만, 밀린 몫을 함께 낸 뒤(빠진 차례 다음에 보통보다 많이 냈고 한 건 한 건이 앞 몫과 비슷함)에는 한 달 치다.
@@ -54,7 +56,7 @@ enum class FixedStatus {
  * @property name 보이는 이름. 가장 최근 거래의 가게 이름(앞뒤 공백을 뺀다), 이름이 없으면 [NO_MERCHANT_NAME]
  * @property merchant 등록창에 채울 가게 이름. 이름 없이 묶인 것은 null
  * @property cadence 몇 달마다 내는지. 1(매달), 2~10(그 달마다), 12(매년)
- * @property usualDay 평소 내는 날(1~31). 그 달에 없는 날이면 말일로 본다([usualDateIn]).
+ * @property usualDay 평소 내는 날(1~31). 그 달에 없는 날이면 말일로 보고([usualDateIn]), 쉬는 날이면 다음 영업일에 낸다([dueDateIn]).
  * @property amount 냈으면 고른 달 몫으로 낸 돈(여러 번이면 합). 아니면 이번에 낼 것으로 보는 금액이다.
  *   가장 최근에 낸 몫의 합인데, 밀린 몫을 함께 냈으면 한 달 치다([nextAmount]).
  * @property previousAmount 그 앞에 낸 달에 낸 돈. 견줄 수 없으면(한 달에만 냈거나 두 달의 낸 횟수가 다르면) null
@@ -64,8 +66,8 @@ enum class FixedStatus {
  * @property lastPaidCount 그 몫으로 낸 횟수
  * @property nextMonth [FixedStatus.NOT_THIS_MONTH] 일 때 다음에 낼 달. 그 밖에는 null
  * @property missedMonth [FixedStatus.DUE] 인데 고른 달 전에 이미 낼 차례가 한 번 지났으면 그 달. 그 밖에는 null
- * @property daysPastUsual [FixedStatus.DUE] 이고 고른 달이 이번 달일 때, 오늘이 평소 내는 날에서 며칠 지났는지.
- *   그날이면 0, 아직이면 음수다. 그 밖에는 null
+ * @property daysPastUsual [FixedStatus.DUE] 이고 고른 달이 이번 달일 때, 오늘이 그 달 낼 날([dueDateIn], 평소 날짜가 쉬는 날이면
+ *   다음 영업일)에서 며칠 지났는지. 그날이면 0, 아직이면 음수다. 그 밖에는 null
  * @property latestId 가장 최근 거래. 줄을 누르면 이 거래의 상세가 열리고, 거기서 같은 가게의 최근 1년 내역을 본다.
  * @property latestAt 가장 최근 거래의 때. '등록하기' 의 시각을 여기서 가져온다.
  * @property paymentMethodId 가장 최근 거래의 결제수단. 지웠거나 비웠으면 null이고, 이름·아이콘·색도 같다.
@@ -96,13 +98,16 @@ data class FixedExpenseItem(
     val categoryIcon: String?,
     val categoryColor: String?,
 ) {
-    /** 이 가게를 [month] 에 평소 내는 날. 그 달에 없는 날(2월 30일 등)이면 그 달 말일이다. */
-    fun usualDateIn(month: YearMonth): LocalDate = month.atDay(minOf(usualDay, month.lengthOfMonth()))
+    /** 이 가게를 [month] 에 평소 내는 날. 그 달에 없는 날(2월 30일 등)이면 그 달 말일이다. 쉬는 날이어도 밀지 않는다('등록하기' 날짜). */
+    fun usualDateIn(month: YearMonth): LocalDate = usualDateOf(month, usualDay)
+
+    /** 이 가게를 [month] 에 낼 날. 평소 날짜([usualDateIn])가 쉬는 날이면 다음 영업일이다([dueDateOf]). */
+    fun dueDateIn(month: YearMonth): LocalDate = dueDateOf(month, usualDay)
 }
 
 /**
  * 고른 달의 고정지출을 상태별로 나눈 것. 빈 묶음은 화면에서 숨긴다.
- * @property due 아직 안 냈어요. 지난 차례도 놓친 것이 먼저, 그다음 평소 날짜가 이른 것부터
+ * @property due 아직 안 냈어요. 지난 차례도 놓친 것이 먼저, 그다음 낼 날([FixedExpenseItem.dueDateIn])이 이른 것부터
  * @property paid 냈어요. 낸 날 순서
  * @property notThisMonth 이번 달엔 안 내요. 다음에 낼 달이 이른 것부터
  * @property stopped 한동안 안 냈어요. 마지막으로 낸 날이 최근인 것부터
@@ -132,9 +137,9 @@ data class FixedExpenseBoard(
  * 1. 평소 날짜([usualDayOf]): 최근 결제일(같은 날은 한 번, 최대 [USUAL_DAY_SAMPLES] 번)의 가운데 값(짝수 개면 이른 쪽).
  *    31일에 낸 적이 있으면 짧은 달 말일도 말일로 센다. 달력 달로 보통 하루 내는데([calendarCountOf]) 달 초와 달 말에 낸 날이
  *    섞여 있으면 더 자주 낸 쪽(달 초 · 달 말)을 평소 쪽으로 보고 달 경계를 이어 센다.
- * 2. 몇 월 몫인지([shareMonths]): 결제마다 낸 달과 그 앞뒤 달 가운데 그 달의 평소 날짜가 가장 가까운 달의 몫이다([nearestShare]).
+ * 2. 몇 월 몫인지([shareMonths]): 결제마다 낸 달과 그 앞뒤 달 가운데 그 달의 낼 날([dueDateOf])이 가장 가까운 달의 몫이다([nearestShare]).
  *    다른 결제는 보지 않는다. 그렇게 센 몫의 주기가 매달이 아니면 옮기지 않고 낸 달 그대로다.
- *    한 몫을 보통 이틀에 나눠 내면 금액이 비슷한 차례의 평소 날짜로 정한다([splitShare]). 두 차례 금액이 서로 비슷하면
+ *    한 몫을 보통 이틀에 나눠 내면 금액이 비슷한 차례의 낼 날로 정한다([splitShare]). 두 차례 금액이 서로 비슷하면
  *    낸 달 그대로이되 앞 달에 덜 낸 만큼 달 초 결제 하나를 앞 달 몫으로 센다([carriedShares]).
  *    고른 달 뒤의 몫은 뺀다.
  * 3. 같은 몫끼리 합친다. 그 몫의 날짜는 첫 결제일이다(실제로 낸 날 그대로).
@@ -147,7 +152,7 @@ data class FixedExpenseBoard(
  *    gap < 주기면 [FixedStatus.NOT_THIS_MONTH], 주기 ≤ gap < 주기 + [DUE_MONTHS] 면 [FixedStatus.DUE], 그보다 길면 [FixedStatus.STOPPED].
  * 7. 금액: 냈으면 그 몫으로 낸 돈(합). 아니면 [nextAmount]. 지난번 금액과는 두 몫의 낸 횟수가 같을 때만 견준다.
  *
- * @param today 오늘. 고른 달이 이번 달이면 평소 날짜가 며칠 지났는지 센다.
+ * @param today 오늘. 고른 달이 이번 달이면 낼 날([FixedExpenseItem.dueDateIn])이 며칠 지났는지 센다.
  * @param rows '고정지출' 분류의 지출. [fixedHistoryStart] 부터 [fixedHistoryEnd] 말일까지 읽은 것이다.
  *   다음 달 [NEXT_MONTH_DAYS] 일 뒤의 행과 지출이 아닌 행은 거른다.
  */
@@ -168,7 +173,7 @@ fun buildFixedExpenses(month: YearMonth, today: LocalDate, rows: List<Transactio
         due =
         items
             .filter { it.status == FixedStatus.DUE }
-            .sortedWith(compareBy<FixedExpenseItem> { it.missedMonth == null }.thenBy { it.usualDateIn(month) }.thenBy { it.name }),
+            .sortedWith(compareBy<FixedExpenseItem> { it.missedMonth == null }.thenBy { it.dueDateIn(month) }.thenBy { it.name }),
         paid = items.filter { it.status == FixedStatus.PAID }.sortedWith(compareBy<FixedExpenseItem> { it.lastPaidOn }.thenBy { it.name }),
         notThisMonth =
         items
@@ -263,9 +268,9 @@ private fun fixedItem(
             categoryIcon = latest.categoryIcon,
             categoryColor = latest.categoryColor,
         )
-    // 평소 날짜를 넘겼는지는 이번 달에만 센다. 지난 달은 이미 끝났다.
+    // 낼 날을 넘겼는지는 이번 달에만 센다. 지난 달은 이미 끝났다.
     if (status != FixedStatus.DUE || month != YearMonth.from(today)) return item
-    return item.copy(daysPastUsual = ChronoUnit.DAYS.between(item.usualDateIn(month), today).toInt())
+    return item.copy(daysPastUsual = ChronoUnit.DAYS.between(item.dueDateIn(month), today).toInt())
 }
 
 /**
@@ -310,11 +315,15 @@ private fun isPaidTogether(previous: MonthPayment, current: MonthPayment, usualC
  *
  * 달력 달로 한 달에 보통 하루([daysPerMonth]) 내는데 달 초(1~[MONTH_START_UNTIL] 일)와 달 말([MONTH_END_FROM] 일 이후)에 낸 날이 섞여 있으면 달 경계를 이어 센다.
  * '1일 것을 가끔 전달 말에 미리 냄'과 '말일 것이 가끔 다음 달 초로 밀림'은 날짜만 보면 서로 거울 모양이라, 어느 쪽인지는
- * 최근 [SIDE_SAMPLES] 개에서 '딱 그날' 낸 증거를 센다. 말일이 평일이고 다음 날도 평일이면 말일 자동이체는 그 말일에 나가므로 딱 말일에 낸 것은
- * 달 말 쪽 증거, 앞 달 말일이 평일인데 그달 첫 영업일([isFirstWorkday], 1일이 주말이면 그 뒤 월요일)에 낸 것은 달 초 쪽 증거다.
- * 늦게 내거나(2~3일) 미리 낸 것(앞 금요일)은 대개 딱 그날이 아니다. 말일이 주말인 경계는 두 쪽 모두 같은 영업일에 나가 가를 수 없어 세지 않는다.
+ * 최근 [SIDE_SAMPLES] 개에서 '딱 그날' 낸 증거를 센다. 말일이 영업일이고 다음 날도 영업일이면([KoreanHolidays.isBusinessDay]) 말일 자동이체는
+ * 그 말일에 나가므로 딱 말일에 낸 것은 달 말 쪽 증거, 앞 달 말일이 영업일인데 그달 첫 영업일([isFirstBusinessDay], 1일이 주말 · 공휴일이면
+ * 그 뒤 첫 영업일)에 낸 것은 달 초 쪽 증거다. 늦게 내거나(2~3일) 미리 낸 것(앞 금요일)은 대개 딱 그날이 아니다.
+ * 말일이 쉬는 날인 경계(주말 · 설 연휴 등)는 두 쪽 모두 같은 영업일에 나가 가를 수 없어 세지 않는다.
  * 이 증거를 최근 [USUAL_DAY_SAMPLES] 개의 달 초 · 달 말 횟수에 [SURE_WEIGHT] 만큼 더해 많은 쪽으로 정한다(같으면 달 말). 딱 그날만 보면 기록이 짧을 때 흔들리고, 달 초 · 달 말 횟수만 보면 말일 것을 3번에 1번 이틀 늦게 내는
- * 관리비가 달 초 쪽으로 뒤집힌다(늦게 낸 것 + 주말로 밀린 것).
+ * 관리비가 달 초 쪽으로 뒤집힌다(늦게 낸 것 + 주말로 밀린 것). 앞 달 말일이 쉬는 날이라 그달 첫 영업일에 낸 것([isPastClosedMonthEnd])은
+ * 말일 것이 밀렸는지 1일 것이 밀렸는지 가를 수 없어, 달 초로 세되 달 말로도 반을 센다. 달 초로만 세면 9월 몫을 밀려 낸 말일 관리비가
+ * 주말 · 대체공휴일로 몇 번 밀린 것만으로 달 초 쪽이 되어 2026년 2월 28일(토) 몫이 3월 3일에 나간 것을 3월 몫으로 셌고(3월이 3일부터 '냈어요'),
+ * 아예 안 세면 3번에 1번 전달 말일에 미리 내는 1일 월세가 미리 낸 말일이 더 많아 보여 달 말 쪽이 됐다(그달 1일에 내도 내내 '아직 안 냈어요').
  * 달 말 쪽이면 달 초 날짜를 말일 뒤(31 + 날짜)로 놓고 가운데 값을 구해 말일을 넘으면 말일로, 달 초 쪽이면 달 말 날짜를 1일 앞(날짜 − 31)으로
  * 놓고 1일보다 앞이면 1일로 본다. 그냥 가운데 값을 쓰면 주말로 밀린 결제 몇 개로 평소 날짜가 반대쪽으로 뒤집혀
  * 그 뒤 결제를 모두 옆 달 몫으로 셌다(말일 관리비가 '1일쯤', 1일 월세가 '말일쯤').
@@ -324,17 +333,21 @@ private fun usualDayOf(all: List<LocalDate>, daysPerMonth: Int): Int {
     val recent = all.takeLast(SIDE_SAMPLES)
     val paysOnLastDay = recent.any { it.dayOfMonth == LAST_DAY }
     val dayOf = { date: LocalDate -> if (paysOnLastDay && date.dayOfMonth == date.lengthOfMonth()) LAST_DAY else date.dayOfMonth }
-    val days = all.takeLast(USUAL_DAY_SAMPLES).map(dayOf)
+    val sample = all.takeLast(USUAL_DAY_SAMPLES)
+    val days = sample.map(dayOf)
     if (daysPerMonth != 1 || days.none { it <= MONTH_START_UNTIL } || days.none { it >= MONTH_END_FROM }) return lowerMedian(days)
-    // 말일이 평일인 경계에서만 딱 그날 낸 것을 센다. 말일이 주말이면 두 쪽 모두 다음 영업일에 나가 가를 수 없다.
-    val onLastDay = recent.count { it.dayOfMonth == it.lengthOfMonth() && isWorkday(it) && isWorkday(it.plusDays(1)) }
-    val onFirstDay = recent.count { isFirstWorkday(it) && isWorkday(it.withDayOfMonth(1).minusDays(1)) }
+    // 말일이 영업일인 경계에서만 딱 그날 낸 것을 센다. 말일이 쉬는 날이면 두 쪽 모두 다음 영업일에 나가 가를 수 없다.
+    val open = KoreanHolidays::isBusinessDay
+    val onLastDay = recent.count { it.dayOfMonth == it.lengthOfMonth() && open(it) && open(it.plusDays(1)) }
+    val onFirstDay = recent.count { isFirstBusinessDay(it) && open(it.withDayOfMonth(1).minusDays(1)) }
     val sides = days.filter { it <= MONTH_START_UNTIL || it >= MONTH_END_FROM }
     val early = sides.count { it <= MONTH_START_UNTIL }
     val late = sides.size - early
+    // 앞 달 말일부터 쉬는 날만 지나 낸 달 초 결제는 말일 것이 밀렸을 수도 있어 달 말로도 반을 센다(반을 세려고 모두 두 배로 견준다).
+    val pushed = sample.count { it.dayOfMonth <= MONTH_START_UNTIL && isPastClosedMonthEnd(it) }
     // 딱 그날 낸 것은 늦게 내거나 미리 낸 것과 섞이지 않는 증거라 달 초 · 달 말 횟수에 [SURE_WEIGHT] 만큼 한 번 더 센다.
     // 같으면 달 말 쪽이다(말일 것이 밀리는 일이 더 흔하다).
-    val endOfMonth = SURE_WEIGHT * (onLastDay - onFirstDay) + (late - early) >= 0
+    val endOfMonth = 2 * (SURE_WEIGHT * (onLastDay - onFirstDay) + late - early) + pushed >= 0
     return if (endOfMonth) {
         lowerMedian(days.map { if (it <= MONTH_START_UNTIL) LAST_DAY + it else it }).coerceAtMost(LAST_DAY)
     } else {
@@ -342,21 +355,32 @@ private fun usualDayOf(all: List<LocalDate>, daysPerMonth: Int): Int {
     }
 }
 
-/** [date] 가 그 달 첫 영업일([isWorkday])인지. 1일이 주말이면 그 뒤 월요일이다. */
-private fun isFirstWorkday(date: LocalDate): Boolean =
-    isWorkday(date) && (1 until date.dayOfMonth).none { isWorkday(date.withDayOfMonth(it)) }
+/** [date] 가 그 달 첫 영업일([KoreanHolidays.isBusinessDay])인지. 1일이 주말 · 공휴일이면 그 뒤 첫 영업일이다. */
+private fun isFirstBusinessDay(date: LocalDate): Boolean = KoreanHolidays.isBusinessDay(date) &&
+    (1 until date.dayOfMonth).none { KoreanHolidays.isBusinessDay(date.withDayOfMonth(it)) }
 
 /**
- * [date] 가 은행이 여는 날인지. 주말과 달 경계에 걸리는 날짜가 정해진 공휴일(1월 1일 · 3월 1일)만 본다.
- * 설 · 추석처럼 해마다 날짜가 바뀌는 공휴일은 모른다([usualDayOf] 에서 그런 경계 하나를 잘못 세도 다른 달이 가른다).
+ * [date] 가 앞 달 말일부터 쉬는 날만 지나 온 그달 첫 영업일인지. 말일 것도 1일 것도 이날 나가므로 어느 쪽에 내는 가게인지 가르지 못한다
+ * (2025년 8월 31일(일) 뒤 9월 1일, 2026년 2월 28일(토) · 3월 1일 · 2일(대체공휴일) 뒤 3월 3일).
  */
-private fun isWorkday(date: LocalDate): Boolean = date.dayOfWeek != DayOfWeek.SATURDAY &&
-    date.dayOfWeek != DayOfWeek.SUNDAY &&
-    !(date.dayOfMonth == 1 && (date.monthValue == 1 || date.monthValue == 3))
+private fun isPastClosedMonthEnd(date: LocalDate): Boolean =
+    isFirstBusinessDay(date) && !KoreanHolidays.isBusinessDay(date.withDayOfMonth(1).minusDays(1))
+
+/** [month] 의 [usualDay] 일. 그 달에 없는 날(2월 30일 등)이면 그 달 말일이다. */
+private fun usualDateOf(month: YearMonth, usualDay: Int): LocalDate = month.atDay(minOf(usualDay, month.lengthOfMonth()))
+
+/**
+ * 평소 [usualDay] 일에 내는 것을 [month] 에 낼 날. 평소 날짜([usualDateOf])가 쉬는 날(주말 · 공휴일)이면 다음 영업일이다
+ * ([KoreanHolidays.nextBusinessDay]). 자동이체는 쉬는 날이면 다음 영업일에 나간다. 매달 25일 것은 2026년 9월엔 추석 연휴(24~26일)와
+ * 일요일을 지나 28일이 낼 날이고, 말일 것이 다음 달 초로 밀려도 앞 달의 낼 날이다.
+ * '평소보다 N일 지났어요'([FixedExpenseItem.daysPastUsual])와 몇 월 몫인지([nearestShare])가 함께 쓴다.
+ * 카드 결제는 쉬는 날에도 그날 나가지만, 낼 날로 세면 '지났어요' 가 며칠 늦을 뿐이고 평소 날짜로 세면 밀린 자동이체를 지났다고 먼저 알린다.
+ */
+private fun dueDateOf(month: YearMonth, usualDay: Int): LocalDate = KoreanHolidays.nextBusinessDay(usualDateOf(month, usualDay))
 
 /**
  * 결제([rows])마다 몇 월 몫인지(거래 id → 몫의 달).
- * 매달 내는 것은 결제마다 낸 달과 그 앞뒤 달 가운데 평소 날짜([usualDay])가 가장 가까운 달의 몫이다([nearestShare]).
+ * 매달 내는 것은 결제마다 낸 달과 그 앞뒤 달 가운데 낼 날(평소 날짜 [usualDay] 일, 쉬는 날이면 다음 영업일)이 가장 가까운 달의 몫이다([nearestShare]).
  * 다른 결제는 보지 않는다. 말일 자동이체가 휴일로 다음 달 초에 밀렸으면 앞 달 몫, 1일 월세를 전달 말에 미리 냈으면 다음 달 몫이다.
  * 그렇게 센 몫([month] 까지)의 주기가 매달이 아니면(매년 · 몇 달마다) 옮기지 않고 낸 달 그대로다.
  * 한 몫을 보통 서로 다른 이틀에 나눠 내면(한 가게에 3일 · 28일 두 번) 차례마다 따로 정한다([splitShare]).
@@ -378,7 +402,7 @@ private fun shareMonths(rows: List<TransactionListItem>, month: YearMonth, usual
 
 /**
  * 한 몫을 보통 하루에 내는 가게에서 결제([rows])마다 몇 월 몫인지(거래 id → 몫의 달). 한날 낸 것을 함께 본다.
- * 그날 낸 돈이 평소 하루치와 비슷하면 모두 평소 날짜가 가장 가까운 달([nearestShare])의 몫이다.
+ * 그날 낸 돈이 평소 하루치와 비슷하면 모두 낼 날이 가장 가까운 달([nearestShare])의 몫이다.
  * 평소 하루치의 두 배쯤이면(밀린 몫과 이번 몫, 이번 몫과 다음 몫을 한날 함께 냄) 먼저 적은 하루치만 가까운 옆 달 몫이고 나머지는 낸 달 몫이다.
  * 그 밖에(같은 가게에 새로 더한 구독 · 연간 결제처럼 금액이 다르면) 낸 달 그대로다.
  * 금액을 보지 않으면 3일 구독 가게에 새로 더한 28일 2,400원이 다음 달 몫이 되어 다음 달이 1일부터 '냈어요' 였고,
@@ -432,7 +456,7 @@ private fun slotsOf(rows: List<TransactionListItem>): List<Slot> {
 
 /**
  * 한 몫을 이틀에 나눠 내는 가게에서 [row] 가 몇 월 몫인지. 두 차례([slots]) 금액이 서로 다르면(3일 50,000원 · 28일 30,000원)
- * 금액이 비슷한 차례의 평소 날짜가 가장 가까운 달의 몫이다([nearestShare]). 28일 것이 휴일로 다음 달 2~3일에 밀려 3일 것과 함께
+ * 금액이 비슷한 차례의 낼 날이 가장 가까운 달의 몫이다([nearestShare]). 28일 것이 휴일로 다음 달 2~3일에 밀려 3일 것과 함께
  * 나가도 앞 달 몫이다. 어느 차례와도 금액이 다르면 낸 달 그대로다. 두 차례 금액이 비슷하면 [carriedShares] 로 정한다.
  */
 private fun splitShare(row: TransactionListItem, slots: List<Slot>): YearMonth {
@@ -469,14 +493,12 @@ private fun carriedShares(rows: List<TransactionListItem>, slots: List<Slot>): M
 }
 
 /**
- * [date] 에 낸 결제가 몇 월 몫인지. 낸 달과 그 앞뒤 달 가운데 그 달의 평소 날짜([usualDay])에서 가장 가까운 달이다. 같으면 낸 달이다.
- * 평소 날짜와 반 달 넘게 떨어져 냈으면 가까운 쪽 달 몫이다(1일 월세를 20일에 늦게 냈으면 다음 달 몫).
+ * [date] 에 낸 결제가 몇 월 몫인지. 낸 달과 그 앞뒤 달 가운데 그 달의 낼 날([dueDateOf], 평소 [usualDay] 일이 쉬는 날이면 다음 영업일)에서
+ * 가장 가까운 달이다. 같으면 낸 달이다. 낼 날과 반 달 넘게 떨어져 냈으면 가까운 쪽 달 몫이다(1일 월세를 20일에 늦게 냈으면 다음 달 몫).
  */
 private fun nearestShare(date: LocalDate, usualDay: Int): YearMonth {
     val own = YearMonth.from(date)
-    return listOf(own, own.minusMonths(1), own.plusMonths(1)).minBy {
-        abs(ChronoUnit.DAYS.between(date, it.atDay(minOf(usualDay, it.lengthOfMonth()))))
-    }
+    return listOf(own, own.minusMonths(1), own.plusMonths(1)).minBy { abs(ChronoUnit.DAYS.between(date, dueDateOf(it, usualDay))) }
 }
 
 /** [amount] 가 [count] 번에 낸 [total] 의 한 건 평균과 ±[SIMILAR_AMOUNT_PERCENT]% 안인지. 나눗셈 없이 견준다. */
@@ -603,7 +625,7 @@ private const val MONTH_START_UNTIL = 5
 private const val MONTH_END_FROM = 26
 
 /**
- * 고른 달 몫일 수 있는 다음 달 결제의 마지막 날. 평소 날짜가 가장 가까운 달의 몫이므로([nearestShare]) 다음 달 결제가 앞 달 몫이 되는 것은
+ * 고른 달 몫일 수 있는 다음 달 결제의 마지막 날. 낼 날이 가장 가까운 달의 몫이므로([nearestShare]) 다음 달 결제가 앞 달 몫이 되는 것은
  * 말일 납부가 다음 달 15일 안(2월 말일 것이 3월 15일)에 낸 때뿐이다.
  */
 private const val NEXT_MONTH_DAYS = 15
