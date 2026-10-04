@@ -261,15 +261,23 @@ private fun frontCancelled(cancelled: YearMonth): Pattern = Pattern(
 )
 
 /**
- * 한 가게에서 [first] 일 [firstAmount] 원 · [second] 일 [secondAmount] 원 두 청구가 따로 나간다(리뷰 검증: 며칠 사이 · 1일과 말일 두 청구를
- * 한 차례로 합쳤다). [autoPay] 면 쉬는 날이면 다음 영업일(자동이체), 아니면 그날(카드)에 나간다.
+ * 한 가게에서 [first] 일 [firstAmount] 원 · [second] 일 [secondAmount] 원 두 청구가 [from] 달부터 따로 나간다(리뷰 검증: 며칠 사이 · 1일과
+ * 말일 두 청구를 한 차례로 합쳤다). [autoPay] 면 쉬는 날이면 다음 영업일(자동이체), 아니면 그날(카드)에 나간다.
  */
-private fun twoClaims(name: String, first: Int, firstAmount: Long, second: Int, secondAmount: Long, autoPay: Boolean) = Pattern(
+private fun twoClaims(
+    name: String,
+    first: Int,
+    firstAmount: Long,
+    second: Int,
+    secondAmount: Long,
+    autoPay: Boolean,
+    from: YearMonth = FIRST,
+) = Pattern(
     name = name,
     monthly = true,
     oneMonth = firstAmount + secondAmount,
     shares =
-    months().map { month ->
+    months(from).map { month ->
         val (early, late) = listOf(first, second).map { dayIn(month, it).let { date -> if (autoPay) pushed(date) else date } }
         Share(month, early, listOf(Pay(early, firstAmount), Pay(late, secondAmount)))
     },
@@ -299,6 +307,47 @@ private fun annualExtra(): Pattern = Pattern(
     shares = months().map { month -> month.atDay(12).let { Share(month, it, listOf(Pay(it, 9_900))) } },
     extras = (FIRST.year..LAST.year).map { Pay(LocalDate.of(it, 9, 10), 99_000) },
 )
+
+/**
+ * 1일 월세 500,000원(3번에 1번은 전달 마지막 영업일에 미리 냄)과 관리비 100,000원(1일, 쉬는 날이면 다음 영업일)을 함께 내다 [cancelled] 부터
+ * 관리비를 해지했다(재검증: 해지한 다음 달 월세를 미리 내면 해지한 달의 빈 회선을 메웠다). 해지한 달은 그 낼 날까지 받아들인다.
+ */
+private fun rentFeeCancelled(cancelled: YearMonth): Pattern = Pattern(
+    name = "집해지",
+    monthly = true,
+    oneMonth = 600_000,
+    shares =
+    months().mapIndexed { i, month ->
+        val due = pushed(month.atDay(1))
+        val rent = if (i % 3 == 2) KoreanCalendar.previousBusinessDay(month.atDay(1).minusDays(1)) else due
+        Share(month, rent, listOf(Pay(rent, 500_000, due)) + if (month < cancelled) listOf(Pay(due, 100_000)) else emptyList())
+    },
+    cancelled = cancelled,
+    kept = 500_000,
+    cancelledUntil = pushed(cancelled.atDay(1)),
+)
+
+/**
+ * 한 가게에서 [claims] (평소 날, 금액) 두 청구를 내다 [cancelled] 부터 [dropped] 번째 청구를 해지했다. [cards] 는 청구마다 카드(그날 나감)인지다
+ * (아니면 쉬는 날이면 다음 영업일). 해지한 달은 같은 날 두 청구면 그 낼 날까지, 날이 따로면 해지한 청구의 낼 날 뒤 사흘까지 받아들인다.
+ */
+private fun claimCancelled(name: String, claims: List<Pair<Int, Long>>, cards: List<Boolean>, cancelled: YearMonth, dropped: Int): Pattern {
+    fun date(month: YearMonth, claim: Int) = dayIn(month, claims[claim].first).let { if (cards[claim]) it else pushed(it) }
+    val due = pushed(dayIn(cancelled, claims[dropped].first))
+    return Pattern(
+        name = name,
+        monthly = true,
+        oneMonth = claims.sumOf { it.second },
+        shares =
+        months().map { month ->
+            val kept = claims.indices.filter { month < cancelled || it != dropped }
+            Share(month, kept.minOf { date(month, it) }, kept.map { Pay(date(month, it), claims[it].second) })
+        },
+        cancelled = cancelled,
+        kept = claims[1 - dropped].second,
+        cancelledUntil = if (claims[0].first == claims[1].first) due else due.plusDays(DROP_GRACE_DAYS),
+    )
+}
 
 /** 시뮬레이션에 쓰는 가게들 */
 private fun patterns(): List<Pattern> = listOf(
@@ -357,6 +406,15 @@ private fun patterns(): List<Pattern> = listOf(
     // 나눠 내는 1일 월세의 남은 몫을 같은 날 낼 때도 이튿날 낼 때도 있다(석 달에 한 번 · 두 번 이튿날)
     splitRent("섞은월세1", nextDays = 1),
     splitRent("섞은월세2", nextDays = 2),
+    // 재검증: 관리비를 해지한 다음 달 월세를 미리 냄, 앞 차례를 해지하고 남은 카드 청구가 쉬는 날에 나감, 30일 · 말일에서 30일 것 해지,
+    // 카드 · 자동이체 회선이 섞인 같은 날 가게에서 자동이체 회선 해지
+    rentFeeCancelled(YearMonth.of(2028, 11)),
+    claimCancelled("카드앞해지", listOf(4 to 50_000L, 11 to 30_000L), listOf(true, true), YearMonth.of(2027, 4), dropped = 0),
+    claimCancelled("말일해지", listOf(30 to 50_000L, LAST_DAY to 30_000L), listOf(false, false), YearMonth.of(2027, 4), dropped = 0),
+    claimCancelled("섞인회선해지", listOf(21 to 45_000L, 21 to 33_000L), listOf(true, false), YearMonth.of(2026, 12), dropped = 1),
+    // 재검증: 새로 낸 월말 두 청구(30일 · 31일 자동이체)와 쉬는 날이 몰린 철에 시작한 하루 차이 카드 두 청구(1일 · 2일)
+    twoClaims("새월말", 30, 4_400, LAST_DAY, 10_900, autoPay = true, from = YearMonth.of(2025, 12)),
+    twoClaims("카드12", 1, 4_400, 2, 10_900, autoPay = false),
 )
 
 /** 불변식 위반 하나. [accepted] 는 fixes3.md '받아들이는 모호함' 에 해당하면 그 까닭(테스트를 실패시키지 않는다) */

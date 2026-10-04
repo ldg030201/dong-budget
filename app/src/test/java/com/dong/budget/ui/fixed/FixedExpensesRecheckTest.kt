@@ -303,4 +303,18 @@ class FixedExpensesRecheckTest {
             bill("구독2", 10_900, 29, YearMonth.of(2026, 1), YearMonth.of(2026, 8))
         assertEquals(FixedStatus.DUE, view(late, YearMonth.of(2026, 4), day("2026-04-28")).status)
     }
+
+    @Test
+    fun `같은 날 두 회선 가운데 하나를 가끔 미리 내도 평소 벌어짐이 아니라 다른 회선을 해지한 다음 날 냈어요다`() {
+        // 1일 월세 500,000원(3 · 6 · 9 · 12월 몫은 전달 마지막 영업일에 미리 냄) · 관리비 100,000원 가운데 관리비를 2028년 11월부터 해지했다
+        val rows = generateSequence(YearMonth.of(2027, 1)) {
+            it.plusMonths(1)
+        }.takeWhile { it <= YearMonth.of(2029, 3) }.toList().flatMap { month ->
+            val due = KoreanCalendar.nextBusinessDay(month.atDay(1))
+            val rent = if (month.monthValue % 3 == 0) KoreanCalendar.previousBusinessDay(month.atDay(1).minusDays(1)) else due
+            paid("집", 500_000, rent.toString()) + if (month < YearMonth.of(2028, 11)) paid("집", 100_000, due.toString()) else emptyList()
+        }
+        val november = YearMonth.of(2028, 11)
+        assertEquals("2번 중 1번만 냈어요", note(rows, november, day("2028-11-02")))
+    }
 }
