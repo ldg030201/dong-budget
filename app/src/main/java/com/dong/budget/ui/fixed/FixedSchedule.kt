@@ -65,9 +65,15 @@ internal fun isExtraAt(amounts: List<Long>, index: Int): Boolean {
     return window.count { it <= amount * EXTRA_RATIO && amount <= it * EXTRA_RATIO } * EXTRA_SHARE < window.size
 }
 
-/** 한 가게의 낼 날 표. (달, 평소 날)마다 낼 날을 한 번만 구한다. 짐작 · 짝짓기가 같은 달의 낼 날을 수십 번 묻는다. */
+/**
+ * 낼 날 표. (달, 평소 날)마다 낼 날을 한 번만 구한다. 낼 날은 가게와 상관없어 한 번 계산하는 모든 가게의 짐작 · 짝짓기 · 정렬이 한 표를
+ * 함께 쓴다([buildFixedExpenses]). 짐작은 결제마다 앞뒤 달의 1~31일을 모두 묻는다.
+ */
 internal class DueDates {
     private val cache = HashMap<Int, LocalDate>()
+
+    /** 구해 둔 낼 날 수 */
+    val size: Int get() = cache.size
 
     fun due(month: YearMonth, day: Int): LocalDate = cache.getOrPut(month.index() * DAY_KEYS + day) { dueDateOf(month, day) }
 
@@ -197,14 +203,23 @@ private fun occasionsOf(pays: List<Paid>): Int {
  */
 private fun dayCosts(date: LocalDate, dues: DueDates): IntArray {
     val own = YearMonth.from(date)
-    val months = listOf(own.minusMonths(1), own, own.plusMonths(1))
+    val months = arrayOf(own.minusMonths(1), own, own.plusMonths(1))
     return IntArray(LAST_DAY + 1) { day ->
         if (day == 0) return@IntArray 0
-        val unshifted = { month: YearMonth -> abs(daysBetween(date, usualDateOf(month, day))) }
-        val month = months.minWith(compareBy<YearMonth> { dues.distance(date, it, day) }.thenBy(unshifted))
-        val distance = dues.distance(date, month, day)
+        // 앞뒤 달마다 거리를 한 번씩만 구해 가장 가까운 차례(같으면 평소 날짜와 그대로 견준 거리가 짧은 쪽, 그래도 같으면 앞 달)를 고른다
+        var distance = Int.MAX_VALUE
+        var unshifted = Int.MAX_VALUE
+        for (month in months) {
+            val plain = abs(daysBetween(date, usualDateOf(month, day)))
+            // [DueDates.distance] 와 같은 값(평소 날짜와 낼 날 가운데 가까운 쪽)
+            val shifted = minOf(plain, abs(daysBetween(date, dues.due(month, day))))
+            if (shifted < distance || (shifted == distance && plain < unshifted)) {
+                distance = shifted
+                unshifted = plain
+            }
+        }
         val missed = if (distance == 0) 0 else MISSED + minOf(distance, NEAR_DAYS)
-        (missed * TIE_SCALE + distance) * TIE_SCALE + unshifted(month)
+        (missed * TIE_SCALE + distance) * TIE_SCALE + unshifted
     }
 }
 

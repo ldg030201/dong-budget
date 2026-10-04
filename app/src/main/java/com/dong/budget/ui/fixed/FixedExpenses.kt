@@ -160,7 +160,11 @@ data class FixedExpenseBoard(
  *   지출이 아닌 행과 오늘이 든 달 뒤의 행은 거른다. 일정은 오늘이 든 달 기준 [fixedHistoryStart] 부터의 행으로만 짐작해서
  *   지난 달 화면이 더 오래된 결제를 읽어도 같은 날 본 이번 달 화면과 같은 일정을 쓴다.
  */
-fun buildFixedExpenses(month: YearMonth, today: LocalDate, rows: List<TransactionListItem>): FixedExpenseBoard {
+fun buildFixedExpenses(month: YearMonth, today: LocalDate, rows: List<TransactionListItem>): FixedExpenseBoard =
+    buildFixedExpenses(month, today, rows, DueDates())
+
+/** [buildFixedExpenses] 를 낼 날 표 [dues] 하나로. 낼 날은 가게와 상관없는 (달, 날)의 값이라 모든 가게의 짐작 · 짝짓기 · 정렬이 함께 쓴다. */
+internal fun buildFixedExpenses(month: YearMonth, today: LocalDate, rows: List<TransactionListItem>, dues: DueDates): FixedExpenseBoard {
     val base = maxOf(month, YearMonth.from(today))
     val knownUntil = base.atEndOfMonth()
     val estimationFrom = fixedHistoryStart(base).atDay(1)
@@ -173,13 +177,13 @@ fun buildFixedExpenses(month: YearMonth, today: LocalDate, rows: List<Transactio
             .groupBy { merchantKey(it.row.merchant) ?: NO_MERCHANT_KEY }
             .mapNotNull { (key, pays) ->
                 val estimation = pays.filter { !it.date.isBefore(estimationFrom) }.ifEmpty { pays }
-                fixedItem(key, pays, estimateSchedule(estimation, base, DueDates()), month, today)
+                fixedItem(key, pays, estimateSchedule(estimation, base, dues), month, today, dues)
             }
     return FixedExpenseBoard(
         due =
         items
             .filter { it.status == FixedStatus.DUE }
-            .sortedWith(compareBy<FixedExpenseItem> { it.missedMonth == null }.thenBy { it.dueDateIn(month) }.thenBy { it.name }),
+            .sortedWith(compareBy<FixedExpenseItem> { it.missedMonth == null }.thenBy { dues.due(month, it.dueDay) }.thenBy { it.name }),
         paid = items.filter { it.status == FixedStatus.PAID }.sortedWith(compareBy<FixedExpenseItem> { it.lastPaidOn }.thenBy { it.name }),
         notThisMonth =
         items
@@ -208,8 +212,14 @@ fun fixedHistoryEnd(month: YearMonth, today: LocalDate): YearMonth = maxOf(month
  * 한 가게([pays], 오늘이 든 달까지)를 [month] 에서 본 것. [schedule] 은 오늘이 든 달 기준 기록으로 짐작한 일정이다
  * (그 기간에 결제가 없는 옛 가게는 읽은 기록 모두로). 고른 달까지 낸 몫이 없으면(첫 결제 전 달) null
  */
-private fun fixedItem(key: String, pays: List<Paid>, schedule: FixedSchedule, month: YearMonth, today: LocalDate): FixedExpenseItem? {
-    val dues = DueDates()
+private fun fixedItem(
+    key: String,
+    pays: List<Paid>,
+    schedule: FixedSchedule,
+    month: YearMonth,
+    today: LocalDate,
+    dues: DueDates,
+): FixedExpenseItem? {
     // 자주 내는 가게는 차례 없이 낸 달 몫이고 한 번만 내도 그 달을 냈다
     val frequent = schedule.timesPerMonth != null
     val extraIds = if (frequent) emptySet() else extrasOf(pays.sortedWith(paidByTime))

@@ -224,4 +224,15 @@ class FixedExpensesVerifyTest {
         assertNull(onTime.prepaidMonth)
         assertEquals("다음은 3월에 내요", rowNote(onTime, february, day("2026-02-20"))?.text)
     }
+
+    @Test
+    fun `c32 - 한 번 계산하는 모든 가게의 짐작 · 짝짓기 · 정렬이 낼 날 표 하나를 함께 쓴다`() {
+        val today = day("2026-10-04")
+        fun rows(count: Int) = (0 until count).flatMap { monthly("가게$it", 10_000L + it, 25, YearMonth.of(2025, 1), YearMonth.of(2026, 9)) }
+        val one = DueDates().also { buildFixedExpenses(YearMonth.of(2026, 10), today, rows(1), it) }
+        val many = DueDates().also { buildFixedExpenses(YearMonth.of(2026, 10), today, rows(15), it) }
+        // 같은 날 내는 가게가 늘어도 새로 구할 낼 날이 없고, 짐작이 묻는 앞뒤 달의 1~31일도 그 표에 있다
+        assertEquals(one.size, many.size)
+        assertTrue(one.size >= LAST_DAY * 3)
+    }
 }
