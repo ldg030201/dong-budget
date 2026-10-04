@@ -207,12 +207,13 @@ private fun fixedItem(key: String, pays: List<Paid>, schedule: FixedSchedule, mo
     val dues = DueDates()
     // 자주 내는 가게는 차례 없이 낸 달 몫이고 한 번만 내도 그 달을 냈다
     val frequent = schedule.timesPerMonth != null
-    val prior = if (frequent) MonthCounts(emptyMap()) else MonthCounts(pays.filter { !schedule.isExtra(it.amount) }, schedule.days, dues)
-    val first = if (frequent) matchByMonth(pays) else matchPayments(pays, schedule, prior, month, dues)
+    val extraIds = if (frequent) emptySet() else extrasOf(pays.sortedWith(paidByTime))
+    val prior = if (frequent) MonthCounts(emptyMap()) else MonthCounts(pays.filter { it.id !in extraIds }, schedule.days, dues)
+    val first = if (frequent) matchByMonth(pays) else matchPayments(pays, schedule, prior, month, dues, extraIds)
     // 달마다 건수를 짝지은 몫으로 다시 세어 한 번 더 짝짓는다(건수가 바뀐 달이 없으면 그대로)
     val counts = if (frequent) prior else MonthCounts.matched(first)
     val changed = first.slots.map { it.month }.distinct().any { counts.requiredIn(it) != prior.requiredIn(it) }
-    val matching = if (changed) matchPayments(pays, schedule, counts, month, dues) else first
+    val matching = if (changed) matchPayments(pays, schedule, counts, month, dues, extraIds) else first
     val slotOf = matching.slotOf
     val shares = pays.filter { it.id in slotOf }.groupBy { slotOf.getValue(it.id).month }
     val extras = matching.extras.groupBy { it.month }

@@ -20,6 +20,7 @@ private data class Share(val month: YearMonth, val scheduled: LocalDate, val pay
 /**
  * 한 가게의 진짜 결제 흐름. [monthly] 면 매달 내는 것(I1 을 본다), [oneMonth] 는 진짜 한 달 치(I4 의 기준).
  * [changed] 는 평소 낼 날을 바꾼 첫 달, [cancelled] 는 두 청구 가운데 하나를 해지한 첫 달이다(없으면 null).
+ * [extras] 는 어느 몫도 아닌, 따로 낸 결제(연간 결제 등)다.
  */
 private class Pattern(
     val name: String,
@@ -28,9 +29,10 @@ private class Pattern(
     val shares: List<Share>,
     val changed: YearMonth? = null,
     val cancelled: YearMonth? = null,
+    val extras: List<Pay> = emptyList(),
 ) {
     val rows: List<TransactionListItem> =
-        shares.flatMap { it.payments }.map { tx(it.date.toString(), it.amount, categoryId = 4, paymentId = 10, merchant = name) }
+        (shares.flatMap { it.payments } + extras).map { tx(it.date.toString(), it.amount, categoryId = 4, paymentId = 10, merchant = name) }
 
     fun shareIn(month: YearMonth): Share? = shares.firstOrNull { it.month == month }
 }
@@ -240,6 +242,15 @@ private fun twoClaims(name: String, first: Int, firstAmount: Long, second: Int, 
     },
 )
 
+/** 매달 12일 9,900원(카드)에 해마다 9월 10일 연간 결제 99,000원이 따로 나간다(리뷰 검증: 매달 것보다 먼저 나간 연간 결제가 그 달을 채웠다) */
+private fun annualExtra(): Pattern = Pattern(
+    name = "구글",
+    monthly = true,
+    oneMonth = 9_900,
+    shares = months().map { month -> month.atDay(12).let { Share(month, it, listOf(Pay(it, 9_900))) } },
+    extras = (FIRST.year..LAST.year).map { Pay(LocalDate.of(it, 9, 10), 99_000) },
+)
+
 /** 시뮬레이션에 쓰는 가게들 */
 private fun patterns(): List<Pattern> = listOf(
     every("관리비", 150_000, 31),
@@ -286,6 +297,8 @@ private fun patterns(): List<Pattern> = listOf(
     twoClaims("애플", 5, 4_400, 9, 10_900, autoPay = false),
     twoClaims("아파트", 25, 200_000, 28, 30_000, autoPay = true),
     twoClaims("보험사", 1, 50_000, LAST_DAY, 30_000, autoPay = false),
+    // 매달 것보다 이틀 먼저 나가는 연간 결제
+    annualExtra(),
 )
 
 /** 불변식 위반 하나. [accepted] 는 fixes3.md '받아들이는 모호함' 에 해당하면 그 까닭(테스트를 실패시키지 않는다) */

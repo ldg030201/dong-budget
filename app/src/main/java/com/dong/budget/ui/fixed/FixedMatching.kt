@@ -11,8 +11,9 @@ import java.time.YearMonth
 //   새 회선이 같은 날 · 열흘 뒤에 생긴 달은 그 달 합으로 두고, 이미 찬 앞 달 대신 이번 달을 낸 것(등록하기로 오늘 적은 것)은 이번 달 몫이 된다.
 // - 첫 결제 차례부터 마지막 결제일까지 낼 날이 왔는데 빈 건수마다 [MISSING]. 밀린 몫을 늦게 함께 냈으면 빈 차례를 메운다
 //   (말일 관리비를 놓쳐 10월 2일에 두 건을 내면 하나는 9월, 하나는 10월 몫).
-// - 따로 낸 결제(연간 결제 등, [FixedSchedule.isExtra])는 짝짓지 않고 두는 값이 [EXTRA_SKIP] 이다. 그래서 낼 날에 딱 맞춰 낸 것만
-//   차례를 채운다(값이 크게 바뀐 첫 달). 결제는 가장 가까운 차례에서 앞뒤 한 주기 안의 차례에만 짝짓는다.
+// - 따로 낸 결제(연간 결제 등, [extrasOf])는 짝짓지 않는다. 평소 낼 날 가까이 나갔어도 그 달 차례를 채우지 않는다(매달 것보다
+//   하루 이틀 먼저 나간 연간 결제로 그 달이 '냈어요' 가 되지 않게). 값을 바꾼 것이면 다음 결제부터 따로 낸 것이 아니다.
+// 결제는 가장 가까운 차례에서 앞뒤 한 주기 안의 차례에만 짝짓는다.
 // ─────────────────────────────────────────────────────────────────────
 
 /**
@@ -31,8 +32,16 @@ private class Node(val cost: Int, val slot: Int, val count: Int, val first: Bool
 /**
  * [pays] 를 [schedule] 의 차례에 짝짓는다. 차례는 결제가 있는 달 앞뒤 한 주기와 [through] 달까지 있다.
  * 차례 달마다 건수는 [counts] 로 정한다. 낼 날이 마지막 결제일이거나 그 전인 차례만 비었다고 센다(오늘과 상관없이 같은 짝).
+ * [extras] 는 따로 낸 결제의 id 다.
  */
-internal fun matchPayments(pays: List<Paid>, schedule: FixedSchedule, counts: MonthCounts, through: YearMonth, dues: DueDates): Matching {
+internal fun matchPayments(
+    pays: List<Paid>,
+    schedule: FixedSchedule,
+    counts: MonthCounts,
+    through: YearMonth,
+    dues: DueDates,
+    extras: Set<Long>,
+): Matching {
     val slots = slotsFor(pays, schedule, counts, through, dues)
     val nearest = pays.associate { pay -> pay.id to slots.indices.minBy { slotDistance(pay, slots[it], dues) } }
     val ordered = orderOf(pays) { amountOrder(it, slots, nearest.getValue(it.id), schedule, dues) }
@@ -55,7 +64,10 @@ internal fun matchPayments(pays: List<Paid>, schedule: FixedSchedule, counts: Mo
             if ((next[key]?.cost ?: Int.MAX_VALUE) > node.cost) next[key] = node
         }
         for (node in nodes) {
-            if (schedule.isExtra(pay.amount)) offer(Node(node.cost + EXTRA_SKIP, node.slot, node.count, node.first, node, -1))
+            if (pay.id in extras) {
+                offer(Node(node.cost, node.slot, node.count, node.first, node, -1))
+                continue
+            }
             // 닿는 차례가 모두 이미 지난 차례 앞이면 그 차례에 넘치게 넣는다(어느 갈래도 끊기지 않게, 갈래가 없으면 짝을 못 고른다)
             for (target in if (reach.last < node.slot) node.slot..node.slot else reach) {
                 if (target < node.slot) continue
@@ -175,9 +187,6 @@ private const val OVERFLOW = 15
 
 /** 첫 결제 차례부터 마지막 결제일까지 낼 날이 왔는데 빈 건수마다 더하는 값 */
 private const val MISSING = 40
-
-/** 따로 낸 결제를 짝짓지 않고 둘 때 더하는 값 */
-private const val EXTRA_SKIP = 3
 
 /** 한 차례에 함께 내는 건수의 한도(짝짓기 갈래 수를 묶는다) */
 private const val MAX_CAP = 8

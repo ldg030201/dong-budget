@@ -42,15 +42,27 @@ internal fun <T : Comparable<T>> lowerMedian(values: List<T>): T = values.sorted
 internal fun isNear(amount: Long, reference: Long): Boolean = abs(amount - reference) * PERCENT <= reference * SIMILAR_AMOUNT_PERCENT
 
 /**
- * 따로 낸 결제(연간 결제 · 한 번 산 것)인지. 최근 금액([sample], 낸 차례) 가운데 [EXTRA_RATIO] 배 안쪽으로 비슷한 것이 [EXTRA_SHARE] 분의 1이
- * 안 되는 금액이다. 다만 마지막 두 결제가 비슷한 금액이면 그 금액은 값을 바꾼 것이라 따로 낸 것이 아니다(5,500원 → 17,000원).
- * 가운데 값 하나와 견주면 금액이 크게 다른 두 차례(월세 500,000원 · 관리비 100,000원)의 한쪽이 모두 따로 낸 것이 되고, 절반과 견주면
- * 최근 12건에 두 차례가 7건 · 5건으로 걸린 날 적은 쪽이 따로 낸 것이 된다.
+ * 따로 낸 결제(연간 결제 · 한 번 산 것)들의 id. [sorted] 는 낸 차례다([paidByTime]). 결제마다 그 앞뒤로 가까운 결제([isExtraAt])와
+ * 견주므로, 금액을 크게 바꾼 뒤에도 바꾸기 전 결제는 그때의 평소 금액이다. 모든 결제가 그렇다면 따로 낸 것은 없다.
  */
-internal fun isExtra(amount: Long, sample: List<Long>): Boolean {
-    val settled = sample.takeLast(2).takeIf { it.size == 2 && isNear(it[1], it[0]) }?.last()
-    if (settled != null && isNear(amount, settled)) return false
-    return sample.count { it <= amount * EXTRA_RATIO && amount <= it * EXTRA_RATIO } * EXTRA_SHARE < sample.size
+internal fun extrasOf(sorted: List<Paid>): Set<Long> {
+    val amounts = sorted.map { it.amount }
+    val extras = sorted.indices.filter { isExtraAt(amounts, it) }.map { sorted[it].id }.toSet()
+    return if (extras.size < sorted.size) extras else emptySet()
+}
+
+/**
+ * [amounts] (낸 차례)의 [index] 번째 결제가 따로 낸 것인지. 앞뒤로 가까운 [EXTRA_SAMPLES] 건과 그 결제 가운데 [EXTRA_RATIO] 배 안쪽으로
+ * 비슷한 금액이 [EXTRA_SHARE] 분의 1이 안 되고, 바로 앞이나 뒤 결제와도 비슷하지 않은 결제다. 바로 앞이나 뒤와 비슷하면 값을 바꾼 것이다
+ * (5,500원 → 17,000원은 두 번째 새 금액부터 평소 금액). 절반과 견주면 금액이 크게 다른 두 청구(관리비 200,000원 · 주차 30,000원)가
+ * 7건 · 5건으로 걸린 때 적은 쪽이 따로 낸 것이 된다.
+ */
+internal fun isExtraAt(amounts: List<Long>, index: Int): Boolean {
+    val amount = amounts[index]
+    if (listOfNotNull(amounts.getOrNull(index - 1), amounts.getOrNull(index + 1)).any { isNear(amount, it) }) return false
+    val from = (index - EXTRA_SAMPLES / 2).coerceIn(0, maxOf(0, amounts.size - EXTRA_SAMPLES - 1))
+    val window = amounts.subList(from, minOf(amounts.size, from + EXTRA_SAMPLES + 1))
+    return window.count { it <= amount * EXTRA_RATIO && amount <= it * EXTRA_RATIO } * EXTRA_SHARE < window.size
 }
 
 /** 한 가게의 낼 날 표. (달, 평소 날)마다 낼 날을 한 번만 구한다. 짐작 · 짝짓기가 같은 달의 낼 날을 수십 번 묻는다. */
@@ -79,7 +91,6 @@ internal class DueDates {
  * @property slotAmounts 두 차례 금액이 서로 달라 금액으로 차례를 가를 수 있으면 차례마다 평소 금액(50,000원 · 30,000원). 아니면 null
  * @property cadence 몇 달마다. 1, 2~[MAX_EVERY_MONTHS], [YEARLY]
  * @property phase 몇 달마다 내면 달 번호([index])를 [cadence] 로 나눈 나머지가 이것인 달이 차례 달이다(매달이면 0)
- * @property sample 따로 낸 결제([isExtra])를 가를 때 견주는 최근 금액들
  * @property timesPerMonth 자주 내는 가게([frequentTimes])면 한 달에 보통 몇 번 내는지. 차례 없이 달력 달로 본다(그 밖에는 null).
  */
 internal class FixedSchedule(
@@ -87,12 +98,9 @@ internal class FixedSchedule(
     val slotAmounts: List<Long>?,
     val cadence: Int,
     val phase: Int,
-    private val sample: List<Long>,
     val timesPerMonth: Int? = null,
 ) {
     fun isSlotMonth(month: YearMonth): Boolean = Math.floorMod(month.index() - phase, cadence) == 0
-
-    fun isExtra(amount: Long): Boolean = isExtra(amount, sample)
 
     /** 금액으로 본 차례(0 · 1). 한 차례 가게이거나 어느 쪽과도(또는 두 쪽 다) 비슷하면 null */
     fun slotByAmount(amount: Long): Int? {
@@ -103,7 +111,7 @@ internal class FixedSchedule(
 }
 
 /**
- * [estimation] 결제(같은 날 본 모든 화면이 같은 것을 넘긴다)로 짐작한 일정. 따로 낸 결제([isExtra])는 빼고 센다.
+ * [estimation] 결제(같은 날 본 모든 화면이 같은 것을 넘긴다)로 짐작한 일정. 따로 낸 결제([extrasOf])는 빼고 센다.
  * 1. 평소 날: 낸 날(같은 날은 한 번)마다 앞뒤 달 차례 가운데 가장 가까운 것과 며칠 떨어졌는지([DueDates.distance])를 보아,
  *    딱 맞으면 0, 아니면 [MISSED] 에 [NEAR_DAYS] 일까지 센 거리를 더한 값의 합이 가장 작은 날이다(한 차례면 [singleDay], 두 차례면 최근
  *    [DAY_SAMPLES] × [MAX_SLOTS] 번으로 두 날). 딱 맞는 결제가 가장 많은 날을 고르는 셈이라 가끔 늦게 낸 것이나 결제일을 바꾸기 전 결제가
@@ -120,11 +128,11 @@ internal class FixedSchedule(
 internal fun estimateSchedule(estimation: List<Paid>, base: YearMonth, dues: DueDates): FixedSchedule {
     // 같은 날 낸 것도 적은 차례로 줄 세워 최근 금액의 끝이 읽은 차례(조회는 최신순)에 따라 달라지지 않게 한다
     val sorted = estimation.sortedWith(paidByTime)
-    val sample = sorted.takeLast(EXTRA_SAMPLES).map { it.amount }
     frequentTimes(sorted, base)?.let { times ->
-        return FixedSchedule(listOf(1), slotAmounts = null, cadence = 1, phase = 0, sample = sample, timesPerMonth = times)
+        return FixedSchedule(listOf(1), slotAmounts = null, cadence = 1, phase = 0, timesPerMonth = times)
     }
-    val regular = sorted.filter { !isExtra(it.amount, sample) }.ifEmpty { sorted }
+    val extras = extrasOf(sorted)
+    val regular = sorted.filter { it.id !in extras }
     // 같은 날 여러 건(밀린 몫을 함께 냄 · 나눠 냄)은 한 번으로 센다
     val dates = regular.map { it.date }.distinct()
     val lastDay = dates.last().dayOfMonth
@@ -143,7 +151,6 @@ internal fun estimateSchedule(estimation: List<Paid>, base: YearMonth, dues: Due
         slotAmounts = slotAmountsOf(recent, days, dues),
         cadence = cadence,
         phase = phaseOf(recent, days, cadence, dues),
-        sample = sample,
     )
 }
 
@@ -293,7 +300,7 @@ internal class MonthCounts(private val counts: Map<YearMonth, Int>) {
     }
 }
 
-/** 따로 낸 결제를 가를 때 견주는 최근 결제 수 */
+/** 따로 낸 결제를 가를 때 견주는 앞뒤 결제 수 */
 private const val EXTRA_SAMPLES = 12
 
 /** 평소 날을 짐작할 때 보는 최근 결제 수(한 차례마다). 결제일을 바꾸면 넷째 결제부터 새 날이 된다. */
@@ -338,7 +345,7 @@ private const val MAX_EVERY_MONTHS = 10
 /** 따로 낸 결제로 보는 금액 차이(배) */
 private const val EXTRA_RATIO = 3
 
-/** 최근 금액 가운데 비슷한 것이 이만큼 분의 1이 안 되면 따로 낸 결제다([isExtra]) */
+/** 앞뒤 금액 가운데 비슷한 것이 이만큼 분의 1이 안 되면 따로 낸 결제다([isExtraAt]) */
 private const val EXTRA_SHARE = 4
 
 /** 비슷한 금액으로 보는 폭(%) */

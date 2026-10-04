@@ -112,12 +112,17 @@ class FixedExpensesVerifyTest {
     }
 
     @Test
-    fun `6 - 따로 낸 결제는 최근 금액의 4분의 1이 안 되는 금액이고 마지막 두 결제가 같은 금액이면 값을 바꾼 것이다`() {
-        // 금액이 크게 다른 두 청구가 최근 12건에 7건 · 5건으로 걸려도 적은 쪽은 따로 낸 것이 아니다(절반과 견주면 따로 낸 것이었다)
-        assertFalse(isExtra(30_000, List(7) { 200_000L } + List(5) { 30_000L }))
-        assertTrue(isExtra(99_000, List(11) { 9_900L } + 99_000L))
-        assertTrue(isExtra(17_000, List(11) { 5_500L } + 17_000L))
-        assertFalse(isExtra(17_000, List(10) { 5_500L } + 17_000L + 17_000L))
+    fun `6 - 따로 낸 결제는 앞뒤 금액의 4분의 1이 안 되는 금액이고 바로 앞이나 뒤 결제와 같은 금액이면 값을 바꾼 것이다`() {
+        // 금액이 크게 다른 두 청구가 앞뒤 13건에 7건 · 6건으로 걸려도 적은 쪽은 따로 낸 것이 아니다(절반과 견주면 따로 낸 것이었다)
+        val bills = List(13) { if (it % 2 == 0) 200_000L else 30_000L }
+        assertFalse(isExtraAt(bills, 11))
+        assertTrue(isExtraAt(List(11) { 9_900L } + 99_000L, 11))
+        assertTrue(isExtraAt(List(11) { 9_900L } + 99_000L + 9_900L, 11))
+        assertTrue(isExtraAt(List(11) { 5_500L } + 17_000L, 11))
+        val changed = List(10) { 5_500L } + List(12) { 17_000L }
+        assertFalse(isExtraAt(changed, 10))
+        // 금액을 바꾸고 오래 지나도 바꾸기 전 결제는 그때의 평소 금액이다
+        assertFalse((0..9).any { isExtraAt(changed, it) })
     }
 
     /** [from] ~ [to] 달마다 [day] 일(없으면 말일)에 그날 나간 카드 결제 */
@@ -177,5 +182,26 @@ class FixedExpensesVerifyTest {
         val september = view(insurer, YearMonth.of(2026, 9), day("2026-10-15"))
         assertEquals(FixedStatus.PAID, september.status)
         assertEquals(day("2026-09-01"), september.lastPaidOn)
+    }
+
+    @Test
+    fun `5 - 평소 날 가까이 나간 연간 결제는 그 달 차례를 채우지 않는다`() {
+        val google = card("구글", 9_900, 12, YearMonth.of(2026, 1), YearMonth.of(2026, 11)) + paid("구글", 99_000, "2026-09-10")
+        val september = YearMonth.of(2026, 9)
+        // 매달 것이 아직 안 나간 9월 11일은 아직 안 냈어요이고, 낸 돈에는 연간 결제가 들며 낼 돈은 매달 것이다
+        val before = view(google, september, day("2026-09-11"))
+        assertEquals(FixedStatus.DUE, before.status)
+        assertEquals(9_900L, before.amount)
+        assertEquals(99_000L, before.paidAmount)
+        val after = view(google, september, day("2026-09-13"))
+        assertEquals(FixedStatus.PAID, after.status)
+        assertEquals(108_900L, after.amount)
+        assertNull(rowNote(after, september, day("2026-09-13")))
+        assertEquals(9_900L, view(google, YearMonth.of(2026, 10), day("2026-10-11")).amount)
+        // 매달 10일 것을 9월에만 11일에 내고 연간 결제를 10일에 내도 10일엔 아직 안 냈어요다
+        val late = card("구글2", 9_900, 10, YearMonth.of(2026, 1), YearMonth.of(2026, 8)) + paid("구글2", 9_900, "2026-09-11") +
+            paid("구글2", 99_000, "2026-09-10")
+        assertEquals(FixedStatus.DUE, view(late, september, day("2026-09-10")).status)
+        assertEquals(FixedStatus.PAID, view(late, september, day("2026-09-11")).status)
     }
 }

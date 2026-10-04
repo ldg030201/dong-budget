@@ -79,21 +79,12 @@ class FixedScheduleTest {
     @Test
     fun `금액이 동떨어진 결제는 따로 낸 것이지만 두 차례 금액이 크게 달라도 따로 낸 것이 아니다`() {
         // 애플 3,300원 사이의 연간 99,000원(리뷰 c5)
-        val apple =
-            schedule(
-                pays(3_300, "2026-05-05", "2026-06-05", "2026-07-05", "2026-08-05") + pays(99_000, "2026-08-20"),
-                YearMonth.of(2026, 9),
-            )
-        assertTrue(apple.isExtra(99_000))
-        assertFalse(apple.isExtra(3_300))
+        val annual = pays(99_000, "2026-08-20")
+        val apple = (pays(3_300, "2026-05-05", "2026-06-05", "2026-07-05", "2026-08-05") + annual).sortedWith(paidByTime)
+        assertEquals(setOf(annual.single().id), extrasOf(apple))
         // 같은 가게 이름의 월세 500,000원 · 관리비 100,000원은 둘 다 평소 결제다
-        val home =
-            schedule(
-                pays(500_000, "2026-06-01", "2026-07-01", "2026-08-01") + pays(100_000, "2026-06-25", "2026-07-25", "2026-08-25"),
-                YearMonth.of(2026, 9),
-            )
-        assertFalse(home.isExtra(500_000))
-        assertFalse(home.isExtra(100_000))
+        val home = pays(500_000, "2026-06-01", "2026-07-01", "2026-08-01") + pays(100_000, "2026-06-25", "2026-07-25", "2026-08-25")
+        assertEquals(emptySet<Long>(), extrasOf(home.sortedWith(paidByTime)))
     }
 
     @Test
@@ -102,12 +93,12 @@ class FixedScheduleTest {
         val bill = pays(120_000, "2026-06-30", "2026-07-31", "2026-08-31", "2026-10-02", "2026-10-02")
         val dues = DueDates()
         val item = estimateSchedule(bill, YearMonth.of(2026, 10), dues)
-        val matched = matchPayments(bill, item, MonthCounts(bill, item.days, dues), YearMonth.of(2026, 10), dues)
+        val matched = matchPayments(bill, item, MonthCounts(bill, item.days, dues), YearMonth.of(2026, 10), dues, emptySet())
         assertEquals(listOf(6, 7, 8, 9, 10), bill.map { matched.slotOf.getValue(it.id).month.monthValue }.sorted())
         // 25일 넷플릭스를 9월에 냈는데 10월 2일에 또 냈다(등록하기로 오늘 날짜에 적음, 리뷰 c1). 이미 찬 9월이 아니라 10월 몫이다.
         val netflix = pays(17_000, "2026-08-25", "2026-09-25", "2026-10-02")
         val schedule = estimateSchedule(netflix, YearMonth.of(2026, 10), dues)
-        val second = matchPayments(netflix, schedule, MonthCounts(netflix, schedule.days, dues), YearMonth.of(2026, 10), dues)
+        val second = matchPayments(netflix, schedule, MonthCounts(netflix, schedule.days, dues), YearMonth.of(2026, 10), dues, emptySet())
         assertEquals(YearMonth.of(2026, 10), second.slotOf.getValue(netflix.last().id).month)
     }
 }
