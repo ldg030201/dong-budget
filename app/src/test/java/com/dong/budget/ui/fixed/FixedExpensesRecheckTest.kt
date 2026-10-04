@@ -3,8 +3,11 @@ package com.dong.budget.ui.fixed
 import com.dong.budget.data.db.TransactionListItem
 import com.dong.budget.testing.day
 import com.dong.budget.testing.tx
+import com.dong.budget.ui.editor.fixedExpensePrefill
 import com.dong.budget.ui.home.localDate
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDate
 import java.time.YearMonth
@@ -88,5 +91,93 @@ class FixedExpensesRecheckTest {
         val june = view(lines, YearMonth.of(2025, 6), day("2025-06-01"))
         assertEquals(2, june.requiredCount)
         assertEquals(78_000L, june.amount)
+    }
+
+    @Test
+    fun `같은 날 회선 하나를 해지한 뒤 다음 달 몫을 일찍 내면 해지한 달의 빈 회선이 아니라 다음 달 몫이다`() {
+        // 1일 월세 500,000원 · 관리비 100,000원(같은 날 자동이체) 가운데 관리비를 9월부터 해지하고, 10월 월세를 9월 30일에 미리 냈다
+        val september = YearMonth.of(2026, 9)
+        val october = YearMonth.of(2026, 10)
+        val house =
+            bill("집", 500_000, 1, YearMonth.of(2026, 1), september) + bill("집", 100_000, 1, YearMonth.of(2026, 1), YearMonth.of(2026, 8)) +
+                paid("집", 500_000, "2026-09-30") + bill("집", 500_000, 1, YearMonth.of(2026, 11), YearMonth.of(2027, 2))
+        val before = view(house, september, day("2026-10-02"))
+        assertEquals(FixedStatus.PAID, before.status)
+        assertEquals(500_000L, before.amount)
+        assertEquals("2번 중 1번만 냈어요", rowNote(before, september, day("2026-10-02"))?.text)
+        for (today in listOf(day("2026-10-02"), day("2026-10-15"))) {
+            val item = view(house, october, today)
+            assertEquals("$today", FixedStatus.PAID, item.status)
+            assertEquals("$today", 500_000L, item.amount)
+            assertEquals("$today", 1, item.requiredCount)
+        }
+        // 1일 월세 · 20일 관리비(날이 따로)에서 20일 것을 해지해도 같다(미리 낸 월세는 금액이 다른 20일 차례를 메우지 않는다)
+        val apart =
+            bill("집", 500_000, 1, YearMonth.of(2026, 1), september) + bill("집", 100_000, 20, YearMonth.of(2026, 1), YearMonth.of(2026, 8)) +
+                paid("집", 500_000, "2026-09-30")
+        assertEquals("2번 중 1번만 냈어요", note(apart, september, day("2026-10-02")))
+        assertEquals(FixedStatus.PAID, view(apart, october, day("2026-10-02")).status)
+        assertEquals(FixedStatus.PAID, view(apart, october, day("2026-10-15")).status)
+        // 해지한 뒤 남은 회선의 결제일이 5일로 바뀌어도 10월 5일 결제는 10월 몫이다
+        val moved = bill("통신사", 45_000, 21, YearMonth.of(2026, 1), september) + bill("통신사", 45_000, 5, october, YearMonth.of(2027, 2)) +
+            bill("통신사", 33_000, 21, YearMonth.of(2026, 1), YearMonth.of(2026, 8))
+        assertEquals(FixedStatus.PAID, view(moved, october, day("2026-10-25")).status)
+        val november = view(moved, YearMonth.of(2026, 11), day("2026-11-04"))
+        assertEquals(1, november.requiredCount)
+        assertNull(november.missedMonth)
+    }
+
+    @Test
+    fun `같은 날 회선 하나를 해지한 다음 달에 남은 회선을 일찍 등록해도 그 달 몫이고 둘 다 놓쳐 함께 늦게 내면 앞 달 몫이다`() {
+        // 21일 45,000원 · 33,000원 두 회선 가운데 33,000원을 9월부터 해지했다. 10월 화면의 등록하기로 남은 회선을 그날 적는다.
+        val september = YearMonth.of(2026, 9)
+        val october = YearMonth.of(2026, 10)
+        val lines =
+            bill("통신사", 45_000, 21, YearMonth.of(2026, 1), september) +
+                bill("통신사", 33_000, 21, YearMonth.of(2026, 1), YearMonth.of(2026, 8))
+        for (date in listOf("2026-10-02", "2026-10-05", "2026-10-12")) {
+            val today = day(date)
+            val due = view(lines, october, today)
+            assertEquals(date, FixedStatus.DUE, due.status)
+            assertEquals(date, 45_000L, due.amount)
+            val prefill = fixedExpensePrefill(due, today)
+            assertEquals(date, 45_000L, prefill.amount)
+            val saved = lines + paid("통신사", prefill.amount, date)
+            val after = view(saved, october, today)
+            assertEquals(date, FixedStatus.PAID, after.status)
+            assertEquals(date, 1, after.requiredCount)
+            assertEquals(date, 45_000L, after.amount)
+            assertEquals(date, "2번 중 1번만 냈어요", note(saved, september, today))
+        }
+        // 두 회선을 9월에 모두 놓쳐 10월 2일에 함께 냈으면 둘 다 9월 몫이고 10월은 아직 두 건을 기다린다
+        val both = bill("통신사", 45_000, 21, YearMonth.of(2026, 1), YearMonth.of(2026, 8)) +
+            bill("통신사", 33_000, 21, YearMonth.of(2026, 1), YearMonth.of(2026, 8)) + paid("통신사", 45_000, "2026-10-02") +
+            paid("통신사", 33_000, "2026-10-02")
+        val lateSeptember = view(both, september, day("2026-10-03"))
+        assertEquals(FixedStatus.PAID, lateSeptember.status)
+        assertEquals(2, lateSeptember.paidCount)
+        val waiting = view(both, october, day("2026-10-03"))
+        assertEquals(FixedStatus.DUE, waiting.status)
+        assertEquals(2, waiting.requiredCount)
+    }
+
+    @Test
+    fun `앞 차례를 해지하고 남은 차례를 카드로 쉬는 날에 내면 그 결제는 남은 차례 몫이라 다음 달도 남은 차례만 기다린다`() {
+        // 4일 50,000원 · 11일 30,000원 카드 가운데 4일 것을 2027년 4월부터 해지했다. 4월 11일(일)에 30,000원이 나갔다(자동이체라면 12일).
+        val rows = bill("보험", 50_000, 4, YearMonth.of(2025, 1), YearMonth.of(2027, 3), card = true) +
+            bill("보험", 30_000, 11, YearMonth.of(2025, 1), YearMonth.of(2027, 12), card = true)
+        val april = YearMonth.of(2027, 4)
+        for (date in listOf("2027-04-11", "2027-04-13", "2027-04-15")) {
+            val item = view(rows, april, day(date))
+            assertEquals(date, FixedStatus.PAID, item.status)
+            assertEquals(date, "2번 중 1번만 냈어요", rowNote(item, april, day(date))?.text)
+        }
+        val may = YearMonth.of(2027, 5)
+        for (today in (4..10).map { may.atDay(it) }) {
+            val item = view(rows, may, today)
+            assertEquals("$today", 11, item.dueDay)
+            assertEquals("$today", 1, item.requiredCount)
+            assertTrue("$today", (item.daysPastUsual ?: 0) <= 0)
+        }
     }
 }
