@@ -238,6 +238,26 @@ class FixedExpensesCrossCheckTest {
         for (today in days("2026-07-01", "2026-07-02")) assertEquals("$today", FixedStatus.DUE, view(swapped, JUL, today).status)
     }
 
+    @Test
+    fun `2달마다 내는 따로인 두 차례 가게는 사이 달을 세지 않아 2달마다 두 차례다`() {
+        val rows =
+            bill("정기", 50_000, 3, YearMonth.of(2025, 1), MAR27, step = 2) + bill("정기", 30_000, 20, YearMonth.of(2025, 1), MAR27, step = 2)
+        val july = view(rows, JUL, day("2026-07-10"))
+        assertEquals("[3, 20] 2", "${july.usualDays} ${july.cadence}")
+        assertEquals(FixedStatus.NOT_THIS_MONTH, view(rows, AUG, day("2026-08-05")).status)
+        assertNull(view(rows, JUL, day("2026-07-01")).missedMonth)
+        assertEquals("2번 중 1번 냈어요", note(rows, JUL, day("2026-07-03"))?.text)
+        // 2026년 9월부터 3일 것을 해지하면 해지한 달은 3일 차례를 안 나간 것으로 보고, 다음 차례 달(11월)엔 20일 것만 기다린다
+        val cancelled =
+            bill("정기", 50_000, 3, YearMonth.of(2025, 1), JUL, step = 2) + bill("정기", 30_000, 20, YearMonth.of(2025, 1), MAR27, step = 2)
+        val september = view(cancelled, SEP, day("2026-09-10"))
+        assertNull(september.missedMonth)
+        assertEquals("3일 차례는 안 나갔어요", rowNote(september, SEP, day("2026-09-10"))?.text)
+        val november = view(cancelled, NOV, day("2026-11-10"))
+        assertEquals("DUE 0/1 30000 20", "${short(november)} ${november.dueDay}")
+        assertNull(rowNote(november, NOV, day("2026-11-10")))
+    }
+
     private companion object {
         val JAN: YearMonth = YearMonth.of(2026, 1)
         val FEB: YearMonth = YearMonth.of(2026, 2)

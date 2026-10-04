@@ -202,20 +202,37 @@ private fun frequentTimes(sorted: List<Paid>, base: YearMonth): Int? {
  * [base] 달 앞(아직 덜 낸 이번 달은 빼고, 마지막 결제 달이 더 앞이면 그 달)까지 최근 [SLOT_COUNT_MONTHS] 달이나
  * [SLOT_COUNT_SPAN] 달(첫 결제 달 앞은 빼고, 결제가 없던 달은 0)에 낸 때([occasionsOf])가 한 달 평균 한 번 반 이상인지다.
  * 짧게 보아 회선을 더한 지 두 달이면 알고, 길게 보아 한 달을 통째로 건너뛰어도 두 차례 그대로다.
+ * 사이 달에 결제가 한 번도 없는 몇 달마다 내는 가게([strictCadence])면 차례 달(마지막 결제 달부터 주기마다)만 센다. 사이 달(늘 0)까지
+ * 세면 2달마다 3일 · 20일에 내는 가게가 평균 한 번이라 매달 한 차례로 보아, 차례 달 20일 결제를 사이 달 3일 몫으로 짝지었다.
  * 두 평소 날의 낼 날이 같은 달(5일 · 6일이 주말 · 연휴로 함께 7일에 밀림)에 한 때에 냈으면 따로 나가는 두 청구도 한날 나가 날짜로는
  * 두 때인지 가를 수 없어 세지 않는다. 그런 달까지 한 때로 세면 쉬는 날이 몰린 철(1월 · 3월 · 5월)에 하루 차이 두 청구를 한 차례로
  * 보았다. 그런 달에도 서로 다른 날 냈으면(카드는 쉬는 날에도 그날 나간다) 두 때인 증거라 센다.
  */
 private fun paysTwice(regular: List<Paid>, base: YearMonth, pair: List<Int>, dues: DueDates): Boolean {
     val byMonth = regular.groupBy { dues.nearestMonth(it.date, pair) }
-    val end = minOf(base.minusMonths(1), byMonth.keys.max())
-    val recorded = end.index() - byMonth.keys.min().index() + 1
+    val step = strictCadence(regular)
+    // 몇 달마다면 이번 달 앞의 마지막 결제 달(차례 달)부터 센다
+    val last = if (step == 1) base.minusMonths(1) else byMonth.keys.filter { it < base }.maxOrNull() ?: byMonth.keys.max()
+    val end = minOf(last, byMonth.keys.max())
+    val recorded = (end.index() - byMonth.keys.min().index()) / step + 1
     return listOf(SLOT_COUNT_MONTHS, SLOT_COUNT_SPAN).any { months ->
         val counted = (0 until recorded.coerceIn(1, months))
-            .map { end.minusMonths(it.toLong()) }
+            .map { end.minusMonths(it.toLong() * step) }
             .filter { dues.due(it, pair[0]) != dues.due(it, pair[1]) || occasionsOf(byMonth[it].orEmpty()) > 1 }
         counted.isNotEmpty() && counted.sumOf { occasionsOf(byMonth[it].orEmpty()) } * 2 >= counted.size * 3
     }
+}
+
+/**
+ * 결제한 달력 달로 본 주기. 최근 [CADENCE_GAPS] 간격이 모두 같은 달 수(2 이상)의 배수면 그 달 수, 아니면(간격이 그보다 적은 짧은 기록도) 1이다.
+ * 사이 달에 결제가 한 번도 없는 몇 달마다 내는 가게만 그렇다. 가끔 다음 달 초로 늦게 내 결제가 없는 달이 생긴 매달 것(말일 관리비를 석 달에
+ * 한 번 이틀 늦게 냄)은 간격이 1 · 2 로 섞여 1이다.
+ */
+private fun strictCadence(regular: List<Paid>): Int {
+    val months = regular.map { it.month }.distinct().sorted().takeLast(CADENCE_GAPS + 1)
+    val gaps = months.zipWithNext { a, b -> b.index() - a.index() }
+    val gap = gaps.minOrNull()?.takeIf { gaps.size == CADENCE_GAPS } ?: return 1
+    return if (gap > 1 && gaps.all { it % gap == 0 }) gap else 1
 }
 
 /**
