@@ -25,6 +25,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -124,7 +125,7 @@ fun CardPerformanceEditScreen(
 
     // 아래쪽 줄을 누르면 열린 입력판에 가려질 수 있다. 입력판 높이가 멈춘 뒤 누른 줄이 보이게 올린다.
     val scrollState = rememberScrollState()
-    // 줄 id 는 줄을 더할 때마다 늘어서 줄마다 처음 그릴 때 만든다
+    // 줄 id 는 줄을 더할 때마다 늘어서 구간 줄의 것은 줄마다 그려질 때 넣고 지워질 때 뺀다
     val requesters = remember { mutableMapOf(START_DAY_PANEL to BringIntoViewRequester()) }
     BringPanelRowIntoView(panel = shown, scrollState = scrollState, requesters = requesters)
 
@@ -149,13 +150,19 @@ fun CardPerformanceEditScreen(
                     val amounts = state.amounts
                     rows.forEachIndexed { index, row ->
                         key(row.id) {
+                            // 입력판이 열린 줄을 끌어올릴 수 있게 줄 id 로 찾아 둔다
+                            val requester = remember { BringIntoViewRequester() }
+                            DisposableEffect(requester) {
+                                requesters[row.id] = requester
+                                onDispose { requesters.remove(row.id) }
+                            }
                             TierEditRow(
                                 index = index,
                                 amount = row.amount,
                                 valueColor = if (shown == row.id) activeColor else idleColor,
                                 onClick = { toggle(row.id) },
                                 onRemove = { if (onRemoveRow(row.id) && panel == row.id) panel = null },
-                                modifier = Modifier.bringIntoViewRequester(requesters.getOrPut(row.id) { BringIntoViewRequester() }),
+                                modifier = Modifier.bringIntoViewRequester(requester),
                             )
                             tierRowHint(amounts, index)?.let {
                                 HintText(it, modifier = Modifier.padding(bottom = BudgetTheme.spacing.tightGap))
