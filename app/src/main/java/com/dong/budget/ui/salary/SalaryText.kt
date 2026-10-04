@@ -94,7 +94,7 @@ internal fun hourlyLine(settings: SalarySettings, payMonth: YearMonth?): String?
     payMonth ?: return null
     if (settings.workdaysIn(payMonth) == 0 || settings.workSecondsPerDay == 0L) return null
     val takeHome = settings.usesTakeHome
-    val label = if (settings.monthlyRestHours > 0) "주휴수당 포함" else "실제 근무 기준"
+    val label = if (settings.hasWeeklyRest) "주휴수당 포함" else "실제 근무 기준"
     val rate = "$label${if (takeHome) "(실수령)" else ""}: ${perHourBadge(settings.perSecond(payMonth))}"
     val wage = settings.ordinaryHourlyWage
     if (wage <= 0) return rate

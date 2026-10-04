@@ -294,6 +294,22 @@ class SalaryTest {
     }
 
     @Test
+    fun `주휴는 주 소정근로시간이 15시간 이상일 때만 있다`() {
+        assertTrue(salary.hasWeeklyRest)
+        // 주 3일 하루 5시간 = 딱 15시간이면 있다: (15 + 3) × 365 ÷ 7 ÷ 12 = 78.2 → 79
+        val fifteen = salary.copy(
+            workdays = setOf(DayOfWeek.MONDAY, DayOfWeek.WEDNESDAY, DayOfWeek.FRIDAY),
+            workEnd = LocalTime.of(14, 0),
+            skipLunch = false,
+        )
+        assertTrue(fifteen.hasWeeklyRest)
+        assertEquals(79, fifteen.standardMonthlyHours)
+        // 30분 모자라면(14.5시간) 없다
+        assertFalse(fifteen.copy(workEnd = LocalTime.of(13, 50)).hasWeeklyRest)
+        assertFalse(SalarySettings(amount = 3_000_000, workdays = emptySet()).hasWeeklyRest)
+    }
+
+    @Test
     fun `실수령을 적으면 쌓이는 돈은 실수령으로, 통상시급은 세전으로 센다`() {
         val both = salary.copy(takeHome = 2_600_000)
         assertTrue(both.usesTakeHome)
