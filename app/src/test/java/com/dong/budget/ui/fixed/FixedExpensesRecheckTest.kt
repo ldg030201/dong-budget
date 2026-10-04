@@ -180,4 +180,19 @@ class FixedExpensesRecheckTest {
             assertTrue("$today", (item.daysPastUsual ?: 0) <= 0)
         }
     }
+
+    @Test
+    fun `30일 · 말일 두 청구에서 30일 것을 해지하면 30일 달의 남은 결제도 금액으로 말일 차례라 31일 달 말일 전에는 지났다고 하지 않는다`() {
+        // 30일 50,000원 · 말일 30,000원 가운데 30일 것을 2027년 4월부터 해지했다. 30일 달에는 두 차례가 같은 날이라 금액으로만 가른다.
+        for (card in listOf(false, true)) {
+            val rows = bill("보험", 50_000, 30, YearMonth.of(2025, 1), YearMonth.of(2027, 3), card) +
+                bill("보험", 30_000, LAST_DAY, YearMonth.of(2025, 1), YearMonth.of(2027, 12), card)
+            val july = YearMonth.of(2027, 7)
+            for (today in listOf(day("2027-07-30"), day("2027-07-31"))) {
+                val item = view(rows, july, today, morning = true)
+                assertEquals("$card $today", LAST_DAY, item.dueDay)
+                assertTrue("$card $today", (item.daysPastUsual ?: 0) <= 0)
+            }
+        }
+    }
 }
