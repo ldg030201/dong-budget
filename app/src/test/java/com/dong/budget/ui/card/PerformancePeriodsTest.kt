@@ -8,6 +8,7 @@ import com.dong.budget.data.db.TransactionType.REFUND
 import com.dong.budget.data.db.TransactionType.TRANSFER
 import com.dong.budget.testing.day
 import com.dong.budget.testing.tx
+import com.dong.budget.ui.stats.calc.trendMonths
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -258,6 +259,14 @@ class PerformancePeriodsTest {
         assertEquals(YearMonth.of(2026, 9), keptPick(YearMonth.of(2026, 9), october))
         assertEquals(YearMonth.of(2026, 9), keptPick(YearMonth.of(2026, 9), YearMonth.of(2026, 11)))
         assertNull(keptPick(null, october))
+    }
+
+    @Test
+    fun `상세 막대 기간은 통계 상세의 최근 6개월과 같은 달들이다`() {
+        // 통계의 기간 수를 바꾸면 카드실적 상세 막대도 함께 바뀌게 같은 도우미를 쓴다
+        listOf(1, 15, 31).forEach { startDay ->
+            assertEquals(trendMonths(october), historyPeriods(october, startDay).map { it.month })
+        }
     }
 
     @Test
