@@ -225,6 +225,21 @@ private fun slotCancelled(cancelled: YearMonth): Pattern = Pattern(
     cancelled = cancelled,
 )
 
+/**
+ * 한 가게에서 [first] 일 [firstAmount] 원 · [second] 일 [secondAmount] 원 두 청구가 따로 나간다(리뷰 검증: 며칠 사이 · 1일과 말일 두 청구를
+ * 한 차례로 합쳤다). [autoPay] 면 쉬는 날이면 다음 영업일(자동이체), 아니면 그날(카드)에 나간다.
+ */
+private fun twoClaims(name: String, first: Int, firstAmount: Long, second: Int, secondAmount: Long, autoPay: Boolean) = Pattern(
+    name = name,
+    monthly = true,
+    oneMonth = firstAmount + secondAmount,
+    shares =
+    months().map { month ->
+        val (early, late) = listOf(first, second).map { dayIn(month, it).let { date -> if (autoPay) pushed(date) else date } }
+        Share(month, early, listOf(Pay(early, firstAmount), Pay(late, secondAmount)))
+    },
+)
+
 /** 시뮬레이션에 쓰는 가게들 */
 private fun patterns(): List<Pattern> = listOf(
     every("관리비", 150_000, 31),
@@ -267,6 +282,10 @@ private fun patterns(): List<Pattern> = listOf(
     // 두 청구 가운데 하나를 해지함: 같은 날 두 회선 · 3일 · 28일 두 차례
     lineCancelled(YearMonth.of(2027, 4)),
     slotCancelled(YearMonth.of(2029, 9)),
+    // 며칠 사이로 따로 나가는 두 청구(카드 5일 · 9일, 자동이체 25일 · 28일)와 1일 · 말일 두 청구(카드)
+    twoClaims("애플", 5, 4_400, 9, 10_900, autoPay = false),
+    twoClaims("아파트", 25, 200_000, 28, 30_000, autoPay = true),
+    twoClaims("보험사", 1, 50_000, LAST_DAY, 30_000, autoPay = false),
 )
 
 /** 불변식 위반 하나. [accepted] 는 fixes3.md '받아들이는 모호함' 에 해당하면 그 까닭(테스트를 실패시키지 않는다) */
@@ -417,9 +436,12 @@ private fun check(pattern: Pattern, day: LocalDate, now: View, before: View, che
         "냈어요 아님(진짜 낼 날 ${due?.scheduled ?: "없음"})"
     }
     // I6: '평소보다 N일 지났어요' 는 진짜 낼 날(주말 · 공휴일 밀림 포함) 다음 날부터만 뜬다. 앱이 공휴일 달력으로 밀린 낼 날을 알므로
-    // 봐주는 날이 없다(공휴일 달력을 넣기 전에는 주말 밀림 이틀과 긴 연휴를 받아들였다).
+    // 봐주는 날이 없다(공휴일 달력을 넣기 전에는 주말 밀림 이틀과 긴 연휴를 받아들였다). 한 달 몫을 여러 번에 나눠 내는데 일부만 냈으면
+    // 남은 것 가운데 가장 이른 것의 진짜 낼 날이다(리뷰 검증: 9일 청구를 5일 것과 한 차례로 보아 9일 전에 지났다고 했다).
     val past = now.item?.daysPastUsual
-    val scheduled = due?.scheduled
+    val pays = due?.payments.orEmpty()
+    val pending = pays.filter { it.date.isAfter(day) }
+    val scheduled = if (pending.isNotEmpty() && pending.size < pays.size) pending.minOf { it.due } else due?.scheduled
     val early = scheduled == null || !day.isAfter(scheduled)
     judge("I6", now, now.item?.status == FixedStatus.DUE && past != null && past > 0, !early) {
         // 긴 연휴(설 · 추석 등 평일 공휴일)로 밀린 것인지 보기 쉽게 그 수를 적는다(받아들이지 않음, [acceptedReason]).

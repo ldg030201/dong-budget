@@ -182,6 +182,9 @@ private const val EXTRA_SKIP = 3
 /** 한 차례에 함께 내는 건수의 한도(짝짓기 갈래 수를 묶는다) */
 private const val MAX_CAP = 8
 
+/** 짝지을 차례를 금액으로 줄 세우는 결제 무리의 길이(첫 결제부터 이만큼 안, [orderOf]) */
+private const val OCCASION_DAYS = 3
+
 /** 결제 무리 안에서 같은 금액끼리 몇 번째인지를 무리의 첫 자리와 섞는 자릿수(한 무리의 같은 금액이 이만큼 많지 않다) */
 private const val RANK_SCALE = 1_000
 

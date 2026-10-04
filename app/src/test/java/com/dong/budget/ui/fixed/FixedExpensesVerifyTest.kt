@@ -119,4 +119,63 @@ class FixedExpensesVerifyTest {
         assertTrue(isExtra(17_000, List(11) { 5_500L } + 17_000L))
         assertFalse(isExtra(17_000, List(10) { 5_500L } + 17_000L + 17_000L))
     }
+
+    /** [from] ~ [to] 달마다 [day] 일(없으면 말일)에 그날 나간 카드 결제 */
+    private fun card(merchant: String, amount: Long, day: Int, from: YearMonth, to: YearMonth) =
+        generateSequence(from) { it.plusMonths(1) }.takeWhile { it <= to }.toList().flatMap {
+            paid(merchant, amount, usualDateOf(it, day).toString())
+        }
+
+    @Test
+    fun `2 - 며칠 사이로 따로 나가는 두 청구는 두 차례라 남은 청구의 날 전에는 지났다고 하지 않는다`() {
+        val apple = card("애플", 4_400, 5, YearMonth.of(2026, 1), YearMonth.of(2026, 11)) +
+            card("애플", 10_900, 9, YearMonth.of(2026, 1), YearMonth.of(2026, 11))
+        val october = YearMonth.of(2026, 10)
+        for (date in listOf("2026-10-06", "2026-10-07", "2026-10-08")) {
+            val item = view(apple, october, day(date))
+            assertEquals(listOf(5, 9), item.usualDays)
+            assertEquals(date, 1, item.paidCount)
+            assertEquals(date, 10_900L, item.amount)
+            assertEquals(date, "2번 중 1번 냈어요", rowNote(item, october, day(date))?.text)
+        }
+        assertEquals(FixedStatus.PAID, view(apple, october, day("2026-10-09")).status)
+        // 자동이체 25일 관리비 · 28일 주차도 두 차례이고, 28일 것의 낼 날 전에는 지났다고 하지 않는다
+        val apartment = monthly("아파트", 200_000, 25, YearMonth.of(2026, 1), YearMonth.of(2026, 11)) +
+            monthly("아파트", 30_000, 28, YearMonth.of(2026, 1), YearMonth.of(2026, 11))
+        assertEquals(listOf(25, 28), view(apartment, october, day("2026-10-24")).usualDays)
+        for (date in listOf("2026-10-27", "2026-11-26", "2026-11-27")) {
+            val today = day(date)
+            val item = view(apartment, YearMonth.from(today), today)
+            assertEquals(date, 28, item.dueDay)
+            assertTrue(date, (item.daysPastUsual ?: 0) <= 0)
+        }
+        // 읽은 차례(최신순 · 오랜순)와 상관없이 같다(같은 날 낸 두 청구가 최근 12건의 끝에 걸려도)
+        val today = day("2027-03-25")
+        val rows = monthly("아파트", 200_000, 25, YearMonth.of(2025, 1), YearMonth.of(2027, 3)) +
+            monthly("아파트", 30_000, 28, YearMonth.of(2025, 1), YearMonth.of(2027, 2))
+        val read = rows.filter { YearMonth.from(it.localDate()) >= fixedHistoryStart(YearMonth.of(2027, 3)) }
+        val newest = buildFixedExpenses(YearMonth.of(2027, 3), today, read.sortedByDescending { it.occurredAt })
+        val oldest = buildFixedExpenses(YearMonth.of(2027, 3), today, read.sortedBy { it.occurredAt })
+        assertEquals(newest, oldest)
+        assertEquals(1, newest.due.single().paidCount)
+    }
+
+    @Test
+    fun `3 - 1일과 말일 두 청구는 같은 달의 두 차례라 1일 것은 그 달 몫이다`() {
+        val insurer = card("보험사", 50_000, 1, YearMonth.of(2026, 1), YearMonth.of(2026, 11)) +
+            card("보험사", 30_000, LAST_DAY, YearMonth.of(2026, 1), YearMonth.of(2026, 11))
+        val october = view(insurer, YearMonth.of(2026, 10), day("2026-10-15"))
+        assertEquals(FixedStatus.DUE, october.status)
+        assertEquals(listOf(1, LAST_DAY), october.usualDays)
+        assertEquals(1, october.paidCount)
+        assertEquals(30_000L, october.amount)
+        assertEquals(30_000L, fixedExpensePrefill(october, day("2026-10-15")).amount)
+        assertEquals(FixedStatus.PAID, view(insurer, YearMonth.of(2026, 10), day("2026-10-31")).status)
+        assertEquals(80_000L, view(insurer, YearMonth.of(2026, 10), day("2026-10-31")).amount)
+        assertEquals(30_000L, view(insurer, YearMonth.of(2026, 11), day("2026-11-15")).amount)
+        // 같은 날 본 9월 화면은 9월 1일 · 30일 것이다(10월 1일 것을 9월 몫으로 세지 않는다)
+        val september = view(insurer, YearMonth.of(2026, 9), day("2026-10-15"))
+        assertEquals(FixedStatus.PAID, september.status)
+        assertEquals(day("2026-09-01"), september.lastPaidOn)
+    }
 }
