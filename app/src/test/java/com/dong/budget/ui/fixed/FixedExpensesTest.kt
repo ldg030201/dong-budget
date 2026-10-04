@@ -543,6 +543,34 @@ class FixedExpensesTest {
     }
 
     @Test
+    fun `한 달에 두 번 내는 가게의 28일 것이 휴일로 다음 달 초에 밀리면 금액이 비슷한 차례대로 앞 달 몫이다`() {
+        // 보험에 매달 3일 50,000원, 28일 30,000원을 낸다. 2027년 2월 28일(일)·3월 1일(삼일절)이라 2월 28일 것이 3월 2일에 나갔다.
+        // 낸 달 그대로 세면 3월 2일부터 3월이 '냈어요' 이고, 4월 1일에 3월 몫 세 건 110,000원을 낼 돈으로 보았다.
+        val before = (11..12).flatMap { paid("보험", 50_000, "2026-$it-03") + paid("보험", 30_000, "2026-$it-28") } +
+            paid("보험", 50_000, "2027-01-03", "2027-02-03") + paid("보험", 30_000, "2027-01-28")
+        val rows = before + paid("보험", 30_000, "2027-03-02") + paid("보험", 50_000, "2027-03-03") + paid("보험", 30_000, "2027-03-29")
+        val march = YearMonth.of(2027, 3)
+        val march2 = day("2027-03-02")
+        val upToMarch2 = rows.filter { !it.localDate().isAfter(march2) }
+        assertEquals(FixedStatus.DUE, only(readFor(upToMarch2, march), month = march, today = march2).status)
+        val february = YearMonth.of(2027, 2)
+        val inFebruary = only(readFor(upToMarch2, february), month = february, today = march2)
+        assertEquals(FixedStatus.PAID, inFebruary.status)
+        assertEquals(80_000L, inFebruary.amount)
+        val april = YearMonth.of(2027, 4)
+        assertEquals(80_000L, only(readFor(rows, april), month = april, today = day("2027-04-01")).amount)
+        // 2026년엔 3월 2일(대체공휴일)까지 쉬어 2월 28일 것이 3월 3일 것과 한날 나갔다. 30,000원은 2월, 50,000원은 3월 몫이다.
+        val sameDay =
+            paid("보험", 50_000, "2025-12-03", "2026-01-03", "2026-02-03") + paid("보험", 30_000, "2025-12-28", "2026-01-28") +
+                paid("보험", 30_000, "2026-03-03") + paid("보험", 50_000, "2026-03-03")
+        val march3 = day("2026-03-03")
+        val inMarch = only(readFor(sameDay, YearMonth.of(2026, 3)), month = YearMonth.of(2026, 3), today = march3)
+        assertEquals(FixedStatus.PAID, inMarch.status)
+        assertEquals(50_000L, inMarch.amount)
+        assertEquals(80_000L, only(readFor(sameDay, YearMonth.of(2026, 2)), month = YearMonth.of(2026, 2), today = march3).amount)
+    }
+
+    @Test
     fun `달 초에 내는 가게에 달 말 구독을 새로 더하면 자리 잡기 전까지 그 결제는 다음 달 몫이다`() {
         // 구글에 매달 3일 14,900원을 내다 9월 28일에 2,400원 구독을 처음 더했다.
         // 새 모델: 다른 결제를 보지 않아 9월 28일은 10월 3일이 가까운 10월 몫이다(받아들이는 모호함). 10월은 냈어요다.

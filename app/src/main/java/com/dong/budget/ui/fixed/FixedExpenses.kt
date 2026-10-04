@@ -21,7 +21,8 @@ import kotlin.math.abs
 // - 결제는 낸 달이 아니라 '몇 월 몫인지' 로 센다. 결제마다 낸 달과 그 앞뒤 달 가운데 평소 날짜가 가장 가까운 달의 몫이다.
 //   1일에 내는 월세를 전달 말에 미리 냈으면 다음 달 몫이고, 말일 자동이체가 휴일로 다음 달 초에 밀렸으면 앞 달 몫이다.
 //   그래서 다음 달 15일까지는 읽는다. 다른 결제는 보지 않는다(두 달 이어 밀리거나 미리 내도 한 건씩 따로 정한다).
-//   매년 · 몇 달마다 내는 것과 한 몫을 이틀에 나눠 내는 가게(3일 · 28일)는 옮기지 않고 낸 달 몫이다.
+//   매년 · 몇 달마다 내는 것은 옮기지 않고 낸 달 몫이다. 한 몫을 이틀에 나눠 내는 가게(3일 50,000원 · 28일 30,000원)는
+//   결제마다 금액이 비슷한 차례의 평소 날짜가 가장 가까운 달의 몫이다(두 차례 금액이 비슷하면 낸 달 그대로).
 // - 주기는 최근 간격 몇 개로만 본다. 내는 주기가 바뀌면 금방 따라간다. 밀린 몫을 함께 낸 달은 빠진 차례를 메운 것으로 센다.
 // - 다음에 낼 금액은 마지막 몫의 합이지만, 밀린 몫을 함께 낸 뒤(빠진 차례 다음에 보통보다 많이 냈고 한 건 한 건이 앞 몫과 비슷함)에는 한 달 치다.
 // ─────────────────────────────────────────────────────────────────────
@@ -127,7 +128,8 @@ data class FixedExpenseBoard(
  *    31일에 낸 적이 있으면 짧은 달 말일도 말일로 센다. 달력 달로 보통 한 번 내는데([calendarCountOf]) 달 초와 달 말에 낸 날이
  *    섞여 있으면 달 경계를 이어 센다.
  * 2. 몇 월 몫인지([shareMonths]): 결제마다 낸 달과 그 앞뒤 달 가운데 그 달의 평소 날짜가 가장 가까운 달의 몫이다([nearestShare]).
- *    다른 결제는 보지 않는다. 그렇게 센 몫의 주기가 매달이 아니거나 한 몫을 보통 이틀에 나눠 내면 옮기지 않고 낸 달 그대로다.
+ *    다른 결제는 보지 않는다. 그렇게 센 몫의 주기가 매달이 아니면 옮기지 않고 낸 달 그대로다.
+ *    한 몫을 보통 이틀에 나눠 내면 금액이 비슷한 차례의 평소 날짜로 정한다([splitShare]).
  *    고른 달 뒤의 몫은 뺀다.
  * 3. 같은 몫끼리 합친다. 그 몫의 날짜는 첫 결제일이다(실제로 낸 날 그대로).
  * 4. 보통 건수([usualCountOf]): 최근 [USUAL_COUNT_SHARES] 몫에 낸 횟수의 가운데 값(짝수 개면 적은 쪽).
@@ -297,8 +299,8 @@ private fun usualDayOf(dates: List<LocalDate>, usualCount: Int): Int {
  * 결제([rows])마다 몇 월 몫인지(거래 id → 몫의 달).
  * 매달 내는 것은 결제마다 낸 달과 그 앞뒤 달 가운데 평소 날짜([usualDay])가 가장 가까운 달의 몫이다([nearestShare]).
  * 다른 결제는 보지 않는다. 말일 자동이체가 휴일로 다음 달 초에 밀렸으면 앞 달 몫, 1일 월세를 전달 말에 미리 냈으면 다음 달 몫이다.
- * 그렇게 센 몫([month] 까지)의 주기가 매달이 아니거나(매년 · 몇 달마다), 한 몫을 보통 서로 다른 이틀에 나눠 내면
- * (한 가게에 3일 · 28일 두 번) 옮기지 않고 낸 달 그대로다. 한 달에 두 번 내는 것을 옮기면 28일 것 하나로 다음 달 몫을 '냈어요' 로 센다.
+ * 그렇게 센 몫([month] 까지)의 주기가 매달이 아니면(매년 · 몇 달마다) 옮기지 않고 낸 달 그대로다.
+ * 한 몫을 보통 서로 다른 이틀에 나눠 내면(한 가게에 3일 · 28일 두 번) 차례마다 따로 정한다([splitShare]).
  * 며칠에 나눠 내는지는 첫 몫과 마지막 몫을 빼고 본다. 첫 몫은 그 앞 결제가 기록 밖이고 마지막 몫은 아직 덜 냈을 수 있다
  * (3일 · 28일 가게의 몫은 첫 달 3일 하나, 그다음부터 전달 28일 · 3일, 이번 달 1~2일엔 전달 28일 하나다).
  * 같은 날 함께 낸 것은 하루다(나눠 내는 월세를 한날 두 건 내면 옮긴다).
@@ -307,8 +309,43 @@ private fun shareMonths(rows: List<TransactionListItem>, month: YearMonth, usual
     val nearest = rows.associate { it.id to nearestShare(it.localDate(), usualDay) }
     val payments = paymentsOf(rows.filter { nearest.getValue(it.id) <= month }, nearest)
     val inner = payments.drop(1).dropLast(1).takeLast(USUAL_COUNT_SHARES).map { it.days }
-    val monthly = (inner.isEmpty() || lowerMedian(inner) == 1) && cadenceOf(payments, usualCountOf(payments)) == 1
-    return if (monthly) nearest else rows.associate { it.id to YearMonth.from(it.localDate()) }
+    val split = inner.isNotEmpty() && lowerMedian(inner) > 1
+    if (cadenceOf(payments, usualCountOf(payments)) != 1) return rows.associate { it.id to YearMonth.from(it.localDate()) }
+    if (!split) return nearest
+    val slots = slotsOf(rows.filter { !it.localDate().isAfter(month.atEndOfMonth()) })
+    return rows.associate { it.id to splitShare(it, slots) }
+}
+
+/** 한 몫을 이틀에 나눠 내는 가게의 한 차례. 평소 [day] 일에 [amount] 쯤 낸다. */
+private data class Slot(val day: Int, val amount: Long)
+
+/**
+ * 한 몫을 이틀에 나눠 내는 가게의 두 차례(이른 쪽, 늦은 쪽). 달력 달로 서로 다른 이틀에 한 번씩 낸 최근 [USUAL_COUNT_SHARES] 달의
+ * 앞 결제 · 뒤 결제마다 날짜와 금액의 가운데 값이다. 그런 달이 없으면 빈 목록이다.
+ */
+private fun slotsOf(rows: List<TransactionListItem>): List<Slot> {
+    val months =
+        rows
+            .groupBy { YearMonth.from(it.localDate()) }
+            .toSortedMap()
+            .values
+            .map { it.sortedWith(byTime) }
+            .filter { it.size == 2 && it[0].localDate() != it[1].localDate() }
+            .takeLast(USUAL_COUNT_SHARES)
+    if (months.isEmpty()) return emptyList()
+    return (0..1).map { i -> Slot(lowerMedian(months.map { it[i].localDate().dayOfMonth }), lowerMedian(months.map { it[i].amount })) }
+}
+
+/**
+ * 한 몫을 이틀에 나눠 내는 가게에서 [row] 가 몇 월 몫인지. 두 차례([slots]) 금액이 서로 다르면(3일 50,000원 · 28일 30,000원)
+ * 금액이 비슷한 차례의 평소 날짜가 가장 가까운 달의 몫이다([nearestShare]). 28일 것이 휴일로 다음 달 2~3일에 밀려 3일 것과 함께
+ * 나가도 앞 달 몫이다. 두 차례 금액이 비슷하거나 어느 차례와도 금액이 다르면 낸 달 그대로다.
+ */
+private fun splitShare(row: TransactionListItem, slots: List<Slot>): YearMonth {
+    val own = YearMonth.from(row.localDate())
+    if (slots.size != 2 || isNear(slots[0].amount, slots.sumOf { it.amount }, 2)) return own
+    val slot = slots.filter { isNear(row.amount, it.amount, 1) }.minByOrNull { abs(row.amount - it.amount) } ?: return own
+    return nearestShare(row.localDate(), slot.day)
 }
 
 /**
@@ -391,7 +428,7 @@ private fun cadenceFrom(gaps: List<Int>): Int {
 }
 
 /** 가운데 값. 짝수 개면 가운데 둘 중 작은 쪽이다. */
-private fun lowerMedian(values: List<Int>): Int = values.sorted()[(values.size - 1) / 2]
+private fun <T : Comparable<T>> lowerMedian(values: List<T>): T = values.sorted()[(values.size - 1) / 2]
 
 /** 가게 이름 없이 적은 지출을 묶는 열쇠. merchantKey 는 빈 글을 내지 않으므로 어느 가게와도 겹치지 않는다. */
 const val NO_MERCHANT_KEY = ""
