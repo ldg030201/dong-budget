@@ -190,13 +190,13 @@ class PerformancePeriodsTest {
     fun `탭이 읽는 범위는 어느 시작일이든 지난 기간 시작부터 이번 기간 끝까지 덮는다`() {
         var today = day("2026-01-01")
         repeat(400) {
-            val (from, until) = tabReadRange(today)
+            val (first, last) = tabReadRange(today)
             (1..31).forEach { startDay ->
                 val current = currentPeriod(today, startDay)
                 val previous = performancePeriod(current.month.minusMonths(1), startDay)
                 assertTrue("$today $startDay", today in current)
-                assertFalse("$today $startDay", previous.start.isBefore(from))
-                assertFalse("$today $startDay", current.end.isAfter(until))
+                assertFalse("$today $startDay", previous.start.isBefore(first.atDay(1)))
+                assertFalse("$today $startDay", current.end.isAfter(last.plusMonths(1).atDay(1)))
             }
             today = today.plusDays(1)
         }

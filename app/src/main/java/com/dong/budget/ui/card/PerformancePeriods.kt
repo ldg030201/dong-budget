@@ -73,12 +73,12 @@ fun historyPeriods(month: YearMonth, startDay: Int): List<PerformancePeriod> =
 fun daysLeft(period: PerformancePeriod, today: LocalDate): Int = ChronoUnit.DAYS.between(today, period.end).coerceAtLeast(0).toInt()
 
 /**
- * 탭이 한 번에 읽을 날 범위(from 부터 until 전까지). 시작일이 무엇이든 지난 기간 시작부터 이번 기간 끝까지 덮는다.
- * 이번 기간은 이번 달이나 지난달 이름이고 지난 기간은 그 앞 달이라, 두 달 전 1일부터 다음다음 달 1일 전까지면 된다.
+ * 탭이 한 번에 읽을 달 범위(첫 달 1일부터 끝 달 말일까지). 시작일이 무엇이든 지난 기간 시작부터 이번 기간 끝까지 덮는다.
+ * 이번 기간은 이번 달이나 지난달 이름이고 지난 기간은 그 앞 달이라, 두 달 전부터 다음 달까지면 된다.
  */
-fun tabReadRange(today: LocalDate): Pair<LocalDate, LocalDate> {
+fun tabReadRange(today: LocalDate): Pair<YearMonth, YearMonth> {
     val month = YearMonth.from(today)
-    return month.minusMonths(2).atDay(1) to month.plusMonths(2).atDay(1)
+    return month.minusMonths(2) to month.plusMonths(1)
 }
 
 /**

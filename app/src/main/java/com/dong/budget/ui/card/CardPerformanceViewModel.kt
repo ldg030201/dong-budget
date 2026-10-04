@@ -35,10 +35,10 @@ class CardPerformanceViewModel(
         BudgetTime
             .today(clock)
             .flatMapLatest { today ->
-                val (from, until) = tabReadRange(today)
+                val (first, last) = tabReadRange(today)
                 combine(
                     paymentMethodRepository.observeAll(),
-                    transactionRepository.observeBetween(from, until),
+                    transactionRepository.observeMonths(first, last),
                     // 카드마다 처음 쓴 날. 그 전에 끝난 지난 기간은 '모자랐어요' 대신 기록이 없다고 둔다.
                     transactionRepository.observeFirstUseDates(),
                 ) { methods, rows, firstUse -> buildCardPerformance(methods, rows, today, firstUse) }

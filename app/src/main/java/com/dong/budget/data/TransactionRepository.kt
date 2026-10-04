@@ -59,10 +59,6 @@ class TransactionRepository(private val transactionDao: TransactionDao) {
         // 거래를 쓸 때마다 Room 이 다시 내보내지만 첫 사용일은 거의 그대로다. 같은 값이면 다시 계산하지 않게 거른다.
         .distinctUntilChanged()
 
-    /** [from] 날(서울 0시)부터 [until] 날 0시 전까지의 거래. 카드실적 기간처럼 달 경계를 넘는 범위를 읽을 때 쓴다. */
-    fun observeBetween(from: LocalDate, until: LocalDate): Flow<List<TransactionListItem>> =
-        transactionDao.observeBetween(from.startInstant(), until.startInstant())
-
     /**
      * [first] 달 1일부터 [last] 달 말일까지, 코드가 [code] 인 분류(고정지출 'FIXED')의 지출. 고정지출 탭이 쓴다.
      * 그 분류를 지웠으면 빈 목록이다.
