@@ -45,6 +45,12 @@ enum class PatchMenu(val label: String) {
     DETAIL("거래 상세"),
     EDITOR("거래 등록"),
     STATISTICS("통계"),
+
+    /** 1.7.0 에서 생긴 아래 메뉴 '고정지출' */
+    FIXED_EXPENSES("고정지출"),
+
+    /** 1.7.0 에서 생긴 아래 메뉴 '카드실적' */
+    CARD_PERFORMANCE("카드실적"),
     CATEGORIES("분류 관리"),
     MORE("전체"),
     PATCH_NOTES("패치노트"),
@@ -78,12 +84,53 @@ private fun menu(menu: PatchMenu, vararg changes: Change) = MenuChanges(menu, ch
 private fun newMenu(menu: PatchMenu, vararg changes: Change) = MenuChanges(menu, changes.toList(), isNew = true)
 
 /**
- * 최신 버전이 맨 위. 메뉴는 앱 화면 순서(홈 → 월급 → 거래 상세 → 거래 등록 → 통계 → 분류 관리 → 전체 → 패치노트 → 개발자 모드 → 설정 → 공통)로 적는다.
+ * 최신 버전이 맨 위. 메뉴는 앱 화면 순서(홈 → 월급 → 거래 상세 → 거래 등록 → 통계 → 고정지출 → 카드실적 → 분류 관리 → 전체 → 패치노트 →
+ * 개발자 모드 → 설정 → 공통)로 적는다.
  * 메뉴 안의 항목은 화면에서 종류 순서(추가 → 개선 → 수정 → 오류수정)로 다시 정렬되므로 적는 순서는 자유다.
  * 그 버전에서 처음 생긴 메뉴는 [newMenu] 로 적는다(메뉴 이름 옆 '신규'). 첫 버전(0.1.0)은 모두 처음이라 붙이지 않는다.
  */
 val PATCH_NOTES: List<Release> =
     listOf(
+        Release(
+            version = "1.7.0",
+            date = LocalDate.of(2026, 10, 5),
+            menus =
+            listOf(
+                menu(
+                    PatchMenu.SALARY,
+                    added("번 돈 아래에 1시간에 버는 돈과 통상시급을 나란히 보여 줘요. 주휴수당을 넣은 시급과 본래 시급이 얼마나 다른지 알 수 있어요"),
+                    changed("월급날이 주말뿐 아니라 공휴일이어도 앞 영업일에 받는 것으로 봐요(업데이트하면 월급날이 공휴일이던 달의 '월급날부터 번 돈'이 달라질 수 있어요)"),
+                    improved("화면 읽기가 시급 두 줄을 ₩·/h 기호 대신 '주휴수당 포함 1시간에 17,045원, 통상시급 14,354원'처럼 말로 읽어요"),
+                ),
+                menu(
+                    PatchMenu.STATISTICS,
+                    fixed("최근 6개월 막대에서 환불받은 돈이 더 많은 달이 '-1만'으로 적혀 위 금액의 '+'와 어긋나던 문제를 고쳤어요. 이제 '+1만'이에요"),
+                ),
+                newMenu(
+                    PatchMenu.FIXED_EXPENSES,
+                    added("월세·구독료처럼 매달 나가는 돈을 이번 달에 냈는지 한눈에 보는 메뉴예요. '고정지출' 분류로 등록한 지출을 가게별로 모아 보여 줘요"),
+                    added("언제 얼마를 내는지는 지난 기록으로 짐작해요. 낼 날이 지났거나 지난 차례를 놓쳤으면 알려 주고, '등록하기'로 바로 적을 수 있어요"),
+                    added("주말·공휴일에 밀려 나가는 것, 한 달에 나눠 내는 것, 매년 내는 것, 회선 하나를 해지한 것도 맞춰 봐요"),
+                ),
+                newMenu(
+                    PatchMenu.CARD_PERFORMANCE,
+                    added("카드마다 전월 실적 구간을 적어 두면, 이번 달에 얼마 썼고 다음 구간까지 얼마 더 쓰면 되는지 보여 주는 메뉴예요"),
+                    added("카드를 누르면 지난 기간과 최근 6개월 동안 실적을 채웠는지 봐요. 실적을 세기 시작하는 날도 카드마다 정할 수 있어요"),
+                ),
+                menu(
+                    PatchMenu.CATEGORIES,
+                    improved("기본 분류 '고정지출'·'급여'를 지운 뒤 같은 이름으로 다시 만들면 기본 분류로 알아봐요. 고정지출 탭과 월급 등록이 그 분류를 다시 써요"),
+                ),
+                menu(
+                    PatchMenu.SETTINGS,
+                    improved("백업 파일에 카드마다 적은 실적 구간과 시작일도 담고, 복원하면 되살려요"),
+                ),
+                menu(
+                    PatchMenu.COMMON,
+                    added("공휴일 달력을 넣었어요. 고정지출의 낼 날과 월급날을 쉬는 날에 맞춰 계산해요"),
+                ),
+            ),
+        ),
         Release(
             version = "1.6.1",
             date = LocalDate.of(2026, 10, 1),
