@@ -269,6 +269,82 @@ class FixedExpensesCrossCheckTest {
         assertNull(rowNote(november, NOV, day("2026-11-10")))
     }
 
+    @Test
+    fun `같은 날 같은 금액 두 회선은 놓친 회선을 늦게 메운 것과 해지 뒤 일찍 등록한 것을 가를 수 없어 다음 달 몫으로 본다`() {
+        // 21일 33,000원 두 회선 가운데 하나를 9월부터 해지하고 10월 화면의 등록하기로 남은 회선을 그날 적었다(그 회선은 11월부터 다시 21일)
+        val kept = bill("통신", 33_000, 21, JAN, SEP) + bill("통신", 33_000, 21, NOV, MAR27) + bill("통신", 33_000, 21, JAN, AUG)
+        for (date in listOf("2026-10-01", "2026-10-02", "2026-10-12")) {
+            val today = day(date)
+            val saved = kept + paid("통신", fixedExpensePrefill(view(kept, OCT, today), today).amount, date)
+            assertEquals(date, "PAID 1/1 33000", short(view(saved, OCT, today)))
+            assertEquals(date, "PAID 1/2 33000", short(view(saved, SEP, today)))
+            for (later in listOf("2026-10-25", "2026-11-25")) {
+                assertEquals("$date $later", "PAID 1/1 33000", short(view(saved, YearMonth.from(day(later)), day(later))))
+            }
+        }
+        // 해지하지 않고 9월 몫 한 회선만 10월 1일에 늦게 나갔으면 10월 21일 전까지는 위 기록과 같아 10월 몫으로 보인다(늦게 메운 것으로 고르면
+        // 위처럼 등록한 달이 두 건을 기다려 달 내내 빨간 경고다). 10월 두 회선이 나간 날 9월 · 10월 모두 두 건으로 바로잡히고, 그 전에도 빨간 경고는 없다.
+        val late = bill("통신", 33_000, 21, JAN, MAR27) + bill("통신", 33_000, 21, JAN, AUG) + bill("통신", 33_000, 21, OCT, MAR27) +
+            paid("통신", 33_000, "2026-10-01")
+        for (today in days("2026-10-01", "2026-10-20")) assertNotEquals("$today", NoteTone.WARNING, note(late, OCT, today)?.tone)
+        for (today in days("2026-10-21", "2026-10-31")) {
+            assertEquals("$today", "PAID 2/2 66000", short(view(late, OCT, today)))
+            assertEquals("$today", "PAID 2/2 66000", short(view(late, SEP, today)))
+        }
+    }
+
+    @Test
+    fun `금액을 바꾼 두 차례 가게가 앞 달 뒤 차례를 늦게 내도 그 결제는 앞 달 몫이라 다음 달 나눔이 한 차례로 기울지 않는다`() {
+        // 9일 · 말일 카드(퍼즈 씨앗 111 가게13). 2026년 6월부터 9,900원 → 34,650원, 8월 9일 것을 건너뛰고 말일 것을 9월 2일에 늦게 냈고,
+        // 10월은 9일 것을 건너뛰었다. 9월 2일 결제를 9월 9일 차례에 넣으면 9월 나눔이 9일 차례 두 건이라 10월엔 말일 차례를 기다리지 않았다.
+        val rows = paid(
+            "카드", 9_900, "2025-12-09", "2026-01-09", "2026-01-31", "2026-02-09", "2026-02-28", "2026-03-10", "2026-03-31", "2026-04-09",
+            "2026-04-26", "2026-05-31",
+        ) + paid(
+            "카드", 34_650, "2026-06-09", "2026-07-11", "2026-07-13", "2026-07-13", "2026-07-31", "2026-09-02", "2026-09-09", "2026-09-30",
+            "2026-10-31", "2026-11-09",
+        )
+        for (today in days("2026-10-16", "2026-10-30")) {
+            val item = view(rows, OCT, today)
+            assertEquals(
+                "$today",
+                "DUE 0/2 31 [9]",
+                "${item.status} ${item.paidCount}/${item.requiredCount} ${item.dueDay} ${item.droppedDays}",
+            )
+            assertEquals("$today", "9일 차례는 안 나갔어요", note(rows, OCT, today)?.text)
+        }
+        assertEquals("PAID 1/2 34650", short(view(rows, OCT, day("2026-10-31"))))
+    }
+
+    @Test
+    fun `같은 날 회선 하나를 해지한 뒤 다른 날 새 회선을 더하면 두 차례인 줄 알 때까지 빨간 경고 없이 보다가 두 차례를 기다린다`() {
+        // 21일 45,000원 · 33,000원 가운데 33,000원을 9월부터 해지하고 11월부터 10일 20,000원 회선을 더했다. 새 날 결제가 하나뿐인 첫 두 달은
+        // 결제일 · 요금을 함께 바꾼 것과 가를 수 없어 한 차례다(두 차례인지는 달마다 두 때에 낸 증거로 가른다).
+        val rows = bill("통신", 45_000, 21, JAN, MAR27) + bill("통신", 33_000, 21, JAN, AUG) + bill("통신", 20_000, 10, NOV, MAR27)
+        for (today in days("2026-11-01", "2026-12-31")) {
+            assertNotEquals("$today", NoteTone.WARNING, note(rows, YearMonth.from(today), today)?.tone)
+        }
+        val january = YearMonth.of(2027, 1)
+        for (today in days("2027-01-11", "2027-01-20")) {
+            val item = view(rows, january, today)
+            assertEquals("$today", "DUE 1/2 45000 [10, 21] 21", "${short(item)} ${item.usualDays} ${item.dueDay}")
+        }
+    }
+
+    @Test
+    fun `겨울에 새로 낸 1일 · 말일 두 청구는 말일 것이 다음 달 1일 낼 날에 함께 나가는 동안 빨간 경고 없이 보다가 두 차례가 된다`() {
+        // 2025년 11월부터 1일 50,000원 · 말일 30,000원 자동이체. 11월 30일 · 1월 31일 · 2월 28일 것이 다음 달 1일 것의 낼 날에 함께 나가
+        // 다른 날 낸 결제가 12월 31일 · 3월 31일뿐이라, 두 차례인 증거(다른 날 낸 결제 · 두 때에 낸 달)가 모이는 일곱째 달(5월) 전까지는 1일 한 차례다.
+        val rows = bill("보험", 50_000, 1, YearMonth.of(2025, 11), AUG) + bill("보험", 30_000, LAST_DAY, YearMonth.of(2025, 11), AUG)
+        for (today in days("2025-11-03", "2026-07-31")) {
+            assertNotEquals("$today", NoteTone.WARNING, note(rows, YearMonth.from(today), today)?.tone)
+        }
+        for (today in days("2026-05-04", "2026-05-31")) {
+            val item = view(rows, MAY, today)
+            assertEquals("$today", "DUE 1/2 30000 [1, 31]", "${short(item)} ${item.usualDays}")
+        }
+    }
+
     private companion object {
         val JAN: YearMonth = YearMonth.of(2026, 1)
         val FEB: YearMonth = YearMonth.of(2026, 2)
