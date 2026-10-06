@@ -225,12 +225,7 @@ private class DayIndex(groups: List<DayGroup>) {
 }
 
 @Composable
-private fun MonthBody(
-    state: HomeUiState,
-    onOpenTransaction: (Long) -> Unit,
-    onOpenStatistics: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
+private fun MonthBody(state: HomeUiState, onOpenTransaction: (Long) -> Unit, onOpenStatistics: () -> Unit, modifier: Modifier = Modifier) {
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     var selected by rememberSaveable { mutableStateOf<LocalDate?>(null) }
