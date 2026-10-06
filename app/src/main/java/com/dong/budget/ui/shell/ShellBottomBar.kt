@@ -3,11 +3,15 @@ package com.dong.budget.ui.shell
 import androidx.compose.foundation.gestures.snapping.SnapPosition
 import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
@@ -29,16 +33,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.BlendMode
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.CompositingStrategy
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.layout
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.dong.budget.data.settings.BottomMenu
@@ -53,7 +53,7 @@ import com.dong.budget.ui.theme.pressFeedback
  *
  * 가운데가 [BottomMenu.VISIBLE_MIDDLE] 칸 이하면 모든 칸이 너비를 똑같이 나눈다.
  * 넘치면 홈·전체와 가운데 네 칸이 같은 너비(여섯 칸 기준)를 쓰고, 가운데만 옆으로 밀어 바꾼다. 밀다 놓으면 칸 경계에 맞춰 멈춰서
- * 반쯤 잘린 칸이 남지 않는다. 밀어서 더 볼 칸이 있는 쪽 가장자리는 흐리게 해 더 있다는 것을 알린다.
+ * 반쯤 잘린 칸이 남지 않는다. 가운데 칸 아래 얇은 스크롤 막대가 더 있다는 것과 지금 어디쯤인지 알린다([ScrollIndicator]).
  * Material 의 NavigationBar 는 칸 사이에 틈을 두어 밀리는 칸과 고정 칸의 간격을 고르게 맞출 수 없어서, 같은 높이·색·여백의 줄을 직접 둔다.
  *
  * 통계 칸은 통계 하위 메뉴의 첫 칸과 이어진다([STATS_ENTRY_SHARED_KEY]). 통계를 열면 이 칸의 아이콘과 글자가 위로 옮겨 가고,
@@ -136,21 +136,42 @@ private fun ScrollingMiddle(
     val statsShown by remember(state, statsIndex) {
         derivedStateOf { statsIndex >= 0 && isFullyShown(statsIndex, state.firstVisibleItemIndex, state.firstVisibleItemScrollOffset) }
     }
+    Box(modifier = modifier) {
+        MiddleRow(
+            items = items,
+            state = state,
+            selected = selected,
+            onClick = onClick,
+            colors = colors,
+            linked = linkStatistics && statsShown,
+        )
+        ScrollIndicator(
+            state = state,
+            count = items.size,
+            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = INDICATOR_BOTTOM_GAP),
+        )
+    }
+}
+
+/** 가운데 칸 줄. 한 칸이 보이는 너비의 4분의 1 이다. */
+@Composable
+private fun MiddleRow(
+    items: List<MenuItem>,
+    state: LazyListState,
+    selected: MenuItem?,
+    onClick: (MenuItem) -> Unit,
+    colors: NavigationBarItemColors,
+    linked: Boolean,
+) {
     LazyRow(
         state = state,
         flingBehavior = rememberSnapFlingBehavior(lazyListState = state, snapPosition = SnapPosition.Start),
-        modifier = modifier.wholeSlots().fadingEdges(state, EDGE_FADE),
+        modifier = Modifier.wholeSlots(),
     ) {
         items(items, key = { it.key }) { item ->
             // 한 칸이 보이는 너비의 4분의 1. 너비를 칸 수로 나누어떨어지게 맞춰 두어(wholeSlots) 칸 경계와 스크롤 끝이 딱 맞는다.
             Row(Modifier.fillParentMaxWidth(1f / BottomMenu.VISIBLE_MIDDLE)) {
-                MenuSlot(
-                    item = item,
-                    selected = item == selected,
-                    onClick = { onClick(item) },
-                    colors = colors,
-                    linked = linkStatistics && statsShown,
-                )
+                MenuSlot(item = item, selected = item == selected, onClick = { onClick(item) }, colors = colors, linked = linked)
             }
         }
     }
@@ -175,29 +196,37 @@ private fun Modifier.wholeSlots(): Modifier = layout { measurable, constraints -
     layout(constraints.maxWidth, placeable.height) { placeable.place((constraints.maxWidth - width) / 2, 0) }
 }
 
-/** 밀어서 더 볼 칸이 있는 쪽 가장자리를 [width] 만큼 흐리게 한다. 끝까지 밀면 그쪽은 흐리지 않는다. */
-private fun Modifier.fadingEdges(state: LazyListState, width: Dp): Modifier = this
-    // 그려 둔 칸에 투명도만 덧씌우려면 따로 한 장으로 그려야 한다
-    .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
-    .drawWithContent {
-        drawContent()
-        val fade = width.toPx()
-        if (state.canScrollBackward) {
-            drawRect(
-                brush = Brush.horizontalGradient(listOf(Color.Transparent, Color.Black), startX = 0f, endX = fade),
-                size = Size(fade, size.height),
-                blendMode = BlendMode.DstIn,
-            )
-        }
-        if (state.canScrollForward) {
-            drawRect(
-                brush = Brush.horizontalGradient(listOf(Color.Black, Color.Transparent), startX = size.width - fade, endX = size.width),
-                topLeft = Offset(size.width - fade, 0f),
-                size = Size(fade, size.height),
-                blendMode = BlendMode.DstIn,
-            )
-        }
-    }
+/**
+ * 가운데 칸이 더 있다는 것을 알리는 얇은 스크롤 막대. 옅은 막대 위의 진한 부분이 지금 보이는 칸이고, 밀면 따라 움직인다.
+ * 스크롤 위치는 그리는 단계에서만 읽어, 미는 동안 막대만 다시 그린다.
+ */
+@Composable
+private fun ScrollIndicator(state: LazyListState, count: Int, modifier: Modifier = Modifier) {
+    val track = BudgetTheme.colors.divider
+    val thumb = BudgetTheme.colors.textTertiary
+    Spacer(
+        modifier =
+        modifier
+            .fillMaxWidth(INDICATOR_WIDTH_FRACTION)
+            .height(INDICATOR_HEIGHT)
+            .drawBehind {
+                // 처음 그리기 전에는 칸 너비를 몰라 그리지 않는다(곧 다시 그린다)
+                val slot = state.layoutInfo.visibleItemsInfo.firstOrNull()?.size?.toFloat()?.takeIf { it > 0f } ?: return@drawBehind
+                val hidden = (count - BottomMenu.VISIBLE_MIDDLE).coerceAtLeast(1)
+                val scrolled = state.firstVisibleItemIndex + state.firstVisibleItemScrollOffset / slot
+                val fraction = (scrolled / hidden).coerceIn(0f, 1f)
+                val corner = CornerRadius(size.height / 2)
+                drawRoundRect(color = track, cornerRadius = corner)
+                val thumbWidth = size.width * BottomMenu.VISIBLE_MIDDLE / count
+                drawRoundRect(
+                    color = thumb,
+                    topLeft = Offset((size.width - thumbWidth) * fraction, 0f),
+                    size = Size(thumbWidth, size.height),
+                    cornerRadius = corner,
+                )
+            },
+    )
+}
 
 /**
  * 아래 메뉴 한 칸. 통계 칸이면서 [linked] 면 아이콘과 글자를 통계 하위 메뉴의 첫 칸과 잇는다.
@@ -265,8 +294,10 @@ private fun RowScope.ShellNavItem(
 /** Material 아래 메뉴의 높이(키 큰 막대)와 같게 둔다 */
 private val BAR_MIN_HEIGHT = 80.dp
 
-/** 밀어서 더 볼 칸이 있다는 것을 알리는 흐린 가장자리. 끝 칸의 바깥쪽 3분의 1쯤(글자 끝)이 흐려져 이어지는 칸이 있어 보이게 한다. */
-private val EDGE_FADE = 20.dp
+/** 스크롤 막대의 너비(가운데 칸 너비에 대한 비율), 두께, 아래 메뉴 아래 끝과의 틈. 칸 글자 밑에 닿지 않게 둔다. */
+private const val INDICATOR_WIDTH_FRACTION = 0.75f
+private val INDICATOR_HEIGHT = 3.dp
+private val INDICATOR_BOTTOM_GAP = 8.dp
 
 /** 하단 탭은 바탕 없이 작은 아이콘과 글자뿐이라 버튼보다 더 줄인다 */
 private const val NAV_PRESSED_SCALE = 0.9f
