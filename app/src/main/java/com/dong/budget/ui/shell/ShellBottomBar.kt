@@ -265,8 +265,8 @@ private fun RowScope.ShellNavItem(
 /** Material 아래 메뉴의 높이(키 큰 막대)와 같게 둔다 */
 private val BAR_MIN_HEIGHT = 80.dp
 
-/** 밀어서 더 볼 칸이 있다는 것을 알리는 흐린 가장자리. 칸 글자 바깥 여백 정도만 흐린다. */
-private val EDGE_FADE = 10.dp
+/** 밀어서 더 볼 칸이 있다는 것을 알리는 흐린 가장자리. 끝 칸의 바깥쪽 3분의 1쯤(글자 끝)이 흐려져 이어지는 칸이 있어 보이게 한다. */
+private val EDGE_FADE = 20.dp
 
 /** 하단 탭은 바탕 없이 작은 아이콘과 글자뿐이라 버튼보다 더 줄인다 */
 private const val NAV_PRESSED_SCALE = 0.9f
