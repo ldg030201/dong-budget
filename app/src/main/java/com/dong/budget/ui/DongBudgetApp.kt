@@ -440,13 +440,15 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
                             val viewModel: TransactionDetailViewModel =
                                 viewModel(factory = transactionDetailViewModelFactory(container, key.transactionId))
                             val state by viewModel.uiState.collectAsStateWithLifecycle()
-                            // 거래가 없어졌으면 이 화면도 치운다. 등록창에서 지운 경우는 등록창이 먼저 치우므로, 앱을 다시 띄웠는데 이미 지운 거래였을 때 같은 드문 경우다.
+                            // 거래가 없어졌으면 이 화면도 치운다. 이 화면의 '삭제' 로 지웠을 때와, 앱을 다시 띄웠는데 이미 지운 거래였을 때다.
+                            // 등록창에서 지운 경우는 등록창이 먼저 치운다.
                             val gone = state == TransactionDetailUiState.Gone
                             LaunchedEffect(gone) {
                                 if (gone) navigator.remove(key)
                             }
-                            // 통계 화면과 같은 이유로 자리 잡은 뒤(RESUMED)에만 '수정' 과 같은 곳 내역 줄 누름을 받는다.
+                            // 통계 화면과 같은 이유로 자리 잡은 뒤(RESUMED)에만 '수정'·'삭제' 와 같은 곳 내역 줄 누름을 받는다.
                             // 거래 줄을 연달아 누른 두 번째 탭이 막 뜨는 이 화면의 같은 자리에 떨어져 다른 거래가 열리지 않게 한다.
+                            // 지우면 거래가 없어져(Gone) 위의 LaunchedEffect 가 이 화면을 치운다.
                             val settled = rememberSettled()
                             TransactionDetailScreen(
                                 state = state,
@@ -455,7 +457,9 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
                                 // 맨 위일 때만 닫으므로 이 화면이 나가는 동안 받은 ← 도 아래 상세까지 닫지 않는다.
                                 onBack = { if (settled()) navigator.closeIfTop(key) },
                                 onEdit = { if (settled()) navigator.go(TransactionEditorKey(key.transactionId)) },
+                                onDelete = viewModel::delete,
                                 onOpenTransaction = { id -> if (settled()) navigator.go(TransactionDetailKey(id)) },
+                                acceptsTaps = settled,
                             )
                         }
 

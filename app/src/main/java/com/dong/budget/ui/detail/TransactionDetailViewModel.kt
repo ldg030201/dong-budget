@@ -12,13 +12,15 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import java.time.Clock
 
 /**
  * 거래 상세의 상태.
  *
  * 거래 한 건과, 오늘부터 1년 전까지 가게 이름이 있는 거래를 함께 읽어 순수 함수([transactionDetail])로 계산한다.
- * 등록창에서 고치면 바로 다시 계산되고, 지우면 [TransactionDetailUiState.Gone] 이 된다. 자정이 지나면 1년의 시작도 따라 밀린다.
+ * 등록창에서 고치면 바로 다시 계산되고, 지우면(여기 '삭제' 나 등록창에서) [TransactionDetailUiState.Gone] 이 된다.
+ * 자정이 지나면 1년의 시작도 따라 밀린다.
  *
  * @param clock 지금 시각. 테스트에서 날짜를 고정하려고 바꿀 수 있게 둔다.
  */
@@ -42,6 +44,16 @@ class TransactionDetailViewModel(
                 started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS),
                 initialValue = TransactionDetailUiState.Loading,
             )
+
+    /** 지우는 중이거나 이미 지웠는지. 확인 창의 '지우기' 를 연달아 눌러도 한 번만 지운다. 메인 스레드에서만 불린다. */
+    private var deleting = false
+
+    /** 이 거래를 지운다. 다 지우면 조회가 null 을 내보내 [TransactionDetailUiState.Gone] 이 되고 화면이 닫힌다. */
+    fun delete() {
+        if (deleting) return
+        deleting = true
+        viewModelScope.launch { repository.delete(transactionId) }
+    }
 
     private companion object {
         const val STOP_TIMEOUT_MS = 5_000L

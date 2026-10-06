@@ -18,6 +18,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.heading
@@ -28,6 +32,7 @@ import com.dong.budget.data.db.TransactionListItem
 import com.dong.budget.ui.components.BudgetTextButton
 import com.dong.budget.ui.components.BudgetTopAppBar
 import com.dong.budget.ui.components.CategoryBadge
+import com.dong.budget.ui.components.ConfirmDialog
 import com.dong.budget.ui.components.MonthHeader
 import com.dong.budget.ui.components.TransactionRow
 import com.dong.budget.ui.components.animatedItem
@@ -48,29 +53,56 @@ import com.dong.budget.ui.theme.BudgetTheme
  * 거래 상세. 홈·통계에서 거래 줄을 누르면 열린다.
  *
  * 위에서부터
- * - 상단 바: 뒤로, 오른쪽 위 '수정'(그 거래의 등록창)
+ * - 상단 바: 뒤로, 오른쪽 위 '삭제'(한 번 더 묻고 지운다)와 '수정'(그 거래의 등록창)
  * - 머리: 분류 뱃지, 가게 이름, 큰 금액
  * - 칸: 분류, 결제수단, 날짜, 시간, 메모(적었을 때만)
  * - 최근 내역: 같은 가게에서 최근 1년 동안 쓴(받은) 거래를 달별로. 지금 보는 거래는 바탕색만 달리하고 누를 수 없다.
  *   다른 거래를 누르면 그 거래의 상세가 위에 열린다.
  *
  * @param onEdit 오른쪽 위 '수정'. 그 거래의 등록창을 연다.
+ * @param onDelete '삭제' 를 한 번 더 확인했다. 그 거래를 지운다. 지우면 [TransactionDetailUiState.Gone] 이 되어 이 화면이 닫힌다.
  * @param onOpenTransaction 같은 곳 내역의 다른 거래를 누르면 그 거래의 상세
+ * @param acceptsTaps '삭제' 를 받아도 되는지. 화면이 올라오는 중에는 false 라서, 거래 줄을 연달아 누른 탭이 '삭제' 로 새지 않는다.
  */
 @Composable
 fun TransactionDetailScreen(
     state: TransactionDetailUiState,
     onBack: () -> Unit,
     onEdit: () -> Unit,
+    onDelete: () -> Unit,
     onOpenTransaction: (Long) -> Unit,
     modifier: Modifier = Modifier,
+    acceptsTaps: () -> Boolean = { true },
 ) {
+    var askDelete by rememberSaveable { mutableStateOf(false) }
+    // 지운 거래는 곧 닫히므로 물을 것도 없다
+    if (askDelete && state != TransactionDetailUiState.Gone) {
+        ConfirmDialog(
+            title = "이 거래를 지울까요?",
+            message = "지운 거래는 되돌릴 수 없어요.",
+            confirmLabel = "지우기",
+            onConfirm = {
+                askDelete = false
+                onDelete()
+            },
+            onDismiss = { askDelete = false },
+        )
+    }
     Surface(modifier = modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Column(modifier = Modifier.fillMaxSize()) {
             BudgetTopAppBar(
                 onNavigationClick = onBack,
-                // 지운 거래는 곧 닫히므로 고칠 수 없게 한다
-                actions = { if (state != TransactionDetailUiState.Gone) BudgetTextButton(text = "수정", onClick = onEdit) },
+                // 지운 거래는 곧 닫히므로 고치거나 지울 수 없게 한다. '수정' 은 원래 자리(맨 오른쪽)에 두고 '삭제' 를 그 앞에 둔다.
+                actions = {
+                    if (state != TransactionDetailUiState.Gone) {
+                        BudgetTextButton(
+                            text = "삭제",
+                            onClick = { if (acceptsTaps()) askDelete = true },
+                            color = BudgetTheme.colors.danger,
+                        )
+                        BudgetTextButton(text = "수정", onClick = onEdit)
+                    }
+                },
             )
             // 첫 조회 전에는 비워 둔다. Room 이 바로 주므로 거의 보이지 않는다.
             if (state is TransactionDetailUiState.Shown) DetailContent(state = state, onOpenTransaction = onOpenTransaction)
