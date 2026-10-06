@@ -9,6 +9,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.Dp
 import com.dong.budget.R
@@ -69,6 +70,17 @@ fun IconBadge(@DrawableRes iconRes: Int, swatch: CategorySwatch, modifier: Modif
             tint = swatch.content,
             modifier = Modifier.size(size * ICON_RATIO),
         )
+    }
+}
+
+/** [IconBadge] 의 벡터 아이콘판. 리소스가 아닌 기본 아이콘(홈·메뉴)을 담는다. */
+@Composable
+fun IconBadge(icon: ImageVector, swatch: CategorySwatch, modifier: Modifier = Modifier, size: Dp = BudgetTheme.size.badge) {
+    Box(
+        modifier = modifier.size(size).background(swatch.container, CircleShape),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(imageVector = icon, contentDescription = null, tint = swatch.content, modifier = Modifier.size(size * ICON_RATIO))
     }
 }
 

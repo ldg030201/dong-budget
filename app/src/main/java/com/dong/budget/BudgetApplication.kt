@@ -20,6 +20,7 @@ class BudgetApplication : Application() {
         container.themeMode
         container.weekStart
         container.backupSchedule
+        container.bottomMenu
         // 잠금·백업 기록 파일을 미리 읽어 둔다. 첫 화면(앱 잠금)과 설정을 그리는 메인 스레드가 파일 읽기를 기다리지 않게 한다.
         thread(name = "lock-startup") {
             container.appLock

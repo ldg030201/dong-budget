@@ -1,6 +1,7 @@
 package com.dong.budget.navigation
 
 import androidx.navigation3.runtime.NavKey
+import com.dong.budget.data.settings.MenuItem
 import kotlinx.serialization.Serializable
 
 /**
@@ -111,6 +112,17 @@ data class StatsDetailKey(val dimension: StatsDimension, val id: Long?, val year
 
 @Serializable
 data object SettingsKey : AppNavKey
+
+/** 설정의 '하단 메뉴'. 아래 메뉴에 둘 칸을 넣고 빼고, 끌어서 순서를 바꾼다. */
+@Serializable
+data object BottomMenuSettingsKey : AppNavKey
+
+/**
+ * 아래 메뉴에 넣지 않은 메뉴(월급·고정지출·카드실적)의 화면. 전체 목록에서 연다. 탭 화면과 같고 머리 왼쪽에 뒤로 가기가 있다.
+ * 아래 메뉴에 있는 메뉴는 이것으로 열지 않고 그 탭으로 바꾼다(HomeShell).
+ */
+@Serializable
+data class MenuPageKey(val item: MenuItem) : AppNavKey
 
 /** 월급 탭의 설정. 연봉·월급, 출퇴근·점심시간, 일하는 요일, 월급날, 잠금 */
 @Serializable

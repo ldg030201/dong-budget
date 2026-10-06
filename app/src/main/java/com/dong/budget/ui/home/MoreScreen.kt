@@ -1,6 +1,5 @@
 package com.dong.budget.ui.home
 
-import androidx.annotation.DrawableRes
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -11,28 +10,30 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.vectorResource
 import com.dong.budget.R
+import com.dong.budget.data.settings.MenuItem
 import com.dong.budget.ui.components.BudgetIconButton
 import com.dong.budget.ui.components.BudgetListItem
 import com.dong.budget.ui.components.IconBadge
 import com.dong.budget.ui.components.TabHeader
+import com.dong.budget.ui.shell.color
+import com.dong.budget.ui.shell.description
+import com.dong.budget.ui.shell.icon
+import com.dong.budget.ui.shell.label
 import com.dong.budget.ui.theme.BudgetTheme
 
 /**
  * 대메뉴 화면.
  *
  * 여기 항목을 누르면 서브플로우로 들어가면서 탭바가 사라지고
- * 왼쪽 위에 뒤로가기만 남는다.
+ * 왼쪽 위에 뒤로가기만 남는다. 아래 메뉴에 둔 메뉴(월급·고정지출·카드실적)는 그 탭으로 바뀐다.
  *
  * 항목마다 색을 달리하되 옅은 원 안에만 칠한다. 글자와 배경은 그대로 둬서 요란하지 않게 한다.
  */
 @Composable
 fun MoreScreen(
     devModeOn: Boolean,
-    onOpenSalary: () -> Unit,
+    onOpenMenu: (MenuItem) -> Unit,
     onOpenCategories: () -> Unit,
-    onOpenStatistics: () -> Unit,
-    onOpenFixedExpenses: () -> Unit,
-    onOpenCardPerformance: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenPatchNotes: () -> Unit,
     onOpenDeveloper: () -> Unit,
@@ -52,68 +53,45 @@ fun MoreScreen(
                 )
             },
         )
-        // 아래 메뉴에도 있지만 전체는 모든 메뉴를 늘어놓는 곳이라 둔다. 누르면 월급 탭으로 간다.
-        MenuItem(
-            title = "월급",
-            subtitle = "일하는 동안 번 돈이 초마다 쌓여요",
-            iconRes = R.drawable.ic_sym_payments,
-            color = "teal",
-            onClick = onOpenSalary,
-        )
-        MenuItem(
+        // 전체는 앱의 모든 메뉴를 늘어놓는 곳이라 아래 메뉴에 있는 것도 둔다. 아래 메뉴에 있으면 그 탭으로, 없으면 따로 연다.
+        MenuRow(MenuItem.SALARY, onOpenMenu)
+        MoreRow(
             title = "분류 관리",
             subtitle = "분류와 결제수단을 추가하거나 지워요",
-            iconRes = R.drawable.ic_sym_category,
-            color = "indigo",
+            badge = { IconBadge(iconRes = R.drawable.ic_sym_category, swatch = BudgetTheme.categoryPalette["indigo"]) },
             onClick = onOpenCategories,
         )
-        // 전체는 앱의 모든 메뉴를 늘어놓는 곳이라 아래 메뉴에 있는 통계도 여기 둔다
-        MenuItem(
-            title = "통계",
-            subtitle = "한눈에 보고, 월별·일별·분류·결제수단으로 나눠 봐요",
-            iconRes = R.drawable.ic_sym_bar_chart,
-            color = "orange",
-            onClick = onOpenStatistics,
-        )
-        // 고정지출·카드실적도 아래 메뉴에 있지만 같은 까닭으로 둔다. 누르면 그 탭으로 간다.
-        MenuItem(
-            title = "고정지출",
-            subtitle = "매달 나가는 돈을 냈는지 봐요",
-            iconRes = R.drawable.ic_sym_event_repeat,
-            color = "green",
-            onClick = onOpenFixedExpenses,
-        )
-        MenuItem(
-            title = "카드실적",
-            subtitle = "카드마다 실적을 얼마나 채웠는지 봐요",
-            iconRes = R.drawable.ic_sym_credit_card,
-            color = "blue",
-            onClick = onOpenCardPerformance,
-        )
-        MenuItem(
+        MenuRow(MenuItem.STATISTICS, onOpenMenu)
+        MenuRow(MenuItem.FIXED_EXPENSE, onOpenMenu)
+        MenuRow(MenuItem.CARD_PERFORMANCE, onOpenMenu)
+        MoreRow(
             title = "패치노트",
             subtitle = "버전마다 바뀐 점을 봐요",
-            iconRes = R.drawable.ic_sym_new_releases,
-            color = "purple",
+            badge = { IconBadge(iconRes = R.drawable.ic_sym_new_releases, swatch = BudgetTheme.categoryPalette["purple"]) },
             onClick = onOpenPatchNotes,
         )
-        MenuItem(
+        MoreRow(
             title = "개발자 모드",
             // 켜 둔 동안에는 로그가 쌓인다는 것을 여기서도 알 수 있게 한다
             subtitle = if (devModeOn) "켜져 있어요 · 로그를 쌓고 있어요" else "오류가 났을 때 기록을 모아 보내요",
-            iconRes = R.drawable.ic_sym_bug_report,
-            color = "gray",
+            badge = { IconBadge(iconRes = R.drawable.ic_sym_bug_report, swatch = BudgetTheme.categoryPalette["gray"]) },
             onClick = onOpenDeveloper,
         )
     }
 }
 
+/** 아래 메뉴에 둘 수 있는 메뉴의 줄. 이름·설명·아이콘은 아래 메뉴·하단 메뉴 설정과 같은 것을 쓴다. */
 @Composable
-private fun MenuItem(title: String, subtitle: String, @DrawableRes iconRes: Int, color: String, onClick: () -> Unit) {
-    BudgetListItem(
-        title = title,
-        subtitle = subtitle,
-        leading = { IconBadge(iconRes = iconRes, swatch = BudgetTheme.categoryPalette[color]) },
-        onClick = onClick,
+private fun MenuRow(item: MenuItem, onOpen: (MenuItem) -> Unit) {
+    MoreRow(
+        title = item.label,
+        subtitle = item.description,
+        badge = { IconBadge(icon = item.icon(), swatch = BudgetTheme.categoryPalette[item.color]) },
+        onClick = { onOpen(item) },
     )
+}
+
+@Composable
+private fun MoreRow(title: String, subtitle: String, badge: @Composable () -> Unit, onClick: () -> Unit) {
+    BudgetListItem(title = title, subtitle = subtitle, leading = badge, onClick = onClick)
 }

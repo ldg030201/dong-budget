@@ -16,6 +16,7 @@ import androidx.compose.ui.Modifier
 import com.dong.budget.R
 import com.dong.budget.data.backup.BackupSchedule
 import com.dong.budget.data.backup.LastBackup
+import com.dong.budget.data.settings.BottomMenu
 import com.dong.budget.data.settings.ThemeMode
 import com.dong.budget.ui.components.ActionRow
 import com.dong.budget.ui.components.BudgetTopAppBar
@@ -25,14 +26,17 @@ import com.dong.budget.ui.format.formatWeekdayFull
 import com.dong.budget.ui.lock.APP_LOCK_GROUP_TEXTS
 import com.dong.budget.ui.lock.LockControls
 import com.dong.budget.ui.lock.LockGroup
+import com.dong.budget.ui.shell.label
 import com.dong.budget.ui.theme.BudgetTheme
 import java.time.DayOfWeek
 
 /**
- * 설정. 위에서부터 화면 테마, 한 주 시작 요일, 백업·복원, 앱 잠금, 권한(켜짐·꺼짐), 고급 설정(자동 기능 스위치·초기화)과 앱 정보(버전·업데이트)로 가는 줄이다.
+ * 설정. 위에서부터 화면 테마, 한 주 시작 요일, 하단 메뉴, 백업·복원, 앱 잠금, 권한(켜짐·꺼짐),
+ * 고급 설정(자동 기능 스위치·초기화)과 앱 정보(버전·업데이트)로 가는 줄이다.
  * 묶음마다 회색 둥근 판에 담는다([SettingsGroup]).
  *
  * @param newerVersion 아직 설치하지 않은 새 버전. 있으면 앱 정보 줄에 알린다.
+ * @param bottomMenu 지금 아래 메뉴 차림. 하단 메뉴 줄 아래에 늘어놓는다.
  */
 @Composable
 fun SettingsScreen(
@@ -46,6 +50,8 @@ fun SettingsScreen(
     newerVersion: String? = null,
     onOpenAdvanced: () -> Unit = {},
     onOpenAppInfo: () -> Unit = {},
+    bottomMenu: BottomMenu = BottomMenu.DEFAULT,
+    onOpenBottomMenu: () -> Unit = {},
     backup: BackupUiState = BackupUiState(),
     lastBackup: LastBackup? = null,
     backupSchedule: BackupSchedule = BackupSchedule.DEFAULT,
@@ -83,6 +89,16 @@ fun SettingsScreen(
                     selectedIndex = WEEK_START_ORDER.indexOf(weekStart),
                     onSelect = { index -> onWeekStartChange(WEEK_START_ORDER[index]) },
                 )
+
+                // 아래 메뉴에 무엇이 어떤 순서로 있는지 바로 보이게 줄 아래에 늘어놓는다
+                SettingsGroup(title = "하단 메뉴") {
+                    ActionRow(
+                        title = "메뉴 넣고 빼기 · 순서 바꾸기",
+                        description = bottomMenu.items.joinToString(" · ") { it.label },
+                        onClick = onOpenBottomMenu,
+                        opensScreen = true,
+                    )
+                }
 
                 BackupSection(state = backup, lastBackup = lastBackup, schedule = backupSchedule, actions = backupActions)
 

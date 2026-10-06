@@ -61,15 +61,18 @@ import com.dong.budget.data.salary.SalaryLockReset
 import com.dong.budget.data.salary.salaryKey
 import com.dong.budget.data.salary.salaryMonthOf
 import com.dong.budget.data.settings.AutoOption
+import com.dong.budget.data.settings.MenuItem
 import com.dong.budget.navigation.AdvancedSettingsKey
 import com.dong.budget.navigation.AppInfoKey
 import com.dong.budget.navigation.AppPinSetupKey
+import com.dong.budget.navigation.BottomMenuSettingsKey
 import com.dong.budget.navigation.CardPerformanceDetailKey
 import com.dong.budget.navigation.CardPerformanceEditKey
 import com.dong.budget.navigation.CategoryManageKey
 import com.dong.budget.navigation.DeveloperKey
 import com.dong.budget.navigation.EditorPrefill
 import com.dong.budget.navigation.InboxKey
+import com.dong.budget.navigation.MenuPageKey
 import com.dong.budget.navigation.Navigator
 import com.dong.budget.navigation.PatchNotesKey
 import com.dong.budget.navigation.SalaryPinSetupKey
@@ -131,9 +134,11 @@ import com.dong.budget.ui.settings.AdvancedSettingsViewModel
 import com.dong.budget.ui.settings.AppInfoScreen
 import com.dong.budget.ui.settings.AppInfoViewModel
 import com.dong.budget.ui.settings.BackupActions
+import com.dong.budget.ui.settings.BottomMenuScreen
 import com.dong.budget.ui.settings.SettingsScreen
 import com.dong.budget.ui.settings.SettingsViewModel
 import com.dong.budget.ui.shell.HomeShell
+import com.dong.budget.ui.shell.MenuPage
 import com.dong.budget.ui.stats.StatsScreen
 import com.dong.budget.ui.stats.StatsTab
 import com.dong.budget.ui.stats.StatsViewModel
@@ -210,6 +215,75 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
     // 한 주를 시작하는 요일. 달력·통계가 LocalWeekStart 로 읽는다.
     val weekStart by container.weekStart.collectAsStateWithLifecycle()
 
+    // 아래 메뉴 차림. 셸의 아래 메뉴와 설정의 하단 메뉴 화면이 읽는다.
+    val bottomMenu by container.bottomMenu.collectAsStateWithLifecycle()
+
+    // 홈·전체가 아닌 탭 화면. 아래 메뉴에 있으면 셸 안의 탭으로, 없으면 셸 위에 따로(MenuPageKey) 같은 것을 그린다.
+    // 화면 모델은 이 람다를 부르는 엔트리(셸이나 따로 연 화면)와 같이 산다. 탭이면 탭을 처음 열 때 생기고, 떠나 있으면 구독을 멈춘다.
+    // 위에 다른 화면이 올라오는 동안 연달아 누른 탭은 받지 않는다(서브플로우와 같은 규칙).
+    val menuPage: @Composable (MenuItem) -> Unit = { item ->
+        when (item) {
+            // '등록하기' 는 지난번 값으로 채운 등록창을, 줄은 그 가게의 가장 최근 거래 상세를 연다.
+            // '고정지출' 분류를 지웠으면 다시 만들러 분류 관리를 연다.
+            MenuItem.FIXED_EXPENSE -> {
+                val fixedViewModel: FixedExpenseViewModel = viewModel(factory = fixedExpenseViewModelFactory(container))
+                val fixedState by fixedViewModel.uiState.collectAsStateWithLifecycle()
+                val settled = rememberSettled()
+                FixedExpenseScreen(
+                    state = fixedState,
+                    onPreviousMonth = fixedViewModel::showPreviousMonth,
+                    onNextMonth = fixedViewModel::showNextMonth,
+                    onThisMonth = fixedViewModel::showThisMonth,
+                    onRegister = { prefill -> if (settled()) navigator.go(TransactionEditorKey(prefill = prefill)) },
+                    onOpenTransaction = { id -> if (settled()) navigator.go(TransactionDetailKey(id)) },
+                    onOpenCategories = { if (settled()) navigator.go(CategoryManageKey) },
+                )
+            }
+
+            // 처음이면 연봉 공개 주의 안내, 잠겨 있으면 PIN·지문, 그 뒤에야 월급을 그린다
+            MenuItem.SALARY ->
+                SalaryTabGate(
+                    lock = salaryLock,
+                    state = salaryLockState,
+                    open = salaryOpen,
+                    onIntroConfirm = { wantsLock ->
+                        salaryLock.markIntroDone()
+                        if (wantsLock) navigator.go(SalaryPinSetupKey)
+                    },
+                    onForgot = { forgetSalaryPin() },
+                ) {
+                    HideFromRecents(active = salaryLockState.enabled)
+                    val salaryViewModel: SalaryViewModel = viewModel(factory = salaryViewModelFactory(container))
+                    val salaryState by salaryViewModel.uiState.collectAsStateWithLifecycle()
+                    SalaryScreen(
+                        state = salaryState,
+                        onOpenSettings = { navigator.go(SalarySettingsKey) },
+                        onRegisterSalary = { month ->
+                            scope.launch { openSalary(month, container, navigator, context) }
+                        },
+                        onOpenTransaction = { id -> navigator.go(TransactionDetailKey(id)) },
+                    )
+                }
+
+            // 카드 판은 '카드실적 상세', '실적 추가' 는 '카드실적 편집' 엔트리로 연다. 자리 잡은 뒤(RESUMED)에만 받아, 다른 카드 판을 연달아 눌러
+            // 상세가 두 겹 쌓이거나 나가는 상세의 ← 를 연달아 누른 탭이 막 드러난 판에 떨어지지 않게 한다.
+            MenuItem.CARD_PERFORMANCE -> {
+                val cardViewModel: CardPerformanceViewModel = viewModel(factory = cardPerformanceViewModelFactory(container))
+                val cardState by cardViewModel.uiState.collectAsStateWithLifecycle()
+                val cardSettled = rememberSettled()
+                CardPerformanceScreen(
+                    state = cardState,
+                    onOpenDetail = { id -> if (cardSettled()) navigator.go(CardPerformanceDetailKey(id)) },
+                    onAddPerformance = { id -> if (cardSettled()) navigator.go(CardPerformanceEditKey(id)) },
+                    onOpenCategories = { if (cardSettled()) navigator.go(CategoryManageKey) },
+                )
+            }
+
+            // 홈·전체는 셸이 직접 그리고, 통계는 탭이 아니다
+            MenuItem.HOME, MenuItem.STATISTICS, MenuItem.MORE -> Unit
+        }
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
         // 화면을 오갈 때 두 화면의 같은 요소를 이어 주는 범위(아래 메뉴의 '통계' 가 통계 하위 메뉴 첫 칸으로 옮겨 가는 연출).
         // NavDisplay 의 sharedTransitionScope 로는 넘기지 않는다. 넘기면 화면 전체를 장면 사이 공유 요소로 감싸는데, 이 앱은 장면이 하나라 쓸 데가 없다.
@@ -255,6 +329,7 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
                             val devModeOn by DevLog.enabled.collectAsStateWithLifecycle()
                             HomeShell(
                                 state = state,
+                                menu = bottomMenu,
                                 updateVersion = updateVersion,
                                 hasNewNotice = hasNewNotice,
                                 onOpenUpdate = { navigator.go(AppInfoKey) },
@@ -268,71 +343,13 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
                                 onOpenCategories = { navigator.go(CategoryManageKey) },
                                 onOpenStatistics = { navigator.go(StatisticsKey()) },
                                 onOpenStatisticsAt = { month -> navigator.go(StatisticsKey(month.year, month.monthValue)) },
+                                onOpenPage = { item -> navigator.go(MenuPageKey(item)) },
                                 onOpenSettings = { navigator.go(SettingsKey) },
                                 onOpenPatchNotes = { navigator.go(PatchNotesKey) },
                                 devModeOn = devModeOn,
                                 onOpenDeveloper = { navigator.go(DeveloperKey) },
-                                // ── 고정지출 탭 ──
-                                // 화면 모델은 월급처럼 이 람다 안에서 만들어 셸과 같이 살게 한다(탭을 처음 열 때 생기고, 떠나 있으면 구독을 멈춘다).
-                                // '등록하기' 는 지난번 값으로 채운 등록창을, 줄은 그 가게의 가장 최근 거래 상세를 연다.
-                                // '고정지출' 분류를 지웠으면 다시 만들러 분류 관리를 연다.
-                                // 위에 다른 화면이 올라오는 동안 연달아 누른 탭은 받지 않는다(서브플로우와 같은 규칙).
-                                fixedExpenseContent = {
-                                    val fixedViewModel: FixedExpenseViewModel = viewModel(factory = fixedExpenseViewModelFactory(container))
-                                    val fixedState by fixedViewModel.uiState.collectAsStateWithLifecycle()
-                                    val settled = rememberSettled()
-                                    FixedExpenseScreen(
-                                        state = fixedState,
-                                        onPreviousMonth = fixedViewModel::showPreviousMonth,
-                                        onNextMonth = fixedViewModel::showNextMonth,
-                                        onThisMonth = fixedViewModel::showThisMonth,
-                                        onRegister = { prefill -> if (settled()) navigator.go(TransactionEditorKey(prefill = prefill)) },
-                                        onOpenTransaction = { id -> if (settled()) navigator.go(TransactionDetailKey(id)) },
-                                        onOpenCategories = { if (settled()) navigator.go(CategoryManageKey) },
-                                    )
-                                },
-                                salaryContent = {
-                                    // 처음이면 연봉 공개 주의 안내, 잠겨 있으면 PIN·지문, 그 뒤에야 월급을 그린다
-                                    SalaryTabGate(
-                                        lock = salaryLock,
-                                        state = salaryLockState,
-                                        open = salaryOpen,
-                                        onIntroConfirm = { wantsLock ->
-                                            salaryLock.markIntroDone()
-                                            if (wantsLock) navigator.go(SalaryPinSetupKey)
-                                        },
-                                        onForgot = { forgetSalaryPin() },
-                                    ) {
-                                        HideFromRecents(active = salaryLockState.enabled)
-                                        // 월급 탭을 처음 열 때 만들어지고, 셸과 같이 산다. 탭을 떠나 있으면 구독을 멈춘다(WhileSubscribed).
-                                        val salaryViewModel: SalaryViewModel = viewModel(factory = salaryViewModelFactory(container))
-                                        val salaryState by salaryViewModel.uiState.collectAsStateWithLifecycle()
-                                        SalaryScreen(
-                                            state = salaryState,
-                                            onOpenSettings = { navigator.go(SalarySettingsKey) },
-                                            onRegisterSalary = { month ->
-                                                scope.launch { openSalary(month, container, navigator, context) }
-                                            },
-                                            onOpenTransaction = { id -> navigator.go(TransactionDetailKey(id)) },
-                                        )
-                                    }
-                                },
-                                // ── 카드실적 ──
-                                // 화면 모델은 월급처럼 이 람다 안에서 만들어 셸과 같이 살게 한다. 카드 판은 아래 '카드실적 상세',
-                                // '실적 추가' 는 '카드실적 편집' 엔트리로 연다. 셸이 자리 잡은 뒤(RESUMED)에만 받아, 다른 카드 판을 연달아 눌러
-                                // 상세가 두 겹 쌓이거나 나가는 상세의 ← 를 연달아 누른 탭이 막 드러난 판에 떨어지지 않게 한다.
-                                cardPerformanceContent = {
-                                    val cardViewModel: CardPerformanceViewModel =
-                                        viewModel(factory = cardPerformanceViewModelFactory(container))
-                                    val cardState by cardViewModel.uiState.collectAsStateWithLifecycle()
-                                    val cardSettled = rememberSettled()
-                                    CardPerformanceScreen(
-                                        state = cardState,
-                                        onOpenDetail = { id -> if (cardSettled()) navigator.go(CardPerformanceDetailKey(id)) },
-                                        onAddPerformance = { id -> if (cardSettled()) navigator.go(CardPerformanceEditKey(id)) },
-                                        onOpenCategories = { if (cardSettled()) navigator.go(CategoryManageKey) },
-                                    )
-                                },
+                                // 월급·고정지출·카드실적 탭. 아래 메뉴에 없을 때 셸 위에 따로 여는 화면(MenuPageKey)과 같은 것을 쓴다.
+                                pageContent = menuPage,
                             )
                         }
 
@@ -437,6 +454,13 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
                             )
                         }
 
+                        // 아래 메뉴에 넣지 않은 메뉴를 전체에서 열었다. 탭 화면을 그대로 그리고 머리 왼쪽에 뒤로 가기를 둔다.
+                        // ← 는 자리 잡은 뒤에만, 맨 위일 때만 닫는다(서브플로우와 같은 규칙).
+                        entry<MenuPageKey> { key ->
+                            val settled = rememberSettled()
+                            MenuPage(onBack = { if (settled()) navigator.closeIfTop(key) }) { menuPage(key.item) }
+                        }
+
                         entry<TransactionDetailKey> { key ->
                             val viewModel: TransactionDetailViewModel =
                                 viewModel(factory = transactionDetailViewModelFactory(container, key.transactionId))
@@ -485,6 +509,8 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
                                 onBack = navigator::goBack,
                                 newerVersion = newerVersion,
                                 onOpenAdvanced = { if (settled()) navigator.go(AdvancedSettingsKey) },
+                                bottomMenu = bottomMenu,
+                                onOpenBottomMenu = { if (settled()) navigator.go(BottomMenuSettingsKey) },
                                 onOpenAppInfo = { if (settled()) navigator.go(AppInfoKey) },
                                 backup = backup,
                                 lastBackup = lastBackup,
@@ -507,6 +533,10 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
                                     onScheduleChange = viewModel::setBackupSchedule,
                                 ),
                             )
+                        }
+
+                        entry<BottomMenuSettingsKey> {
+                            BottomMenuScreen(menu = bottomMenu, onChange = container::setBottomMenu, onBack = navigator::goBack)
                         }
 
                         entry<AppInfoKey> {
