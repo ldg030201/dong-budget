@@ -65,7 +65,6 @@ import com.dong.budget.data.settings.MenuItem
 import com.dong.budget.navigation.AdvancedSettingsKey
 import com.dong.budget.navigation.AppInfoKey
 import com.dong.budget.navigation.AppPinSetupKey
-import com.dong.budget.navigation.BottomMenuSettingsKey
 import com.dong.budget.navigation.CardPerformanceDetailKey
 import com.dong.budget.navigation.CardPerformanceEditKey
 import com.dong.budget.navigation.CategoryManageKey
@@ -136,7 +135,6 @@ import com.dong.budget.ui.settings.AdvancedSettingsViewModel
 import com.dong.budget.ui.settings.AppInfoScreen
 import com.dong.budget.ui.settings.AppInfoViewModel
 import com.dong.budget.ui.settings.BackupActions
-import com.dong.budget.ui.settings.BottomMenuScreen
 import com.dong.budget.ui.settings.SettingsScreen
 import com.dong.budget.ui.settings.SettingsViewModel
 import com.dong.budget.ui.shell.HomeShell
@@ -217,7 +215,7 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
     // 한 주를 시작하는 요일. 달력·통계가 LocalWeekStart 로 읽는다.
     val weekStart by container.weekStart.collectAsStateWithLifecycle()
 
-    // 아래 메뉴 차림. 셸의 아래 메뉴와 설정의 하단 메뉴 화면이 읽는다.
+    // 아래 메뉴 차림. 셸의 아래 메뉴와 설정의 하단 메뉴 편집기가 읽는다.
     val bottomMenu by container.bottomMenu.collectAsStateWithLifecycle()
 
     // 홈·전체가 아닌 탭 화면. 아래 메뉴에 있으면 셸 안의 탭으로, 없으면 셸 위에 따로(MenuPageKey) 같은 것을 그린다.
@@ -525,7 +523,7 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
                                 newerVersion = newerVersion,
                                 onOpenAdvanced = { if (settled()) navigator.go(AdvancedSettingsKey) },
                                 bottomMenu = bottomMenu,
-                                onOpenBottomMenu = { if (settled()) navigator.go(BottomMenuSettingsKey) },
+                                onBottomMenuChange = container::setBottomMenu,
                                 onOpenAppInfo = { if (settled()) navigator.go(AppInfoKey) },
                                 backup = backup,
                                 lastBackup = lastBackup,
@@ -548,10 +546,6 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
                                     onScheduleChange = viewModel::setBackupSchedule,
                                 ),
                             )
-                        }
-
-                        entry<BottomMenuSettingsKey> {
-                            BottomMenuScreen(menu = bottomMenu, onChange = container::setBottomMenu, onBack = navigator::goBack)
                         }
 
                         entry<AppInfoKey> {

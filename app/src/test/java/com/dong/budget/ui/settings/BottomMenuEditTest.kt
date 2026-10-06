@@ -16,80 +16,58 @@ class BottomMenuEditTest {
     private val menu = BottomMenu.DEFAULT // 홈 · 월급 · 통계 · 고정지출 · 전체 | 카드실적 · 내역
 
     @Test
-    fun `목록은 위 머리 · 홈 · 넣은 메뉴 · 전체 · 아래 머리 · 뺀 메뉴 순이다`() {
-        assertEquals(
-            listOf(
-                MenuEditRow.Header(true),
-                MenuEditRow.Item(HOME),
-                MenuEditRow.Item(SALARY),
-                MenuEditRow.Item(STATISTICS),
-                MenuEditRow.Item(FIXED_EXPENSE),
-                MenuEditRow.Item(MORE),
-                MenuEditRow.Header(false),
-                MenuEditRow.Item(CARD_PERFORMANCE),
-                MenuEditRow.Item(HISTORY),
-            ),
-            menu.editRows(),
-        )
-        // 다 넣었으면 아래 구역에 끌어 내릴 자리가 남는다
-        assertEquals(MenuEditRow.AllShown, menu.add(CARD_PERFORMANCE).add(HISTORY).editRows().last())
+    fun `하단 메뉴 안에서 옮기면 그 자리에 서고 나머지가 비킨다`() {
+        assertEquals(listOf(STATISTICS, FIXED_EXPENSE, SALARY), menu.moveTo(SALARY, MenuSpot.Shown(2)).shown)
+        assertEquals(listOf(FIXED_EXPENSE, SALARY, STATISTICS), menu.moveTo(FIXED_EXPENSE, MenuSpot.Shown(0)).shown)
+        // 자리를 넘으면 맨 뒤(전체 바로 앞)
+        assertEquals(listOf(STATISTICS, FIXED_EXPENSE, SALARY), menu.moveTo(SALARY, MenuSpot.Shown(99)).shown)
     }
 
     @Test
-    fun `같은 구역의 메뉴에 닿으면 그 자리로 가고 닿은 메뉴가 비킨다`() {
-        assertEquals(listOf(STATISTICS, SALARY, FIXED_EXPENSE), menu.dropOn(SALARY, MenuEditRow.Item(STATISTICS))!!.shown)
-        assertEquals(listOf(FIXED_EXPENSE, SALARY, STATISTICS), menu.dropOn(FIXED_EXPENSE, MenuEditRow.Item(SALARY))!!.shown)
-    }
-
-    @Test
-    fun `홈과 전체는 끌 수 없고, 홈에 닿으면 맨 앞, 이미 맨 앞이면 그대로다`() {
-        assertNull(menu.dropOn(HOME, MenuEditRow.Item(SALARY)))
-        assertNull(menu.dropOn(MORE, MenuEditRow.Item(FIXED_EXPENSE)))
-        assertEquals(listOf(STATISTICS, SALARY, FIXED_EXPENSE), menu.dropOn(STATISTICS, MenuEditRow.Item(HOME))!!.shown)
-        assertNull(menu.dropOn(SALARY, MenuEditRow.Item(HOME)))
-        assertNull(menu.dropOn(SALARY, MenuEditRow.Item(SALARY)))
-    }
-
-    @Test
-    fun `전체나 아래 머리에 닿으면 구역을 넘는다`() {
-        // 넣은 메뉴를 전체 아래로 끌어 내리면 뺀 메뉴의 맨 앞
-        val removed = menu.dropOn(FIXED_EXPENSE, MenuEditRow.Item(MORE))!!
-        assertEquals(listOf(SALARY, STATISTICS), removed.shown)
-        assertEquals(listOf(FIXED_EXPENSE, CARD_PERFORMANCE, HISTORY), removed.hidden)
-        // 뺀 메뉴를 아래 머리 위로 끌어 올리면 넣은 메뉴의 맨 뒤(전체 바로 앞)
-        val added = menu.dropOn(CARD_PERFORMANCE, MenuEditRow.Header(false))!!
-        assertEquals(listOf(SALARY, STATISTICS, FIXED_EXPENSE, CARD_PERFORMANCE), added.shown)
-        assertEquals(listOf(HISTORY), added.hidden)
-        // 다 넣은 뒤 안내 줄로 끌어 내리면 빠진다
-        val all = added.add(HISTORY)
-        assertEquals(listOf(STATISTICS), all.dropOn(STATISTICS, MenuEditRow.AllShown)!!.hidden)
-    }
-
-    @Test
-    fun `다른 구역의 메뉴에 닿으면 그 자리로 간다`() {
-        val removed = menu.remove(SALARY) // 뺀 메뉴: 월급, 카드실적, 내역
-        val back = removed.dropOn(CARD_PERFORMANCE, MenuEditRow.Item(STATISTICS))!!
-        assertEquals(listOf(CARD_PERFORMANCE, STATISTICS, FIXED_EXPENSE), back.shown)
-        assertEquals(listOf(SALARY, HISTORY), back.hidden)
-    }
-
-    @Test
-    fun `− 는 뺀 메뉴의 맨 앞으로, + 는 넣은 메뉴의 맨 뒤로`() {
-        val removed = menu.remove(STATISTICS)
+    fun `아래 칸으로 옮기면 빠지고, 위 판으로 옮기면 들어간다`() {
+        val removed = menu.moveTo(STATISTICS, MenuSpot.Hidden(1))
         assertEquals(listOf(SALARY, FIXED_EXPENSE), removed.shown)
-        assertEquals(listOf(STATISTICS, CARD_PERFORMANCE, HISTORY), removed.hidden)
-        assertEquals(listOf(SALARY, FIXED_EXPENSE, CARD_PERFORMANCE), removed.add(CARD_PERFORMANCE).shown)
-        // 고정 칸은 넣고 빼지 않는다
-        assertEquals(menu, menu.remove(HOME))
-        assertEquals(menu, menu.add(MORE))
+        assertEquals(listOf(CARD_PERFORMANCE, STATISTICS, HISTORY), removed.hidden)
+        val added = menu.moveTo(HISTORY, MenuSpot.Shown(1))
+        assertEquals(listOf(SALARY, HISTORY, STATISTICS, FIXED_EXPENSE), added.shown)
+        assertEquals(listOf(CARD_PERFORMANCE), added.hidden)
     }
 
     @Test
-    fun `화면 읽기의 옮기기는 같은 구역 안에서 한 칸씩, 끝이면 없다`() {
+    fun `홈과 전체는 옮기지 않는다`() {
+        assertEquals(menu, menu.moveTo(HOME, MenuSpot.Shown(2)))
+        assertEquals(menu, menu.moveTo(MORE, MenuSpot.Hidden(0)))
+    }
+
+    @Test
+    fun `손가락보다 왼쪽에 있는 다른 칸의 수가 자리 번호다`() {
+        // 다른 칸 가운데가 50, 150, 250 일 때
+        val centers = listOf(50f, 150f, 250f)
+        assertEquals(0, spotIndex(centers, 10f))
+        assertEquals(1, spotIndex(centers, 51f))
+        assertEquals(2, spotIndex(centers, 200f))
+        assertEquals(3, spotIndex(centers, 300f))
+        assertEquals(0, spotIndex(emptyList(), 300f))
+    }
+
+    @Test
+    fun `끄는 칸 자신은 빼고 세서 옆 칸 가운데를 넘어야 자리가 바뀐다`() {
+        // 칸 너비 100: 월급(50) · 통계(150) · 고정지출(250). 월급을 끌고 있다.
+        val others = listOf(150f, 250f) // 통계, 고정지출
+        // 통계 가운데(150)를 넘기 전에는 그대로 첫째 자리
+        assertEquals(0, spotIndex(others, 140f))
+        // 넘으면 둘째 자리로. 그러면 통계가 왼쪽 칸(가운데 50)으로 비켜서고, 손가락을 조금 되돌려도(140) 50 을 넘은 채라 그대로다.
+        assertEquals(1, spotIndex(others, 160f))
+        assertEquals(1, spotIndex(listOf(50f, 250f), 140f))
+    }
+
+    @Test
+    fun `화면 읽기의 옮기기는 같은 줄 안에서 한 칸씩, 끝이면 없다`() {
         assertEquals(listOf(SALARY, FIXED_EXPENSE, STATISTICS), menu.moveBy(STATISTICS, 1)!!.shown)
         assertNull(menu.moveBy(SALARY, -1))
         assertNull(menu.moveBy(FIXED_EXPENSE, 1))
         assertEquals(listOf(HISTORY, CARD_PERFORMANCE), menu.moveBy(CARD_PERFORMANCE, 1)!!.hidden)
         assertNull(menu.moveBy(HISTORY, 1))
+        assertNull(menu.moveBy(HOME, 1))
     }
 }

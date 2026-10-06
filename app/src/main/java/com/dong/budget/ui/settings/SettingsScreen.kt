@@ -26,7 +26,6 @@ import com.dong.budget.ui.format.formatWeekdayFull
 import com.dong.budget.ui.lock.APP_LOCK_GROUP_TEXTS
 import com.dong.budget.ui.lock.LockControls
 import com.dong.budget.ui.lock.LockGroup
-import com.dong.budget.ui.shell.label
 import com.dong.budget.ui.theme.BudgetTheme
 import java.time.DayOfWeek
 
@@ -36,7 +35,7 @@ import java.time.DayOfWeek
  * 묶음마다 회색 둥근 판에 담는다([SettingsGroup]).
  *
  * @param newerVersion 아직 설치하지 않은 새 버전. 있으면 앱 정보 줄에 알린다.
- * @param bottomMenu 지금 아래 메뉴 차림. 하단 메뉴 줄 아래에 늘어놓는다.
+ * @param bottomMenu 지금 아래 메뉴 차림. 하단 메뉴 편집기([BottomMenuEditor])가 아이콘으로 늘어놓고, 끌어서 고치면 [onBottomMenuChange] 로 저장한다.
  */
 @Composable
 fun SettingsScreen(
@@ -51,7 +50,7 @@ fun SettingsScreen(
     onOpenAdvanced: () -> Unit = {},
     onOpenAppInfo: () -> Unit = {},
     bottomMenu: BottomMenu = BottomMenu.DEFAULT,
-    onOpenBottomMenu: () -> Unit = {},
+    onBottomMenuChange: (BottomMenu) -> Unit = {},
     backup: BackupUiState = BackupUiState(),
     lastBackup: LastBackup? = null,
     backupSchedule: BackupSchedule = BackupSchedule.DEFAULT,
@@ -90,15 +89,8 @@ fun SettingsScreen(
                     onSelect = { index -> onWeekStartChange(WEEK_START_ORDER[index]) },
                 )
 
-                // 아래 메뉴에 무엇이 어떤 순서로 있는지 바로 보이게 줄 아래에 늘어놓는다
-                SettingsGroup(title = "하단 메뉴") {
-                    ActionRow(
-                        title = "메뉴 넣고 빼기 · 순서 바꾸기",
-                        description = bottomMenu.items.joinToString(" · ") { it.label },
-                        onClick = onOpenBottomMenu,
-                        opensScreen = true,
-                    )
-                }
+                // 따로 들어가지 않고 여기서 아이콘을 끌어 바로 고친다
+                BottomMenuEditor(menu = bottomMenu, onChange = onBottomMenuChange)
 
                 BackupSection(state = backup, lastBackup = lastBackup, schedule = backupSchedule, actions = backupActions)
 
