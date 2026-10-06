@@ -60,7 +60,7 @@ data class EditorPrefill(
 /** 등록창을 채운 곳 */
 @Serializable
 enum class PrefillSource {
-    /** 토스 결제 알림(지출) */
+    /** 토스·카카오페이 결제 알림(지출) */
     PAYMENT_ALERT,
 
     /** 월급날 알림이나 월급 탭(수입) */

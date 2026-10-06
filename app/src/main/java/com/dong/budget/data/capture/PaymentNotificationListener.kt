@@ -16,7 +16,7 @@ import kotlinx.coroutines.launch
 /**
  * 기기에 올라오는 알림을 받는다. 사용자가 '알림 읽기' 를 허용해야 시스템이 연결해 준다.
  *
- * 시스템은 모든 앱의 알림을 넘겨준다. 토스가 아닌 앱의 알림은 [read] 첫 줄에서 버리고,
+ * 시스템은 모든 앱의 알림을 넘겨준다. 결제 알림을 읽는 앱(토스·카카오페이)이 아닌 앱의 알림은 [read] 첫 줄에서 버리고,
  * 내용을 읽거나 남기지 않는다.
  *
  * 이 클래스의 이름과 패키지 경로는 바꾸지 않는다. 시스템이 사용자의 허용을 이 이름으로 기억해서,
@@ -31,7 +31,7 @@ class PaymentNotificationListener : NotificationListenerService() {
     /**
      * 연결될 때(허용 직후, 앱 업데이트나 기기 재시작 뒤) 할 일.
      * 1. 업데이트나 재시작으로 지워진 우리 알림 중 아직 답하지 않은 것을 다시 띄운다.
-     * 2. 알림창에 남아 있는 토스 알림도 살핀다. 연결이 끊겨 있던 사이 올라온 결제를 놓치지 않기 위함이다.
+     * 2. 알림창에 남아 있는 결제 알림도 살핀다. 연결이 끊겨 있던 사이 올라온 결제를 놓치지 않기 위함이다.
      *    이미 물어본 결제는 다시 묻지 않는다.
      */
     override fun onListenerConnected() {
@@ -44,7 +44,7 @@ class PaymentNotificationListener : NotificationListenerService() {
     }
 
     /**
-     * 띄우지 못한 묻는 알림을 되살리고, 알림창의 토스 알림 중 아직 묻지 않은 결제를 묻는다. 이 순서대로 한다.
+     * 띄우지 못한 묻는 알림을 되살리고, 알림창의 결제 알림 중 아직 묻지 않은 결제를 묻는다. 이 순서대로 한다.
      * 되살리기가 먼저여야 새로 들어온 결제를 '되살린 알림' 처럼 소리 없이 띄우지 않는다.
      */
     private suspend fun reconcile() {
@@ -53,7 +53,7 @@ class PaymentNotificationListener : NotificationListenerService() {
         val showing = active.filter(::isOurPrompt).mapNotNull { it.tag }.toSet()
         runCatching { capture.restorePrompts(showing) }.onFailure { DevLog.error(LogTag.CAPTURE, "묻는 알림을 되살리다 오류가 났어요", it) }
         // 알림창의 순서는 온 순서가 아닐 수 있다. 같은 결제가 알림 두 개로 왔으면 먼저 온 쪽을 묻도록 시각 순으로 본다.
-        active.mapNotNull(::read).sortedBy { it.third }.forEach { (titles, texts, occurredAt) -> handle(titles, texts, occurredAt) }
+        active.mapNotNull(::read).sortedBy { it.occurredAt }.forEach { handle(it) }
     }
 
     override fun onListenerDisconnected() {
@@ -77,17 +77,20 @@ class PaymentNotificationListener : NotificationListenerService() {
         sbn.packageName == packageName && sbn.notification?.channelId == CaptureNotifier.CHANNEL_ID
 
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
-        val (titles, texts, occurredAt) = sbn?.let(::read) ?: return
-        scope.launch { handle(titles, texts, occurredAt) }
+        val posted = sbn?.let(::read) ?: return
+        scope.launch { handle(posted) }
     }
 
-    private suspend fun handle(titles: List<CharSequence?>, texts: List<CharSequence?>, occurredAt: Long) {
-        runCatching { capture.onNotification(titles, texts, occurredAt) }
-            .onFailure { DevLog.error(LogTag.CAPTURE, "토스 알림을 처리하다 오류가 났어요", it) }
+    private suspend fun handle(posted: Posted) {
+        runCatching { capture.onNotification(posted.packageName, posted.titles, posted.texts, posted.occurredAt) }
+            .onFailure { DevLog.error(LogTag.CAPTURE, "결제 알림을 처리하다 오류가 났어요", it) }
     }
 
-    /** 토스 알림이면 제목·본문 후보와 결제 시각을 꺼낸다. 다른 앱의 알림이면 null 이고, 내용을 읽지 않는다. */
-    private fun read(sbn: StatusBarNotification): Triple<List<CharSequence?>, List<CharSequence?>, Long>? {
+    /** 결제 알림 앱에서 온 알림 하나. 제목·본문 후보와 결제 시각이다. */
+    private class Posted(val packageName: String, val titles: List<CharSequence?>, val texts: List<CharSequence?>, val occurredAt: Long)
+
+    /** 결제 알림 앱의 알림이면 제목·본문 후보와 결제 시각을 꺼낸다. 다른 앱의 알림이면 null 이고, 내용을 읽지 않는다. */
+    private fun read(sbn: StatusBarNotification): Posted? {
         // 다른 앱의 알림은 여기서 끝난다
         if (!PaymentCapture.isSource(sbn.packageName)) return null
         val notification = sbn.notification ?: return null
@@ -96,13 +99,14 @@ class PaymentNotificationListener : NotificationListenerService() {
         // 알림 내용을 꺼내다 실패해도(알 수 없는 형식 등) 동계부가 죽지 않게 한다
         val extras = notification.extras ?: return null
         return runCatching {
-            Triple(
+            Posted(
+                sbn.packageName,
                 listOf(extras.getCharSequence(Notification.EXTRA_TITLE), extras.getCharSequence(Notification.EXTRA_TITLE_BIG)),
                 // 펼친 본문을 먼저 본다. 짧은 본문에는 첫 줄만 담기기도 해서 둘째 줄의 카드 이름(캐시백 알림)이 빠진다.
                 listOf(extras.getCharSequence(Notification.EXTRA_BIG_TEXT), extras.getCharSequence(Notification.EXTRA_TEXT)),
                 PaymentCapture.paymentTime(notification.`when`, sbn.postTime),
             )
-        }.onFailure { DevLog.warn(LogTag.CAPTURE, "토스 알림 내용을 꺼내지 못했어요", it) }.getOrNull()
+        }.onFailure { DevLog.warn(LogTag.CAPTURE, "결제 알림 내용을 꺼내지 못했어요", it) }.getOrNull()
     }
 
     override fun onDestroy() {

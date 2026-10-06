@@ -27,9 +27,9 @@ internal val AutoOption.title: String
 /** 스위치 이름 아래 설명 */
 internal val AutoOption.description: String
     get() = when (this) {
-        AutoOption.CAPTURE_PROMPT -> "토스 결제 알림이 오면 '가계부에 등록할까요?' 알림을 띄워요"
-        AutoOption.CAPTURE_DEDUPE -> "토스가 결제 한 건을 알림 두 개로 보내면 먼저 온 것만 물어요"
-        AutoOption.CAPTURE_RESCAN -> "알림창에 남은 토스 알림 중 아직 묻지 못한 결제를 앱을 열 때 물어요"
+        AutoOption.CAPTURE_PROMPT -> "토스·카카오페이 결제 알림이 오면 '가계부에 등록할까요?' 알림을 띄워요"
+        AutoOption.CAPTURE_DEDUPE -> "결제 한 건이 알림 두 개로 오면 먼저 온 것만 물어요"
+        AutoOption.CAPTURE_RESCAN -> "알림창에 남은 결제 알림 중 아직 묻지 못한 결제를 앱을 열 때 물어요"
         AutoOption.FILL_CATEGORY -> "전에 같은 가게로 등록한 지출의 분류를 미리 골라 둬요"
         AutoOption.FILL_PAYMENT -> "알림의 카드와 이름이 같은 결제수단을 미리 골라 둬요"
         AutoOption.FILL_NEW_CARD -> "같은 이름의 결제수단이 없으면 저장할 때 그 카드로 새로 만들어요"

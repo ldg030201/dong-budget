@@ -187,7 +187,7 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
     // 월급 PIN 을 잊었다. 월급 설정과 잠금을 함께 지운다(처음 안내는 남긴다).
     val forgetSalaryPin = { scope.launch { container.clearSalary(SalaryLockReset.PIN) } }
 
-    // 앱이 화면에 나올 때마다 알림창에 남은 토스 결제 알림을 다시 살피게 한다.
+    // 앱이 화면에 나올 때마다 알림창에 남은 결제 알림을 다시 살피게 한다.
     // 알림을 막 허용하고 돌아온 경우, 그전에 들어와 묻지 못한 결제를 이때 묻는다. 이미 물어본 결제는 다시 묻지 않는다.
     LifecycleResumeEffect(container) {
         container.paymentCapture.requestRescan()

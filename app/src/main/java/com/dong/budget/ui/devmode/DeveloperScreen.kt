@@ -142,7 +142,7 @@ private fun ConfirmDialogFor(confirm: Confirm, count: Int, onConfirm: () -> Unit
             ConfirmDialog(
                 title = "개발자 모드를 켤까요?",
                 message =
-                "켜 두는 동안 이 폰에 로그가 계속 쌓여요. 로그에는 토스 결제 알림 내용(금액·카드·가게 이름), " +
+                "켜 두는 동안 이 폰에 로그가 계속 쌓여요. 로그에는 토스·카카오페이 결제 알림 내용(금액·카드·가게 이름), " +
                     "거래 번호, 열어 본 화면, 오류 내용이 들어가요.\n\n" +
                     "로그를 복사해서 보내면 이 내용도 함께 가니 보낼 곳을 조심해 주세요. 확인이 끝나면 꺼 주세요.",
                 confirmLabel = "켜기",

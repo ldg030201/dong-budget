@@ -7,13 +7,13 @@ package com.dong.budget.data.settings
  * @property parent 이 기능이 기대는 스위치. 그 스위치가 꺼져 있으면 이것도 동작하지 않는다(설정에서도 흐리게 막힌다).
  */
 enum class AutoOption(val key: String, val parent: AutoOption? = null) {
-    /** 토스 결제 알림이 오면 '가계부에 등록할까요?' 알림으로 묻는다 */
+    /** 토스·카카오페이 결제 알림이 오면 '가계부에 등록할까요?' 알림으로 묻는다 */
     CAPTURE_PROMPT("auto_capture_prompt"),
 
-    /** 토스가 결제 한 건을 알림 두 개로 보내면(금액이 같고 3초 안) 먼저 온 것만 묻는다 */
+    /** 결제 한 건이 알림 두 개로 오면(금액이 같고 3초 안) 먼저 온 것만 묻는다 */
     CAPTURE_DEDUPE("auto_capture_dedupe", parent = CAPTURE_PROMPT),
 
-    /** 앱을 열 때마다 알림창에 남은 토스 알림을 다시 살펴 묻지 못한 결제를 묻는다 */
+    /** 앱을 열 때마다 알림창에 남은 결제 알림을 다시 살펴 묻지 못한 결제를 묻는다 */
     CAPTURE_RESCAN("auto_capture_rescan", parent = CAPTURE_PROMPT),
 
     /** 알림으로 연 등록창에서 같은 가게로 전에 등록한 지출의 분류를 미리 고른다 */

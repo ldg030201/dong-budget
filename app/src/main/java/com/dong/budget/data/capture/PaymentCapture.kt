@@ -31,7 +31,7 @@ interface CapturePrompt {
  * 다른 앱의 알림을 받아 결제면 등록할지 묻는다.
  *
  * 알림 읽기(PaymentNotificationListener)가 모든 알림을 여기로 넘긴다.
- * 토스가 아닌 앱의 알림은 [isSource] 에서 바로 버리고, 어디에도 남기지 않는다.
+ * 결제 알림을 읽는 앱(토스·카카오페이)이 아닌 앱의 알림은 [isSource] 에서 바로 버리고, 어디에도 남기지 않는다.
  */
 class PaymentCapture(
     private val store: CaptureStore,
@@ -50,18 +50,28 @@ class PaymentCapture(
     private val mutex = Mutex()
 
     /**
-     * 토스 알림 하나를 살펴 결제면 등록할지 묻는다.
+     * 결제 알림 앱(토스·카카오페이)의 알림 하나를 살펴 결제면 등록할지 묻는다.
      *
      * 제목과 본문은 알림에 따라 담기는 칸이 달라서 후보를 여러 개 받는다. 앞의 후보부터 맞춰 보고 처음 읽힌 것을 쓴다.
      * 알림 읽기는 펼친 본문을 앞에 둔다(PaymentNotificationListener). 파서는 본문을 줄마다 나눠 읽어 줄이 더 붙어도 괜찮고,
      * 캐시백 알림은 카드 이름이 둘째 줄에 있어 첫 줄만 담긴 짧은 본문으로는 카드를 못 읽는다.
      *
+     * @param packageName 알림을 올린 앱. 앱마다 알림을 읽는 법이 다르다([parsersOf]).
      * @return 물어봤으면 true
      */
-    suspend fun onNotification(titles: List<CharSequence?>, texts: List<CharSequence?>, occurredAtMillis: Long): Boolean =
-        mutex.withLock { handleNotification(titles, texts, occurredAtMillis) }
+    suspend fun onNotification(
+        packageName: String,
+        titles: List<CharSequence?>,
+        texts: List<CharSequence?>,
+        occurredAtMillis: Long,
+    ): Boolean = mutex.withLock { handleNotification(packageName, titles, texts, occurredAtMillis) }
 
-    private suspend fun handleNotification(titles: List<CharSequence?>, texts: List<CharSequence?>, occurredAtMillis: Long): Boolean {
+    private suspend fun handleNotification(
+        packageName: String,
+        titles: List<CharSequence?>,
+        texts: List<CharSequence?>,
+        occurredAtMillis: Long,
+    ): Boolean {
         // 너무 오래된 결제는 묻지 않는다. 기록을 지운 뒤 같은 알림이 다시 들어와도 또 묻지 않게 하기 위함이다.
         if (now() - occurredAtMillis > CaptureStore.RETENTION_MS) return false
         val auto = settings()
@@ -70,19 +80,21 @@ class PaymentCapture(
             logSkipped("결제 알림으로 묻기가 꺼져 있어 넘겼어요")
             return false
         }
+        val parsers = parsersOf(packageName)
         val payment =
             titles.firstNotNullOfOrNull { title ->
-                texts.firstNotNullOfOrNull { text -> TossPaymentParser.parse(title, text, occurredAtMillis) }
+                texts.firstNotNullOfOrNull { text -> parsers.firstNotNullOfOrNull { it.parse(title, text, occurredAtMillis) } }
             }
         if (payment == null) {
             // 새 모양의 결제 알림을 고칠 때 실제 문구가 필요하다(개발자 모드 로그)
-            logSkipped("결제 알림 모양이 아니라 넘겼어요 · 제목 ${quoted(titles)} · 본문 ${quoted(texts)}")
+            logSkipped("결제 알림 모양이 아니라 넘겼어요 · $packageName · 제목 ${quoted(titles)} · 본문 ${quoted(texts)}")
             return false
         }
-        // 이미 물어본 결제는 더 볼 것이 없다. 앱으로 돌아올 때마다 알림창에 남은 토스 알림을 다시 살피므로,
+        // 이미 물어본 결제는 더 볼 것이 없다. 앱으로 돌아올 때마다 알림창에 남은 결제 알림을 다시 살피므로,
         // 알림 권한·채널을 묻는 일(시스템 호출)보다 먼저 본다.
         if (store.knows(payment.dedupKey)) return false
-        // 토스가 같은 결제를 모양이 다른 알림으로 한 번 더 보내기도 한다. 먼저 온 알림으로 물었으면 그것만 남긴다.
+        // 토스가 같은 결제를 모양이 다른 알림으로 한 번 더 보내기도 한다(카카오페이 결제의 카드 알림이 토스로도 오기도 한다).
+        // 먼저 온 알림으로 물었으면 그것만 남긴다.
         // 스위치를 끄면 알림마다 묻는다(같은 금액을 3초 안에 두 번 결제하는 일이 잦은 경우).
         if (auto[AutoOption.CAPTURE_DEDUPE]) {
             store.findSamePayment(payment)?.let { first ->
@@ -107,7 +119,7 @@ class PaymentCapture(
     }
 
     /**
-     * 넘긴 알림을 로그에 적는다. 앱으로 돌아올 때마다 알림창에 남은 토스 알림을 다시 살피므로 같은 글은 한 번만 적는다.
+     * 넘긴 알림을 로그에 적는다. 앱으로 돌아올 때마다 알림창에 남은 결제 알림을 다시 살피므로 같은 글은 한 번만 적는다.
      * [mutex] 안에서만 부른다.
      */
     private fun logSkipped(message: String) {
@@ -250,7 +262,7 @@ class PaymentCapture(
     }
 
     /**
-     * 알림창에 남아 있는 토스 알림을 다시 살피고, 띄우지 못한 묻는 알림을 되살려 달라고 알림 읽기에 부탁한다.
+     * 알림창에 남아 있는 결제 알림을 다시 살피고, 띄우지 못한 묻는 알림을 되살려 달라고 알림 읽기에 부탁한다.
      * 알림을 보낼 수 없던 사이 들어온 결제는 기록하지 않고 넘겼으므로, 알림을 허용한 뒤 여기서 다시 묻는다.
      * 알림 읽기가 연결돼 있지 않으면 아무 일도 없다(연결될 때 어차피 훑는다).
      */
@@ -270,6 +282,13 @@ class PaymentCapture(
         /** 토스 앱 */
         const val TOSS_PACKAGE = "viva.republica.toss"
 
+        /** 카카오페이 앱. 카카오톡(com.kakao.talk)으로 오는 카카오페이 알림은 대화 알림과 섞여 있어 읽지 않는다. */
+        const val KAKAOPAY_PACKAGE = "com.kakaopay.app"
+
+        /** 결제 알림을 읽는 앱과 그 앱의 알림을 읽는 법 */
+        private val parsers: Map<String, PaymentParser> =
+            mapOf(TOSS_PACKAGE to TossPaymentParser, KAKAOPAY_PACKAGE to KakaoPayPaymentParser)
+
         /** 개발 빌드에서는 adb 로 올린 가짜 알림(`adb shell cmd notification post`)도 받는다 */
         private const val SHELL_PACKAGE = "com.android.shell"
 
@@ -288,10 +307,15 @@ class PaymentCapture(
         /** 넘긴 알림을 이만큼 기억하면 비우고 다시 센다. 오래 켜 둔 앱에서 기억이 끝없이 늘지 않게 한다. */
         private const val MAX_SKIPS_REMEMBERED = 200
 
-        fun isSource(packageName: String?): Boolean = packageName == TOSS_PACKAGE || (BuildConfig.DEBUG && packageName == SHELL_PACKAGE)
+        /** 결제 알림을 읽는 앱인지. 기기의 모든 알림이 여기를 지나므로 다른 앱의 알림은 내용을 보기 전에 걸러낸다. */
+        fun isSource(packageName: String?): Boolean = packageName in parsers || (BuildConfig.DEBUG && packageName == SHELL_PACKAGE)
+
+        /** 이 앱의 알림을 읽는 법. 결제 알림을 읽지 않는 앱이면 비어 있다. 개발 빌드의 adb 가짜 알림은 아는 모양을 모두 맞춰 본다. */
+        fun parsersOf(packageName: String): List<PaymentParser> =
+            if (BuildConfig.DEBUG && packageName == SHELL_PACKAGE) parsers.values.toList() else listOfNotNull(parsers[packageName])
 
         /**
-         * 결제 시각. 토스가 알림에 적은 시각(when)을 쓴다.
+         * 결제 시각. 결제 알림 앱이 알림에 적은 시각(when)을 쓴다.
          * 알림이 늦게 도착해도 결제한 시각이 들어가고, 같은 알림이 다시 올라와도 시각이 바뀌지 않는다.
          * 그 값이 없거나 알림이 올라온 시각과 너무 어긋나면(하루 넘게 이르거나 미래) 올라온 시각을 쓴다.
          */

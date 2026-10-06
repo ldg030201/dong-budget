@@ -29,7 +29,7 @@ class CaptureNotifier(private val context: Context) : CapturePrompt {
     fun ensureChannel() {
         val channel =
             NotificationChannel(CHANNEL_ID, "결제 등록", NotificationManager.IMPORTANCE_DEFAULT).apply {
-                description = "토스 결제 알림을 읽고 가계부에 등록할지 물어봐요"
+                description = "토스·카카오페이 결제 알림을 읽고 가계부에 등록할지 물어봐요"
             }
         context.getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
     }

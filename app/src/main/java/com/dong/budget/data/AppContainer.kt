@@ -195,7 +195,7 @@ class AppContainer(context: Context) {
 
     val captureNotifier by lazy { CaptureNotifier(context) }
 
-    /** 토스 결제 알림을 읽어 등록할지 묻는다 */
+    /** 토스·카카오페이 결제 알림을 읽어 등록할지 묻는다 */
     val paymentCapture by lazy {
         PaymentCapture(
             store = CaptureStore(context.getSharedPreferences(CaptureStore.PREFS_NAME, Context.MODE_PRIVATE)),

@@ -32,8 +32,16 @@ class PaymentCaptureTest {
         now = { clock },
     )
 
-    private suspend fun PaymentCapture.post(title: String = "133,500원 결제", text: String = "하나카드 | 비비큐 강동밀레니얼점(일시불)", at: Long = clock) =
-        onNotification(listOf(title, null), listOf(text, null), at)
+    private suspend fun PaymentCapture.post(
+        title: String = "133,500원 결제",
+        text: String = "하나카드 | 비비큐 강동밀레니얼점(일시불)",
+        at: Long = clock,
+        app: String = PaymentCapture.TOSS_PACKAGE,
+    ) = onNotification(app, listOf(title, null), listOf(text, null), at)
+
+    /** 2026-10-06 에 받은 실제 카카오페이 알림 */
+    private suspend fun PaymentCapture.postKakaoPay(text: String = "주식회사 카카오에서 2,500원을 결제했어요.", at: Long = clock) =
+        post("결제가 완료되었어요", text, at, PaymentCapture.KAKAOPAY_PACKAGE)
 
     @Test
     fun `결제 알림이면 묻고, 누르면 같은 결제를 찾는다`() = runBlocking {
@@ -179,7 +187,14 @@ class PaymentCaptureTest {
     fun `앞의 본문 후보부터 읽어 펼친 본문의 카드 이름까지 채운다`() = runBlocking {
         // 캐시백 알림은 카드 이름이 둘째 줄에 있다. 알림 읽기는 펼친 본문을 먼저, 첫 줄만 담긴 짧은 본문을 뒤에 넘긴다.
         val paid = "2,300원 결제 | 세븐일레븐 강동열린점"
-        assertTrue(capture().onNotification(listOf("6원 캐시백 🎉", null), listOf("$paid\n잔액 146,658원(토스뱅크 체크카드)", paid), clock))
+        assertTrue(
+            capture().onNotification(
+                PaymentCapture.TOSS_PACKAGE,
+                listOf("6원 캐시백 🎉", null),
+                listOf("$paid\n잔액 146,658원(토스뱅크 체크카드)", paid),
+                clock,
+            ),
+        )
         val asked = prompt.asked.single()
         assertEquals(2_300L, asked.amount)
         assertEquals("토스뱅크 체크카드", asked.paymentName)
@@ -464,10 +479,41 @@ class PaymentCaptureTest {
     }
 
     @Test
-    fun `토스 알림만 받는다`() {
+    fun `토스와 카카오페이 알림만 받는다`() {
         assertTrue(PaymentCapture.isSource("viva.republica.toss"))
+        assertTrue(PaymentCapture.isSource("com.kakaopay.app"))
+        // 카카오톡은 대화 알림이 섞여 있어 카카오페이 알림이 와도 읽지 않는다
         assertFalse(PaymentCapture.isSource("com.kakao.talk"))
         assertFalse(PaymentCapture.isSource(null))
+    }
+
+    @Test
+    fun `카카오페이 결제 알림이면 카카오페이로 묻는다`() = runBlocking {
+        val capture = capture()
+        assertTrue(capture.postKakaoPay())
+        val asked = prompt.asked.single()
+        assertEquals(2_500L, asked.amount)
+        assertEquals("카카오페이", asked.paymentName)
+        assertEquals("주식회사 카카오", asked.merchant)
+        assertEquals(asked, capture.find(asked.dedupKey))
+        // 앱으로 돌아와 알림창을 다시 살펴도 또 묻지 않는다
+        assertFalse(capture().postKakaoPay())
+    }
+
+    @Test
+    fun `알림은 그 알림을 올린 앱의 모양으로만 읽는다`() = runBlocking {
+        val capture = capture()
+        assertFalse(capture.post("결제가 완료되었어요", "주식회사 카카오에서 2,500원을 결제했어요."))
+        assertFalse(capture.post(app = PaymentCapture.KAKAOPAY_PACKAGE))
+        assertTrue(prompt.asked.isEmpty())
+    }
+
+    @Test
+    fun `카카오페이 결제의 카드 알림이 토스로도 오면 먼저 온 것만 묻는다`() = runBlocking {
+        val capture = capture()
+        assertTrue(capture.postKakaoPay())
+        assertFalse(capture.post("2,500원 결제", "하나카드 | 카카오페이(일시불)", at = clock + 2_000))
+        assertEquals(listOf("카카오페이"), prompt.asked.map { it.paymentName })
     }
 
     /** 1.0.0 의 기록. 읽음 표시(read)가 없다. */
