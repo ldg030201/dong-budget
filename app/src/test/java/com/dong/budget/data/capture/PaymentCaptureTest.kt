@@ -103,13 +103,13 @@ class PaymentCaptureTest {
     }
 
     @Test
-    fun `금액이 다르거나 3초 넘게 떨어진 알림은 다른 결제다`() = runBlocking {
+    fun `금액이 다르거나 5초 넘게 떨어진 알림은 다른 결제다`() = runBlocking {
         val capture = capture()
         assertTrue(capture.post())
         assertFalse(capture.post(at = clock + CapturedPayment.SAME_PAYMENT_WINDOW_MS))
         assertTrue(capture.post(at = clock + CapturedPayment.SAME_PAYMENT_WINDOW_MS + 1))
         assertTrue(capture.post(title = "133,000원 결제", at = clock + 1))
-        // 가게만 다른 알림은 3초 안이면 같은 결제로 본다
+        // 가게만 다른 알림은 5초 안이면 같은 결제로 본다
         assertFalse(capture.post(text = "하나카드 | 스타벅스(일시불)", at = clock + 1))
         assertEquals(3, prompt.asked.size)
     }

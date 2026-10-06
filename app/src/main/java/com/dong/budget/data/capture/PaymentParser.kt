@@ -37,8 +37,11 @@ data class CapturedPayment(
         abs(occurredAtMillis - other.occurredAtMillis) <= SAME_PAYMENT_WINDOW_MS
 
     companion object {
-        /** 같은 결제의 알림 두 개가 이만큼 안에 온다. 같은 금액을 이 안에 두 번 결제하면 가게가 달라도 하나로 본다. */
-        const val SAME_PAYMENT_WINDOW_MS = 3_000L
+        /**
+         * 같은 결제의 알림 두 개가 이만큼 안에 온다. 같은 금액이 이 안에 두 번 결제되는 일은 드물어서 가게가 달라도 하나로 본다.
+         * 처음엔 3초였는데 알림 두 개의 간격을 재 본 적이 없어 여유를 두고 5초로 늘렸다(2026-10-06 사용자 결정).
+         */
+        const val SAME_PAYMENT_WINDOW_MS = 5_000L
     }
 }
 

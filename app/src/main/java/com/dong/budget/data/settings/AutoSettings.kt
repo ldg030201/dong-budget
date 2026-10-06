@@ -10,7 +10,7 @@ enum class AutoOption(val key: String, val parent: AutoOption? = null) {
     /** 토스·카카오페이 결제 알림이 오면 '가계부에 등록할까요?' 알림으로 묻는다 */
     CAPTURE_PROMPT("auto_capture_prompt"),
 
-    /** 결제 한 건이 알림 두 개로 오면(금액이 같고 3초 안) 먼저 온 것만 묻는다 */
+    /** 결제 한 건이 알림 두 개로 오면(금액이 같고 5초 안) 먼저 온 것만 묻는다 */
     CAPTURE_DEDUPE("auto_capture_dedupe", parent = CAPTURE_PROMPT),
 
     /** 앱을 열 때마다 알림창에 남은 결제 알림을 다시 살펴 묻지 못한 결제를 묻는다 */
