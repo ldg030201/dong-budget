@@ -109,6 +109,8 @@ import com.dong.budget.ui.editor.salaryPrefill
 import com.dong.budget.ui.editor.toPrefill
 import com.dong.budget.ui.fixed.FixedExpenseScreen
 import com.dong.budget.ui.fixed.FixedExpenseViewModel
+import com.dong.budget.ui.history.HistoryScreen
+import com.dong.budget.ui.history.HistoryViewModel
 import com.dong.budget.ui.home.HomeViewModel
 import com.dong.budget.ui.inbox.InboxScreen
 import com.dong.budget.ui.inbox.InboxViewModel
@@ -276,6 +278,19 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
                     onOpenDetail = { id -> if (cardSettled()) navigator.go(CardPerformanceDetailKey(id)) },
                     onAddPerformance = { id -> if (cardSettled()) navigator.go(CardPerformanceEditKey(id)) },
                     onOpenCategories = { if (cardSettled()) navigator.go(CategoryManageKey) },
+                )
+            }
+
+            // 검색어는 화면 모델이 들고 있어 탭을 오가거나 거래 상세에 다녀와도 그대로다
+            MenuItem.HISTORY -> {
+                val historyViewModel: HistoryViewModel = viewModel(factory = historyViewModelFactory(container))
+                val historyState by historyViewModel.uiState.collectAsStateWithLifecycle()
+                val settled = rememberSettled()
+                HistoryScreen(
+                    state = historyState,
+                    query = historyViewModel.query,
+                    onQueryChange = historyViewModel::search,
+                    onOpenTransaction = { id -> if (settled()) navigator.go(TransactionDetailKey(id)) },
                 )
             }
 
@@ -956,6 +971,11 @@ private fun salaryViewModelFactory(container: AppContainer) = viewModelFactory {
 // 고정지출 탭의 화면 모델 공장을 여기에 둔다(카드실적 것은 파일 맨 끝).
 private fun fixedExpenseViewModelFactory(container: AppContainer) = viewModelFactory {
     initializer { FixedExpenseViewModel(container.transactionRepository, container.categoryRepository) }
+}
+
+private fun historyViewModelFactory(container: AppContainer) = viewModelFactory {
+    // 검색어를 프로세스가 죽었다 돌아와도 잇게 저장 상태를 넘긴다
+    initializer { HistoryViewModel(container.transactionRepository, createSavedStateHandle()) }
 }
 
 private fun salarySettingsViewModelFactory(container: AppContainer) = viewModelFactory {

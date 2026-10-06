@@ -80,6 +80,9 @@ class TransactionRepository(private val transactionDao: TransactionDao) {
         return transactionDao.observeBetween(start, end)
     }
 
+    /** 모든 거래, 최근 것부터(앞으로의 날짜로 적은 거래가 맨 앞). 내역 화면이 쓴다. */
+    fun observeAll(): Flow<List<TransactionListItem>> = transactionDao.observeAll()
+
     suspend fun findById(id: Long): TransactionEntity? = transactionDao.findById(id)
 
     /** 거래 한 건(분류·결제수단 이름 포함). 고치면 새로 내보내고, 지우면 null 을 내보낸다. */

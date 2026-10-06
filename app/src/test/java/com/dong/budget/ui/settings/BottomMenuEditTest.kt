@@ -3,6 +3,7 @@ package com.dong.budget.ui.settings
 import com.dong.budget.data.settings.BottomMenu
 import com.dong.budget.data.settings.MenuItem.CARD_PERFORMANCE
 import com.dong.budget.data.settings.MenuItem.FIXED_EXPENSE
+import com.dong.budget.data.settings.MenuItem.HISTORY
 import com.dong.budget.data.settings.MenuItem.HOME
 import com.dong.budget.data.settings.MenuItem.MORE
 import com.dong.budget.data.settings.MenuItem.SALARY
@@ -12,7 +13,7 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 class BottomMenuEditTest {
-    private val menu = BottomMenu.DEFAULT // 홈 · 월급 · 통계 · 고정지출 · 전체 | 카드실적
+    private val menu = BottomMenu.DEFAULT // 홈 · 월급 · 통계 · 고정지출 · 전체 | 카드실적 · 내역
 
     @Test
     fun `목록은 위 머리 · 홈 · 넣은 메뉴 · 전체 · 아래 머리 · 뺀 메뉴 순이다`() {
@@ -26,11 +27,12 @@ class BottomMenuEditTest {
                 MenuEditRow.Item(MORE),
                 MenuEditRow.Header(false),
                 MenuEditRow.Item(CARD_PERFORMANCE),
+                MenuEditRow.Item(HISTORY),
             ),
             menu.editRows(),
         )
         // 다 넣었으면 아래 구역에 끌어 내릴 자리가 남는다
-        assertEquals(MenuEditRow.AllShown, menu.add(CARD_PERFORMANCE).editRows().last())
+        assertEquals(MenuEditRow.AllShown, menu.add(CARD_PERFORMANCE).add(HISTORY).editRows().last())
     }
 
     @Test
@@ -53,28 +55,29 @@ class BottomMenuEditTest {
         // 넣은 메뉴를 전체 아래로 끌어 내리면 뺀 메뉴의 맨 앞
         val removed = menu.dropOn(FIXED_EXPENSE, MenuEditRow.Item(MORE))!!
         assertEquals(listOf(SALARY, STATISTICS), removed.shown)
-        assertEquals(listOf(FIXED_EXPENSE, CARD_PERFORMANCE), removed.hidden)
+        assertEquals(listOf(FIXED_EXPENSE, CARD_PERFORMANCE, HISTORY), removed.hidden)
         // 뺀 메뉴를 아래 머리 위로 끌어 올리면 넣은 메뉴의 맨 뒤(전체 바로 앞)
         val added = menu.dropOn(CARD_PERFORMANCE, MenuEditRow.Header(false))!!
         assertEquals(listOf(SALARY, STATISTICS, FIXED_EXPENSE, CARD_PERFORMANCE), added.shown)
-        assertEquals(emptyList<Any>(), added.hidden)
+        assertEquals(listOf(HISTORY), added.hidden)
         // 다 넣은 뒤 안내 줄로 끌어 내리면 빠진다
-        assertEquals(listOf(STATISTICS), added.dropOn(STATISTICS, MenuEditRow.AllShown)!!.hidden)
+        val all = added.add(HISTORY)
+        assertEquals(listOf(STATISTICS), all.dropOn(STATISTICS, MenuEditRow.AllShown)!!.hidden)
     }
 
     @Test
     fun `다른 구역의 메뉴에 닿으면 그 자리로 간다`() {
-        val removed = menu.remove(SALARY) // 뺀 메뉴: 월급, 카드실적
+        val removed = menu.remove(SALARY) // 뺀 메뉴: 월급, 카드실적, 내역
         val back = removed.dropOn(CARD_PERFORMANCE, MenuEditRow.Item(STATISTICS))!!
         assertEquals(listOf(CARD_PERFORMANCE, STATISTICS, FIXED_EXPENSE), back.shown)
-        assertEquals(listOf(SALARY), back.hidden)
+        assertEquals(listOf(SALARY, HISTORY), back.hidden)
     }
 
     @Test
     fun `− 는 뺀 메뉴의 맨 앞으로, + 는 넣은 메뉴의 맨 뒤로`() {
         val removed = menu.remove(STATISTICS)
         assertEquals(listOf(SALARY, FIXED_EXPENSE), removed.shown)
-        assertEquals(listOf(STATISTICS, CARD_PERFORMANCE), removed.hidden)
+        assertEquals(listOf(STATISTICS, CARD_PERFORMANCE, HISTORY), removed.hidden)
         assertEquals(listOf(SALARY, FIXED_EXPENSE, CARD_PERFORMANCE), removed.add(CARD_PERFORMANCE).shown)
         // 고정 칸은 넣고 빼지 않는다
         assertEquals(menu, menu.remove(HOME))
@@ -86,6 +89,7 @@ class BottomMenuEditTest {
         assertEquals(listOf(SALARY, FIXED_EXPENSE, STATISTICS), menu.moveBy(STATISTICS, 1)!!.shown)
         assertNull(menu.moveBy(SALARY, -1))
         assertNull(menu.moveBy(FIXED_EXPENSE, 1))
-        assertNull(menu.moveBy(CARD_PERFORMANCE, 1))
+        assertEquals(listOf(HISTORY, CARD_PERFORMANCE), menu.moveBy(CARD_PERFORMANCE, 1)!!.hidden)
+        assertNull(menu.moveBy(HISTORY, 1))
     }
 }

@@ -25,7 +25,7 @@ import com.dong.budget.ui.theme.BudgetTheme
  * 대메뉴 화면.
  *
  * 여기 항목을 누르면 서브플로우로 들어가면서 탭바가 사라지고
- * 왼쪽 위에 뒤로가기만 남는다. 아래 메뉴에 둔 메뉴(월급·고정지출·카드실적)는 그 탭으로 바뀐다.
+ * 왼쪽 위에 뒤로가기만 남는다. 아래 메뉴에 둔 메뉴(월급·고정지출·카드실적·내역)는 그 탭으로 바뀐다.
  *
  * 항목마다 색을 달리하되 옅은 원 안에만 칠한다. 글자와 배경은 그대로 둬서 요란하지 않게 한다.
  */
@@ -62,6 +62,7 @@ fun MoreScreen(
             onClick = onOpenCategories,
         )
         MenuRow(MenuItem.STATISTICS, onOpenMenu)
+        MenuRow(MenuItem.HISTORY, onOpenMenu)
         MenuRow(MenuItem.FIXED_EXPENSE, onOpenMenu)
         MenuRow(MenuItem.CARD_PERFORMANCE, onOpenMenu)
         MoreRow(

@@ -24,6 +24,9 @@ enum class MenuItem(val key: String) {
     /** 카드마다 실적 구간을 얼마나 채웠는지 본다 */
     CARD_PERFORMANCE("card_performance"),
 
+    /** 모든 거래를 최근 것부터 모아 보고 찾는다. 처음 차림에는 없고, 홈의 '전체보기' 로도 연다. */
+    HISTORY("history"),
+
     MORE("more"),
     ;
 

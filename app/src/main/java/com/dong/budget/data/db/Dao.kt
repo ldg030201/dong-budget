@@ -127,6 +127,10 @@ interface TransactionDao {
     )
     fun observeByPaymentMethod(paymentMethodId: Long, start: Instant, end: Instant): Flow<List<TransactionListItem>>
 
+    /** 모든 거래, 최근 것부터. 내역 화면이 한 번에 읽어 검색한다. */
+    @Query(LIST_ITEM_SELECT + " ORDER BY t.occurredAt DESC, t.id DESC")
+    fun observeAll(): Flow<List<TransactionListItem>>
+
     /** 거래 한 건(분류·결제수단 이름과 색 포함). 고치면 새 값을, 지우면 null 을 내보낸다. 거래 상세가 쓴다. */
     @Query(LIST_ITEM_SELECT + " WHERE t.id = :id")
     fun observeItem(id: Long): Flow<TransactionListItem?>

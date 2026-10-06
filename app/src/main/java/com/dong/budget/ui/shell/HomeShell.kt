@@ -45,7 +45,7 @@ import java.time.YearMonth
  * @param onOpenStatistics 아래 메뉴의 '통계'. 탭을 바꾸지 않고 통계 화면을 셸 위에 연다.
  * @param onOpenStatisticsAt 홈 요약의 지난달 비교 줄. 홈에서 보던 달의 통계를 연다.
  * @param onOpenPage 아래 메뉴에 없는 메뉴를 셸 위에 연다(뒤로 가기가 있는 같은 화면)
- * @param pageContent 홈·전체가 아닌 탭 화면(월급·고정지출·카드실적). 탭을 처음 열 때 그 화면 모델이 만들어지게
+ * @param pageContent 홈·전체가 아닌 탭 화면(월급·고정지출·카드실적·내역). 탭을 처음 열 때 그 화면 모델이 만들어지게
  *   부르는 쪽(DongBudgetApp)이 채운다. 셸 위에 따로 열 때도 같은 것을 쓴다.
  */
 @Composable
@@ -144,6 +144,7 @@ fun HomeShell(
                                 onOpenTransaction = onOpenTransaction,
                                 onOpenInbox = onOpenInbox,
                                 onOpenStatistics = onOpenStatisticsAt,
+                                onOpenHistory = { open(MenuItem.HISTORY) },
                             )
 
                         MenuItem.MORE ->

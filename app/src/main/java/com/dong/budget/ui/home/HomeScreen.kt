@@ -57,6 +57,8 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -66,6 +68,7 @@ import com.dong.budget.R
 import com.dong.budget.ui.components.AnimatedNoticeDot
 import com.dong.budget.ui.components.BudgetDivider
 import com.dong.budget.ui.components.BudgetIconButton
+import com.dong.budget.ui.components.BudgetTextButton
 import com.dong.budget.ui.components.ConfirmDialog
 import com.dong.budget.ui.components.DayHeader
 import com.dong.budget.ui.components.LocalWeekStart
@@ -86,6 +89,7 @@ import java.time.YearMonth
 
 /**
  * 홈. 위에서부터 이번 달 수입·지출 요약, 달력, 날짜별 거래 목록이 한 화면에 이어진다.
+ * 거래 목록 위 '내역' 머리 오른쪽의 '전체보기' 는 모든 달의 거래를 모아 보고 찾는 내역 화면을 연다.
  *
  * 첫 화면에 달력과 함께 최근 거래가 두세 개 보이고, 아래로 내리면 나머지 거래가 이어진다.
  * 달력이 스크롤로 사라지면 한 주 줄([WeekStrip])이 위에 붙는다.
@@ -97,6 +101,7 @@ import java.time.YearMonth
  * @param hasNewNotice 아직 눌러 보지 않은 알림이 있는지. 종에 빨간 점을 찍는다.
  * @param onOpenTransaction 거래 줄을 누르면 그 거래의 상세
  * @param onOpenStatistics 요약의 지난달 비교 줄을 누르면 그 달의 통계
+ * @param onOpenHistory '내역' 머리의 '전체보기'
  */
 @Composable
 fun HomeScreen(
@@ -113,6 +118,7 @@ fun HomeScreen(
     onOpenInbox: () -> Unit,
     modifier: Modifier = Modifier,
     onOpenStatistics: (YearMonth) -> Unit = {},
+    onOpenHistory: () -> Unit = {},
 ) {
     // 새 버전 알림 줄을 닫을 때 묻는 중인지. 알리는 버전에 묶어 두어, 줄이 사라지거나 다른 버전으로 바뀌면 묻던 것도 거둔다.
     var askCloseUpdate by rememberSaveable(updateVersion) { mutableStateOf(false) }
@@ -168,6 +174,7 @@ fun HomeScreen(
                     state = shown,
                     onOpenTransaction = onOpenTransaction,
                     onOpenStatistics = { onOpenStatistics(shown.month) },
+                    onOpenHistory = onOpenHistory,
                     modifier = Modifier.fillMaxSize(),
                 )
             }
@@ -192,11 +199,12 @@ fun HomeScreen(
     }
 }
 
-// 목록 맨 앞의 고정 줄. 날짜별 거래는 그 뒤에 온다.
+// 목록 맨 앞의 고정 줄(요약 · 달력 · '내역' 머리). 날짜별 거래는 그 뒤에 온다.
 private const val SUMMARY_KEY = "summary"
 private const val CALENDAR_KEY = "calendar"
+private const val HISTORY_HEADER_KEY = "history-header"
 private const val CALENDAR_INDEX = 1
-private const val FIRST_DAY_INDEX = 2
+private const val FIRST_DAY_INDEX = 3
 
 /** 달을 넘길 때 한 판을 옮기는 거리. 화면 폭의 1/5 만 옮기고 나머지는 흐려짐으로 보여준다. 판이 커서 많이 옮기면 어지럽다. */
 private const val MONTH_SHIFT_DIVISOR = 5
@@ -225,7 +233,13 @@ private class DayIndex(groups: List<DayGroup>) {
 }
 
 @Composable
-private fun MonthBody(state: HomeUiState, onOpenTransaction: (Long) -> Unit, onOpenStatistics: () -> Unit, modifier: Modifier = Modifier) {
+private fun MonthBody(
+    state: HomeUiState,
+    onOpenTransaction: (Long) -> Unit,
+    onOpenStatistics: () -> Unit,
+    onOpenHistory: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     var selected by rememberSaveable { mutableStateOf<LocalDate?>(null) }
@@ -289,6 +303,7 @@ private fun MonthBody(state: HomeUiState, onOpenTransaction: (Long) -> Unit, onO
                     modifier = Modifier.padding(top = BudgetTheme.spacing.itemGap),
                 )
             }
+            animatedItem(key = HISTORY_HEADER_KEY) { HistoryHeader(onOpenHistory = onOpenHistory) }
             if (state.groups.isEmpty()) {
                 animatedItem(key = "empty") { EmptyMonth() }
             }
@@ -316,6 +331,30 @@ private fun MonthBody(state: HomeUiState, onOpenTransaction: (Long) -> Unit, onO
                 onExpand = { scope.launch { listState.animateScrollToItem(0) } },
             )
         }
+    }
+}
+
+/**
+ * 거래 목록의 머리. 왼쪽 '내역', 오른쪽 '전체보기'(모든 달의 거래를 모아 보고 찾는 내역 화면).
+ * 이 달에 거래가 없어도 둔다. 다른 달의 거래를 찾으러 갈 수 있어야 한다.
+ */
+@Composable
+private fun HistoryHeader(onOpenHistory: () -> Unit) {
+    Row(
+        modifier =
+        Modifier
+            .fillMaxWidth()
+            .padding(start = BudgetTheme.spacing.screenHorizontal, end = BudgetTheme.spacing.inlineGap)
+            .padding(top = BudgetTheme.spacing.sectionPadding),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = "내역",
+            style = MaterialTheme.typography.titleMedium,
+            color = BudgetTheme.colors.textPrimary,
+            modifier = Modifier.weight(1f).semantics { heading() },
+        )
+        BudgetTextButton(text = "전체보기", onClick = onOpenHistory, color = BudgetTheme.colors.textSecondary)
     }
 }
 

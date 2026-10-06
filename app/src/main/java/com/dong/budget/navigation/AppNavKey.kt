@@ -118,7 +118,7 @@ data object SettingsKey : AppNavKey
 data object BottomMenuSettingsKey : AppNavKey
 
 /**
- * 아래 메뉴에 넣지 않은 메뉴(월급·고정지출·카드실적)의 화면. 전체 목록에서 연다. 탭 화면과 같고 머리 왼쪽에 뒤로 가기가 있다.
+ * 아래 메뉴에 넣지 않은 메뉴(월급·고정지출·카드실적·내역)의 화면. 전체 목록과 홈의 '전체보기'(내역)에서 연다. 탭 화면과 같고 머리 왼쪽에 뒤로 가기가 있다.
  * 아래 메뉴에 있는 메뉴는 이것으로 열지 않고 그 탭으로 바꾼다(HomeShell).
  */
 @Serializable
