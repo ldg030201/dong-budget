@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -30,6 +31,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.outlined.Notifications
@@ -53,6 +55,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -79,6 +82,7 @@ import com.dong.budget.ui.theme.pressScaleClickable
 import com.dong.budget.ui.theme.slideByDirection
 import kotlinx.coroutines.launch
 import java.time.LocalDate
+import java.time.YearMonth
 
 /**
  * 홈. 위에서부터 이번 달 수입·지출 요약, 달력, 날짜별 거래 목록이 한 화면에 이어진다.
@@ -92,6 +96,7 @@ import java.time.LocalDate
  *
  * @param hasNewNotice 아직 눌러 보지 않은 알림이 있는지. 종에 빨간 점을 찍는다.
  * @param onOpenTransaction 거래 줄을 누르면 그 거래의 상세
+ * @param onOpenStatistics 요약의 지난달 비교 줄을 누르면 그 달의 통계
  */
 @Composable
 fun HomeScreen(
@@ -107,6 +112,7 @@ fun HomeScreen(
     onOpenTransaction: (Long) -> Unit,
     onOpenInbox: () -> Unit,
     modifier: Modifier = Modifier,
+    onOpenStatistics: (YearMonth) -> Unit = {},
 ) {
     // 새 버전 알림 줄을 닫을 때 묻는 중인지. 알리는 버전에 묶어 두어, 줄이 사라지거나 다른 버전으로 바뀌면 묻던 것도 거둔다.
     var askCloseUpdate by rememberSaveable(updateVersion) { mutableStateOf(false) }
@@ -158,7 +164,12 @@ fun HomeScreen(
                 modifier = Modifier.weight(1f),
                 label = "monthBody",
             ) { shown ->
-                MonthBody(state = shown, onOpenTransaction = onOpenTransaction, modifier = Modifier.fillMaxSize())
+                MonthBody(
+                    state = shown,
+                    onOpenTransaction = onOpenTransaction,
+                    onOpenStatistics = { onOpenStatistics(shown.month) },
+                    modifier = Modifier.fillMaxSize(),
+                )
             }
         }
         // 앱은 리플을 꺼 두었으므로(Theme) 누르면 버튼이 눌려 들어가게 한다. 그림자가 잘리지 않게 모양대로 자르지 않는다.
@@ -214,7 +225,12 @@ private class DayIndex(groups: List<DayGroup>) {
 }
 
 @Composable
-private fun MonthBody(state: HomeUiState, onOpenTransaction: (Long) -> Unit, modifier: Modifier = Modifier) {
+private fun MonthBody(
+    state: HomeUiState,
+    onOpenTransaction: (Long) -> Unit,
+    onOpenStatistics: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
     var selected by rememberSaveable { mutableStateOf<LocalDate?>(null) }
@@ -266,7 +282,7 @@ private fun MonthBody(state: HomeUiState, onOpenTransaction: (Long) -> Unit, mod
             contentPadding = PaddingValues(bottom = BudgetTheme.size.fab + BudgetTheme.spacing.sectionGap),
         ) {
             animatedItem(key = SUMMARY_KEY) {
-                SummaryBlock(totals = state.totals, comparison = state.comparison)
+                SummaryBlock(totals = state.totals, comparison = state.comparison, onOpenStatistics = onOpenStatistics)
             }
             animatedItem(key = CALENDAR_KEY) {
                 MonthCalendar(
@@ -377,8 +393,12 @@ private fun InboxButton(hasNew: Boolean, onClick: () -> Unit) {
     }
 }
 
+/**
+ * 요약. 지출·수입 합계와, 견줄 수 있으면 그 아래 지난달 비교 줄.
+ * 비교 줄은 오른쪽 '통계 >' 와 함께 통째로 눌러 그 달의 통계로 간다. 더 썼는지 덜 썼는지 본 김에 어디에 썼는지 이어 보게 한다.
+ */
 @Composable
-private fun SummaryBlock(totals: Totals, comparison: SpendingComparison?) {
+private fun SummaryBlock(totals: Totals, comparison: SpendingComparison?, onOpenStatistics: () -> Unit) {
     Column(
         modifier =
         Modifier
@@ -407,13 +427,44 @@ private fun SummaryBlock(totals: Totals, comparison: SpendingComparison?) {
         if (comparison != null) {
             Spacer(Modifier.height(BudgetTheme.spacing.itemGap))
             BudgetDivider()
-            Spacer(Modifier.height(BudgetTheme.spacing.itemGap))
-            Text(
-                text = comparisonText(comparison),
-                style = MaterialTheme.typography.bodyMedium,
-                color = BudgetTheme.colors.textPrimary,
-            )
+            ComparisonRow(comparison = comparison, onOpenStatistics = onOpenStatistics)
         }
+    }
+}
+
+/**
+ * 지난달 비교 줄. 누를 수 있는 줄이라 최소 터치 높이를 지키고, 그 높이 안에서 글자를 가운데에 둔다(구분선 아래 여백을 겸한다).
+ * 화면 읽기는 문장을 읽은 뒤 '통계 보기' 버튼으로 알려 준다.
+ */
+@Composable
+private fun ComparisonRow(comparison: SpendingComparison, onOpenStatistics: () -> Unit) {
+    Row(
+        modifier =
+        Modifier
+            .fillMaxWidth()
+            .pressScaleClickable(shape = RoundedCornerShape(BudgetTheme.radius.chip), onClickLabel = "통계 보기", onClick = onOpenStatistics)
+            .heightIn(min = BudgetTheme.size.minTouchTarget)
+            .padding(top = BudgetTheme.spacing.tightGap),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = comparisonText(comparison),
+            style = MaterialTheme.typography.bodyMedium,
+            color = BudgetTheme.colors.textPrimary,
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            text = "통계",
+            style = MaterialTheme.typography.labelMedium,
+            color = BudgetTheme.colors.textSecondary,
+            modifier = Modifier.padding(start = BudgetTheme.spacing.inlineGap).clearAndSetSemantics {},
+        )
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            contentDescription = null,
+            tint = BudgetTheme.colors.textSecondary,
+            modifier = Modifier.size(BudgetTheme.size.iconSmall),
+        )
     }
 }
 

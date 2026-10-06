@@ -43,6 +43,7 @@ import com.dong.budget.ui.home.MoreScreen
 import com.dong.budget.ui.theme.BudgetTheme
 import com.dong.budget.ui.theme.Motion
 import com.dong.budget.ui.theme.pressFeedback
+import java.time.YearMonth
 
 /** 아래 메뉴의 탭. 이름(name)은 탭마다 화면 상태를 보관하는 열쇠라 바꾸지 않는다. */
 enum class ShellTab(val label: String) {
@@ -84,6 +85,7 @@ private fun ShellTab.icon(): ImageVector = when (this) {
  * 하단은 NavigationBar 가 자체적으로 처리한다.
  *
  * @param onOpenStatistics 아래 메뉴의 '통계'. 탭을 바꾸지 않고 통계 화면을 셸 위에 연다.
+ * @param onOpenStatisticsAt 홈 요약의 지난달 비교 줄. 홈에서 보던 달의 통계를 연다.
  * @param salaryContent 월급 탭 화면. 월급 탭을 처음 열 때 그 화면 모델이 만들어지게 부르는 쪽(DongBudgetApp)이 채운다.
  * @param fixedExpenseContent 고정지출 탭 화면. [salaryContent] 와 같은 까닭으로 부르는 쪽이 채운다.
  * @param cardPerformanceContent 카드실적 탭 화면. [salaryContent] 와 같은 까닭으로 부르는 쪽이 채운다.
@@ -103,6 +105,7 @@ fun HomeShell(
     onOpenInbox: () -> Unit,
     onOpenCategories: () -> Unit,
     onOpenStatistics: () -> Unit,
+    onOpenStatisticsAt: (YearMonth) -> Unit,
     onOpenSettings: () -> Unit,
     onOpenPatchNotes: () -> Unit,
     devModeOn: Boolean,
@@ -186,6 +189,7 @@ fun HomeShell(
                                 onAddTransaction = onAddTransaction,
                                 onOpenTransaction = onOpenTransaction,
                                 onOpenInbox = onOpenInbox,
+                                onOpenStatistics = onOpenStatisticsAt,
                             )
 
                         ShellTab.SALARY -> salaryContent()

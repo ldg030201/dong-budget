@@ -27,16 +27,20 @@ import java.time.YearMonth
  * 거래를 고치거나 지우면 조회가 다시 내보내서 숫자가 바로 바뀐다.
  * 달을 바꾸면 새 계산이 끝날 때까지 이전 달 화면을 그대로 둔다(빈 화면이 깜빡이지 않게).
  *
+ * @param initialMonth 처음 보여 줄 달(홈에서 보던 달). null 이거나 이번 달이면 이번 달을 따라간다.
  * @param clock 지금 시각. 테스트에서 날짜를 고정하려고 바꿀 수 있게 둔다.
  */
-class StatsViewModel(private val repository: TransactionRepository, private val clock: Clock = Clock.system(BudgetTime.ZONE)) :
-    ViewModel() {
+class StatsViewModel(
+    private val repository: TransactionRepository,
+    initialMonth: YearMonth? = null,
+    private val clock: Clock = Clock.system(BudgetTime.ZONE),
+) : ViewModel() {
     /**
      * 사용자가 고른 달. null 이면 '이번 달' 을 따라간다(홈과 같은 규칙).
      * 그래서 이번 달을 보던 중에 달이 바뀌면 새 달로 넘어가고, 일부러 다른 달을 보고 있으면 그대로 둔다.
-     * 통계를 나갔다 다시 들어오면 늘 이번 달에서 시작한다.
+     * 통계를 나갔다 다시 들어오면 이번 달에서 시작한다. 홈의 지난달 비교 줄로 들어오면 홈에서 보던 달에서 시작한다.
      */
-    private val pickedMonth = MutableStateFlow<YearMonth?>(null)
+    private val pickedMonth = MutableStateFlow(initialMonth?.takeIf { it != YearMonth.now(clock) })
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val uiState: StateFlow<StatsUiState> =
@@ -53,7 +57,7 @@ class StatsViewModel(private val repository: TransactionRepository, private val 
             }.stateIn(
                 scope = viewModelScope,
                 started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS),
-                initialValue = LocalDate.now(clock).let { StatsUiState.loading(YearMonth.from(it), it) },
+                initialValue = LocalDate.now(clock).let { StatsUiState.loading(pickedMonth.value ?: YearMonth.from(it), it) },
             )
 
     fun showPreviousMonth() = moveMonth(-1)

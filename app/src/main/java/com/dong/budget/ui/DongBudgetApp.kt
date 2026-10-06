@@ -266,7 +266,8 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
                                 onOpenTransaction = { id -> navigator.go(TransactionDetailKey(id)) },
                                 onOpenInbox = { navigator.go(InboxKey) },
                                 onOpenCategories = { navigator.go(CategoryManageKey) },
-                                onOpenStatistics = { navigator.go(StatisticsKey) },
+                                onOpenStatistics = { navigator.go(StatisticsKey()) },
+                                onOpenStatisticsAt = { month -> navigator.go(StatisticsKey(month.year, month.monthValue)) },
                                 onOpenSettings = { navigator.go(SettingsKey) },
                                 onOpenPatchNotes = { navigator.go(PatchNotesKey) },
                                 devModeOn = devModeOn,
@@ -394,8 +395,8 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
                             )
                         }
 
-                        entry<StatisticsKey>(metadata = statsTransitions()) {
-                            val viewModel: StatsViewModel = viewModel(factory = statsViewModelFactory(container))
+                        entry<StatisticsKey>(metadata = statsTransitions()) { key ->
+                            val viewModel: StatsViewModel = viewModel(factory = statsViewModelFactory(container, key))
                             val state by viewModel.uiState.collectAsStateWithLifecycle()
                             // 하위 탭은 여기서 들고 있다. 회전하거나 상세에 다녀와도 그대로고, 통계를 나갔다 오면 첫 칸 '통계' 부터 다시 시작한다.
                             var tab by rememberSaveable { mutableStateOf(StatsTab.OVERVIEW) }
@@ -986,8 +987,11 @@ private fun categoryManageViewModelFactory(container: AppContainer) = viewModelF
     initializer { CategoryManageViewModel(container.categoryRepository, container.paymentMethodRepository) }
 }
 
-private fun statsViewModelFactory(container: AppContainer) = viewModelFactory {
-    initializer { StatsViewModel(container.transactionRepository) }
+private fun statsViewModelFactory(container: AppContainer, key: StatisticsKey) = viewModelFactory {
+    initializer {
+        val month = if (key.year != null && key.month != null) YearMonth.of(key.year, key.month) else null
+        StatsViewModel(container.transactionRepository, initialMonth = month)
+    }
 }
 
 private fun statsDetailViewModelFactory(container: AppContainer, key: StatsDetailKey) = viewModelFactory {

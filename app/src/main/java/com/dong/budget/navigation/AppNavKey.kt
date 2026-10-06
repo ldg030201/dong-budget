@@ -81,9 +81,12 @@ data class TransactionDetailKey(val transactionId: Long) : AppNavKey
 @Serializable
 data object CategoryManageKey : AppNavKey
 
-/** 통계. 아래 메뉴의 '통계' 로 들어온다. 안에서 통계(한눈에 보기)·월별·일별·분류·결제수단으로 나뉜다. */
+/**
+ * 통계. 아래 메뉴의 '통계' 와 홈 요약의 지난달 비교 줄로 들어온다. 안에서 통계(한눈에 보기)·월별·일별·분류·결제수단으로 나뉜다.
+ * @property year 처음 보여 줄 달. 홈에서 보던 달로 연다. 없으면(아래 메뉴·전체) 이번 달이다.
+ */
 @Serializable
-data object StatisticsKey : AppNavKey
+data class StatisticsKey(val year: Int? = null, val month: Int? = null) : AppNavKey
 
 /** 통계 상세가 무엇을 모아 보는지 */
 @Serializable
