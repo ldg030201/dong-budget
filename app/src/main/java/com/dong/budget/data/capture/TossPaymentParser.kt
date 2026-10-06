@@ -29,14 +29,14 @@ data class CapturedPayment(
     /**
      * 다른 알림으로 온 같은 결제인지. 토스는 결제 하나를 모양이 다른 알림 두 개로 보내기도 한다.
      *   '46,500원 결제' + '하나카드 | 가게(일시불)', '46,500원 결제 완료' + '원더카드2.0 Life ・ 가게(일시불)'
-     * 카드 이름은 알림마다 달라서 보지 않는다. 금액과 가게가 같고 시각이 [SAME_PAYMENT_WINDOW_MS] 안이면 같은 결제다.
+     *   (페이스페이) '하나카드 · 씨유(CU) 과천디엠점', '페이스페이(원더카드2.0 Life) · CU 과천디엠점'
+     * 카드 이름과 가게 이름은 알림마다 다르게 올 수 있어 보지 않는다. 금액이 같고 시각이 [SAME_PAYMENT_WINDOW_MS] 안이면 같은 결제다.
      */
     fun isSamePaymentAs(other: CapturedPayment): Boolean = amount == other.amount &&
-        merchant == other.merchant &&
         abs(occurredAtMillis - other.occurredAtMillis) <= SAME_PAYMENT_WINDOW_MS
 
     companion object {
-        /** 같은 결제의 알림 두 개가 이만큼 안에 온다. 같은 가게에서 같은 금액을 이 안에 두 번 결제하면 하나로 본다. */
+        /** 같은 결제의 알림 두 개가 이만큼 안에 온다. 같은 금액을 이 안에 두 번 결제하면 가게가 달라도 하나로 본다. */
         const val SAME_PAYMENT_WINDOW_MS = 3_000L
     }
 }

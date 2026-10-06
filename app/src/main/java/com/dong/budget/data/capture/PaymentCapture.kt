@@ -83,7 +83,7 @@ class PaymentCapture(
         // 알림 권한·채널을 묻는 일(시스템 호출)보다 먼저 본다.
         if (store.knows(payment.dedupKey)) return false
         // 토스가 같은 결제를 모양이 다른 알림으로 한 번 더 보내기도 한다. 먼저 온 알림으로 물었으면 그것만 남긴다.
-        // 스위치를 끄면 알림마다 묻는다(같은 가게에서 같은 금액을 3초 안에 두 번 결제하는 일이 잦은 경우).
+        // 스위치를 끄면 알림마다 묻는다(같은 금액을 3초 안에 두 번 결제하는 일이 잦은 경우).
         if (auto[AutoOption.CAPTURE_DEDUPE]) {
             store.findSamePayment(payment)?.let { first ->
                 logSkipped("같은 결제의 알림이 또 와서 넘겼어요 · ${describe(payment)} · 먼저 온 알림 ${first.dedupKey}")

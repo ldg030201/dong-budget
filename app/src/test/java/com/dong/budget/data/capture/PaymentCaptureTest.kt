@@ -74,6 +74,18 @@ class PaymentCaptureTest {
     }
 
     @Test
+    fun `페이스페이처럼 알림마다 가게 이름이 달라도 같은 결제면 먼저 온 것만 묻는다`() = runBlocking {
+        // 2026-10-06 실기기에서 결제 두 건이 묻는 알림 네 개로 왔다. 가게 이름이 '씨유(CU) …' 와 'CU …' 로 달랐다.
+        val capture = capture()
+        assertTrue(capture.post("5,500원 결제 완료", "페이스페이(원더카드2.0 Life) ・ CU 과천디엠점"))
+        assertFalse(capture.post("5,500원 결제", "하나카드 | 씨유(CU) 과천디엠점(일시불)", at = clock + 1_000))
+        assertTrue(capture.post("3,400원 결제 완료", "페이스페이(원더카드2.0 Life) ・ CU 과천디엠점", at = clock + 20_000))
+        assertFalse(capture.post("3,400원 결제", "하나카드 | 씨유(CU) 과천디엠점(일시불)", at = clock + 21_000))
+        assertEquals(listOf(5_500L, 3_400L), prompt.asked.map { it.amount })
+        assertEquals(listOf("CU 과천디엠점", "CU 과천디엠점"), prompt.asked.map { it.merchant })
+    }
+
+    @Test
     fun `먼저 물은 결제에 답한 뒤에 온 같은 결제의 알림도 묻지 않는다`() = runBlocking {
         val capture = capture()
         capture.post()
@@ -83,14 +95,15 @@ class PaymentCaptureTest {
     }
 
     @Test
-    fun `금액이나 가게가 다르거나 3초 넘게 떨어진 알림은 다른 결제다`() = runBlocking {
+    fun `금액이 다르거나 3초 넘게 떨어진 알림은 다른 결제다`() = runBlocking {
         val capture = capture()
         assertTrue(capture.post())
         assertFalse(capture.post(at = clock + CapturedPayment.SAME_PAYMENT_WINDOW_MS))
         assertTrue(capture.post(at = clock + CapturedPayment.SAME_PAYMENT_WINDOW_MS + 1))
         assertTrue(capture.post(title = "133,000원 결제", at = clock + 1))
-        assertTrue(capture.post(text = "하나카드 | 스타벅스(일시불)", at = clock + 1))
-        assertEquals(4, prompt.asked.size)
+        // 가게만 다른 알림은 3초 안이면 같은 결제로 본다
+        assertFalse(capture.post(text = "하나카드 | 스타벅스(일시불)", at = clock + 1))
+        assertEquals(3, prompt.asked.size)
     }
 
     @Test
@@ -208,10 +221,10 @@ class PaymentCaptureTest {
     @Test
     fun `지워진 묻는 알림은 다시 띄우되, 사용자가 지운 것과 등록한 것과 떠 있는 것은 빼고 소리 없이 띄운다`() = runBlocking {
         val capture = capture()
-        capture.post(text = "하나카드 | 가게1(일시불)")
-        capture.post(text = "하나카드 | 가게2(일시불)")
-        capture.post(text = "하나카드 | 가게3(일시불)")
-        capture.post(text = "하나카드 | 가게4(일시불)")
+        capture.post("1,000원 결제", "하나카드 | 가게1(일시불)")
+        capture.post("2,000원 결제", "하나카드 | 가게2(일시불)")
+        capture.post("3,000원 결제", "하나카드 | 가게3(일시불)")
+        capture.post("4,000원 결제", "하나카드 | 가게4(일시불)")
         val (first, second, third, fourth) = prompt.asked.map { it.dedupKey }
         capture.onPromptDismissed(first)
         registered += second
@@ -250,8 +263,8 @@ class PaymentCaptureTest {
     @Test
     fun `알림 목록은 최근 결제부터 보여주고, 누른 결제는 읽은 것으로 남는다`() = runBlocking {
         val capture = capture()
-        capture.post(text = "하나카드 | 가게1(일시불)", at = clock - 2_000)
-        capture.post(text = "하나카드 | 가게2(일시불)", at = clock - 1_000)
+        capture.post("1,000원 결제", "하나카드 | 가게1(일시불)", at = clock - 2_000)
+        capture.post("2,000원 결제", "하나카드 | 가게2(일시불)", at = clock - 1_000)
         val (older, newer) = prompt.asked.map { it.dedupKey }
 
         assertEquals(listOf(newer, older), capture.records.first().map { it.payment.dedupKey })
@@ -282,9 +295,9 @@ class PaymentCaptureTest {
     @Test
     fun `모두 읽음은 알림창에 남은 묻는 알림을 치우고 다시 띄우지 않는다`() = runBlocking {
         val capture = capture()
-        capture.post(text = "하나카드 | 가게1(일시불)")
-        capture.post(text = "하나카드 | 가게2(일시불)")
-        capture.post(text = "하나카드 | 가게3(일시불)")
+        capture.post("1,000원 결제", "하나카드 | 가게1(일시불)")
+        capture.post("2,000원 결제", "하나카드 | 가게2(일시불)")
+        capture.post("3,000원 결제", "하나카드 | 가게3(일시불)")
         val (swiped, opened, untouched) = prompt.asked.map { it.dedupKey }
         capture.onPromptDismissed(swiped)
         capture.markRead(opened)
@@ -308,8 +321,8 @@ class PaymentCaptureTest {
     @Test
     fun `알림 목록을 비우면 목록과 알림창에서 사라지고, 같은 결제를 다시 묻지 않는다`() = runBlocking {
         val capture = capture()
-        capture.post(text = "하나카드 | 가게1(일시불)")
-        capture.post(text = "하나카드 | 가게2(일시불)")
+        capture.post("1,000원 결제", "하나카드 | 가게1(일시불)")
+        capture.post("2,000원 결제", "하나카드 | 가게2(일시불)")
         val keys = prompt.asked.map { it.dedupKey }
 
         capture.clearInbox()
@@ -317,13 +330,13 @@ class PaymentCaptureTest {
         assertTrue(capture.records.first().isEmpty())
         assertEquals(keys.toSet(), prompt.dismissed.toSet())
         // 알림창에 남은 토스 알림을 다시 훑어도(앱을 다시 열 때) 묻지 않는다
-        assertFalse(capture().post(text = "하나카드 | 가게1(일시불)"))
+        assertFalse(capture().post("1,000원 결제", "하나카드 | 가게1(일시불)"))
         capture.restorePrompts(showing = emptySet())
         assertTrue(prompt.restored.isEmpty())
         // 비운 결제는 눌러도 열리지 않는다
         assertEquals(PaymentCapture.OpenResult.Expired, capture.open(keys.first()))
         // 비운 뒤에 온 새 결제는 그대로 묻고 목록에 보인다
-        assertTrue(capture.post(text = "하나카드 | 가게3(일시불)"))
+        assertTrue(capture.post("3,000원 결제", "하나카드 | 가게3(일시불)"))
         assertEquals(listOf("가게3"), capture.records.first().map { it.payment.merchant })
     }
 
@@ -349,10 +362,10 @@ class PaymentCaptureTest {
     @Test
     fun `모두 읽음은 목록에 보이던 결제만 처리한다`() = runBlocking {
         val capture = capture()
-        capture.post(text = "하나카드 | 가게1(일시불)", at = clock - 1_000)
+        capture.post("1,000원 결제", "하나카드 | 가게1(일시불)", at = clock - 1_000)
         val shown = prompt.asked.single().dedupKey
         // 모두 읽음을 누르는 사이 새 결제가 들어왔다
-        capture.post(text = "하나카드 | 가게2(일시불)")
+        capture.post("2,000원 결제", "하나카드 | 가게2(일시불)")
         val arrived = prompt.asked.last().dedupKey
 
         capture.markAllRead(listOf(shown))
