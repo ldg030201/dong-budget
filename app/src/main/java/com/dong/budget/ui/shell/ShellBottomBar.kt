@@ -1,5 +1,9 @@
 package com.dong.budget.ui.shell
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.snapping.SnapPosition
 import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -9,9 +13,13 @@ import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
@@ -19,6 +27,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.TextAutoSize
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBarDefaults
@@ -31,12 +42,14 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.unit.dp
@@ -46,14 +59,18 @@ import com.dong.budget.data.settings.MenuItem
 import com.dong.budget.ui.components.STATS_ENTRY_SHARED_KEY
 import com.dong.budget.ui.components.sharedNavElement
 import com.dong.budget.ui.theme.BudgetTheme
+import com.dong.budget.ui.theme.Motion
 import com.dong.budget.ui.theme.pressFeedback
+import com.dong.budget.ui.theme.pressScaleClickable
+import kotlinx.coroutines.launch
 
 /**
  * 아래 메뉴. 홈이 맨 왼쪽, 전체가 맨 오른쪽에 붙어 있고, 그 사이 칸은 [BottomMenu.shown] 순서로 놓인다.
  *
  * 가운데가 [BottomMenu.VISIBLE_MIDDLE] 칸 이하면 모든 칸이 너비를 똑같이 나눈다.
  * 넘치면 홈·전체와 가운데 네 칸이 같은 너비(여섯 칸 기준)를 쓰고, 가운데만 옆으로 밀어 바꾼다. 밀다 놓으면 칸 경계에 맞춰 멈춰서
- * 반쯤 잘린 칸이 남지 않는다. 가운데 칸 아래 얇은 스크롤 막대가 더 있다는 것과 지금 어디쯤인지 알린다([ScrollIndicator]).
+ * 반쯤 잘린 칸이 남지 않는다. 더 있는 쪽 가장자리에는 ‹ › 가 붙고(누르면 한 칸 밀린다, [EdgeArrow]),
+ * 가운데 칸 아래 얇은 스크롤 막대가 지금 어디쯤인지 알린다([ScrollIndicator]).
  * Material 의 NavigationBar 는 칸 사이에 틈을 두어 밀리는 칸과 고정 칸의 간격을 고르게 맞출 수 없어서, 같은 높이·색·여백의 줄을 직접 둔다.
  *
  * 통계 칸은 통계 하위 메뉴의 첫 칸과 이어진다([STATS_ENTRY_SHARED_KEY]). 통계를 열면 이 칸의 아이콘과 글자가 위로 옮겨 가고,
@@ -110,6 +127,7 @@ fun ShellBottomBar(
                     onClick = onClick,
                     colors = colors,
                     linkStatistics = linkStatistics,
+                    background = containerColor,
                     modifier = Modifier.weight(BottomMenu.VISIBLE_MIDDLE.toFloat()),
                 )
                 MenuSlot(MenuItem.MORE, selected = selected == MenuItem.MORE, onClick = {
@@ -129,8 +147,10 @@ private fun ScrollingMiddle(
     onClick: (MenuItem) -> Unit,
     colors: NavigationBarItemColors,
     linkStatistics: Boolean,
+    background: Color,
     modifier: Modifier = Modifier,
 ) {
+    val scope = rememberCoroutineScope()
     val statsIndex = items.indexOf(MenuItem.STATISTICS)
     // 통계 칸이 다 보이는지. 레이아웃을 기다리지 않고 스크롤 위치만으로 정한다(위 설명).
     val statsShown by remember(state, statsIndex) {
@@ -150,6 +170,68 @@ private fun ScrollingMiddle(
             count = items.size,
             modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = INDICATOR_BOTTOM_GAP),
         )
+        // 한 칸씩 넘긴다. 잘린 칸이 있으면(미는 중) 그 칸이 다 보이는 자리로 먼저 맞춘다.
+        // 화살표 틀은 가운데 칸 크기에 맞출 뿐 크기를 정하지 않는다(matchParentSize). 높이를 채우는 화살표가 아래 메뉴를 늘리지 않게 한다.
+        val lastFirst = (items.size - BottomMenu.VISIBLE_MIDDLE).coerceAtLeast(0)
+        Box(modifier = Modifier.matchParentSize()) {
+            EdgeArrow(
+                toStart = true,
+                visible = state.canScrollBackward,
+                background = background,
+                onClick = {
+                    val first = state.firstVisibleItemIndex
+                    val target = if (state.firstVisibleItemScrollOffset > 0) first else first - 1
+                    scope.launch { state.animateScrollToItem(target.coerceIn(0, lastFirst)) }
+                },
+                modifier = Modifier.align(Alignment.CenterStart),
+            )
+            EdgeArrow(
+                toStart = false,
+                visible = state.canScrollForward,
+                background = background,
+                onClick = { scope.launch { state.animateScrollToItem((state.firstVisibleItemIndex + 1).coerceIn(0, lastFirst)) } },
+                modifier = Modifier.align(Alignment.CenterEnd),
+            )
+        }
+    }
+}
+
+/**
+ * 가운데 칸 가장자리의 ‹ ›. 그쪽에 밀어서 볼 칸이 있을 때만 보이고, 누르면 그쪽으로 한 칸 넘긴다.
+ * 끝 칸 위에 얹히므로 뒤에 아래 메뉴 바탕색을 가장자리에서 안쪽으로 옅어지게 깔아 칸 글자와 겹쳐도 화살표가 읽히게 한다.
+ * 가운데 칸 너비는 그대로 둔다(화살표 자리를 따로 떼지 않는다).
+ * @param toStart 왼쪽(앞쪽) 화살표인지
+ */
+@Composable
+private fun EdgeArrow(toStart: Boolean, visible: Boolean, background: Color, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    AnimatedVisibility(
+        visible = visible,
+        enter = fadeIn(Motion.quick()),
+        exit = fadeOut(Motion.quick()),
+        modifier = modifier.fillMaxHeight(),
+    ) {
+        val scrim = if (toStart) listOf(background, background.copy(alpha = 0f)) else listOf(background.copy(alpha = 0f), background)
+        Box(
+            modifier =
+            Modifier
+                .fillMaxHeight()
+                .width(EDGE_ARROW_WIDTH)
+                .background(Brush.horizontalGradient(scrim))
+                .pressScaleClickable(
+                    shape = RoundedCornerShape(BudgetTheme.radius.control),
+                    onClickLabel = if (toStart) "앞 메뉴 보기" else "다음 메뉴 보기",
+                    onClick = onClick,
+                ),
+            contentAlignment = if (toStart) Alignment.CenterStart else Alignment.CenterEnd,
+        ) {
+            Icon(
+                imageVector = if (toStart) Icons.AutoMirrored.Filled.KeyboardArrowLeft else Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                contentDescription = if (toStart) "하단 메뉴 앞으로 넘기기" else "하단 메뉴 다음으로 넘기기",
+                tint = BudgetTheme.colors.textSecondary,
+                // 칸 아이콘 높이에 맞춘다(칸은 아이콘이 위, 이름이 아래라 가운데보다 조금 위)
+                modifier = Modifier.offset(y = EDGE_ARROW_RAISE).size(EDGE_ARROW_SIZE),
+            )
+        }
     }
 }
 
@@ -293,6 +375,11 @@ private fun RowScope.ShellNavItem(
 
 /** Material 아래 메뉴의 높이(키 큰 막대)와 같게 둔다 */
 private val BAR_MIN_HEIGHT = 80.dp
+
+/** 가장자리 화살표 칸의 너비(바탕이 옅어지는 폭), 화살표 크기, 칸 가운데에서 위로 올린 만큼 */
+private val EDGE_ARROW_WIDTH = 28.dp
+private val EDGE_ARROW_SIZE = 20.dp
+private val EDGE_ARROW_RAISE = (-10).dp
 
 /** 스크롤 막대의 너비(가운데 칸 너비에 대한 비율), 두께, 아래 메뉴 아래 끝과의 틈. 칸 글자 밑에 닿지 않게 둔다. */
 private const val INDICATOR_WIDTH_FRACTION = 0.75f
