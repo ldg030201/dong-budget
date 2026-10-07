@@ -14,12 +14,14 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import java.time.Clock
 import java.time.LocalDate
 
 /**
- * 내역 화면의 상태. 모든 거래를 한 번에 읽어 두고, 검색어가 바뀔 때마다 순수 함수([buildHistory])로 다시 거른다.
+ * 내역 화면의 상태. 모든 거래를 한 번에 읽어 검색용 목록([searchIndex])으로 만들어 두고, 검색어가 바뀔 때마다 순수 함수([buildHistory])로 다시 거른다.
+ * 검색용 목록은 DB 가 새 목록을 줄 때만 다시 만든다.
  * 거래를 고치거나 지우면 조회가 다시 내보내서 목록이 바로 바뀐다.
  *
  * 검색어는 입력칸이 바로 읽고 쓰는 화면 상태로 둔다(흐름을 거치면 빠르게 칠 때 글자가 밀린다).
@@ -42,8 +44,8 @@ class HistoryViewModel(
     }
 
     val uiState: StateFlow<HistoryUiState> =
-        combine(repository.observeAll(), snapshotFlow { query }, BudgetTime.today(clock)) { items, text, today ->
-            buildHistory(items, text, today)
+        combine(repository.observeAll().map(::searchIndex), snapshotFlow { query }, BudgetTime.today(clock)) { index, text, today ->
+            buildHistory(index, text, today)
         }
             // 거르기와 묶기는 기본 풀에서 한다. 조회는 Room 이 자기 스레드에서 한다.
             .flowOn(Dispatchers.Default)

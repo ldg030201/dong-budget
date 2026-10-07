@@ -361,7 +361,7 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
                                 onOpenPatchNotes = { navigator.go(PatchNotesKey) },
                                 devModeOn = devModeOn,
                                 onOpenDeveloper = { navigator.go(DeveloperKey) },
-                                // 월급·고정지출·카드실적 탭. 아래 메뉴에 없을 때 셸 위에 따로 여는 화면(MenuPageKey)과 같은 것을 쓴다.
+                                // 홈·전체가 아닌 탭(월급·고정지출·카드실적·내역). 아래 메뉴에 없을 때 셸 위에 따로 여는 화면(MenuPageKey)과 같은 것을 쓴다.
                                 pageContent = menuPage,
                             )
                         }

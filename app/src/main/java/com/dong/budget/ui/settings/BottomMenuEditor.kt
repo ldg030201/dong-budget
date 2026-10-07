@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.Icon
@@ -37,9 +36,7 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.LayoutCoordinates
-import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.CustomAccessibilityAction
@@ -49,13 +46,13 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import com.dong.budget.data.settings.BottomMenu
 import com.dong.budget.data.settings.MenuItem
 import com.dong.budget.ui.components.BudgetTextButton
 import com.dong.budget.ui.components.HintText
 import com.dong.budget.ui.components.SectionLabel
+import com.dong.budget.ui.shell.MenuItemLabel
 import com.dong.budget.ui.shell.icon
 import com.dong.budget.ui.shell.label
 import com.dong.budget.ui.theme.BudgetTheme
@@ -78,6 +75,8 @@ import kotlin.math.roundToInt
 internal fun BottomMenuEditor(menu: BottomMenu, onChange: (BottomMenu) -> Unit, modifier: Modifier = Modifier) {
     var current by remember { mutableStateOf(menu) }
     var drag by remember { mutableStateOf<MenuDrag?>(null) }
+    // 손가락 자리는 따로 둔다. 움직일 때마다 바뀌어도 든 아이콘의 자리만 다시 잡고(HeldIcon), 칸들은 놓일 자리가 바뀔 때만 다시 그린다.
+    var pointer by remember { mutableStateOf(Offset.Zero) }
     val shownMenu = drag?.preview ?: current
     val layout = remember { EditorLayout() }
     val haptic = LocalHapticFeedback.current
@@ -103,16 +102,19 @@ internal fun BottomMenuEditor(menu: BottomMenu, onChange: (BottomMenu) -> Unit, 
                     detectDragGesturesAfterLongPress(
                         onDragStart = { start ->
                             val (item, rect) = layout.movableAt(start) ?: return@detectDragGesturesAfterLongPress
-                            drag = MenuDrag(item = item, grab = start - rect.topLeft, slot = rect, pointer = start, preview = current)
+                            pointer = start
+                            drag = MenuDrag(item = item, grab = start - rect.topLeft, slot = rect, preview = current)
                             haptic.performHapticFeedback(HapticFeedbackType.GestureThresholdActivate)
                         },
                         onDrag = { pointerChange, amount ->
                             val held = drag ?: return@detectDragGesturesAfterLongPress
                             pointerChange.consume()
-                            val pointer = held.pointer + amount
+                            pointer += amount
                             val next = current.moveTo(held.item, layout.spotAt(pointer, held.item, held.preview))
-                            if (next != held.preview) haptic.performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)
-                            drag = held.copy(pointer = pointer, preview = next)
+                            if (next != held.preview) {
+                                haptic.performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)
+                                drag = held.copy(preview = next)
+                            }
                         },
                         onDragEnd = {
                             drag?.let {
@@ -133,34 +135,29 @@ internal fun BottomMenuEditor(menu: BottomMenu, onChange: (BottomMenu) -> Unit, 
                     Modifier
                         .fillMaxWidth()
                         .background(BudgetTheme.colors.sectionBackground, RoundedCornerShape(BudgetTheme.radius.block))
-                        .onGloballyPositioned { layout.bar = it.boundsInRoot() }
+                        .onGloballyPositioned { layout.bar = it }
                         .padding(vertical = BudgetTheme.spacing.inlineGap),
                 ) {
-                    shownMenu.items.forEach { item ->
+                    shownMenu.items.forEachIndexed { index, item ->
                         key(item) {
                             MenuIcon(
                                 item = item,
                                 lifted = item == drag?.item,
-                                actions = shownMenu.actionsFor(item, ::save),
-                                position = shownMenu.items.indexOf(item) + 1,
-                                modifier = Modifier.weight(1f).onGloballyPositioned { layout.slots[item] = it.boundsInRoot() },
+                                actions = remember(shownMenu, item) { shownMenu.actionsFor(item, ::save) },
+                                position = index + 1,
+                                modifier = Modifier.weight(1f).onGloballyPositioned { layout.slots[item] = it },
                             )
                         }
                     }
                 }
-                Text(
-                    text = "넣을 수 있는 메뉴",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = BudgetTheme.colors.textSecondary,
-                    modifier = Modifier.padding(top = BudgetTheme.spacing.sectionPadding, bottom = BudgetTheme.spacing.inlineGap),
-                )
+                SectionLabel("넣을 수 있는 메뉴")
                 Box(
                     modifier =
                     Modifier
                         .fillMaxWidth()
                         .heightIn(min = TRAY_MIN_HEIGHT)
                         .border(BudgetTheme.size.underline, BudgetTheme.colors.divider, RoundedCornerShape(BudgetTheme.radius.block))
-                        .onGloballyPositioned { layout.tray = it.boundsInRoot() }
+                        .onGloballyPositioned { layout.tray = it }
                         .padding(vertical = BudgetTheme.spacing.inlineGap),
                     contentAlignment = Alignment.CenterStart,
                 ) {
@@ -179,9 +176,9 @@ internal fun BottomMenuEditor(menu: BottomMenu, onChange: (BottomMenu) -> Unit, 
                                 MenuIcon(
                                     item = item,
                                     lifted = item == drag?.item,
-                                    actions = shownMenu.actionsFor(item, ::save),
+                                    actions = remember(shownMenu, item) { shownMenu.actionsFor(item, ::save) },
                                     position = null,
-                                    modifier = Modifier.width(traySlot).onGloballyPositioned { layout.slots[item] = it.boundsInRoot() },
+                                    modifier = Modifier.width(traySlot).onGloballyPositioned { layout.slots[item] = it },
                                 )
                             }
                         }
@@ -189,7 +186,7 @@ internal fun BottomMenuEditor(menu: BottomMenu, onChange: (BottomMenu) -> Unit, 
                 }
             }
             // 든 아이콘. 손가락을 따라오고, 다른 칸보다 위에 떠 있다.
-            drag?.let { held -> HeldIcon(held) }
+            drag?.let { held -> HeldIcon(held, pointer = { pointer }) }
         }
         HintText(
             text = "아이콘을 길게 눌러 끌어서 넣고 빼거나 순서를 바꿔요. 가운데 메뉴가 ${BottomMenu.VISIBLE_MIDDLE}개를 넘으면 " +
@@ -205,31 +202,35 @@ internal fun BottomMenuEditor(menu: BottomMenu, onChange: (BottomMenu) -> Unit, 
  * @property slot 처음 든 칸의 자리와 크기(편집기 기준). 든 아이콘을 같은 크기로 그린다.
  * @property preview 지금 놓으면 될 차림. 놓일 자리를 미리 보여 준다.
  */
-private data class MenuDrag(val item: MenuItem, val grab: Offset, val slot: Rect, val pointer: Offset, val preview: BottomMenu)
+private data class MenuDrag(val item: MenuItem, val grab: Offset, val slot: Rect, val preview: BottomMenu)
 
 /**
  * 편집기 안 칸·줄의 자리. 끄는 손가락이 어느 칸·줄 위인지 견주려고 둔다(그리기와 상관없어 화면 상태로 두지 않는다).
- * 자리는 화면 기준으로 받아 두고, 끌기가 쓰는 편집기 기준으로 바꿔 읽는다. 설정 화면을 스크롤해도 맞는다.
+ * 레이아웃 좌표만 받아 두고, 끌기를 시작하거나 움직일 때 편집기 기준 자리로 바꿔 읽는다. 설정 화면을 스크롤해도 맞고,
+ * 스크롤할 때마다 자리를 다시 셈하지 않는다.
  */
 private class EditorLayout {
     var editor: LayoutCoordinates? = null
-    var bar: Rect = Rect.Zero
-    var tray: Rect = Rect.Zero
-    val slots: MutableMap<MenuItem, Rect> = mutableMapOf()
+    var bar: LayoutCoordinates? = null
+    var tray: LayoutCoordinates? = null
+    val slots: MutableMap<MenuItem, LayoutCoordinates> = mutableMapOf()
 
-    private val origin: Offset get() = editor?.takeIf { it.isAttached }?.positionInRoot() ?: Offset.Zero
-
-    private fun local(rect: Rect): Rect = rect.translate(-origin)
+    /** [coordinates] 의 자리와 크기(편집기 기준). 아직 그려지지 않았거나 화면에서 빠졌으면 null */
+    private fun local(coordinates: LayoutCoordinates?): Rect? {
+        val editor = editor?.takeIf { it.isAttached } ?: return null
+        return coordinates?.takeIf { it.isAttached }?.let { editor.localBoundingBoxOf(it, clipBounds = false) }
+    }
 
     /** [point] 에 있는 옮길 수 있는 메뉴와 그 칸. 홈·전체나 빈 곳이면 null */
-    fun movableAt(point: Offset): Pair<MenuItem, Rect>? =
-        slots.entries.firstNotNullOfOrNull { (item, rect) -> local(rect).takeIf { !item.fixed && it.contains(point) }?.let { item to it } }
+    fun movableAt(point: Offset): Pair<MenuItem, Rect>? = slots.entries.firstNotNullOfOrNull { (item, coordinates) ->
+        local(coordinates)?.takeIf { !item.fixed && it.contains(point) }?.let { item to it }
+    }
 
     /** 손가락이 [point] 에 있을 때 [item] 이 놓일 자리. 위 판과 아래 칸의 가운데보다 위면 하단 메뉴, 아래면 넣을 수 있는 메뉴다. */
     fun spotAt(point: Offset, item: MenuItem, preview: BottomMenu): MenuSpot {
-        val bar = local(bar)
-        val tray = local(tray)
-        fun centers(items: List<MenuItem>) = items.filter { it != item }.mapNotNull { slots[it]?.let(::local)?.center?.x }
+        val bar = local(bar) ?: Rect.Zero
+        val tray = local(tray) ?: Rect.Zero
+        fun centers(items: List<MenuItem>) = items.filter { it != item }.mapNotNull { local(slots[it])?.center?.x }
         return if (point.y < (bar.bottom + tray.top) / 2) {
             MenuSpot.Shown(spotIndex(centers(preview.shown), point.x))
         } else {
@@ -310,21 +311,16 @@ private fun MenuIconContent(item: MenuItem) {
             )
         }
     }
-    val style = MaterialTheme.typography.labelSmall
-    Text(
-        text = item.label,
-        style = style,
-        color = BudgetTheme.colors.textSecondary,
-        maxLines = 1,
-        autoSize = TextAutoSize.StepBased(minFontSize = MIN_LABEL_SIZE, maxFontSize = style.fontSize),
-    )
+    MenuItemLabel(text = item.label, color = BudgetTheme.colors.textSecondary)
 }
 
-/** 손가락을 따라오는 든 아이콘. 처음 든 칸과 같은 크기로, 살짝 떠 보이게 그림자를 단다. */
+/**
+ * 손가락을 따라오는 든 아이콘. 처음 든 칸과 같은 크기로, 살짝 떠 보이게 그림자를 단다.
+ * @param pointer 손가락 자리(편집기 기준). 자리 잡기 단계에서만 읽어, 움직이는 동안 다시 그리지 않고 자리만 옮긴다.
+ */
 @Composable
-private fun HeldIcon(held: MenuDrag) {
+private fun HeldIcon(held: MenuDrag, pointer: () -> Offset) {
     val density = LocalDensity.current
-    val topLeft = held.pointer - held.grab
     Surface(
         color = BudgetTheme.colors.raised,
         shape = RoundedCornerShape(BudgetTheme.radius.control),
@@ -332,7 +328,10 @@ private fun HeldIcon(held: MenuDrag) {
         modifier =
         Modifier
             .zIndex(1f)
-            .offset { IntOffset(topLeft.x.roundToInt(), topLeft.y.roundToInt()) }
+            .offset {
+                val topLeft = pointer() - held.grab
+                IntOffset(topLeft.x.roundToInt(), topLeft.y.roundToInt())
+            }
             .size(with(density) { held.slot.width.toDp() }, with(density) { held.slot.height.toDp() }),
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
@@ -351,6 +350,3 @@ private val TRAY_MIN_HEIGHT = 64.dp
 private const val LIFTED_SLOT_ALPHA = 0.2f
 
 private val LOCK_SIZE = 12.dp
-
-/** 칸이 일곱이면 좁은 폰에서 네 글자 이름이 빠듯해 한 줄에 들 때까지 줄인다(아래 메뉴와 같은 하한) */
-private val MIN_LABEL_SIZE = 10.sp

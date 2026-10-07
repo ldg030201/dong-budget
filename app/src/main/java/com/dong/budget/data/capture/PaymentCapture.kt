@@ -307,11 +307,14 @@ class PaymentCapture(
         /** 넘긴 알림을 이만큼 기억하면 비우고 다시 센다. 오래 켜 둔 앱에서 기억이 끝없이 늘지 않게 한다. */
         private const val MAX_SKIPS_REMEMBERED = 200
 
-        /** 결제 알림을 읽는 앱인지. 기기의 모든 알림이 여기를 지나므로 다른 앱의 알림은 내용을 보기 전에 걸러낸다. */
-        fun isSource(packageName: String?): Boolean = packageName in parsers || (BuildConfig.DEBUG && packageName == SHELL_PACKAGE)
+        /**
+         * 결제 알림을 읽는 앱인지. 기기의 모든 알림이 여기를 지나므로 다른 앱의 알림은 내용을 보기 전에 걸러낸다.
+         * 어느 앱을 읽는지는 [parsersOf] 한 곳에서만 정한다.
+         */
+        fun isSource(packageName: String?): Boolean = packageName != null && parsersOf(packageName).isNotEmpty()
 
         /** 이 앱의 알림을 읽는 법. 결제 알림을 읽지 않는 앱이면 비어 있다. 개발 빌드의 adb 가짜 알림은 아는 모양을 모두 맞춰 본다. */
-        fun parsersOf(packageName: String): List<PaymentParser> =
+        private fun parsersOf(packageName: String): List<PaymentParser> =
             if (BuildConfig.DEBUG && packageName == SHELL_PACKAGE) parsers.values.toList() else listOfNotNull(parsers[packageName])
 
         /**

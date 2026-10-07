@@ -45,7 +45,7 @@ import java.time.YearMonth
  * @param onOpenStatistics 아래 메뉴의 '통계'. 탭을 바꾸지 않고 통계 화면을 셸 위에 연다.
  * @param onOpenStatisticsAt 홈 요약의 지난달 비교 줄. 홈에서 보던 달의 통계를 연다.
  * @param onOpenPage 아래 메뉴에 없는 메뉴를 셸 위에 연다(뒤로 가기가 있는 같은 화면)
- * @param pageContent 홈·전체가 아닌 탭 화면(월급·고정지출·카드실적·내역). 탭을 처음 열 때 그 화면 모델이 만들어지게
+ * @param pageContent 홈·전체가 아닌 탭 화면. 탭을 처음 열 때 그 화면 모델이 만들어지게
  *   부르는 쪽(DongBudgetApp)이 채운다. 셸 위에 따로 열 때도 같은 것을 쓴다.
  */
 @Composable
@@ -70,8 +70,8 @@ fun HomeShell(
     onOpenPatchNotes: () -> Unit,
     devModeOn: Boolean,
     onOpenDeveloper: () -> Unit,
+    pageContent: @Composable (MenuItem) -> Unit,
     modifier: Modifier = Modifier,
-    pageContent: @Composable (MenuItem) -> Unit = {},
 ) {
     var selectedTab by rememberSaveable { mutableStateOf(MenuItem.HOME) }
     // 고른 탭을 설정에서 아래 메뉴에서 뺐으면 홈을 보여 준다
@@ -83,7 +83,7 @@ fun HomeShell(
     val middleState = rememberLazyListState()
     val scope = rememberCoroutineScope()
 
-    /** 고른 탭이 아래 메뉴에서 밀려나 안 보이면 보이게 민다. 아래 메뉴에서 누른 칸은 이미 보이니 전체·홈에서 고를 때만 부른다. */
+    /** 고른 탭이 아래 메뉴에서 밀려나 다 보이지 않으면(가장자리에 걸친 칸을 눌렀거나, 전체·홈에서 골랐으면) 다 보이게 민다. */
     fun reveal(item: MenuItem) {
         if (!menu.scrolls) return
         val index = menu.shown.indexOf(item).takeIf { it >= 0 } ?: return
@@ -94,13 +94,13 @@ fun HomeShell(
     }
 
     /** 메뉴를 연다. 통계는 셸 위에, 아래 메뉴에 있는 탭은 그 탭으로, 없으면 셸 위에 따로 연다. */
-    fun open(item: MenuItem, fromBar: Boolean = false) {
+    fun open(item: MenuItem) {
         when {
             !item.isTab -> onOpenStatistics()
 
             item in menu -> {
                 selectedTab = item
-                if (!fromBar) reveal(item)
+                reveal(item)
             }
 
             else -> onOpenPage(item)
@@ -115,7 +115,7 @@ fun HomeShell(
             ShellBottomBar(
                 menu = menu,
                 selected = shownTab,
-                onClick = { item -> open(item, fromBar = true) },
+                onClick = ::open,
                 middleState = middleState,
             )
         },

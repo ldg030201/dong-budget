@@ -10,7 +10,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.unit.Dp
 import com.dong.budget.R
 import com.dong.budget.ui.theme.BudgetTheme
@@ -56,30 +56,20 @@ fun categoryIconRes(key: String?): Int = when (key) {
     else -> R.drawable.ic_sym_more_horiz
 }
 
-/** 옅은 색 원 안에 진한 색 아이콘 */
+/** 옅은 색 원 안에 진한 색 아이콘(리소스) */
 @Composable
 fun IconBadge(@DrawableRes iconRes: Int, swatch: CategorySwatch, modifier: Modifier = Modifier, size: Dp = BudgetTheme.size.badge) {
-    Box(
-        modifier = modifier.size(size).background(swatch.container, CircleShape),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            painter = painterResource(iconRes),
-            // 아이콘은 꾸밈이다. 분류 이름이 항상 글자로 옆에 있다.
-            contentDescription = null,
-            tint = swatch.content,
-            modifier = Modifier.size(size * ICON_RATIO),
-        )
-    }
+    IconBadge(icon = ImageVector.vectorResource(iconRes), swatch = swatch, modifier = modifier, size = size)
 }
 
-/** [IconBadge] 의 벡터 아이콘판. 리소스가 아닌 기본 아이콘(홈·메뉴)을 담는다. */
+/** 옅은 색 원 안에 진한 색 아이콘. 아래 메뉴 칸처럼 아이콘을 [ImageVector] 로 들고 있는 곳(전체 목록)이 쓴다. */
 @Composable
 fun IconBadge(icon: ImageVector, swatch: CategorySwatch, modifier: Modifier = Modifier, size: Dp = BudgetTheme.size.badge) {
     Box(
         modifier = modifier.size(size).background(swatch.container, CircleShape),
         contentAlignment = Alignment.Center,
     ) {
+        // 아이콘은 꾸밈이다. 이름이 항상 글자로 옆에 있다.
         Icon(imageVector = icon, contentDescription = null, tint = swatch.content, modifier = Modifier.size(size * ICON_RATIO))
     }
 }

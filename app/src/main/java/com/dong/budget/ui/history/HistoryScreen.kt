@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -44,20 +45,24 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
-import androidx.compose.ui.text.style.TextOverflow
 import com.dong.budget.R
+import com.dong.budget.data.settings.MenuItem
 import com.dong.budget.ui.components.BudgetIconButton
 import com.dong.budget.ui.components.DayHeader
+import com.dong.budget.ui.components.FormPlaceholder
 import com.dong.budget.ui.components.TabEmptyState
 import com.dong.budget.ui.components.TabHeader
 import com.dong.budget.ui.components.TransactionRow
 import com.dong.budget.ui.format.formatAmount
+import com.dong.budget.ui.format.formatNetExpense
 import com.dong.budget.ui.format.formatSignedTotal
 import com.dong.budget.ui.format.monthLabel
 import com.dong.budget.ui.home.Totals
+import com.dong.budget.ui.shell.color
 import com.dong.budget.ui.theme.BudgetTheme
 import com.dong.budget.ui.theme.Motion
 import kotlinx.coroutines.flow.filter
+import java.time.LocalDate
 
 /**
  * 내역. 모든 거래를 최근 것부터 달·날짜로 묶어 늘어놓고, 맨 위 입력칸으로 찾는다.
@@ -94,7 +99,7 @@ fun HistoryScreen(
             !state.hasAny ->
                 TabEmptyState(
                     iconRes = R.drawable.ic_sym_receipt_long,
-                    color = "pink",
+                    color = MenuItem.HISTORY.color,
                     title = "아직 거래가 없어요",
                     body = "홈의 거래 등록 버튼(+)으로 남기거나\n결제 알림으로 등록하면 여기에 모여요.",
                 )
@@ -102,7 +107,7 @@ fun HistoryScreen(
             state.months.isEmpty() ->
                 TabEmptyState(
                     iconRes = R.drawable.ic_sym_receipt_long,
-                    color = "pink",
+                    color = MenuItem.HISTORY.color,
                     title = "맞는 내역이 없어요",
                     body = "'${state.query.trim()}'(으)로 찾은 거래가 없어요.\n가게 이름이나 금액을 다르게 적어 보세요.",
                 )
@@ -138,12 +143,12 @@ private fun HistoryList(state: HistoryUiState, onOpenTransaction: (Long) -> Unit
         }
         state.months.forEach { month ->
             // 달 머리는 그 달을 지나는 동안 위에 붙어 있어 지금 몇 월을 보는지 알 수 있다
-            stickyHeader(key = "month-${month.month}") { MonthTitle(month = month, state = state) }
+            stickyHeader(key = "month-${month.month}") { MonthTitle(month = month, today = state.today) }
             month.days.forEach { day ->
                 item(key = "day-${day.date}") { DayHeader(date = day.date, today = state.today) }
-                day.items.forEach { item ->
-                    item(key = "tx-${item.id}") { TransactionRow(item = item, onClick = { onOpenTransaction(item.id) }) }
-                }
+                // 거래 줄은 날마다 한 번에 넘긴다. 줄마다 하나씩 넘기면 검색어를 칠 때마다 모든 거래의 열쇠를 바로 만든다.
+                // 열쇠는 거래 번호(Long)라 다른 줄의 글자 열쇠와 겹치지 않는다.
+                items(day.items, key = { it.id }) { item -> TransactionRow(item = item, onClick = { onOpenTransaction(item.id) }) }
             }
         }
     }
@@ -202,13 +207,7 @@ private fun SearchField(query: String, onQueryChange: (String) -> Unit, modifier
 @Composable
 private fun SearchPlaceholder(visible: Boolean) {
     AnimatedVisibility(visible = visible, enter = fadeIn(Motion.quick()), exit = fadeOut(Motion.quick())) {
-        Text(
-            text = SEARCH_PLACEHOLDER,
-            style = MaterialTheme.typography.bodyLarge,
-            color = BudgetTheme.colors.textTertiary,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
+        FormPlaceholder(SEARCH_PLACEHOLDER)
     }
 }
 
@@ -232,7 +231,7 @@ private fun SearchSummary(count: Int, totals: Totals) {
  * 화면 읽기가 달마다 건너뛸 수 있게 제목으로 둔다.
  */
 @Composable
-private fun MonthTitle(month: HistoryMonth, state: HistoryUiState) {
+private fun MonthTitle(month: HistoryMonth, today: LocalDate) {
     Row(
         modifier =
         Modifier
@@ -244,7 +243,7 @@ private fun MonthTitle(month: HistoryMonth, state: HistoryUiState) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            text = monthLabel(month.month, state.today),
+            text = monthLabel(month.month, today),
             style = MaterialTheme.typography.titleMedium,
             color = BudgetTheme.colors.textPrimary,
             modifier = Modifier.weight(1f),
@@ -257,7 +256,7 @@ private fun MonthTitle(month: HistoryMonth, state: HistoryUiState) {
 
 /** "지출 -45,000원 · 수입 +3,000원". 0 인 쪽은 뺀다. 둘 다 0(이체만)이면 null */
 private fun totalsText(totals: Totals): String? = listOfNotNull(
-    totals.expense.takeIf { it != 0L }?.let { "지출 ${formatSignedTotal(-it)}" },
+    totals.expense.takeIf { it != 0L }?.let { "지출 ${formatNetExpense(it)}" },
     totals.income.takeIf { it != 0L }?.let { "수입 ${formatSignedTotal(it)}" },
 ).joinToString(" · ").ifEmpty { null }
 

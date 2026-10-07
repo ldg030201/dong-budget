@@ -55,44 +55,39 @@ fun MoreScreen(
         )
         // 전체는 앱의 모든 메뉴를 늘어놓는 곳이라 아래 메뉴에 있는 것도 둔다. 아래 메뉴에 있으면 그 탭으로, 없으면 따로 연다.
         MenuRow(MenuItem.SALARY, onOpenMenu)
-        MoreRow(
+        BudgetListItem(
             title = "분류 관리",
             subtitle = "분류와 결제수단을 추가하거나 지워요",
-            badge = { IconBadge(iconRes = R.drawable.ic_sym_category, swatch = BudgetTheme.categoryPalette["indigo"]) },
+            leading = { IconBadge(iconRes = R.drawable.ic_sym_category, swatch = BudgetTheme.categoryPalette["indigo"]) },
             onClick = onOpenCategories,
         )
         MenuRow(MenuItem.STATISTICS, onOpenMenu)
         MenuRow(MenuItem.HISTORY, onOpenMenu)
         MenuRow(MenuItem.FIXED_EXPENSE, onOpenMenu)
         MenuRow(MenuItem.CARD_PERFORMANCE, onOpenMenu)
-        MoreRow(
+        BudgetListItem(
             title = "패치노트",
             subtitle = "버전마다 바뀐 점을 봐요",
-            badge = { IconBadge(iconRes = R.drawable.ic_sym_new_releases, swatch = BudgetTheme.categoryPalette["purple"]) },
+            leading = { IconBadge(iconRes = R.drawable.ic_sym_new_releases, swatch = BudgetTheme.categoryPalette["purple"]) },
             onClick = onOpenPatchNotes,
         )
-        MoreRow(
+        BudgetListItem(
             title = "개발자 모드",
             // 켜 둔 동안에는 로그가 쌓인다는 것을 여기서도 알 수 있게 한다
             subtitle = if (devModeOn) "켜져 있어요 · 로그를 쌓고 있어요" else "오류가 났을 때 기록을 모아 보내요",
-            badge = { IconBadge(iconRes = R.drawable.ic_sym_bug_report, swatch = BudgetTheme.categoryPalette["gray"]) },
+            leading = { IconBadge(iconRes = R.drawable.ic_sym_bug_report, swatch = BudgetTheme.categoryPalette["gray"]) },
             onClick = onOpenDeveloper,
         )
     }
 }
 
-/** 아래 메뉴에 둘 수 있는 메뉴의 줄. 이름·설명·아이콘은 아래 메뉴·하단 메뉴 설정과 같은 것을 쓴다. */
+/** 아래 메뉴에 둘 수 있는 메뉴의 줄. 이름·아이콘은 아래 메뉴와 같은 것을 쓴다. */
 @Composable
 private fun MenuRow(item: MenuItem, onOpen: (MenuItem) -> Unit) {
-    MoreRow(
+    BudgetListItem(
         title = item.label,
         subtitle = item.description,
-        badge = { IconBadge(icon = item.icon(), swatch = BudgetTheme.categoryPalette[item.color]) },
+        leading = { IconBadge(icon = item.icon(), swatch = BudgetTheme.categoryPalette[item.color]) },
         onClick = { onOpen(item) },
     )
-}
-
-@Composable
-private fun MoreRow(title: String, subtitle: String, badge: @Composable () -> Unit, onClick: () -> Unit) {
-    BudgetListItem(title = title, subtitle = subtitle, leading = badge, onClick = onClick)
 }

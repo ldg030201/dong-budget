@@ -5,14 +5,10 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -50,11 +46,8 @@ import com.dong.budget.ui.components.AnimatedHintText
 import com.dong.budget.ui.components.AnimatedInputPanel
 import com.dong.budget.ui.components.BringPanelRowIntoView
 import com.dong.budget.ui.components.BudgetPrimaryButton
-import com.dong.budget.ui.components.BudgetTextButton
 import com.dong.budget.ui.components.BudgetTopAppBar
 import com.dong.budget.ui.components.CategoryBadge
-import com.dong.budget.ui.components.ConfirmDialog
-import com.dong.budget.ui.components.ErrorText
 import com.dong.budget.ui.components.FormField
 import com.dong.budget.ui.components.FormIconValue
 import com.dong.budget.ui.components.FormPlaceholder
@@ -190,10 +183,7 @@ fun TransactionEditorScreen(
     BackHandler(enabled = panel != null) { panel = null }
 
     if (showDeleteConfirm) {
-        ConfirmDialog(
-            title = "이 거래를 지울까요?",
-            message = "지운 거래는 되돌릴 수 없어요.",
-            confirmLabel = "지우기",
+        DeleteTransactionDialog(
             onConfirm = {
                 showDeleteConfirm = false
                 onDeleteTransaction()
@@ -217,7 +207,7 @@ fun TransactionEditorScreen(
                 onNavigationClick = onClose,
                 title = if (state.isEditing) "거래 수정" else "거래 등록",
                 style = NavButtonStyle.CLOSE,
-                actions = { if (state.isEditing) DeleteAction(onClick = { if (acceptsTaps()) showDeleteConfirm = true }) },
+                actions = { if (state.isEditing) DeleteTransactionButton(onClick = { if (acceptsTaps()) showDeleteConfirm = true }) },
             )
 
             Column(
@@ -447,12 +437,6 @@ fun TransactionEditorScreen(
             }
         }
     }
-}
-
-/** 되돌릴 수 없는 삭제로 이어지는 버튼이라 최소 터치 크기(48dp)를 지키는 공용 글자 버튼을 쓴다 */
-@Composable
-private fun DeleteAction(onClick: () -> Unit) {
-    BudgetTextButton(text = "삭제", onClick = onClick, color = BudgetTheme.colors.danger)
 }
 
 /** 금액 밑에 만·억 단위로 끊어 적기 시작하는 금액. 만 원 아래는 위 숫자와 똑같아 적지 않는다. */

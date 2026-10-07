@@ -32,13 +32,14 @@ import com.dong.budget.data.db.TransactionListItem
 import com.dong.budget.ui.components.BudgetTextButton
 import com.dong.budget.ui.components.BudgetTopAppBar
 import com.dong.budget.ui.components.CategoryBadge
-import com.dong.budget.ui.components.ConfirmDialog
 import com.dong.budget.ui.components.MonthHeader
 import com.dong.budget.ui.components.TransactionRow
 import com.dong.budget.ui.components.animatedItem
 import com.dong.budget.ui.components.animatedItems
 import com.dong.budget.ui.components.transactionAmountColor
 import com.dong.budget.ui.components.transactionTitle
+import com.dong.budget.ui.editor.DeleteTransactionButton
+import com.dong.budget.ui.editor.DeleteTransactionDialog
 import com.dong.budget.ui.format.formatDate
 import com.dong.budget.ui.format.formatDayShort
 import com.dong.budget.ui.format.formatSignedAmount
@@ -77,10 +78,7 @@ fun TransactionDetailScreen(
     var askDelete by rememberSaveable { mutableStateOf(false) }
     // 지운 거래는 곧 닫히므로 물을 것도 없다
     if (askDelete && state != TransactionDetailUiState.Gone) {
-        ConfirmDialog(
-            title = "이 거래를 지울까요?",
-            message = "지운 거래는 되돌릴 수 없어요.",
-            confirmLabel = "지우기",
+        DeleteTransactionDialog(
             onConfirm = {
                 askDelete = false
                 onDelete()
@@ -95,11 +93,7 @@ fun TransactionDetailScreen(
                 // 지운 거래는 곧 닫히므로 고치거나 지울 수 없게 한다. '수정' 은 원래 자리(맨 오른쪽)에 두고 '삭제' 를 그 앞에 둔다.
                 actions = {
                     if (state != TransactionDetailUiState.Gone) {
-                        BudgetTextButton(
-                            text = "삭제",
-                            onClick = { if (acceptsTaps()) askDelete = true },
-                            color = BudgetTheme.colors.danger,
-                        )
+                        DeleteTransactionButton(onClick = { if (acceptsTaps()) askDelete = true })
                         BudgetTextButton(text = "수정", onClick = onEdit)
                     }
                 },

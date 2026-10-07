@@ -57,8 +57,6 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.heading
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -78,6 +76,7 @@ import com.dong.budget.ui.components.animatedItem
 import com.dong.budget.ui.components.animatedItems
 import com.dong.budget.ui.components.sectionBlock
 import com.dong.budget.ui.format.formatSignedTotal
+import com.dong.budget.ui.stats.SectionTitle
 import com.dong.budget.ui.theme.BudgetTheme
 import com.dong.budget.ui.theme.Motion
 import com.dong.budget.ui.theme.pressFeedback
@@ -116,9 +115,9 @@ fun HomeScreen(
     onAddTransaction: () -> Unit,
     onOpenTransaction: (Long) -> Unit,
     onOpenInbox: () -> Unit,
+    onOpenStatistics: (YearMonth) -> Unit,
+    onOpenHistory: () -> Unit,
     modifier: Modifier = Modifier,
-    onOpenStatistics: (YearMonth) -> Unit = {},
-    onOpenHistory: () -> Unit = {},
 ) {
     // 새 버전 알림 줄을 닫을 때 묻는 중인지. 알리는 버전에 묶어 두어, 줄이 사라지거나 다른 버전으로 바뀌면 묻던 것도 거둔다.
     var askCloseUpdate by rememberSaveable(updateVersion) { mutableStateOf(false) }
@@ -200,11 +199,13 @@ fun HomeScreen(
 }
 
 // 목록 맨 앞의 고정 줄(요약 · 달력 · '내역' 머리). 날짜별 거래는 그 뒤에 온다.
+// 줄 번호는 이 순서에서 끌어낸다. 고정 줄을 더하거나 빼도 달력을 누를 때의 스크롤과 한 주 줄의 날짜가 밀리지 않게 한다.
 private const val SUMMARY_KEY = "summary"
 private const val CALENDAR_KEY = "calendar"
 private const val HISTORY_HEADER_KEY = "history-header"
-private const val CALENDAR_INDEX = 1
-private const val FIRST_DAY_INDEX = 3
+private val LEADING_KEYS = listOf(SUMMARY_KEY, CALENDAR_KEY, HISTORY_HEADER_KEY)
+private val CALENDAR_INDEX = LEADING_KEYS.indexOf(CALENDAR_KEY)
+private val FIRST_DAY_INDEX = LEADING_KEYS.size
 
 /** 달을 넘길 때 한 판을 옮기는 거리. 화면 폭의 1/5 만 옮기고 나머지는 흐려짐으로 보여준다. 판이 커서 많이 옮기면 어지럽다. */
 private const val MONTH_SHIFT_DIVISOR = 5
@@ -348,12 +349,7 @@ private fun HistoryHeader(onOpenHistory: () -> Unit) {
             .padding(top = BudgetTheme.spacing.sectionPadding),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            text = "내역",
-            style = MaterialTheme.typography.titleMedium,
-            color = BudgetTheme.colors.textPrimary,
-            modifier = Modifier.weight(1f).semantics { heading() },
-        )
+        SectionTitle(text = "내역", modifier = Modifier.weight(1f))
         BudgetTextButton(text = "전체보기", onClick = onOpenHistory, color = BudgetTheme.colors.textSecondary)
     }
 }

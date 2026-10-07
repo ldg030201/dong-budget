@@ -36,6 +36,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.error
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
 import com.dong.budget.ui.theme.BudgetTheme
 import com.dong.budget.ui.theme.Motion
 import com.dong.budget.ui.theme.pressScaleClickable
@@ -119,13 +120,15 @@ fun FormField(
     }
 }
 
-/** 값이 아직 없을 때 칸 안에 흐리게 보여주는 안내 */
+/** 값이 아직 없을 때 칸 안에 흐리게 보여주는 안내. 한 줄 칸에 두므로 넘치면 말줄임으로 자른다. */
 @Composable
 fun FormPlaceholder(text: String) {
     Text(
         text = text,
         style = MaterialTheme.typography.bodyLarge,
         color = BudgetTheme.colors.textTertiary,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
     )
 }
 

@@ -1,35 +1,18 @@
 package com.dong.budget.ui.shell
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.snapping.SnapPosition
 import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.defaultMinSize
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.TextAutoSize
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBarDefaults
@@ -37,17 +20,13 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemColors
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.BlendMode
@@ -55,18 +34,13 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.layout.layout
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.dong.budget.data.settings.BottomMenu
 import com.dong.budget.data.settings.MenuItem
 import com.dong.budget.ui.components.STATS_ENTRY_SHARED_KEY
 import com.dong.budget.ui.components.sharedNavElement
 import com.dong.budget.ui.theme.BudgetTheme
-import com.dong.budget.ui.theme.Motion
 import com.dong.budget.ui.theme.pressFeedback
-import com.dong.budget.ui.theme.pressScaleClickable
-import kotlinx.coroutines.launch
 
 /**
  * 아래 메뉴. 홈이 맨 왼쪽, 전체가 맨 오른쪽에 붙어 있고, 그 사이 칸은 [BottomMenu.shown] 순서로 놓인다.
@@ -84,19 +58,14 @@ import kotlinx.coroutines.launch
  *
  * @param selected 고른 탭. 통계는 탭이 아니라 고른 칸이 되지 않는다.
  * @param middleState 가운데 칸의 스크롤. 셸이 들고 있다가 전체에서 메뉴를 고르면 그 칸이 보이게 민다.
- * @param linkStatistics 통계 칸을 통계 하위 메뉴와 이을지. 설정의 미리 보기는 잇지 않는다.
- * @param windowInsets 아래 시스템 막대를 피할 여백. 미리 보기에는 없다.
  */
 @Composable
 fun ShellBottomBar(
     menu: BottomMenu,
-    selected: MenuItem?,
+    selected: MenuItem,
     onClick: (MenuItem) -> Unit,
     middleState: LazyListState,
     modifier: Modifier = Modifier,
-    containerColor: Color = MaterialTheme.colorScheme.background,
-    windowInsets: WindowInsets = NavigationBarDefaults.windowInsets,
-    linkStatistics: Boolean = true,
 ) {
     val colors =
         NavigationBarItemDefaults.colors(
@@ -106,37 +75,31 @@ fun ShellBottomBar(
             unselectedTextColor = BudgetTheme.colors.textTertiary,
             indicatorColor = Color.Transparent,
         )
-    Surface(color = containerColor, modifier = modifier) {
+    Surface(color = MaterialTheme.colorScheme.background, modifier = modifier) {
         Row(
             modifier =
             Modifier
                 .fillMaxWidth()
-                .windowInsetsPadding(windowInsets)
+                .windowInsetsPadding(NavigationBarDefaults.windowInsets)
                 .defaultMinSize(minHeight = BAR_MIN_HEIGHT)
                 .selectableGroup(),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            if (!menu.scrolls) {
-                menu.items.forEach { item ->
-                    MenuSlot(item, selected = item == selected, onClick = { onClick(item) }, colors = colors, linked = linkStatistics)
-                }
-            } else {
-                MenuSlot(MenuItem.HOME, selected = selected == MenuItem.HOME, onClick = {
-                    onClick(MenuItem.HOME)
-                }, colors = colors, linked = false)
+            MenuSlot(MenuItem.HOME, selected = selected, onClick = onClick, colors = colors)
+            if (menu.scrolls) {
                 ScrollingMiddle(
                     items = menu.shown,
                     state = middleState,
                     selected = selected,
                     onClick = onClick,
                     colors = colors,
-                    linkStatistics = linkStatistics,
                     modifier = Modifier.weight(BottomMenu.VISIBLE_MIDDLE + PEEK),
                 )
-                MenuSlot(MenuItem.MORE, selected = selected == MenuItem.MORE, onClick = {
-                    onClick(MenuItem.MORE)
-                }, colors = colors, linked = false)
+            } else {
+                // 다 보이니 통계 칸은 늘 잇는다
+                menu.shown.forEach { item -> MenuSlot(item, selected = selected, onClick = onClick, colors = colors, linked = true) }
             }
+            MenuSlot(MenuItem.MORE, selected = selected, onClick = onClick, colors = colors)
         }
     }
 }
@@ -146,10 +109,9 @@ fun ShellBottomBar(
 private fun ScrollingMiddle(
     items: List<MenuItem>,
     state: LazyListState,
-    selected: MenuItem?,
+    selected: MenuItem,
     onClick: (MenuItem) -> Unit,
     colors: NavigationBarItemColors,
-    linkStatistics: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val statsIndex = items.indexOf(MenuItem.STATISTICS)
@@ -167,13 +129,7 @@ private fun ScrollingMiddle(
         items(items, key = { it.key }) { item ->
             // 보이는 너비가 네 칸과 걸친 칸이라, 한 칸은 그 너비를 (4 + PEEK) 로 나눈 만큼이다
             Row(Modifier.fillParentMaxWidth(1f / (BottomMenu.VISIBLE_MIDDLE + PEEK))) {
-                MenuSlot(
-                    item = item,
-                    selected = item == selected,
-                    onClick = { onClick(item) },
-                    colors = colors,
-                    linked = linkStatistics && statsShown,
-                )
+                MenuSlot(item = item, selected = selected, onClick = onClick, colors = colors, linked = statsShown)
             }
         }
     }
@@ -227,14 +183,20 @@ private fun Modifier.fadingPeek(state: LazyListState): Modifier = this
     }
 
 /**
- * 아래 메뉴 한 칸. 통계 칸이면서 [linked] 면 아이콘과 글자를 통계 하위 메뉴의 첫 칸과 잇는다.
+ * 아래 메뉴 한 칸. [selected] 와 같은 칸이면 고른 칸으로 그린다. 통계 칸이면서 [linked] 면 아이콘과 글자를 통계 하위 메뉴의 첫 칸과 잇는다.
  */
 @Composable
-private fun RowScope.MenuSlot(item: MenuItem, selected: Boolean, onClick: () -> Unit, colors: NavigationBarItemColors, linked: Boolean) {
+private fun RowScope.MenuSlot(
+    item: MenuItem,
+    selected: MenuItem,
+    onClick: (MenuItem) -> Unit,
+    colors: NavigationBarItemColors,
+    linked: Boolean = false,
+) {
     val shared = linked && item == MenuItem.STATISTICS
     ShellNavItem(
-        selected = selected,
-        onClick = onClick,
+        selected = item == selected,
+        onClick = { onClick(item) },
         icon = {
             Icon(
                 item.icon(),
@@ -266,18 +228,7 @@ private fun RowScope.ShellNavItem(
         selected = selected,
         onClick = onClick,
         icon = icon,
-        label = {
-            // 칸이 많으면 좁은 폰(320dp, 칸 너비 약 50dp)에서 네 글자('고정지출')가 빠듯하다.
-            // 두 줄로 꺾이거나 잘리지 않게 한 줄에 들어갈 때까지 글자를 줄인다(아래 떠 있는 메뉴와 같은 방식).
-            val style = MaterialTheme.typography.labelSmall
-            Text(
-                label,
-                style = style,
-                maxLines = 1,
-                autoSize = TextAutoSize.StepBased(minFontSize = MIN_LABEL_SIZE, maxFontSize = style.fontSize),
-                modifier = if (labelSharedKey != null) Modifier.sharedNavElement(labelSharedKey) else Modifier,
-            )
-        },
+        label = { MenuItemLabel(label, modifier = if (labelSharedKey != null) Modifier.sharedNavElement(labelSharedKey) else Modifier) },
         colors = colors,
         interactionSource = interactionSource,
         modifier =
@@ -304,6 +255,3 @@ private const val PEEK_EDGE_ALPHA = 0.2f
 
 /** 하단 탭은 바탕 없이 작은 아이콘과 글자뿐이라 버튼보다 더 줄인다 */
 private const val NAV_PRESSED_SCALE = 0.9f
-
-/** 좁은 화면에서 탭 글자를 줄이는 하한. 이보다 작으면 읽기 어렵다. */
-private val MIN_LABEL_SIZE = 10.sp
