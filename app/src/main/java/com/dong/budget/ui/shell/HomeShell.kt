@@ -88,7 +88,7 @@ fun HomeShell(
         if (!menu.scrolls) return
         val index = menu.shown.indexOf(item).takeIf { it >= 0 } ?: return
         val first = middleState.firstVisibleItemIndex
-        if (isFullyShown(index, first, middleState.firstVisibleItemScrollOffset)) return
+        if (isFullyShown(index, first, middleState.firstVisibleItemScrollOffset, menu.shown.size)) return
         val target = if (index <= first) index else index - (BottomMenu.VISIBLE_MIDDLE - 1)
         scope.launch { middleState.animateScrollToItem(target) }
     }

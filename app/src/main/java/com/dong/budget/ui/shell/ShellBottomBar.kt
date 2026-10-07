@@ -46,11 +46,15 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -68,9 +72,9 @@ import kotlinx.coroutines.launch
  * 아래 메뉴. 홈이 맨 왼쪽, 전체가 맨 오른쪽에 붙어 있고, 그 사이 칸은 [BottomMenu.shown] 순서로 놓인다.
  *
  * 가운데가 [BottomMenu.VISIBLE_MIDDLE] 칸 이하면 모든 칸이 너비를 똑같이 나눈다.
- * 넘치면 홈·전체와 가운데 네 칸이 같은 너비(여섯 칸 기준)를 쓰고, 가운데만 옆으로 밀어 바꾼다. 밀다 놓으면 칸 경계에 맞춰 멈춰서
- * 반쯤 잘린 칸이 남지 않는다. 더 있는 쪽 가장자리에는 ‹ › 가 붙고(누르면 한 칸 밀린다, [EdgeArrow]),
- * 가운데 칸 아래 얇은 스크롤 막대가 지금 어디쯤인지 알린다([ScrollIndicator]).
+ * 넘치면 가운데만 옆으로 밀어 바꾼다. 가운데 네 칸이 다 보이고, 그다음 칸이 가장자리에 [PEEK] 칸만큼 걸쳐 보인다.
+ * 걸친 칸은 가장자리로 갈수록 흐려져(fadingPeek) 옆에 더 있다는 것을 알린다. 밀다 놓으면 칸 경계에 맞춰 멈춘다.
+ * 홈·전체도 가운데 칸과 같은 너비라 모든 칸의 간격이 고르다.
  * Material 의 NavigationBar 는 칸 사이에 틈을 두어 밀리는 칸과 고정 칸의 간격을 고르게 맞출 수 없어서, 같은 높이·색·여백의 줄을 직접 둔다.
  *
  * 통계 칸은 통계 하위 메뉴의 첫 칸과 이어진다([STATS_ENTRY_SHARED_KEY]). 통계를 열면 이 칸의 아이콘과 글자가 위로 옮겨 가고,
@@ -127,8 +131,7 @@ fun ShellBottomBar(
                     onClick = onClick,
                     colors = colors,
                     linkStatistics = linkStatistics,
-                    background = containerColor,
-                    modifier = Modifier.weight(BottomMenu.VISIBLE_MIDDLE.toFloat()),
+                    modifier = Modifier.weight(BottomMenu.VISIBLE_MIDDLE + PEEK),
                 )
                 MenuSlot(MenuItem.MORE, selected = selected == MenuItem.MORE, onClick = {
                     onClick(MenuItem.MORE)
@@ -138,7 +141,7 @@ fun ShellBottomBar(
     }
 }
 
-/** 홈과 전체 사이에서 옆으로 밀리는 가운데 칸들. 한 번에 [BottomMenu.VISIBLE_MIDDLE] 칸이 보이고, 놓으면 칸 경계에 멈춘다. */
+/** 홈과 전체 사이에서 옆으로 밀리는 가운데 칸들. 네 칸이 다 보이고 다음 칸이 걸쳐 보이며, 놓으면 칸 경계에 멈춘다. */
 @Composable
 private fun ScrollingMiddle(
     items: List<MenuItem>,
@@ -147,168 +150,81 @@ private fun ScrollingMiddle(
     onClick: (MenuItem) -> Unit,
     colors: NavigationBarItemColors,
     linkStatistics: Boolean,
-    background: Color,
     modifier: Modifier = Modifier,
 ) {
-    val scope = rememberCoroutineScope()
     val statsIndex = items.indexOf(MenuItem.STATISTICS)
     // 통계 칸이 다 보이는지. 레이아웃을 기다리지 않고 스크롤 위치만으로 정한다(위 설명).
-    val statsShown by remember(state, statsIndex) {
-        derivedStateOf { statsIndex >= 0 && isFullyShown(statsIndex, state.firstVisibleItemIndex, state.firstVisibleItemScrollOffset) }
-    }
-    Box(modifier = modifier) {
-        MiddleRow(
-            items = items,
-            state = state,
-            selected = selected,
-            onClick = onClick,
-            colors = colors,
-            linked = linkStatistics && statsShown,
-        )
-        ScrollIndicator(
-            state = state,
-            count = items.size,
-            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = INDICATOR_BOTTOM_GAP),
-        )
-        // 한 칸씩 넘긴다. 잘린 칸이 있으면(미는 중) 그 칸이 다 보이는 자리로 먼저 맞춘다.
-        // 화살표 틀은 가운데 칸 크기에 맞출 뿐 크기를 정하지 않는다(matchParentSize). 높이를 채우는 화살표가 아래 메뉴를 늘리지 않게 한다.
-        val lastFirst = (items.size - BottomMenu.VISIBLE_MIDDLE).coerceAtLeast(0)
-        Box(modifier = Modifier.matchParentSize()) {
-            EdgeArrow(
-                toStart = true,
-                visible = state.canScrollBackward,
-                background = background,
-                onClick = {
-                    val first = state.firstVisibleItemIndex
-                    val target = if (state.firstVisibleItemScrollOffset > 0) first else first - 1
-                    scope.launch { state.animateScrollToItem(target.coerceIn(0, lastFirst)) }
-                },
-                modifier = Modifier.align(Alignment.CenterStart),
-            )
-            EdgeArrow(
-                toStart = false,
-                visible = state.canScrollForward,
-                background = background,
-                onClick = { scope.launch { state.animateScrollToItem((state.firstVisibleItemIndex + 1).coerceIn(0, lastFirst)) } },
-                modifier = Modifier.align(Alignment.CenterEnd),
-            )
+    val statsShown by remember(state, statsIndex, items.size) {
+        derivedStateOf {
+            statsIndex >= 0 && isFullyShown(statsIndex, state.firstVisibleItemIndex, state.firstVisibleItemScrollOffset, items.size)
         }
     }
-}
-
-/**
- * 가운데 칸 가장자리의 ‹ ›. 그쪽에 밀어서 볼 칸이 있을 때만 보이고, 누르면 그쪽으로 한 칸 넘긴다.
- * 끝 칸 위에 얹히므로 뒤에 아래 메뉴 바탕색을 가장자리에서 안쪽으로 옅어지게 깔아 칸 글자와 겹쳐도 화살표가 읽히게 한다.
- * 가운데 칸 너비는 그대로 둔다(화살표 자리를 따로 떼지 않는다).
- * @param toStart 왼쪽(앞쪽) 화살표인지
- */
-@Composable
-private fun EdgeArrow(toStart: Boolean, visible: Boolean, background: Color, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    AnimatedVisibility(
-        visible = visible,
-        enter = fadeIn(Motion.quick()),
-        exit = fadeOut(Motion.quick()),
-        modifier = modifier.fillMaxHeight(),
-    ) {
-        val scrim = if (toStart) listOf(background, background.copy(alpha = 0f)) else listOf(background.copy(alpha = 0f), background)
-        Box(
-            modifier =
-            Modifier
-                .fillMaxHeight()
-                .width(EDGE_ARROW_WIDTH)
-                .background(Brush.horizontalGradient(scrim))
-                .pressScaleClickable(
-                    shape = RoundedCornerShape(BudgetTheme.radius.control),
-                    onClickLabel = if (toStart) "앞 메뉴 보기" else "다음 메뉴 보기",
-                    onClick = onClick,
-                ),
-            contentAlignment = if (toStart) Alignment.CenterStart else Alignment.CenterEnd,
-        ) {
-            Icon(
-                imageVector = if (toStart) Icons.AutoMirrored.Filled.KeyboardArrowLeft else Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                contentDescription = if (toStart) "하단 메뉴 앞으로 넘기기" else "하단 메뉴 다음으로 넘기기",
-                tint = BudgetTheme.colors.textSecondary,
-                // 칸 아이콘 높이에 맞춘다(칸은 아이콘이 위, 이름이 아래라 가운데보다 조금 위)
-                modifier = Modifier.offset(y = EDGE_ARROW_RAISE).size(EDGE_ARROW_SIZE),
-            )
-        }
-    }
-}
-
-/** 가운데 칸 줄. 한 칸이 보이는 너비의 4분의 1 이다. */
-@Composable
-private fun MiddleRow(
-    items: List<MenuItem>,
-    state: LazyListState,
-    selected: MenuItem?,
-    onClick: (MenuItem) -> Unit,
-    colors: NavigationBarItemColors,
-    linked: Boolean,
-) {
     LazyRow(
         state = state,
         flingBehavior = rememberSnapFlingBehavior(lazyListState = state, snapPosition = SnapPosition.Start),
-        modifier = Modifier.wholeSlots(),
+        modifier = modifier.fadingPeek(state),
     ) {
         items(items, key = { it.key }) { item ->
-            // 한 칸이 보이는 너비의 4분의 1. 너비를 칸 수로 나누어떨어지게 맞춰 두어(wholeSlots) 칸 경계와 스크롤 끝이 딱 맞는다.
-            Row(Modifier.fillParentMaxWidth(1f / BottomMenu.VISIBLE_MIDDLE)) {
-                MenuSlot(item = item, selected = item == selected, onClick = { onClick(item) }, colors = colors, linked = linked)
+            // 보이는 너비가 네 칸과 걸친 칸이라, 한 칸은 그 너비를 (4 + PEEK) 로 나눈 만큼이다
+            Row(Modifier.fillParentMaxWidth(1f / (BottomMenu.VISIBLE_MIDDLE + PEEK))) {
+                MenuSlot(
+                    item = item,
+                    selected = item == selected,
+                    onClick = { onClick(item) },
+                    colors = colors,
+                    linked = linkStatistics && statsShown,
+                )
             }
         }
     }
 }
 
 /**
- * 가운데 칸 [index] 가 다 보이는지. [first] 는 보이기 시작하는 칸, [offset] 은 그 칸이 왼쪽으로 밀려 잘린 만큼이다.
- * 칸 너비가 보이는 너비의 4분의 1 이라 [first] 부터 네 칸이 보이고, 잘린 칸이 있으면 그 칸은 빼고 본다.
+ * 가운데 칸 [index] 가 다 보이는지. [first] 는 보이기 시작하는 칸, [offset] 은 그 칸이 왼쪽으로 밀려 잘린 만큼, [count] 는 가운데 칸 수다.
+ *
+ * 놓으면 두 자리 중 하나에 멈춘다. 칸 경계에 맞은 자리([offset] 0)면 [first] 부터 네 칸이 다 보이고 다음 칸이 오른쪽에 걸친다.
+ * 끝까지 민 자리(마지막 칸이 오른쪽 끝에 닿음)면 마지막 네 칸이 다 보이고 그 앞 칸([first])이 왼쪽에 걸친다.
+ * 미는 중이면 양 끝 칸이 잘려 있을 수 있어 가운데 세 칸만 다 보이는 것으로 본다.
  */
-internal fun isFullyShown(index: Int, first: Int, offset: Int): Boolean {
-    val start = if (offset == 0) first else first + 1
-    return index in start..(first + BottomMenu.VISIBLE_MIDDLE - 1)
+internal fun isFullyShown(index: Int, first: Int, offset: Int, count: Int): Boolean {
+    val visible = BottomMenu.VISIBLE_MIDDLE
+    val range =
+        when {
+            offset == 0 -> first until first + visible
+            first + visible == count - 1 -> first + 1..first + visible
+            else -> first + 1 until first + visible
+        }
+    return index in range
 }
 
 /**
- * 너비를 [BottomMenu.VISIBLE_MIDDLE] 로 나누어떨어지게 줄여 가운데에 둔다(남는 1~3px 은 양옆으로).
- * 나누어떨어지지 않으면 칸 너비가 반올림되어 스크롤 끝에서 첫 칸이 몇 px 잘린 채 멈추고, 통계 칸을 '다 보임' 으로 못 알아본다.
+ * 걸친 칸을 흐리게 한다. 밀어서 더 볼 칸이 있는 쪽 가장자리에서, 걸친 칸 너비만큼 안쪽으로 갈수록 덜 흐려진다.
+ * 다 보이는 네 칸은 건드리지 않는다(걸친 칸 너비 = 보이는 너비 × PEEK / (4 + PEEK)). 끝까지 밀면 그쪽은 흐리지 않는다.
  */
-private fun Modifier.wholeSlots(): Modifier = layout { measurable, constraints ->
-    val width = constraints.maxWidth - constraints.maxWidth % BottomMenu.VISIBLE_MIDDLE
-    val placeable = measurable.measure(constraints.copy(minWidth = width, maxWidth = width))
-    layout(constraints.maxWidth, placeable.height) { placeable.place((constraints.maxWidth - width) / 2, 0) }
-}
-
-/**
- * 가운데 칸이 더 있다는 것을 알리는 얇은 스크롤 막대. 옅은 막대 위의 진한 부분이 지금 보이는 칸이고, 밀면 따라 움직인다.
- * 스크롤 위치는 그리는 단계에서만 읽어, 미는 동안 막대만 다시 그린다.
- */
-@Composable
-private fun ScrollIndicator(state: LazyListState, count: Int, modifier: Modifier = Modifier) {
-    val track = BudgetTheme.colors.divider
-    val thumb = BudgetTheme.colors.textTertiary
-    Spacer(
-        modifier =
-        modifier
-            .fillMaxWidth(INDICATOR_WIDTH_FRACTION)
-            .height(INDICATOR_HEIGHT)
-            .drawBehind {
-                // 처음 그리기 전에는 칸 너비를 몰라 그리지 않는다(곧 다시 그린다)
-                val slot = state.layoutInfo.visibleItemsInfo.firstOrNull()?.size?.toFloat()?.takeIf { it > 0f } ?: return@drawBehind
-                val hidden = (count - BottomMenu.VISIBLE_MIDDLE).coerceAtLeast(1)
-                val scrolled = state.firstVisibleItemIndex + state.firstVisibleItemScrollOffset / slot
-                val fraction = (scrolled / hidden).coerceIn(0f, 1f)
-                val corner = CornerRadius(size.height / 2)
-                drawRoundRect(color = track, cornerRadius = corner)
-                val thumbWidth = size.width * BottomMenu.VISIBLE_MIDDLE / count
-                drawRoundRect(
-                    color = thumb,
-                    topLeft = Offset((size.width - thumbWidth) * fraction, 0f),
-                    size = Size(thumbWidth, size.height),
-                    cornerRadius = corner,
-                )
-            },
-    )
-}
+private fun Modifier.fadingPeek(state: LazyListState): Modifier = this
+    // 그려 둔 칸에 투명도만 덧씌우려면 따로 한 장으로 그려야 한다
+    .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+    .drawWithContent {
+        drawContent()
+        val peek = size.width * PEEK / (BottomMenu.VISIBLE_MIDDLE + PEEK)
+        val inner = Color.Black.copy(alpha = PEEK_INNER_ALPHA)
+        val edge = Color.Black.copy(alpha = PEEK_EDGE_ALPHA)
+        if (state.canScrollBackward) {
+            drawRect(
+                brush = Brush.horizontalGradient(listOf(edge, inner), startX = 0f, endX = peek),
+                size = Size(peek, size.height),
+                blendMode = BlendMode.DstIn,
+            )
+        }
+        if (state.canScrollForward) {
+            drawRect(
+                brush = Brush.horizontalGradient(listOf(inner, edge), startX = size.width - peek, endX = size.width),
+                topLeft = Offset(size.width - peek, 0f),
+                size = Size(peek, size.height),
+                blendMode = BlendMode.DstIn,
+            )
+        }
+    }
 
 /**
  * 아래 메뉴 한 칸. 통계 칸이면서 [linked] 면 아이콘과 글자를 통계 하위 메뉴의 첫 칸과 잇는다.
@@ -351,7 +267,7 @@ private fun RowScope.ShellNavItem(
         onClick = onClick,
         icon = icon,
         label = {
-            // 칸이 여섯이면 좁은 폰(320dp, 칸 너비 약 53dp)에서 네 글자('고정지출')가 빠듯하다.
+            // 칸이 많으면 좁은 폰(320dp, 칸 너비 약 50dp)에서 네 글자('고정지출')가 빠듯하다.
             // 두 줄로 꺾이거나 잘리지 않게 한 줄에 들어갈 때까지 글자를 줄인다(아래 떠 있는 메뉴와 같은 방식).
             val style = MaterialTheme.typography.labelSmall
             Text(
@@ -376,15 +292,15 @@ private fun RowScope.ShellNavItem(
 /** Material 아래 메뉴의 높이(키 큰 막대)와 같게 둔다 */
 private val BAR_MIN_HEIGHT = 80.dp
 
-/** 가장자리 화살표 칸의 너비(바탕이 옅어지는 폭), 화살표 크기, 칸 가운데에서 위로 올린 만큼 */
-private val EDGE_ARROW_WIDTH = 28.dp
-private val EDGE_ARROW_SIZE = 20.dp
-private val EDGE_ARROW_RAISE = (-10).dp
+/**
+ * 가운데가 넘칠 때 다음 칸이 가장자리에 걸쳐 보이는 만큼(한 칸에 대한 비율). 아이콘은 칸 가운데에 있어서
+ * 이보다 적게 걸치면 아이콘이 거의 안 보인다(0.4칸이면 아이콘 끝만 비쳐 걸친 줄 몰랐다, 에뮬레이터 확인).
+ */
+private const val PEEK = 0.6f
 
-/** 스크롤 막대의 너비(가운데 칸 너비에 대한 비율), 두께, 아래 메뉴 아래 끝과의 틈. 칸 글자 밑에 닿지 않게 둔다. */
-private const val INDICATOR_WIDTH_FRACTION = 0.75f
-private val INDICATOR_HEIGHT = 3.dp
-private val INDICATOR_BOTTOM_GAP = 8.dp
+/** 걸친 칸의 진하기. 안쪽(다 보이는 칸과 맞닿은 쪽)에서 가장자리로 갈수록 옅어진다. 다 보이는 칸과 구분되되 무엇인지는 알아보게 둔다. */
+private const val PEEK_INNER_ALPHA = 0.5f
+private const val PEEK_EDGE_ALPHA = 0.2f
 
 /** 하단 탭은 바탕 없이 작은 아이콘과 글자뿐이라 버튼보다 더 줄인다 */
 private const val NAV_PRESSED_SCALE = 0.9f

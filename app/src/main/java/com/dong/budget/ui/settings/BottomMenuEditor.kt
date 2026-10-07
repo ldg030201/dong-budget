@@ -193,7 +193,7 @@ internal fun BottomMenuEditor(menu: BottomMenu, onChange: (BottomMenu) -> Unit, 
         }
         HintText(
             text = "아이콘을 길게 눌러 끌어서 넣고 빼거나 순서를 바꿔요. 가운데 메뉴가 ${BottomMenu.VISIBLE_MIDDLE}개를 넘으면 " +
-                "하단 메뉴를 옆으로 밀거나 ‹ › 를 눌러 봐요.",
+                "하단 메뉴 끝에 걸친 칸이 보이고, 옆으로 밀어서 봐요.",
             modifier = Modifier.padding(top = BudgetTheme.spacing.inlineGap),
         )
     }
