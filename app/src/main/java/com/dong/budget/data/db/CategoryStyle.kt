@@ -94,11 +94,16 @@ const val FIXED_CATEGORY_CODE = "FIXED"
 /** '기타' 는 항상 맨 뒤에 오도록 정렬 순서를 크게 둔다. */
 const val ETC_SORT_ORDER = 1000
 
+/** 1.8.0(DB 5)에서 더한 기본 지출 분류 '게임'·'저축'. 이미 쓰던 가계부에는 Migration4To5 가 한 번 넣는다. */
+const val GAME_CATEGORY_CODE = "GAME"
+const val SAVINGS_CATEGORY_CODE = "SAVINGS"
+
 /**
  * 기본 분류.
  *
  * 새로 설치할 때(SeedCallback)와 옛 DB 를 올릴 때(Migration1To2) 모두 이 목록을 쓴다.
  * 두 곳이 서로 다른 목록을 들고 있으면 설치 경로에 따라 분류가 달라진다.
+ * 나중에 더한 분류는 이미 쓰던 가계부에 따로 넣어야 한다(게임·저축은 Migration4To5).
  */
 val DEFAULT_CATEGORIES =
     listOf(
@@ -107,6 +112,8 @@ val DEFAULT_CATEGORIES =
         DefaultCategory(CategoryScope.EXPENSE, "CONVENIENCE", "편의점", "storefront", "green", 2),
         DefaultCategory(CategoryScope.EXPENSE, "FASHION", "패션/미용", "checkroom", "pink", 3),
         DefaultCategory(CategoryScope.EXPENSE, FIXED_CATEGORY_CODE, "고정지출", "event_repeat", "purple", 4),
+        DefaultCategory(CategoryScope.EXPENSE, GAME_CATEGORY_CODE, "게임", "sports_esports", "indigo", 5),
+        DefaultCategory(CategoryScope.EXPENSE, SAVINGS_CATEGORY_CODE, "저축", "savings", "teal", 6),
         DefaultCategory(CategoryScope.EXPENSE, ETC_EXPENSE_CODE, "기타", "interests", "gray", ETC_SORT_ORDER),
         DefaultCategory(CategoryScope.INCOME, SALARY_CATEGORY_CODE, "급여", "payments", "teal", 0),
         DefaultCategory(CategoryScope.INCOME, "ALLOWANCE", "용돈", "redeem", "amber", 1),

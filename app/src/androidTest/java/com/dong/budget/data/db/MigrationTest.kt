@@ -14,7 +14,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * 0.1.2 이하(DB 1)·1.6.1 이하(DB 2)에서 올리는 사용자의 가계부가 마이그레이션 뒤에도 그대로 남는지 실제 SQLite 로 확인한다.
+ * 0.1.2 이하(DB 1)·1.6.1 이하(DB 2)·1.7.0(DB 4)에서 올리는 사용자의 가계부가 마이그레이션 뒤에도 그대로 남는지 실제 SQLite 로 확인한다.
  *
  * 옛 앱이 첫 설치 때 넣던 기본 분류·결제수단(v0.1.2 의 SeedCallback)을 그대로 만들고, 거래를 몇 건 넣은 뒤 2·3·4 로 올린다.
  * 원칙은 '거래는 하나도 잃지 않는다' 다(Migration1To2).
@@ -28,7 +28,7 @@ class MigrationTest {
         MigrationTestHelper(
             InstrumentationRegistry.getInstrumentation(),
             BudgetDatabase::class.java,
-            listOf(Migration1To2()),
+            listOf(Migration1To2(), Migration4To5()),
         )
 
     @Test
@@ -229,6 +229,88 @@ class MigrationTest {
         val fromTwo = helper.runMigrationsAndValidate(TEST_DB_2, 4, true)
         assertEquals(1, fromTwo.count("SELECT COUNT(*) FROM transactions WHERE uuid = 't2' AND paymentMethodId IS NOT NULL"))
         assertEquals(DEFAULT_PAYMENT_METHODS.size, fromTwo.count("SELECT COUNT(*) FROM payment_methods WHERE performanceStartDay = 1"))
+    }
+
+    @Test
+    fun `4 에서 5 로 올리면 게임·저축이 사용자 분류 뒤에 생기고 같은 이름이 있으면 그대로 둔다`() {
+        helper.createDatabase(TEST_DB, 4).apply {
+            // 1.7.0 이 첫 설치 때 넣던 기본 분류(게임·저축 없음)와 사용자가 만든 '게임'·'데이트'
+            DEFAULT_CATEGORIES.filterNot { it.code == GAME_CATEGORY_CODE || it.code == SAVINGS_CATEGORY_CODE }.forEach { c ->
+                execSQL(
+                    "INSERT INTO categories (uuid, scope, name, code, sortOrder, isSystem, icon, color) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                    arrayOf<Any?>(
+                        "seed:v2:category:${c.code}",
+                        c.scope.name,
+                        c.name,
+                        c.code,
+                        c.sortOrder,
+                        if (c.isSystem) 1 else 0,
+                        c.icon,
+                        c.color,
+                    ),
+                )
+            }
+            execSQL(
+                "INSERT INTO categories (uuid, scope, name, code, sortOrder, isSystem, icon, color) " +
+                    "VALUES ('user:game', 'EXPENSE', '게임', NULL, 7, 0, 'movie', 'red')",
+            )
+            execSQL(
+                "INSERT INTO categories (uuid, scope, name, code, sortOrder, isSystem, icon, color) " +
+                    "VALUES ('user:date', 'EXPENSE', '데이트', NULL, 9, 0, 'redeem', 'pink')",
+            )
+            execSQL(
+                "INSERT INTO transactions (uuid, type, amount, occurredAt, occurredDate, categoryId, createdAt, updatedAt) " +
+                    "VALUES ('t1', 'EXPENSE', 5500, 1758783600000, 20250925, (SELECT id FROM categories WHERE uuid = 'user:game'), 0, 0)",
+            )
+            close()
+        }
+        val db = helper.runMigrationsAndValidate(TEST_DB, 5, true)
+
+        // 저축은 사용자 분류 맨 뒤(데이트 9 다음)에, 기본 모양과 코드로 생긴다
+        db.row("SELECT code, sortOrder, isSystem, icon, color FROM categories WHERE scope = 'EXPENSE' AND name = '저축'") {
+            assertEquals(SAVINGS_CATEGORY_CODE, it.getString(0))
+            assertEquals(10, it.getInt(1))
+            assertEquals(0, it.getInt(2))
+            assertEquals("savings", it.getString(3))
+            assertEquals("teal", it.getString(4))
+        }
+        // 사용자가 만든 '게임' 은 하나만 있고 모양·거래가 그대로다
+        assertEquals(1, db.count("SELECT COUNT(*) FROM categories WHERE scope = 'EXPENSE' AND name = '게임'"))
+        db.row("SELECT uuid, code, icon FROM categories WHERE name = '게임'") {
+            assertEquals("user:game", it.getString(0))
+            assertNull(it.getString(1))
+            assertEquals("movie", it.getString(2))
+        }
+        assertEquals("게임", db.categoryNameOf("t1"))
+        // '기타' 는 여전히 맨 뒤다
+        db.row("SELECT MAX(sortOrder) FROM categories WHERE scope = 'EXPENSE'") { assertEquals(ETC_SORT_ORDER, it.getInt(0)) }
+    }
+
+    @Test
+    fun `게임·저축이 없던 가계부를 4 에서 5 로 올리면 둘 다 생긴다`() {
+        helper.createDatabase(TEST_DB, 4).apply {
+            DEFAULT_CATEGORIES.filterNot { it.code == GAME_CATEGORY_CODE || it.code == SAVINGS_CATEGORY_CODE }.forEach { c ->
+                execSQL(
+                    "INSERT INTO categories (uuid, scope, name, code, sortOrder, isSystem, icon, color) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                    arrayOf<Any?>(
+                        "seed:v2:category:${c.code}",
+                        c.scope.name,
+                        c.name,
+                        c.code,
+                        c.sortOrder,
+                        if (c.isSystem) 1 else 0,
+                        c.icon,
+                        c.color,
+                    ),
+                )
+            }
+            close()
+        }
+        val db = helper.runMigrationsAndValidate(TEST_DB, 5, true)
+        assertEquals(DEFAULT_CATEGORIES.size, db.count("SELECT COUNT(*) FROM categories"))
+        // 기본 분류 고정지출(4) 뒤로 차례대로 붙는다
+        db.row("SELECT sortOrder FROM categories WHERE code = '$GAME_CATEGORY_CODE'") { assertEquals(5, it.getInt(0)) }
+        db.row("SELECT sortOrder FROM categories WHERE code = '$SAVINGS_CATEGORY_CODE'") { assertEquals(6, it.getInt(0)) }
     }
 
     /** v0.1.2 의 SeedCallback 이 첫 설치 때 넣던 그대로 */

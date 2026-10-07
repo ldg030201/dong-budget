@@ -15,7 +15,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         CategoryEntity::class,
         PaymentMethodEntity::class,
     ],
-    version = 4,
+    version = 5,
     exportSchema = true,
     autoMigrations = [
         // 1 → 2: 분류에 아이콘·색 칸을 추가하고 기본 분류를 새 목록으로 바꾼다.
@@ -26,6 +26,8 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         // 3 → 4: 거래에 (결제수단, 시각) 복합 인덱스를 두고 결제수단 단일 인덱스를 지운다. 카드실적 상세가 카드 하나의 6기간을
         // 그 카드 기록 전부를 읽지 않고 바로 찾는다. 인덱스만 바뀌어 데이터는 그대로다.
         AutoMigration(from = 3, to = 4),
+        // 4 → 5: 기본 지출 분류 '게임'·'저축' 을 이미 쓰던 가계부에도 넣는다. 스키마는 그대로고 줄만 더한다(Migration4To5).
+        AutoMigration(from = 4, to = 5, spec = Migration4To5::class),
     ],
 )
 @TypeConverters(Converters::class)
@@ -193,5 +195,26 @@ class Migration1To2 : AutoMigrationSpec {
                 "SIDE" to ("savings" to "green"),
                 "FINANCE" to ("savings" to "teal"),
             )
+    }
+}
+
+/**
+ * 4 → 5 데이터 정리. 1.8.0 에서 더한 기본 지출 분류('게임'·'저축')를 이미 쓰던 가계부에 넣는다.
+ *
+ * - 사용자가 만든 분류 뒤('기타' 앞)에 붙인다. 기본 목록의 순서(5·6)를 그대로 쓰면 사용자가 만든 분류 사이에 끼어든다.
+ * - 같은 종류에 같은 이름이 이미 있으면 넣지 않는다(이름 UNIQUE, OR IGNORE). 사용자가 직접 만들어 쓰던 '게임' 은 그대로 둔다.
+ * - 이 마이그레이션은 한 번만 돈다. 사용자가 나중에 지운 분류를 앱을 열 때마다 되살리지 않는다.
+ *
+ * 주의: [Migration1To2] 와 같은 함정이 있다(드라이버를 바꾸면 onPostMigrate(SupportSQLiteDatabase) 가 조용히 건너뛰어진다).
+ */
+class Migration4To5 : AutoMigrationSpec {
+    override fun onPostMigrate(db: SupportSQLiteDatabase) {
+        DEFAULT_CATEGORIES.filter { it.code == GAME_CATEGORY_CODE || it.code == SAVINGS_CATEGORY_CODE }.forEach { c ->
+            db.execSQL(
+                "INSERT OR IGNORE INTO categories (uuid, scope, name, code, sortOrder, isSystem, icon, color) " +
+                    "VALUES (?, ?, ?, ?, (SELECT COALESCE(MAX(sortOrder), -1) + 1 FROM categories WHERE scope = ? AND isSystem = 0), 0, ?, ?)",
+                arrayOf<Any?>(seedUuid(c.code), c.scope.name, c.name, c.code, c.scope.name, c.icon, c.color),
+            )
+        }
     }
 }
