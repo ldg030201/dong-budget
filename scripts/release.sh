@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 #
-# 서명된 release APK 를 만든다.
+# 서명된 release APK 를 만든다(GitHub 배포).
 #
-#   ./scripts/release.sh
+#   ./scripts/release.sh          GitHub 배포용 APK
+#   ./scripts/release.sh --play   Play 배포용 AAB 도 같은 키로 함께 만든다
 #
 # Android Studio 의 Generate Signed APK 대화상자 대신 이걸 쓴다.
 # 이유는 두 가지다.
@@ -22,6 +23,13 @@ fail() { echo "${RED}${BOLD}실패:${OFF} $*" >&2; exit 1; }
 info() { echo "${BOLD}$*${OFF}"; }
 ok()   { echo "${GREEN}✓${OFF} $*"; }
 warn() { echo "${YELLOW}!${OFF} $*"; }
+
+BUILD_PLAY=false
+case "${1:-}" in
+  "") ;;
+  --play) BUILD_PLAY=true ;;
+  *) fail "모르는 옵션: $1 (--play 만 받는다)" ;;
+esac
 
 # ── 서명 설정이 있는지 먼저 확인한다 ────────────────────────────────────
 # 없는 상태로 빌드하면 서명되지 않은 APK 가 조용히 나오고,
@@ -53,7 +61,9 @@ info "버전 ${VERSION_NAME} (코드 ${VERSION_CODE})"
 
 # ── 빌드 ────────────────────────────────────────────────────────────────
 info "빌드 중..."
-./gradlew --quiet :app:assembleGithubRelease
+TASKS=(:app:assembleGithubRelease)
+$BUILD_PLAY && TASKS+=(:app:bundlePlayRelease)
+./gradlew --quiet "${TASKS[@]}"
 
 APK=$(find app/build/outputs/apk/github/release -name '*.apk' -type f | head -1)
 [ -n "$APK" ] || fail "APK 를 찾지 못했다."
@@ -103,15 +113,37 @@ else
   echo
 fi
 
+# ── Play 배포용 AAB 도 같은 키인지 본다 ──────────────────────────────────
+# Play 앱 서명에도 이 키를 쓴다. 다른 키로 올리면 GitHub 에서 받은 앱 위에 Play 업데이트를 설치할 수 없다.
+# AAB 는 JAR 서명이라 apksigner 대신 keytool 로 본다. 지문은 'AB:CD:…' 로 나와서 APK 의 것과 모양을 맞춘다.
+if $BUILD_PLAY; then
+  AAB=$(find app/build/outputs/bundle/playRelease -name '*.aab' -type f | head -1)
+  [ -n "$AAB" ] || fail "AAB 를 찾지 못했다."
+  AAB_FINGERPRINT=$(keytool -printcert -jarfile "$AAB" 2>/dev/null \
+    | grep -m1 'SHA256:' | awk '{print $2}' | tr -d ':' | tr 'A-F' 'a-f')
+  [ -n "$AAB_FINGERPRINT" ] || fail "서명되지 않은 AAB 가 나왔다 ($AAB)."
+  [ "$AAB_FINGERPRINT" = "$FINGERPRINT" ] || fail "AAB 서명키가 APK 와 다르다.
+
+  APK: $FINGERPRINT
+  AAB: $AAB_FINGERPRINT"
+  ok "AAB 도 같은 키로 서명됐다"
+fi
+
 SIZE=$(du -h "$APK" | cut -f1)
 OUT="dong-budget-${VERSION_NAME}.apk"
 cp "$APK" "$OUT"
 
 echo
 ok "완성: ${BOLD}${OUT}${OFF} (${SIZE})"
+if $BUILD_PLAY; then
+  AAB_OUT="dong-budget-${VERSION_NAME}.aab"
+  cp "$AAB" "$AAB_OUT"
+  ok "완성: ${BOLD}${AAB_OUT}${OFF} ($(du -h "$AAB" | cut -f1)) — Play Console 에 올리는 파일"
+fi
 echo "  서명 SHA-256: $FINGERPRINT"
 echo
 echo "배포하려면 버전을 올리고, 바뀐 점을 메시지로 단 태그(-a)를 같은 이름으로 만들어 밀어라."
 echo "태그 메시지는 앱 패치노트(PatchNotes.kt)의 이 버전 내용을 그대로 옮긴다. 형식은 docs/배포.md 참고."
 echo "메시지 없는 태그(git tag v…)로 올리면 앱에 바뀐 점이 비어 보인다."
 echo "  git tag -a v${VERSION_NAME} -F 태그메시지.txt && git push origin main v${VERSION_NAME}"
+echo "태그를 올리면 Actions 가 Play 배포용 AAB 도 만든다. Play 에 올리는 방법은 docs/배포.md 참고."

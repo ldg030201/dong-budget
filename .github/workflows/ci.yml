@@ -40,19 +40,22 @@ jobs:
       - name: 포맷 검사
         run: ./gradlew spotlessCheck
 
+      # 배포처(github·play)마다 들어가는 코드가 달라서 둘 다 빌드하고 검사한다
       - name: 디버그 빌드
-        run: ./gradlew assembleGithubDebug
+        run: ./gradlew assembleGithubDebug assemblePlayDebug
 
       - name: 단위 테스트
-        run: ./gradlew testGithubDebugUnitTest
+        run: ./gradlew testGithubDebugUnitTest testPlayDebugUnitTest
 
       - name: 린트
-        run: ./gradlew lintGithubDebug
+        run: ./gradlew lintGithubDebug lintPlayDebug
 
       - name: 린트 결과 보관
         if: always()
         uses: actions/upload-artifact@v6
         with:
           name: lint-report
-          path: app/build/reports/lint-results-githubDebug.html
+          path: |
+            app/build/reports/lint-results-githubDebug.html
+            app/build/reports/lint-results-playDebug.html
           if-no-files-found: ignore

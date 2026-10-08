@@ -1,7 +1,8 @@
 name: 배포
 
 # v1.0.1 같은 태그를 올리면 서명된 APK 를 만들어 Releases 에 올린다.
-# 앱은 여기 올라온 APK 를 보고 새 버전을 확인한다.
+# 앱(github 빌드)은 여기 올라온 APK 를 보고 새 버전을 확인한다.
+# Play 배포(play 빌드)용 AAB 도 같은 키로 만들어 워크플로 결과물로 남기고, 켜 두었으면 Play 내부 테스트에 올린다.
 on:
   push:
     tags:
@@ -73,8 +74,9 @@ jobs:
 
       # 테스트가 깨진 채로 배포되지 않게 한다. main 의 CI 와 따로 돌기 때문에 여기서 다시 돌린다.
       # (패치노트 기록 누락, 버전 비교, 결제 알림 읽기 같은 규칙을 테스트가 지킨다)
+      # 배포처마다 들어가는 코드가 달라서 두 빌드 모두 돌린다.
       - name: 단위 테스트
-        run: ./gradlew testGithubDebugUnitTest
+        run: ./gradlew testGithubDebugUnitTest testPlayDebugUnitTest
 
       # 서명키는 저장소에 두지 않는다. Secrets 에 base64 로 넣어두고 여기서만 되살린다.
       # 키가 바뀌면 기존 사용자의 업데이트 설치와 자동 백업 복원이 모두 깨지므로
@@ -105,13 +107,15 @@ jobs:
         run: |
           echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
 
-      - name: 서명된 APK 빌드
+      # GitHub 배포용 APK 와 Play 배포용 AAB 를 같은 키로 만든다.
+      # Play 앱 서명에도 이 키를 쓰므로(docs/배포.md) 어느 쪽으로 받은 앱이든 서로 덮어 설치할 수 있다.
+      - name: 서명된 APK·AAB 빌드
         env:
           DONG_KEYSTORE_FILE: ${{ runner.temp }}/release.jks
           DONG_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           DONG_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           DONG_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: ./gradlew assembleGithubRelease
+        run: ./gradlew assembleGithubRelease bundlePlayRelease
 
       # 서명이 붙었는지, 그리고 '올바른 키로' 붙었는지 확인한다.
       #
@@ -146,11 +150,36 @@ jobs:
           rm -f certs.txt
           echo "SIGNED_APK=$APK" >> "$GITHUB_ENV"
 
+      # AAB 도 같은 키로 서명됐는지 본다. AAB 는 APK 와 서명 방식이 달라(JAR 서명) apksigner 대신 JDK 도구로 본다.
+      # keytool 은 지문을 'AB:CD:…' 로 보여 주므로 쌍점을 빼고 소문자로 바꿔 .signing-fingerprint 와 견준다.
+      - name: AAB 서명과 서명키 확인
+        run: |
+          AAB=$(find app/build/outputs/bundle/playRelease -name '*.aab' | head -1)
+          echo "AAB: $AAB"
+          if [ -z "$AAB" ]; then echo "::error::AAB 를 찾지 못했다."; exit 1; fi
+          if ! jarsigner -verify "$AAB" > /dev/null; then
+            echo "::error::AAB 서명을 확인하지 못했다. 시크릿 설정을 확인하라."
+            exit 1
+          fi
+          ACTUAL=$(keytool -printcert -jarfile "$AAB" | grep -m1 'SHA256:' | awk '{print $2}' | tr -d ':' | tr 'A-F' 'a-f')
+          EXPECTED=$(tr -d '[:space:]' < .signing-fingerprint | tr 'A-F' 'a-f')
+          if [ -z "$ACTUAL" ]; then echo "::error::서명되지 않은 AAB 다."; exit 1; fi
+          if [ "$ACTUAL" != "$EXPECTED" ]; then
+            echo "::error::AAB 서명키가 .signing-fingerprint 와 다르다. 배포를 중단한다."
+            echo "::error::Play 에 다른 키로 올리면 GitHub 에서 받은 앱 위에 Play 업데이트를 설치할 수 없다."
+            exit 1
+          fi
+          echo "AAB 서명키도 기대값과 일치한다."
+          echo "SIGNED_AAB=$AAB" >> "$GITHUB_ENV"
+
+      # AAB 는 Releases 에 올리지 않는다(아래 files 는 dong-budget-*.apk 만 고른다).
+      # 앱 내 업데이터는 Releases 에서 .apk 를 찾아 받으므로 거기에 AAB 가 섞이면 안 된다.
       - name: 배포용 이름으로 변경
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           cp "$SIGNED_APK" "dong-budget-${VERSION}.apk"
-          ls -lh "dong-budget-${VERSION}.apk"
+          cp "$SIGNED_AAB" "dong-budget-${VERSION}.aab"
+          ls -lh "dong-budget-${VERSION}.apk" "dong-budget-${VERSION}.aab"
 
       - name: 키 파일 정리
         if: always()
@@ -198,3 +227,49 @@ jobs:
           # 아직 안정 버전이 아니라는 표시는 0.x 버전 번호가 대신한다.
           prerelease: false
           body_path: ${{ runner.temp }}/release-body.md
+
+      # Play Console 에 처음 올릴 AAB 는 손으로 올려야 한다(Play API 는 앱의 첫 버전을 만들 수 없다).
+      # 그때 쓰도록 이 실행의 결과물(Artifacts)로 남긴다. 실행 화면 아래에서 받을 수 있다.
+      - name: AAB 를 결과물로 보관
+        uses: actions/upload-artifact@v6
+        with:
+          name: dong-budget-${{ github.ref_name }}-play-aab
+          path: dong-budget-*.aab
+          if-no-files-found: error
+
+      # 여기부터는 Play 배포다. GitHub Releases 에 올린 뒤에 해서, Play 쪽 문제(설정 전, 권한, 심사 상태)로
+      # GitHub 배포가 막히지 않게 한다. 실패는 숨기지 않는다(워크플로가 실패로 끝나니 확인하고 Play Console 에서 손으로 올린다).
+      #
+      # 둘 다 있을 때만 올린다.
+      #   - 저장소 변수 PLAY_UPLOAD_ENABLED 가 true. Play Console 에 첫 AAB 를 손으로 올린 뒤에 켠다.
+      #     켜기 전에 올리면 앱이 아직 없다고 실패한다.
+      #   - 시크릿 PLAY_SERVICE_ACCOUNT_JSON. Play Console 에 권한을 준 서비스 계정의 키(JSON) 전체
+      # 변수를 켰는데 시크릿이 없으면 올리지 못한 것을 알 수 있게 실패로 끝낸다.
+      - name: Play 업로드 여부 확인
+        id: play
+        env:
+          PLAY_UPLOAD_ENABLED: ${{ vars.PLAY_UPLOAD_ENABLED }}
+          PLAY_SERVICE_ACCOUNT_JSON: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+        run: |
+          if [ "$PLAY_UPLOAD_ENABLED" != "true" ]; then
+            echo "저장소 변수 PLAY_UPLOAD_ENABLED 가 true 가 아니라서 Play 에는 올리지 않는다."
+            echo "upload=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ -z "$PLAY_SERVICE_ACCOUNT_JSON" ]; then
+            echo "::error::PLAY_UPLOAD_ENABLED 는 켜져 있는데 PLAY_SERVICE_ACCOUNT_JSON 시크릿이 없어 Play 에 올리지 못했다."
+            echo "::error::GitHub 배포는 끝났다. 시크릿을 넣고 결과물의 AAB 를 Play Console 에 손으로 올려라."
+            exit 1
+          fi
+          echo "upload=true" >> "$GITHUB_OUTPUT"
+
+      # 내부 테스트 트랙에 바로 내보낸다(completed). 테스터의 Play 스토어가 새 버전을 받고, 앱이 인앱 업데이트로 알린다.
+      - name: Play 내부 테스트에 올리기
+        if: steps.play.outputs.upload == 'true'
+        uses: r0adkll/upload-google-play@v1
+        with:
+          serviceAccountJsonPlainText: ${{ secrets.PLAY_SERVICE_ACCOUNT_JSON }}
+          packageName: com.dong.budget
+          releaseFiles: dong-budget-*.aab
+          track: internal
+          status: completed
