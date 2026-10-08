@@ -44,8 +44,10 @@ jobs:
       - name: 디버그 빌드
         run: ./gradlew assembleGithubDebug assemblePlayDebug
 
+      # 공통 테스트는 github 빌드에서 한 번만, play 빌드는 play 전용 테스트만 돌린다(app/build.gradle.kts).
+      # 고정지출 시뮬레이션(6분 남짓)도 여기서는 늘 돈다. 배포 작업은 그 코드가 안 바뀌었으면 건너뛴다.
       - name: 단위 테스트
-        run: ./gradlew testGithubDebugUnitTest testPlayDebugUnitTest
+        run: ./gradlew testGithubDebugUnitTest testPlayDebugUnitTest -Pdongbudget.flavorTestsOnly
 
       - name: 린트
         run: ./gradlew lintGithubDebug lintPlayDebug

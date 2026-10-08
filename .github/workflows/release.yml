@@ -74,9 +74,28 @@ jobs:
 
       # 테스트가 깨진 채로 배포되지 않게 한다. main 의 CI 와 따로 돌기 때문에 여기서 다시 돌린다.
       # (패치노트 기록 누락, 버전 비교, 결제 알림 읽기 같은 규칙을 테스트가 지킨다)
-      # 배포처마다 들어가는 코드가 달라서 두 빌드 모두 돌린다.
+      # 공통 테스트는 github 빌드에서 한 번만, play 빌드는 play 전용 테스트만 돌린다(app/build.gradle.kts).
+      # 혼자 6분 넘게 걸리는 고정지출 시뮬레이션은 지난 배포 뒤로 그것이 보는 코드(고정지출 계산 · DB 거래 · 공휴일 표 ·
+      # 날짜 · 가게 이름 함수와 그 테스트)가 바뀌었을 때만 돌린다. 안 바뀌었으면 지난 배포 때 통과한 그대로다.
+      # 시뮬레이션이 새 코드를 보기 시작하면 아래 목록에도 더한다.
       - name: 단위 테스트
-        run: ./gradlew testGithubDebugUnitTest testPlayDebugUnitTest
+        run: |
+          PREV_TAG=$(git describe --tags --abbrev=0 --match 'v*' "${GITHUB_REF_NAME}^" 2>/dev/null || true)
+          SLOW_FLAG=""
+          if [ -n "$PREV_TAG" ] && git diff --quiet "$PREV_TAG" HEAD -- \
+              app/src/main/java/com/dong/budget/ui/fixed \
+              app/src/main/java/com/dong/budget/data/db \
+              app/src/main/java/com/dong/budget/data/holiday \
+              app/src/main/java/com/dong/budget/ui/home/MonthOverview.kt \
+              app/src/main/java/com/dong/budget/ui/stats/calc/Merchants.kt \
+              app/src/test/java/com/dong/budget/ui/fixed \
+              app/src/test/java/com/dong/budget/testing; then
+            echo "지난 배포 ${PREV_TAG} 뒤로 시뮬레이션이 보는 코드가 안 바뀌어 고정지출 시뮬레이션을 건너뛴다."
+            SLOW_FLAG="-Pdongbudget.skipSlowTests"
+          else
+            echo "시뮬레이션이 보는 코드가 바뀌었거나 첫 배포라 고정지출 시뮬레이션도 돌린다."
+          fi
+          ./gradlew testGithubDebugUnitTest testPlayDebugUnitTest -Pdongbudget.flavorTestsOnly $SLOW_FLAG
 
       # 서명키는 저장소에 두지 않는다. Secrets 에 base64 로 넣어두고 여기서만 되살린다.
       # 키가 바뀌면 기존 사용자의 업데이트 설치와 자동 백업 복원이 모두 깨지므로

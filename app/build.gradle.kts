@@ -147,6 +147,27 @@ room {
     schemaDirectory("$projectDir/schemas")
 }
 
+// ── CI·배포에서 단위 테스트 줄이기 ──────────────────────────────────────
+// 공통 테스트(src/test)는 github·play 두 빌드에 똑같이 들어 있어 둘 다 돌리면 같은 검사를 두 번 한다.
+// -Pdongbudget.flavorTestsOnly 를 주면 play 빌드는 play 전용 테스트(src/testPlay)만 돌린다. 공통 테스트는 github 빌드에서 한 번만 돈다.
+// -Pdongbudget.skipSlowTests 를 주면 혼자 6분 넘게 걸리는 고정지출 시뮬레이션을 뺀다. 배포 작업이 지난 배포 뒤로
+// 시뮬레이션이 보는 코드가 안 바뀌었을 때만 준다(.github/workflows/release.yml).
+val flavorTestsOnly = providers.gradleProperty("dongbudget.flavorTestsOnly").isPresent
+val skipSlowTests = providers.gradleProperty("dongbudget.skipSlowTests").isPresent
+val playTestRoot = file("src/testPlay/java")
+val playOnlyTests =
+    fileTree(playTestRoot) { include("**/*Test.kt") }.files.map {
+        it
+            .relativeTo(playTestRoot)
+            .path
+            .removeSuffix(".kt")
+            .replace(File.separatorChar, '.')
+    }
+tasks.withType<Test>().configureEach {
+    if (skipSlowTests) filter.excludeTestsMatching("*.FixedExpenseSimulationTest")
+    if (flavorTestsOnly && name == "testPlayDebugUnitTest") playOnlyTests.forEach(filter::includeTestsMatching)
+}
+
 dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
