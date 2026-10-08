@@ -101,6 +101,8 @@ class PlayUpdateRulesTest {
         )
         // 스토어 밖에서 설치한 앱의 실패는 Play 에서 설치하라는 안내로 충분하다
         assertEquals(PlayUpdateState.NotFromPlay, PlayUpdateRules.failureOf(null, fromPlay = false))
+        // 에뮬레이터에 adb 로 설치한 앱에 Play 가 실제로 준 답(-6). 저장 공간·배터리 탓으로 안내하지 않는다.
+        assertEquals(PlayUpdateState.NotFromPlay, PlayUpdateRules.failureOf(InstallErrorCode.ERROR_INSTALL_NOT_ALLOWED, fromPlay = false))
     }
 
     @Test

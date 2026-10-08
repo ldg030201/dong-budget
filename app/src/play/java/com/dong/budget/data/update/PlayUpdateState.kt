@@ -149,18 +149,26 @@ object PlayUpdateRules {
      * Play 에 묻지 못했을 때의 상태
      * @param errorCode Play 가 준 오류 코드(InstallException). Play 의 오류가 아니면 null
      */
-    fun failureOf(errorCode: Int?, fromPlay: Boolean): PlayUpdateState = when (errorCode) {
-        // Play 계정으로 받은 앱이 아니거나(adb·APK 로 설치), 이 기기에 Play 스토어가 없거나 쓸 수 없다
-        InstallErrorCode.ERROR_APP_NOT_OWNED,
-        InstallErrorCode.ERROR_API_NOT_AVAILABLE,
-        InstallErrorCode.ERROR_PLAY_STORE_NOT_FOUND,
-        InstallErrorCode.ERROR_INSTALL_UNAVAILABLE,
-        -> PlayUpdateState.NotFromPlay
+    fun failureOf(errorCode: Int?, fromPlay: Boolean): PlayUpdateState = when {
+        // 스토어 밖(adb·APK)에서 설치한 앱에 Play 는 여러 오류로 답한다. 에뮬레이터에서는 '기기 상태 때문에 못 받음'(-6)으로 왔다.
+        // 어떤 오류든 Play 에서 설치한 앱에서만 된다는 안내로 충분하다. 저장 공간·배터리를 보라고 하면 헛걸음이다.
+        !fromPlay -> PlayUpdateState.NotFromPlay
 
-        InstallErrorCode.ERROR_INSTALL_NOT_ALLOWED -> PlayUpdateState.Failed(NOT_ALLOWED_MESSAGE)
+        // Play 계정으로 받은 앱이 아니거나, 이 기기에 Play 스토어가 없거나 쓸 수 없다
+        errorCode in NOT_FROM_PLAY_ERRORS -> PlayUpdateState.NotFromPlay
 
-        else -> if (fromPlay) PlayUpdateState.Failed(CHECK_FAILED_MESSAGE) else PlayUpdateState.NotFromPlay
+        errorCode == InstallErrorCode.ERROR_INSTALL_NOT_ALLOWED -> PlayUpdateState.Failed(NOT_ALLOWED_MESSAGE)
+
+        else -> PlayUpdateState.Failed(CHECK_FAILED_MESSAGE)
     }
+
+    private val NOT_FROM_PLAY_ERRORS =
+        setOf(
+            InstallErrorCode.ERROR_APP_NOT_OWNED,
+            InstallErrorCode.ERROR_API_NOT_AVAILABLE,
+            InstallErrorCode.ERROR_PLAY_STORE_NOT_FOUND,
+            InstallErrorCode.ERROR_INSTALL_UNAVAILABLE,
+        )
 
     /**
      * 확인에 실패했을 때 남길 상태. 잠깐의 실패로 이미 알던 새 버전(알림 줄·업데이트 버튼)을 지우지 않는다.
