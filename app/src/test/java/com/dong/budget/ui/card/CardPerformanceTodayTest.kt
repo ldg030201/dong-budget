@@ -17,10 +17,12 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -157,11 +159,16 @@ class CardPerformanceTodayTest {
         assertEquals(LocalDate.of(2026, 10, 31), viewModel.uiState.value.today)
     }
 
-    /** 화면이 그리는 동안처럼 구독했다가 다른 화면으로 가려진 것처럼 끊는다 */
+    /**
+     * 화면이 그리는 동안처럼 구독했다가 다른 화면으로 가려진 것처럼 끊는다.
+     * 구독이 다 끊긴 것(구독 수 0)을 화면 모델이 본 뒤에 돌아온다. 구독 수는 마지막 값만 남는 StateFlow 라,
+     * 끊자마자 다시 구독하면 1 → 0 → 1 이 1 → 1 로 보여 다시 보인 것을 모른다(실제 화면은 가려진 채 한동안 있다).
+     */
     private fun <T> showThenHide(state: StateFlow<T>) {
         val job = show(state)
         Thread.sleep(50)
-        job.cancel()
+        runBlocking { job.cancelAndJoin() }
+        Thread.sleep(50)
     }
 
     /** 화면이 그리는 동안처럼 구독한다 */
