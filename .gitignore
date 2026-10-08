@@ -22,6 +22,8 @@ release/
 
 # ── 기타 비밀 (실수 방지용) ─────────────────────────────
 secrets.properties
+# 서명 키·Play 서비스 계정 키 같은 비밀 파일은 여기에 모아 둔다
+/secrets/
 .env
 .env.*
 !.env.example
