@@ -95,6 +95,23 @@ private fun newMenu(menu: PatchMenu, vararg changes: Change) = MenuChanges(menu,
 val PATCH_NOTES: List<Release> =
     listOf(
         Release(
+            version = "1.8.1",
+            date = LocalDate.of(2026, 10, 8),
+            menus =
+            listOf(
+                menu(
+                    PatchMenu.SETTINGS,
+                    added("앱 정보에 '개인정보처리방침' 줄이 생겼어요. 동계부가 어떤 정보를 다루고, 어디에 두고, 언제 지우는지 적은 문서가 열려요"),
+                    added("Play로 받은 앱은 권한에서 '업데이트 설치'가 빠져요. 설치는 Play가 대신 해서 필요 없어요"),
+                ),
+                menu(
+                    PatchMenu.COMMON,
+                    added("Google Play로도 받을 수 있게 됐어요. 초대받은 사람만 받을 수 있고, Play로 받으면 업데이트할 때 갤럭시 자동 차단을 끄지 않아도 돼요"),
+                    added("Play로 받은 앱은 새 버전이 나오면 홈 맨 위에 알려 주고, 누르면 Play가 쓰는 동안 뒤에서 내려받아요. 다 받으면 '다시 시작하기'로 업데이트해요"),
+                ),
+            ),
+        ),
+        Release(
             version = "1.8.0",
             date = LocalDate.of(2026, 10, 8),
             menus =
