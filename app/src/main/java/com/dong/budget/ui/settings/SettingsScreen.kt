@@ -18,6 +18,7 @@ import com.dong.budget.data.backup.BackupSchedule
 import com.dong.budget.data.backup.LastBackup
 import com.dong.budget.data.settings.BottomMenu
 import com.dong.budget.data.settings.ThemeMode
+import com.dong.budget.data.update.UpdateNotice
 import com.dong.budget.ui.components.ActionRow
 import com.dong.budget.ui.components.BudgetTopAppBar
 import com.dong.budget.ui.components.SectionLabel
@@ -34,7 +35,7 @@ import java.time.DayOfWeek
  * 고급 설정(자동 기능 스위치·초기화)과 앱 정보(버전·업데이트)로 가는 줄이다.
  * 묶음마다 회색 둥근 판에 담는다([SettingsGroup]).
  *
- * @param newerVersion 아직 설치하지 않은 새 버전. 있으면 앱 정보 줄에 알린다.
+ * @param newer 아직 설치하지 않은 새 버전. 있으면 앱 정보 줄에 알린다.
  * @param bottomMenu 지금 아래 메뉴 차림. 하단 메뉴 편집기([BottomMenuEditor])가 아이콘으로 늘어놓고, 끌어서 고치면 [onBottomMenuChange] 로 저장한다.
  */
 @Composable
@@ -46,7 +47,7 @@ fun SettingsScreen(
     modifier: Modifier = Modifier,
     weekStart: DayOfWeek = DayOfWeek.SUNDAY,
     onWeekStartChange: (DayOfWeek) -> Unit = {},
-    newerVersion: String? = null,
+    newer: UpdateNotice? = null,
     onOpenAdvanced: () -> Unit = {},
     onOpenAppInfo: () -> Unit = {},
     bottomMenu: BottomMenu = BottomMenu.DEFAULT,
@@ -100,13 +101,13 @@ fun SettingsScreen(
 
                 SettingsGroup(title = null) {
                     ActionRow(title = "고급 설정", onClick = onOpenAdvanced, opensScreen = true)
-                    // 새 버전이 있으면 버전 대신 알린다. 내려받기는 앱 정보 화면에서 한다.
+                    // 새 버전이 있으면 버전 대신 알린다. 업데이트는 앱 정보 화면에서 한다.
                     ActionRow(
                         title = "앱 정보",
                         onClick = onOpenAppInfo,
                         opensScreen = true,
-                        value = newerVersion?.let { "새 버전 $it" } ?: currentVersion,
-                        valueColor = if (newerVersion != null) BudgetTheme.colors.brandText else BudgetTheme.colors.textSecondary,
+                        value = newer?.let(::newerLabel) ?: currentVersion,
+                        valueColor = if (newer != null) BudgetTheme.colors.brandText else BudgetTheme.colors.textSecondary,
                     )
                 }
 
@@ -115,6 +116,9 @@ fun SettingsScreen(
         }
     }
 }
+
+/** 앱 정보 줄에 알리는 새 버전. Play 배포는 설치하기 전에 새 버전의 이름을 알 수 없어 '새 버전' 만 적는다. */
+private fun newerLabel(notice: UpdateNotice): String = (notice as? UpdateNotice.Available)?.version?.let { "새 버전 $it" } ?: "새 버전"
 
 /** 한 주 시작 칸 순서 */
 private val WEEK_START_ORDER = listOf(DayOfWeek.SUNDAY, DayOfWeek.MONDAY)

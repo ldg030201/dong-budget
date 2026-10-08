@@ -50,9 +50,11 @@ private const val NOTES_MAX_LINES = 6
 /**
  * 앱 정보(GitHub 배포). 새 버전을 확인하고, 있으면 내려받아 앱 안에서 설치한다.
  * 앱을 열 때 이미 찾은 새 버전이 있으면 들어오자마자 내려받기 버튼이 보인다.
+ *
+ * @param onOpenPatchNotes Play 배포와 모양을 맞추려고 받는다. GitHub 배포는 새 버전의 바뀐 점을 업데이트 칸에 바로 보여 주므로 쓰지 않는다.
  */
 @Composable
-fun AppInfoRoute(updates: StoreUpdates, onBack: () -> Unit) {
+fun AppInfoRoute(updates: StoreUpdates, onBack: () -> Unit, onOpenPatchNotes: () -> Unit) {
     val viewModel: AppInfoViewModel =
         viewModel(factory = viewModelFactory { initializer { AppInfoViewModel(updates.apkInstaller, updates.updateChecker) } })
     val updateState by viewModel.updateState.collectAsStateWithLifecycle()

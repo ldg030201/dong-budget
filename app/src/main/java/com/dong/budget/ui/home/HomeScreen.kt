@@ -120,8 +120,9 @@ fun HomeScreen(
     onOpenHistory: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    // 새 버전 알림 줄을 닫을 때 묻는 중인지. 알리는 소식에 묶어 두어, 줄이 사라지거나 다른 버전으로 바뀌면 묻던 것도 거둔다.
-    var askCloseUpdate by rememberSaveable(updateNotice) { mutableStateOf(false) }
+    // 새 버전 알림 줄을 닫을 때 묻는 중인지. 알리는 소식에 묶어 두어, 줄이 사라지거나 다른 버전·단계로 바뀌면 묻던 것도 거둔다.
+    // 받는 중의 받은 양은 보지 않는다. 그게 바뀔 때마다 묻던 창이 닫히면 안 된다.
+    var askCloseUpdate by rememberSaveable(updateNotice?.closeKey) { mutableStateOf(false) }
     // 가로 화면의 좌우 인셋은 앱 전체(DongBudgetApp)에서 한 번에 뺀다
     Box(modifier = modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
@@ -144,10 +145,10 @@ fun HomeScreen(
                 shownNotice?.let { UpdateBanner(notice = it, onOpen = onOpenUpdate, onDismiss = { askCloseUpdate = true }) }
             }
             // 알림 줄의 X 를 누르면 이번만 닫을지, 이 버전을 아예 건너뛸지 묻는다
-            if (askCloseUpdate && updateNotice is UpdateNotice.Available) {
+            if (askCloseUpdate && updateNotice != null) {
                 ConfirmDialog(
                     title = "새 버전 알림을 닫을까요?",
-                    message = closeUpdateMessage(updateNotice.version),
+                    message = closeUpdateMessage((updateNotice as? UpdateNotice.Available)?.version),
                     confirmLabel = "이 버전 건너뛰기",
                     dismissLabel = "나중에",
                     destructive = false,
@@ -210,6 +211,9 @@ private val FIRST_DAY_INDEX = LEADING_KEYS.size
 
 /** 달을 넘길 때 한 판을 옮기는 거리. 화면 폭의 1/5 만 옮기고 나머지는 흐려짐으로 보여준다. 판이 커서 많이 옮기면 어지럽다. */
 private const val MONTH_SHIFT_DIVISOR = 5
+
+/** 받은 양(0~1)을 백분율로 */
+private const val PERCENT = 100
 
 /**
  * 목록 안에서 줄 번호와 날짜를 오가는 표.
@@ -365,17 +369,37 @@ private fun isCalendarScrolledAway(listState: LazyListState, stripHeightPx: Int)
     }
 }
 
-/** 새 버전 알림 줄을 닫을 때 묻는 글. '나중에' 와 '건너뛰기' 가 어떻게 다른지, 업데이트는 어디서 하는지 알린다. */
-internal fun closeUpdateMessage(version: String): String = "'나중에'를 누르면 앱을 다시 열 때 또 알려요.\n" +
-    "건너뛰면 $version 버전은 더 알리지 않고, 더 새 버전이 나오면 다시 알려요.\n\n" +
+/**
+ * 새 버전 알림 줄을 닫을 때 묻는 글. '나중에' 와 '건너뛰기' 가 어떻게 다른지, 업데이트는 어디서 하는지 알린다.
+ * @param version 알리는 새 버전. 버전 이름을 모르면(Play) null
+ */
+internal fun closeUpdateMessage(version: String?): String = "'나중에'를 누르면 앱을 다시 열 때 또 알려요.\n" +
+    "건너뛰면 ${version?.let { "$it 버전" } ?: "이번 새 버전"}은 더 알리지 않고, 더 새 버전이 나오면 다시 알려요.\n\n" +
     "업데이트는 전체 > 설정 > 앱 정보에서 언제든 할 수 있어요."
 
-/** 새 버전 알림 줄. 누르면 설정의 업데이트 화면으로 간다. X 를 누르면 이번만 닫을지, 이 버전을 건너뛸지 묻는다. */
+/** 닫을지 묻던 창을 거둘지 가르는 값. 버전과 단계만 본다. */
+private val UpdateNotice.closeKey: String
+    get() = when (this) {
+        is UpdateNotice.Available -> "available:$version"
+        is UpdateNotice.Downloading -> "downloading"
+        UpdateNotice.Downloaded -> "downloaded"
+    }
+
+/**
+ * 새 버전 알림 줄. 누르면 업데이트로 간다(GitHub 배포는 설정의 업데이트 화면, Play 배포는 Play 의 업데이트 창이나 다시 시작).
+ * X 를 누르면 이번만 닫을지, 이 버전을 건너뛸지 묻는다.
+ */
 @Composable
 private fun UpdateBanner(notice: UpdateNotice, onOpen: () -> Unit, onDismiss: () -> Unit) {
-    val title =
+    val (title, action) =
         when (notice) {
-            is UpdateNotice.Available -> "새 버전(${notice.version})이 나왔어요"
+            is UpdateNotice.Available ->
+                (notice.version?.let { "새 버전($it)이 나왔어요" } ?: "새 버전이 나왔어요") to "눌러서 업데이트하기"
+
+            is UpdateNotice.Downloading ->
+                "새 버전을 받고 있어요" to (notice.progress?.let { "${(it * PERCENT).toInt()}% 받았어요" } ?: "곧 받기 시작해요")
+
+            UpdateNotice.Downloaded -> "업데이트를 받았어요" to "눌러서 다시 시작하기"
         }
     val shape = RoundedCornerShape(BudgetTheme.radius.control)
     val content = MaterialTheme.colorScheme.onPrimaryContainer
@@ -400,7 +424,7 @@ private fun UpdateBanner(notice: UpdateNotice, onOpen: () -> Unit, onDismiss: ()
         Spacer(Modifier.width(BudgetTheme.spacing.itemGap))
         Column(modifier = Modifier.weight(1f).padding(vertical = BudgetTheme.spacing.itemGap)) {
             Text(text = title, style = MaterialTheme.typography.labelLarge, color = content)
-            Text(text = "눌러서 업데이트하기", style = MaterialTheme.typography.bodySmall, color = content)
+            Text(text = action, style = MaterialTheme.typography.bodySmall, color = content)
         }
         BudgetIconButton(
             icon = Icons.Filled.Close,

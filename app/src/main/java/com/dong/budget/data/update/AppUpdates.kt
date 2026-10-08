@@ -8,11 +8,13 @@ import java.time.LocalDate
 /**
  * 새 버전 확인과 업데이트. 배포처(빌드 종류 store)마다 하는 일이 다르다.
  *  - github: GitHub Releases 를 확인하고 APK 를 내려받아 앱 안에서 설치한다(src/github)
+ *  - play: Google Play 인앱 업데이트로 확인하고 받는다. 설치는 Play 가 한다(src/play)
  *
  * 홈 알림 줄, 설정의 앱 정보 줄, 패치노트처럼 배포처와 상관없이 같은 화면은 이것만 본다.
  * 배포처마다 모양이 다른 곳은 배포처 소스에 같은 이름으로 하나씩 둔다.
  *  - data.update.StoreUpdates: 이 약속을 지키는 배포처의 구현. AppContainer 가 만든다.
  *  - ui.settings.AppInfoRoute: 앱 정보 화면(업데이트 칸)
+ *  - ui.home.rememberUpdateOpener: 홈 알림 줄을 눌렀을 때 할 일
  *  - ui.permission.STORE_PERMISSIONS: 배포처에만 있는 권한(GitHub 배포의 설치 허용)
  */
 interface AppUpdates {
@@ -28,7 +30,7 @@ interface AppUpdates {
     /** 홈 알림 줄에 보일 것. 닫았거나 건너뛴 버전이면 null */
     val notice: Flow<UpdateNotice?>
 
-    /** 배포됐지만 아직 설치하지 않은 버전들의 바뀐 점(패치노트 맨 위). 최신순 */
+    /** 배포됐지만 아직 설치하지 않은 버전들의 바뀐 점(패치노트 맨 위). 최신순. 설치 전에 알 수 없는 배포처(Play)는 빈 목록 */
     val newerNotes: StateFlow<List<NewerNotes>>
 
     /** 홈 알림 줄을 이번 실행에서만 닫는다. 앱을 다시 켜면 다시 보인다. */
@@ -40,8 +42,14 @@ interface AppUpdates {
 
 /** 홈 알림 줄과 설정의 앱 정보 줄이 알리는 새 버전 소식 */
 sealed interface UpdateNotice {
-    /** 새 버전이 나왔다 */
-    data class Available(val version: String) : UpdateNotice
+    /** 새 버전이 나왔다. 설치 전에 버전 이름을 알 수 없는 배포처(Play)는 null */
+    data class Available(val version: String?) : UpdateNotice
+
+    /** 새 버전을 받는 중이다(Play). 얼마나 받았는지(0~1) 아직 모르면 null */
+    data class Downloading(val progress: Float?) : UpdateNotice
+
+    /** 새 버전을 다 받았다(Play). 다시 시작하면 새 버전으로 바뀐다. */
+    data object Downloaded : UpdateNotice
 }
 
 /**

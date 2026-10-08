@@ -70,6 +70,8 @@ android {
     // ── 배포처 ─────────────────────────────────────────────────────────
     // 새 버전을 받는 길이 배포처마다 다르다. 코드는 하나이고, 배포처마다 다른 부분만 src/<배포처> 에 둔다.
     //   github: GitHub Releases 의 APK. 앱이 스스로 새 버전을 확인하고 내려받아 설치한다(src/github).
+    //   play  : Google Play(내부 테스트). Play 인앱 업데이트로 받는다(src/play). Play 정책상 스스로 설치하는 코드와
+    //           설치 권한(REQUEST_INSTALL_PACKAGES)이 들어가면 안 되므로 그런 것은 모두 src/github 에만 둔다.
     // applicationId·버전·서명은 배포처와 상관없이 같다. 그래야 기존 사용자가 지우지 않고 다른 배포로 옮길 수 있다.
     flavorDimensions += "store"
     productFlavors {
@@ -83,6 +85,18 @@ android {
                 "UPDATE_API_BASE",
                 "\"${providers.gradleProperty("dongbudget.updateApiBase").getOrElse("https://api.github.com")}\"",
             )
+        }
+        create("play") {
+            dimension = "store"
+        }
+    }
+
+    // Play 는 AAB 를 기기마다 나눠 내려보낸다. 언어는 나누지 않는다.
+    // 달력·시계는 기기 언어와 상관없이 한국어로 그리는데(KoreanLocale), 언어별로 나누면 기기 언어가 한국어가 아닐 때
+    // 한국어 글자 자원이 빠져서 그 부분만 영어로 나온다. APK(github)와 같은 화면을 보여 주기 위함이다.
+    bundle {
+        language {
+            enableSplit = false
         }
     }
 
@@ -153,6 +167,9 @@ dependencies {
 
     implementation(libs.androidx.room.runtime)
     ksp(libs.androidx.room.compiler)
+
+    // Play 배포에만 넣는다. GitHub 배포는 GitHub Releases 를 직접 확인한다.
+    "playImplementation"(libs.play.app.update.ktx)
 
     testImplementation(libs.junit)
 

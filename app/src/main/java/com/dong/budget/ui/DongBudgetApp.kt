@@ -62,6 +62,7 @@ import com.dong.budget.data.salary.salaryKey
 import com.dong.budget.data.salary.salaryMonthOf
 import com.dong.budget.data.settings.AutoOption
 import com.dong.budget.data.settings.MenuItem
+import com.dong.budget.data.update.UpdateNotice
 import com.dong.budget.navigation.AdvancedSettingsKey
 import com.dong.budget.navigation.AppInfoKey
 import com.dong.budget.navigation.AppPinSetupKey
@@ -111,6 +112,7 @@ import com.dong.budget.ui.fixed.FixedExpenseViewModel
 import com.dong.budget.ui.history.HistoryScreen
 import com.dong.budget.ui.history.HistoryViewModel
 import com.dong.budget.ui.home.HomeViewModel
+import com.dong.budget.ui.home.rememberUpdateOpener
 import com.dong.budget.ui.inbox.InboxScreen
 import com.dong.budget.ui.inbox.InboxViewModel
 import com.dong.budget.ui.lock.APP_LOCK_TEXTS
@@ -335,8 +337,12 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
                             val state by viewModel.uiState.collectAsStateWithLifecycle()
 
                             val updateNotice by container.updates.notice.collectAsStateWithLifecycle(initialValue = null)
-                            // 새 버전 자동 확인을 껐으면 홈에 알림 줄도 띄우지 않는다(앱 정보에서 직접 확인한 결과는 앱 정보와 패치노트에서 보인다)
-                            val shownNotice = updateNotice.takeIf { autoSettings[AutoOption.UPDATE_CHECK] }
+                            // 새 버전 자동 확인을 껐으면 '새 버전이 나왔어요' 는 홈에 띄우지 않는다(앱 정보에서 직접 확인한 결과는 앱 정보와 패치노트에서 보인다).
+                            // 직접 시작한 업데이트(Play 배포의 받는 중·다 받음)는 다시 시작할 때까지 알린다.
+                            val shownNotice = updateNotice?.takeIf {
+                                autoSettings[AutoOption.UPDATE_CHECK] || it !is UpdateNotice.Available
+                            }
+                            val openUpdate = rememberUpdateOpener(container.updates, onOpenAppInfo = { navigator.go(AppInfoKey) })
                             val hasNewNotice by viewModel.hasNewNotice.collectAsStateWithLifecycle()
                             val devModeOn by DevLog.enabled.collectAsStateWithLifecycle()
                             HomeShell(
@@ -344,7 +350,7 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
                                 menu = bottomMenu,
                                 updateNotice = shownNotice,
                                 hasNewNotice = hasNewNotice,
-                                onOpenUpdate = { navigator.go(AppInfoKey) },
+                                onOpenUpdate = { shownNotice?.let(openUpdate) },
                                 onDismissUpdate = container.updates::dismissNotice,
                                 onSkipUpdate = container.updates::skipNotice,
                                 onPreviousMonth = viewModel::showPreviousMonth,
@@ -504,7 +510,7 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
                             val viewModel: SettingsViewModel =
                                 viewModel(factory = settingsViewModelFactory(container))
                             val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
-                            val newerVersion by viewModel.newerVersion.collectAsStateWithLifecycle()
+                            val newer by viewModel.newer.collectAsStateWithLifecycle()
                             val backup by viewModel.backup.collectAsStateWithLifecycle()
                             val lastBackup by container.backupHistory.last.collectAsStateWithLifecycle()
                             val backupSchedule by container.backupSchedule.collectAsStateWithLifecycle()
@@ -519,7 +525,7 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
                                 weekStart = weekStart,
                                 onWeekStartChange = viewModel::selectWeekStart,
                                 onBack = navigator::goBack,
-                                newerVersion = newerVersion,
+                                newer = newer,
                                 onOpenAdvanced = { if (settled()) navigator.go(AdvancedSettingsKey) },
                                 bottomMenu = bottomMenu,
                                 onBottomMenuChange = container::setBottomMenu,
@@ -549,7 +555,11 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
 
                         // 업데이트 칸이 배포처마다 달라서 배포처 소스가 화면을 채운다
                         entry<AppInfoKey> {
-                            AppInfoRoute(updates = container.updates, onBack = navigator::goBack)
+                            AppInfoRoute(
+                                updates = container.updates,
+                                onBack = navigator::goBack,
+                                onOpenPatchNotes = { navigator.go(PatchNotesKey) },
+                            )
                         }
 
                         entry<SalarySettingsKey> { key ->

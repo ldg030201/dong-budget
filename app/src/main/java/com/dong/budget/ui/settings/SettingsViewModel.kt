@@ -27,12 +27,9 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
-import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -61,13 +58,8 @@ class SettingsViewModel(
 
     val currentVersion: String = BuildConfig.VERSION_NAME
 
-    /** 아직 설치하지 않은 가장 새 버전. 앱 정보 줄에서 알린다. 없으면 null */
-    val newerVersion: StateFlow<String?> =
-        updates.newer
-            .map(::versionOf)
-            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), versionOf(updates.newer.value))
-
-    private fun versionOf(notice: UpdateNotice?): String? = (notice as? UpdateNotice.Available)?.version
+    /** 아직 설치하지 않은 새 버전. 앱 정보 줄에서 알린다. 없으면 null */
+    val newer: StateFlow<UpdateNotice?> = updates.newer
 
     fun selectThemeMode(mode: ThemeMode) {
         viewModelScope.launch { settingsRepository.setThemeMode(mode) }
@@ -192,9 +184,5 @@ class SettingsViewModel(
                 _backup.update { it.copy(busy = false) }
             }
         }
-    }
-
-    private companion object {
-        const val STOP_TIMEOUT_MS = 5_000L
     }
 }

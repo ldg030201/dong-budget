@@ -17,6 +17,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.dong.budget.ui.components.ActionRow
 import com.dong.budget.ui.components.BudgetSmallButton
 import com.dong.budget.ui.components.BudgetTopAppBar
 import com.dong.budget.ui.theme.BudgetTheme
@@ -27,6 +28,7 @@ import com.dong.budget.ui.theme.BudgetTheme
  * 업데이트 칸은 배포처마다 다르다(배포처 소스의 AppInfoRoute 가 채운다).
  *
  * @param canCheckUpdate '업데이트 확인' 을 누를 수 있는지. 확인 중이거나 받는 중에는 막는다.
+ * @param onOpenPatchNotes '바뀐 점' 줄(패치노트). 업데이트 칸에서 새 버전의 바뀐 점을 보여 주지 못하는 배포처(Play)만 둔다. null 이면 줄이 없다.
  * @param update 버전 줄 아래의 업데이트 칸
  */
 @Composable
@@ -36,6 +38,7 @@ fun AppInfoScreen(
     onCheckUpdate: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    onOpenPatchNotes: (() -> Unit)? = null,
     update: @Composable ColumnScope.() -> Unit,
 ) {
     Surface(
@@ -77,6 +80,12 @@ fun AppInfoScreen(
                     }
 
                     update()
+                }
+
+                if (onOpenPatchNotes != null) {
+                    SettingsGroup(title = null) {
+                        ActionRow(title = "바뀐 점", onClick = onOpenPatchNotes, opensScreen = true)
+                    }
                 }
 
                 Spacer(Modifier.height(BudgetTheme.spacing.sectionGap))
