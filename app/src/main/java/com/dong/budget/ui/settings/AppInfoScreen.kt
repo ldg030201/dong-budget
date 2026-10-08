@@ -17,13 +17,15 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalUriHandler
+import com.dong.budget.BuildConfig
 import com.dong.budget.ui.components.ActionRow
 import com.dong.budget.ui.components.BudgetSmallButton
 import com.dong.budget.ui.components.BudgetTopAppBar
 import com.dong.budget.ui.theme.BudgetTheme
 
 /**
- * 앱 정보. 지금 버전과 새 버전 확인, 그 아래 업데이트 칸을 둔다.
+ * 앱 정보. 지금 버전과 새 버전 확인, 그 아래 업데이트 칸을 두고, 맨 아래에 개인정보처리방침으로 가는 줄을 둔다.
  * 설정의 '앱 정보' 줄, 홈의 새 버전 알림 줄, 패치노트의 업데이트 버튼이 이 화면을 연다.
  * 업데이트 칸은 배포처마다 다르다(배포처 소스의 AppInfoRoute 가 채운다).
  *
@@ -41,6 +43,7 @@ fun AppInfoScreen(
     onOpenPatchNotes: (() -> Unit)? = null,
     update: @Composable ColumnScope.() -> Unit,
 ) {
+    val uriHandler = LocalUriHandler.current
     Surface(
         modifier = modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background,
@@ -82,10 +85,14 @@ fun AppInfoScreen(
                     update()
                 }
 
-                if (onOpenPatchNotes != null) {
-                    SettingsGroup(title = null) {
-                        ActionRow(title = "바뀐 점", onClick = onOpenPatchNotes, opensScreen = true)
-                    }
+                SettingsGroup(title = null) {
+                    if (onOpenPatchNotes != null) ActionRow(title = "바뀐 점", onClick = onOpenPatchNotes, opensScreen = true)
+                    // 공개 저장소의 문서를 브라우저로 연다. 브라우저가 하나도 없는 기기에서는 열 곳이 없으니 조용히 넘어간다.
+                    ActionRow(
+                        title = "개인정보처리방침",
+                        onClick = { runCatching { uriHandler.openUri(PRIVACY_POLICY_URL) } },
+                        opensScreen = true,
+                    )
                 }
 
                 Spacer(Modifier.height(BudgetTheme.spacing.sectionGap))
@@ -93,6 +100,9 @@ fun AppInfoScreen(
         }
     }
 }
+
+/** 개인정보처리방침. 앱과 같은 저장소의 docs/privacy.md 다. Play Console 에 적는 주소도 이것이다. */
+private const val PRIVACY_POLICY_URL = "https://github.com/${BuildConfig.GITHUB_OWNER}/${BuildConfig.GITHUB_REPO}/blob/main/docs/privacy.md"
 
 /** 업데이트 칸의 한 줄 상태 글 */
 @Composable
