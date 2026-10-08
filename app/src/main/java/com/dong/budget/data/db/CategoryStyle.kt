@@ -94,7 +94,7 @@ const val FIXED_CATEGORY_CODE = "FIXED"
 /** '기타' 는 항상 맨 뒤에 오도록 정렬 순서를 크게 둔다. */
 const val ETC_SORT_ORDER = 1000
 
-/** 1.8.0(DB 5)에서 더한 기본 지출 분류 '게임'·'저축'. 이미 쓰던 가계부에는 Migration4To5 가 한 번 넣는다. */
+/** 1.8.0(DB 5)에서 더한 기본 지출 분류 '게임'·'저축'. 이미 쓰던 가계부에는 Migration4To5 가 한 번 넣는다(같은 이름은 기본값으로 바꾼다). */
 const val GAME_CATEGORY_CODE = "GAME"
 const val SAVINGS_CATEGORY_CODE = "SAVINGS"
 

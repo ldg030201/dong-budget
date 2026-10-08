@@ -26,7 +26,8 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         // 3 → 4: 거래에 (결제수단, 시각) 복합 인덱스를 두고 결제수단 단일 인덱스를 지운다. 카드실적 상세가 카드 하나의 6기간을
         // 그 카드 기록 전부를 읽지 않고 바로 찾는다. 인덱스만 바뀌어 데이터는 그대로다.
         AutoMigration(from = 3, to = 4),
-        // 4 → 5: 기본 지출 분류 '게임'·'저축' 을 이미 쓰던 가계부에도 넣는다. 스키마는 그대로고 줄만 더한다(Migration4To5).
+        // 4 → 5: 기본 지출 분류 '게임'·'저축' 을 이미 쓰던 가계부에도 둔다(같은 이름이 있으면 그 분류를 기본값으로 바꾼다).
+        // 스키마는 그대로고 줄만 바꾼다(Migration4To5).
         AutoMigration(from = 4, to = 5, spec = Migration4To5::class),
     ],
 )
@@ -199,21 +200,34 @@ class Migration1To2 : AutoMigrationSpec {
 }
 
 /**
- * 4 → 5 데이터 정리. 1.8.0 에서 더한 기본 지출 분류('게임'·'저축')를 이미 쓰던 가계부에 넣는다.
+ * 4 → 5 데이터 정리. 1.8.0 에서 더한 기본 지출 분류('게임'·'저축')를 이미 쓰던 가계부에도 기본값 그대로 둔다.
  *
- * - 사용자가 만든 분류 뒤('기타' 앞)에 붙인다. 기본 목록의 순서(5·6)를 그대로 쓰면 사용자가 만든 분류 사이에 끼어든다.
- * - 같은 종류에 같은 이름이 이미 있으면 넣지 않는다(이름 UNIQUE, OR IGNORE). 사용자가 직접 만들어 쓰던 '게임' 은 그대로 둔다.
- * - 이 마이그레이션은 한 번만 돈다. 사용자가 나중에 지운 분류를 앱을 열 때마다 되살리지 않는다.
+ * - 자리: 새로 설치할 때와 같은 자리(고정지출 다음, 순서 5·6)에 둔다. 그 자리부터 있던 다른 분류는 그 수만큼 뒤로 민다
+ *   (순서가 겹치면 이름순으로 섞이기 때문이다). '기타' 는 늘 맨 뒤라 건드리지 않는다.
+ * - 같은 종류에 같은 이름이 이미 있으면(사용자가 직접 만든 '게임') 새로 넣지 않고 그 분류를 기본 분류로 바꾼다.
+ *   걸린 거래는 그대로이고 코드·아이콘·색·자리만 기본값이 된다. 이름이 UNIQUE 라 같은 이름을 둘 둘 수 없다.
+ * - 한 번만 돈다. 사용자가 나중에 지우거나 옮긴 것을 앱을 열 때마다 되돌리지 않는다.
  *
  * 주의: [Migration1To2] 와 같은 함정이 있다(드라이버를 바꾸면 onPostMigrate(SupportSQLiteDatabase) 가 조용히 건너뛰어진다).
  */
 class Migration4To5 : AutoMigrationSpec {
     override fun onPostMigrate(db: SupportSQLiteDatabase) {
-        DEFAULT_CATEGORIES.filter { it.code == GAME_CATEGORY_CODE || it.code == SAVINGS_CATEGORY_CODE }.forEach { c ->
+        val added = DEFAULT_CATEGORIES.filter { it.code == GAME_CATEGORY_CODE || it.code == SAVINGS_CATEGORY_CODE }
+        // 1. 자리를 비운다. 옮겨 올 같은 이름의 분류는 2 에서 자리를 정하므로 밀지 않는다.
+        added.groupBy { it.scope }.forEach { (scope, defaults) ->
+            val names = defaults.joinToString(", ") { "?" }
             db.execSQL(
-                "INSERT OR IGNORE INTO categories (uuid, scope, name, code, sortOrder, isSystem, icon, color) " +
-                    "VALUES (?, ?, ?, ?, (SELECT COALESCE(MAX(sortOrder), -1) + 1 FROM categories WHERE scope = ? AND isSystem = 0), 0, ?, ?)",
-                arrayOf<Any?>(seedUuid(c.code), c.scope.name, c.name, c.code, c.scope.name, c.icon, c.color),
+                "UPDATE categories SET sortOrder = sortOrder + ${defaults.size} " +
+                    "WHERE scope = ? AND isSystem = 0 AND sortOrder >= ${defaults.minOf { it.sortOrder }} AND name NOT IN ($names)",
+                (listOf(scope.name) + defaults.map { it.name }).toTypedArray<Any?>(),
+            )
+        }
+        // 2. 없으면 넣고, 같은 이름이 있으면 그 줄을 기본 분류로 바꾼다(새로 넣은 줄에는 같은 값이라 그대로다)
+        added.forEach { c ->
+            insertDefaultCategory(db, c, orIgnore = true)
+            db.execSQL(
+                "UPDATE categories SET code = ?, icon = ?, color = ?, sortOrder = ?, isSystem = 0 WHERE scope = ? AND name = ?",
+                arrayOf<Any?>(c.code, c.icon, c.color, c.sortOrder, c.scope.name, c.name),
             )
         }
     }

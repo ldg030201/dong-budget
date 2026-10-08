@@ -232,31 +232,17 @@ class MigrationTest {
     }
 
     @Test
-    fun `4 에서 5 로 올리면 게임·저축이 사용자 분류 뒤에 생기고 같은 이름이 있으면 그대로 둔다`() {
+    fun `4 에서 5 로 올리면 같은 이름의 게임은 기본 분류로 바뀌고 저축이 생기며 둘 다 고정지출 다음에 선다`() {
         helper.createDatabase(TEST_DB, 4).apply {
-            // 1.7.0 이 첫 설치 때 넣던 기본 분류(게임·저축 없음)와 사용자가 만든 '게임'·'데이트'
-            DEFAULT_CATEGORIES.filterNot { it.code == GAME_CATEGORY_CODE || it.code == SAVINGS_CATEGORY_CODE }.forEach { c ->
-                execSQL(
-                    "INSERT INTO categories (uuid, scope, name, code, sortOrder, isSystem, icon, color) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                    arrayOf<Any?>(
-                        "seed:v2:category:${c.code}",
-                        c.scope.name,
-                        c.name,
-                        c.code,
-                        c.sortOrder,
-                        if (c.isSystem) 1 else 0,
-                        c.icon,
-                        c.color,
-                    ),
-                )
-            }
+            seedLikeVersion4()
+            // 사용자가 만든 '데이트'(5)·'게임'(7, 다른 모양)과 그 게임으로 적은 거래
             execSQL(
                 "INSERT INTO categories (uuid, scope, name, code, sortOrder, isSystem, icon, color) " +
-                    "VALUES ('user:game', 'EXPENSE', '게임', NULL, 7, 0, 'movie', 'red')",
+                    "VALUES ('user:date', 'EXPENSE', '데이트', NULL, 5, 0, 'redeem', 'pink')",
             )
             execSQL(
                 "INSERT INTO categories (uuid, scope, name, code, sortOrder, isSystem, icon, color) " +
-                    "VALUES ('user:date', 'EXPENSE', '데이트', NULL, 9, 0, 'redeem', 'pink')",
+                    "VALUES ('user:game', 'EXPENSE', '게임', NULL, 7, 0, 'movie', 'red')",
             )
             execSQL(
                 "INSERT INTO transactions (uuid, type, amount, occurredAt, occurredDate, categoryId, createdAt, updatedAt) " +
@@ -266,51 +252,59 @@ class MigrationTest {
         }
         val db = helper.runMigrationsAndValidate(TEST_DB, 5, true)
 
-        // 저축은 사용자 분류 맨 뒤(데이트 9 다음)에, 기본 모양과 코드로 생긴다
+        // '게임' 은 하나만 있고, 사용자가 만든 그 줄이 기본 분류(코드·아이콘·색·자리)로 바뀐다. 거래는 그대로 걸려 있다.
+        assertEquals(1, db.count("SELECT COUNT(*) FROM categories WHERE scope = 'EXPENSE' AND name = '게임'"))
+        db.row("SELECT uuid, code, icon, color, sortOrder FROM categories WHERE name = '게임'") {
+            assertEquals("user:game", it.getString(0))
+            assertEquals(GAME_CATEGORY_CODE, it.getString(1))
+            assertEquals("sports_esports", it.getString(2))
+            assertEquals("indigo", it.getString(3))
+            assertEquals(5, it.getInt(4))
+        }
+        assertEquals("게임", db.categoryNameOf("t1"))
+        // '저축' 은 기본값으로 새로 생긴다
         db.row("SELECT code, sortOrder, isSystem, icon, color FROM categories WHERE scope = 'EXPENSE' AND name = '저축'") {
             assertEquals(SAVINGS_CATEGORY_CODE, it.getString(0))
-            assertEquals(10, it.getInt(1))
+            assertEquals(6, it.getInt(1))
             assertEquals(0, it.getInt(2))
             assertEquals("savings", it.getString(3))
             assertEquals("teal", it.getString(4))
         }
-        // 사용자가 만든 '게임' 은 하나만 있고 모양·거래가 그대로다
-        assertEquals(1, db.count("SELECT COUNT(*) FROM categories WHERE scope = 'EXPENSE' AND name = '게임'"))
-        db.row("SELECT uuid, code, icon FROM categories WHERE name = '게임'") {
-            assertEquals("user:game", it.getString(0))
-            assertNull(it.getString(1))
-            assertEquals("movie", it.getString(2))
-        }
-        assertEquals("게임", db.categoryNameOf("t1"))
-        // '기타' 는 여전히 맨 뒤다
-        db.row("SELECT MAX(sortOrder) FROM categories WHERE scope = 'EXPENSE'") { assertEquals(ETC_SORT_ORDER, it.getInt(0)) }
+        // 그 자리에 있던 '데이트' 는 두 칸 뒤로 밀리고, 앞의 기본 분류와 '기타' 는 그대로다
+        db.row("SELECT sortOrder FROM categories WHERE name = '데이트'") { assertEquals(7, it.getInt(0)) }
+        db.row("SELECT sortOrder FROM categories WHERE code = '$FIXED_CATEGORY_CODE'") { assertEquals(4, it.getInt(0)) }
+        db.row("SELECT sortOrder FROM categories WHERE code = '$ETC_EXPENSE_CODE'") { assertEquals(ETC_SORT_ORDER, it.getInt(0)) }
     }
 
     @Test
-    fun `게임·저축이 없던 가계부를 4 에서 5 로 올리면 둘 다 생긴다`() {
+    fun `게임·저축이 없던 가계부를 4 에서 5 로 올리면 둘 다 고정지출 다음에 생긴다`() {
         helper.createDatabase(TEST_DB, 4).apply {
-            DEFAULT_CATEGORIES.filterNot { it.code == GAME_CATEGORY_CODE || it.code == SAVINGS_CATEGORY_CODE }.forEach { c ->
-                execSQL(
-                    "INSERT INTO categories (uuid, scope, name, code, sortOrder, isSystem, icon, color) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                    arrayOf<Any?>(
-                        "seed:v2:category:${c.code}",
-                        c.scope.name,
-                        c.name,
-                        c.code,
-                        c.sortOrder,
-                        if (c.isSystem) 1 else 0,
-                        c.icon,
-                        c.color,
-                    ),
-                )
-            }
+            seedLikeVersion4()
             close()
         }
         val db = helper.runMigrationsAndValidate(TEST_DB, 5, true)
         assertEquals(DEFAULT_CATEGORIES.size, db.count("SELECT COUNT(*) FROM categories"))
-        // 기본 분류 고정지출(4) 뒤로 차례대로 붙는다
         db.row("SELECT sortOrder FROM categories WHERE code = '$GAME_CATEGORY_CODE'") { assertEquals(5, it.getInt(0)) }
         db.row("SELECT sortOrder FROM categories WHERE code = '$SAVINGS_CATEGORY_CODE'") { assertEquals(6, it.getInt(0)) }
+    }
+
+    /** 1.7.0 이 첫 설치 때 넣던 기본 분류(게임·저축 없음) */
+    private fun SupportSQLiteDatabase.seedLikeVersion4() {
+        DEFAULT_CATEGORIES.filterNot { it.code == GAME_CATEGORY_CODE || it.code == SAVINGS_CATEGORY_CODE }.forEach { c ->
+            execSQL(
+                "INSERT INTO categories (uuid, scope, name, code, sortOrder, isSystem, icon, color) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                arrayOf<Any?>(
+                    "seed:v2:category:${c.code}",
+                    c.scope.name,
+                    c.name,
+                    c.code,
+                    c.sortOrder,
+                    if (c.isSystem) 1 else 0,
+                    c.icon,
+                    c.color,
+                ),
+            )
+        }
     }
 
     /** v0.1.2 의 SeedCallback 이 첫 설치 때 넣던 그대로 */
