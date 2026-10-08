@@ -132,8 +132,7 @@ import com.dong.budget.ui.salary.SalaryTabGate
 import com.dong.budget.ui.salary.SalaryViewModel
 import com.dong.budget.ui.settings.AdvancedSettingsScreen
 import com.dong.budget.ui.settings.AdvancedSettingsViewModel
-import com.dong.budget.ui.settings.AppInfoScreen
-import com.dong.budget.ui.settings.AppInfoViewModel
+import com.dong.budget.ui.settings.AppInfoRoute
 import com.dong.budget.ui.settings.BackupActions
 import com.dong.budget.ui.settings.SettingsScreen
 import com.dong.budget.ui.settings.SettingsViewModel
@@ -199,11 +198,11 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
         onPauseOrDispose {}
     }
 
-    // 앱이 화면에 나올 때마다 새 버전을 확인한다. 10분 안에 다시 열면 건너뛴다(UpdateChecker).
+    // 앱이 화면에 나올 때마다 새 버전을 확인한다. 얼마나 자주 확인할지는 배포처가 정한다(GitHub 배포는 10분 안에 다시 열면 건너뛴다).
     // '앱을 열 때 새 버전 확인하기' 를 껐으면 확인하지 않는다(설정에서 직접 확인은 된다). 저장소를 다 읽은 값으로 본다.
     LifecycleStartEffect(container) {
         scope.launch {
-            if (container.settingsRepository.autoSettings.first()[AutoOption.UPDATE_CHECK]) container.updateChecker.checkIfDue()
+            if (container.settingsRepository.autoSettings.first()[AutoOption.UPDATE_CHECK]) container.updates.checkIfDue()
         }
         // 자동 백업 주기가 지났으면 다운로드 폴더에 저장한다(설정 > 백업 > 자동 백업)
         container.runScheduledBackup()
@@ -335,19 +334,19 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
                                 viewModel(factory = homeViewModelFactory(container))
                             val state by viewModel.uiState.collectAsStateWithLifecycle()
 
-                            val bannerVersion by container.updateChecker.bannerVersion.collectAsStateWithLifecycle(initialValue = null)
+                            val updateNotice by container.updates.notice.collectAsStateWithLifecycle(initialValue = null)
                             // 새 버전 자동 확인을 껐으면 홈에 알림 줄도 띄우지 않는다(앱 정보에서 직접 확인한 결과는 앱 정보와 패치노트에서 보인다)
-                            val updateVersion = bannerVersion.takeIf { autoSettings[AutoOption.UPDATE_CHECK] }
+                            val shownNotice = updateNotice.takeIf { autoSettings[AutoOption.UPDATE_CHECK] }
                             val hasNewNotice by viewModel.hasNewNotice.collectAsStateWithLifecycle()
                             val devModeOn by DevLog.enabled.collectAsStateWithLifecycle()
                             HomeShell(
                                 state = state,
                                 menu = bottomMenu,
-                                updateVersion = updateVersion,
+                                updateNotice = shownNotice,
                                 hasNewNotice = hasNewNotice,
                                 onOpenUpdate = { navigator.go(AppInfoKey) },
-                                onDismissUpdate = container.updateChecker::dismissBanner,
-                                onSkipUpdate = container.updateChecker::skipLatest,
+                                onDismissUpdate = container.updates::dismissNotice,
+                                onSkipUpdate = container.updates::skipNotice,
                                 onPreviousMonth = viewModel::showPreviousMonth,
                                 onNextMonth = viewModel::showNextMonth,
                                 onAddTransaction = { navigator.go(TransactionEditorKey()) },
@@ -548,20 +547,9 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
                             )
                         }
 
+                        // 업데이트 칸이 배포처마다 달라서 배포처 소스가 화면을 채운다
                         entry<AppInfoKey> {
-                            val viewModel: AppInfoViewModel = viewModel(factory = appInfoViewModelFactory(container))
-                            val updateState by viewModel.updateState.collectAsStateWithLifecycle()
-                            val downloadedVersion by viewModel.downloadedVersion.collectAsStateWithLifecycle()
-                            AppInfoScreen(
-                                currentVersion = viewModel.currentVersion,
-                                updateState = updateState,
-                                onCheckUpdate = viewModel::checkForUpdate,
-                                onDownloadUpdate = viewModel::downloadAndInstall,
-                                downloadedVersion = downloadedVersion,
-                                onInstallDownloaded = viewModel::installDownloadedManually,
-                                releasePageUrl = viewModel.releasePageUrl,
-                                onBack = navigator::goBack,
-                            )
+                            AppInfoRoute(updates = container.updates, onBack = navigator::goBack)
                         }
 
                         entry<SalarySettingsKey> { key ->
@@ -984,7 +972,7 @@ private fun settingsViewModelFactory(container: AppContainer) = viewModelFactory
     initializer {
         SettingsViewModel(
             settingsRepository = container.settingsRepository,
-            updateChecker = container.updateChecker,
+            updates = container.updates,
             backupRepository = container.backupRepository,
             backupStorage = container.backupStorage,
             backupExporter = container.backupExporter,
@@ -992,10 +980,6 @@ private fun settingsViewModelFactory(container: AppContainer) = viewModelFactory
             appThemeMode = container.themeMode,
         )
     }
-}
-
-private fun appInfoViewModelFactory(container: AppContainer) = viewModelFactory {
-    initializer { AppInfoViewModel(container.apkInstaller, container.updateChecker) }
 }
 
 private fun advancedSettingsViewModelFactory(container: AppContainer) = viewModelFactory {
@@ -1023,7 +1007,7 @@ private fun inboxViewModelFactory(container: AppContainer) = viewModelFactory {
 
 private fun patchNotesViewModelFactory(container: AppContainer) = viewModelFactory {
     initializer {
-        PatchNotesViewModel(container.updateChecker) { container.settingsRepository.autoSettings.first()[AutoOption.UPDATE_CHECK] }
+        PatchNotesViewModel(container.updates) { container.settingsRepository.autoSettings.first()[AutoOption.UPDATE_CHECK] }
     }
 }
 

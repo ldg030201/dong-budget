@@ -23,7 +23,6 @@ import com.dong.budget.data.capture.CaptureNotifier
 import com.dong.budget.data.salary.SalaryNotifier
 import com.dong.budget.data.salary.salaryMonthOf
 import com.dong.budget.data.settings.ThemeMode
-import com.dong.budget.data.update.InstallEvents
 import com.dong.budget.ui.DongBudgetApp
 import com.dong.budget.ui.OpenRequest
 import com.dong.budget.ui.theme.BudgetTheme
@@ -85,13 +84,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    override fun onStart() {
-        super.onStart()
-        InstallEvents.appVisible = true
-    }
-
     override fun onStop() {
-        InstallEvents.appVisible = false
         // 앱을 나가면 앱 잠금과 월급 탭을 다시 잠근다. 화면을 돌려 다시 만들어지는 때는 나간 것이 아니다.
         if (!isChangingConfigurations) {
             val container = (application as BudgetApplication).container
@@ -99,12 +92,6 @@ class MainActivity : ComponentActivity() {
             container.salaryLock.lock()
         }
         super.onStop()
-    }
-
-    override fun onResume() {
-        super.onResume()
-        // 받는 동안 다른 앱에 있어서 띄우지 못한 설치 확인창이 있으면 지금 띄운다
-        InstallEvents.takePendingConfirm()?.let { runCatching { startActivity(it) } }
     }
 
     /** 앱이 열린 채로 결제 등록·월급날 알림을 누르면 여기로 온다(singleTop) */

@@ -41,18 +41,18 @@ jobs:
         run: ./gradlew spotlessCheck
 
       - name: 디버그 빌드
-        run: ./gradlew assembleDebug
+        run: ./gradlew assembleGithubDebug
 
       - name: 단위 테스트
-        run: ./gradlew testDebugUnitTest
+        run: ./gradlew testGithubDebugUnitTest
 
       - name: 린트
-        run: ./gradlew lintDebug
+        run: ./gradlew lintGithubDebug
 
       - name: 린트 결과 보관
         if: always()
         uses: actions/upload-artifact@v6
         with:
           name: lint-report
-          path: app/build/reports/lint-results-debug.html
+          path: app/build/reports/lint-results-githubDebug.html
           if-no-files-found: ignore

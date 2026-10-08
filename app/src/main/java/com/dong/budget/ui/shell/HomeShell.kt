@@ -21,6 +21,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.dong.budget.data.settings.BottomMenu
 import com.dong.budget.data.settings.MenuItem
+import com.dong.budget.data.update.UpdateNotice
 import com.dong.budget.ui.home.HomeScreen
 import com.dong.budget.ui.home.HomeUiState
 import com.dong.budget.ui.home.MoreScreen
@@ -52,7 +53,7 @@ import java.time.YearMonth
 fun HomeShell(
     state: HomeUiState,
     menu: BottomMenu,
-    updateVersion: String?,
+    updateNotice: UpdateNotice?,
     hasNewNotice: Boolean,
     onOpenUpdate: () -> Unit,
     onDismissUpdate: () -> Unit,
@@ -133,7 +134,7 @@ fun HomeShell(
                         MenuItem.HOME ->
                             HomeScreen(
                                 state = state,
-                                updateVersion = updateVersion,
+                                updateNotice = updateNotice,
                                 hasNewNotice = hasNewNotice,
                                 onOpenUpdate = onOpenUpdate,
                                 onDismissUpdate = onDismissUpdate,

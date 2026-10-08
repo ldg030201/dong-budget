@@ -74,7 +74,7 @@ jobs:
       # 테스트가 깨진 채로 배포되지 않게 한다. main 의 CI 와 따로 돌기 때문에 여기서 다시 돌린다.
       # (패치노트 기록 누락, 버전 비교, 결제 알림 읽기 같은 규칙을 테스트가 지킨다)
       - name: 단위 테스트
-        run: ./gradlew testDebugUnitTest
+        run: ./gradlew testGithubDebugUnitTest
 
       # 서명키는 저장소에 두지 않는다. Secrets 에 base64 로 넣어두고 여기서만 되살린다.
       # 키가 바뀌면 기존 사용자의 업데이트 설치와 자동 백업 복원이 모두 깨지므로
@@ -111,7 +111,7 @@ jobs:
           DONG_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           DONG_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           DONG_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-        run: ./gradlew assembleRelease
+        run: ./gradlew assembleGithubRelease
 
       # 서명이 붙었는지, 그리고 '올바른 키로' 붙었는지 확인한다.
       #
@@ -120,7 +120,7 @@ jobs:
       # 배포한 뒤에는 되돌릴 방법이 없으므로 여기서 막는다.
       - name: 서명과 서명키 확인
         run: |
-          APK=$(find app/build/outputs/apk/release -name '*.apk' | head -1)
+          APK=$(find app/build/outputs/apk/github/release -name '*.apk' | head -1)
           echo "APK: $APK"
           if [ -z "$APK" ]; then echo "::error::APK 를 찾지 못했다."; exit 1; fi
           case "$APK" in

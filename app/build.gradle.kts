@@ -65,12 +65,25 @@ android {
         // 앱이 새 버전을 확인할 위치. 코드에 박지 않고 설정에서 읽는다.
         buildConfigField("String", "GITHUB_OWNER", "\"${requiredProperty("dongbudget.githubOwner")}\"")
         buildConfigField("String", "GITHUB_REPO", "\"${requiredProperty("dongbudget.githubRepo")}\"")
-        // 기본값은 GitHub. 업데이트 흐름을 로컬에서 검증할 때만 -P 로 바꾼다.
-        buildConfigField(
-            "String",
-            "UPDATE_API_BASE",
-            "\"${providers.gradleProperty("dongbudget.updateApiBase").getOrElse("https://api.github.com")}\"",
-        )
+    }
+
+    // ── 배포처 ─────────────────────────────────────────────────────────
+    // 새 버전을 받는 길이 배포처마다 다르다. 코드는 하나이고, 배포처마다 다른 부분만 src/<배포처> 에 둔다.
+    //   github: GitHub Releases 의 APK. 앱이 스스로 새 버전을 확인하고 내려받아 설치한다(src/github).
+    // applicationId·버전·서명은 배포처와 상관없이 같다. 그래야 기존 사용자가 지우지 않고 다른 배포로 옮길 수 있다.
+    flavorDimensions += "store"
+    productFlavors {
+        create("github") {
+            dimension = "store"
+            // Android Studio 가 처음 고르는 빌드. 지금까지 쓰던 것과 같은 앱이다.
+            isDefault = true
+            // 기본값은 GitHub. 업데이트 흐름을 로컬에서 검증할 때만 -P 로 바꾼다.
+            buildConfigField(
+                "String",
+                "UPDATE_API_BASE",
+                "\"${providers.gradleProperty("dongbudget.updateApiBase").getOrElse("https://api.github.com")}\"",
+            )
+        }
     }
 
     signingConfigs {

@@ -70,7 +70,7 @@ object InstallEvents {
     }
 
     /**
-     * 동계부 화면이 보이는 중인지. MainActivity 가 onStart/onStop 에서 적는다.
+     * 동계부 화면이 보이는 중인지. 화면이 보이고 사라질 때 ScreenWatcher(StoreUpdates)가 적는다.
      * 화면이 안 보이면 설치 확인창을 띄워도 안드로이드가 막는다(백그라운드 화면 실행 제한).
      */
     @Volatile var appVisible: Boolean = false

@@ -52,7 +52,7 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextAlign
 import com.dong.budget.R
 import com.dong.budget.data.update.AppVersion
-import com.dong.budget.data.update.NewerRelease
+import com.dong.budget.data.update.NewerNotes
 import com.dong.budget.ui.components.BudgetPrimaryButton
 import com.dong.budget.ui.components.BudgetTopAppBar
 import com.dong.budget.ui.components.IconBadge
@@ -81,7 +81,7 @@ fun PatchNotesScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
     releases: List<Release> = PATCH_NOTES,
-    newer: List<NewerRelease> = emptyList(),
+    newer: List<NewerNotes> = emptyList(),
     onOpenUpdate: () -> Unit = {},
 ) {
     val installed = AppVersion.parse(currentVersion)
@@ -136,7 +136,7 @@ private enum class ReleaseStatus { PAST, CURRENT, UPCOMING }
  * @param latest 목록 맨 위(가장 최근) 버전인지. 그 카드만 펼친 채로 시작한다.
  */
 @Composable
-private fun NewerReleaseBlock(release: NewerRelease, onOpenUpdate: (() -> Unit)?, latest: Boolean) {
+private fun NewerReleaseBlock(release: NewerNotes, onOpenUpdate: (() -> Unit)?, latest: Boolean) {
     ReleaseCard(
         version = release.version,
         date = release.date,

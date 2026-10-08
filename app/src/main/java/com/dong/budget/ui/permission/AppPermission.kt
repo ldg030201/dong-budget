@@ -22,7 +22,6 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.net.toUri
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import com.dong.budget.data.capture.PaymentNotificationListener
-import com.dong.budget.data.update.GalaxyAutoBlocker
 import com.dong.budget.startFirst
 import com.dong.budget.ui.components.ConfirmDialog
 
@@ -31,24 +30,56 @@ import com.dong.budget.ui.components.ConfirmDialog
  *
  * 대부분은 앱 안에서 '허용' 창을 띄울 수 없어 기기 설정 화면으로 보내 켜게 한다.
  * [runtimePermission] 이 있는 것은 처음 한 번은 앱 안에서 시스템 '허용' 창을 띄울 수 있다.
- * 앱을 켤 때 꺼져 있는 것이 있으면 [PermissionGate] 가 안내창을 띄운다. 안내 순서는 여기 적은 순서다.
+ * 앱을 켤 때 꺼져 있는 것이 있으면 [PermissionGate] 가 안내창을 띄운다. 안내 순서는 [APP_PERMISSIONS] 의 순서다.
  * 설정의 '권한' 묶음은 켜짐·꺼짐을 [label] 과 [summary] 로 보여 준다.
  *
- * @property title 안내창 제목
- * @property label 설정의 권한 줄 이름
- * @property summary 설정의 권한 줄 아래 한 줄 설명
+ * 어느 배포에나 있는 것은 [NotificationPermission] 이고, 배포처에만 있는 것(GitHub 배포의 설치 허용)은
+ * 배포처 소스의 [STORE_PERMISSIONS] 에 있다.
  */
-enum class AppPermission(val title: String, private val baseMessage: String, val label: String, val summary: String) {
-    /** '출처를 알 수 없는 앱 설치'. 앱 안에서 새 버전을 설치할 때 필요하다. */
-    INSTALL_UPDATES(
-        title = "업데이트 설치를 허용해 주세요",
-        baseMessage =
-        "새 버전을 앱 안에서 바로 설치하려면 '출처를 알 수 없는 앱 설치'에서 동계부를 허용해야 해요.\n" +
-            "설정 화면에서 허용을 켜고 돌아와 주세요.",
-        label = "업데이트 설치",
-        summary = "새 버전을 앱 안에서 바로 설치해요",
-    ),
+interface AppPermission {
+    /** 기록에 쓰는 이름. '나중에'·'다시 안 보기' 를 이 이름으로 적어 두므로 바꾸지 않는다. */
+    val name: String
 
+    /** 안내창 제목 */
+    val title: String
+
+    /** 안내창 본문 */
+    val message: String
+
+    /** 설정의 권한 줄 이름 */
+    val label: String
+
+    /** 설정의 권한 줄 아래 한 줄 설명 */
+    val summary: String
+
+    fun isGranted(context: Context): Boolean
+
+    /** 앱 안에서 시스템 '허용' 창으로 받을 수 있는 권한. 없으면 null */
+    val runtimePermission: String? get() = null
+
+    /** 안내창 아래에 둘 보조 버튼의 글. 없으면 null */
+    val extraLabel: String? get() = null
+
+    /** [extraLabel] 버튼을 눌렀을 때 */
+    fun openExtra(context: Context) = Unit
+
+    /** 이 권한을 켜는 설정 화면들. 앞의 것이 안 열리면 다음 것을 연다. 동계부 항목이 바로 열리는 것을 앞에 둔다. */
+    fun settingsIntents(context: Context): List<Intent>
+}
+
+/**
+ * 앱이 켜 달라고 하는 권한 전부. 앱을 켤 때 이 순서로 묻는다.
+ * 배포처에만 있는 것(설치 허용)을 먼저 묻는다. 알림 보내기는 알림 읽기보다 먼저다([NotificationPermission]).
+ */
+internal val APP_PERMISSIONS: List<AppPermission> = STORE_PERMISSIONS + NotificationPermission.entries
+
+/** 어느 배포에나 있는 권한. 결제 알림을 읽고 묻는 데 필요하다. 안내 순서는 여기 적은 순서다. */
+enum class NotificationPermission(
+    override val title: String,
+    override val message: String,
+    override val label: String,
+    override val summary: String,
+) : AppPermission {
     /**
      * 알림 보내기. '가계부에 등록할까요?' 알림과 월급날 '월급 들어왔나요?' 알림을 띄우는 데 필요하다.
      * 알림 읽기보다 먼저 묻는다. 알림 읽기가 처음 연결될 때 알림창에 남은 결제 알림을 훑는데,
@@ -56,7 +87,7 @@ enum class AppPermission(val title: String, private val baseMessage: String, val
      */
     POST_NOTIFICATIONS(
         title = "알림을 허용해 주세요",
-        baseMessage =
+        message =
         "토스·카카오페이 결제 알림을 읽으면 '가계부에 등록할까요?' 알림을 보내요. 알림을 누르면 결제 내용이 채워진 등록창이 열려요.\n" +
             "월급날에는 '월급 들어왔나요?' 알림도 보내요.",
         label = "알림 보내기",
@@ -68,7 +99,7 @@ enum class AppPermission(val title: String, private val baseMessage: String, val
         title = "알림 읽기를 허용해 주세요",
         // 플레이 스토어 밖에서 설치한 앱은 Android 13 부터 이 권한이 '제한된 설정' 으로 막혀 있다.
         // 스위치를 한 번 눌러 막힌 것을 확인해야 앱 정보에 '제한된 설정 허용' 메뉴가 생기는 기기가 있어 그 순서로 적는다.
-        baseMessage =
+        message =
         "토스·카카오페이 결제 알림이 오면 가계부에 등록할지 물어보려면 동계부의 '알림 읽기'를 허용해야 해요.\n" +
             "토스·카카오페이 결제 알림만 골라 쓰고, 다른 앱의 알림은 저장하거나 어디로 보내지 않아요.\n\n" +
             "스위치를 눌렀는데 '제한된 설정' 창이 뜨면, 아래 '앱 정보 열기'를 눌러 오른쪽 위 ⋮ 에서 " +
@@ -78,17 +109,7 @@ enum class AppPermission(val title: String, private val baseMessage: String, val
     ),
     ;
 
-    /**
-     * 안내창 본문.
-     * 갤럭시 One UI 6 이상에는 '보안 위험 자동 차단' 이 있어서, 설치 허용을 켜도 이게 켜져 있으면 업데이트가 막힌다.
-     * 켜짐 여부는 앱이 알 수 없으니 그런 기기에만 한 줄 덧붙이고, 끄는 화면으로 가는 버튼([extraLabel])을 둔다.
-     */
-    val message: String
-        get() = if (this == INSTALL_UPDATES && GalaxyAutoBlocker.isAvailable) baseMessage + GALAXY_AUTO_BLOCKER_NOTE else baseMessage
-
-    fun isGranted(context: Context): Boolean = when (this) {
-        INSTALL_UPDATES -> context.packageManager.canRequestPackageInstalls()
-
+    override fun isGranted(context: Context): Boolean = when (this) {
         READ_NOTIFICATIONS ->
             context
                 .getSystemService(NotificationManager::class.java)
@@ -98,40 +119,28 @@ enum class AppPermission(val title: String, private val baseMessage: String, val
         POST_NOTIFICATIONS -> NotificationManagerCompat.from(context).areNotificationsEnabled()
     }
 
-    /** 앱 안에서 시스템 '허용' 창으로 받을 수 있는 권한. 없으면 null */
-    val runtimePermission: String?
+    override val runtimePermission: String?
         get() {
             // Android 12 까지는 알림 권한을 따로 묻지 않는다. 꺼져 있으면 설정 화면으로 보낸다.
             if (this != POST_NOTIFICATIONS || Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return null
             return Manifest.permission.POST_NOTIFICATIONS
         }
 
-    /**
-     * 안내창 아래에 둘 보조 버튼의 글. 없으면 null
-     * - 알림 읽기: 플레이 스토어 밖에서 설치한 앱은 '제한된 설정' 으로 막혀 있고, 푸는 메뉴가 앱 정보 화면에 있다.
-     * - 설치 허용(갤럭시): '보안 위험 자동 차단' 이 켜져 있으면 설치 허용을 켜도 업데이트가 막힌다. 끄는 화면으로 보낸다.
-     */
-    val extraLabel: String?
+    /** 알림 읽기: 플레이 스토어 밖에서 설치한 앱은 '제한된 설정' 으로 막혀 있고, 푸는 메뉴가 앱 정보 화면에 있다. */
+    override val extraLabel: String?
         get() = when (this) {
             READ_NOTIFICATIONS -> "앱 정보 열기"
-            INSTALL_UPDATES -> if (GalaxyAutoBlocker.isAvailable) "보안 위험 자동 차단 열기" else null
             POST_NOTIFICATIONS -> null
         }
 
-    /** [extraLabel] 버튼을 눌렀을 때 */
-    fun openExtra(context: Context) {
+    override fun openExtra(context: Context) {
         when (this) {
             READ_NOTIFICATIONS -> context.startFirst(listOf(appInfoIntent(context)))
-            INSTALL_UPDATES -> GalaxyAutoBlocker.open(context)
             POST_NOTIFICATIONS -> Unit
         }
     }
 
-    /** 이 권한을 켜는 설정 화면들. 앞의 것이 안 열리면 다음 것을 연다. 동계부 항목이 바로 열리는 것을 앞에 둔다. */
-    fun settingsIntents(context: Context): List<Intent> = when (this) {
-        INSTALL_UPDATES ->
-            listOf(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, packageUri(context)))
-
+    override fun settingsIntents(context: Context): List<Intent> = when (this) {
         READ_NOTIFICATIONS ->
             listOf(
                 Intent(Settings.ACTION_NOTIFICATION_LISTENER_DETAIL_SETTINGS).putExtra(
@@ -145,10 +154,6 @@ enum class AppPermission(val title: String, private val baseMessage: String, val
             listOf(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName))
     }
 }
-
-/** 자동 차단이 있는 갤럭시에만 덧붙이는 안내 */
-private const val GALAXY_AUTO_BLOCKER_NOTE =
-    "\n\n'보안 위험 자동 차단'도 꺼져 있어야 업데이트가 설치돼요. 아래 버튼으로 바로 갈 수 있어요."
 
 private fun promptHistory(context: Context) =
     SystemPromptHistory(context.getSharedPreferences(SystemPromptHistory.PREFS_NAME, Context.MODE_PRIVATE))
@@ -165,7 +170,7 @@ internal fun openSettings(context: Context, permission: AppPermission) {
 }
 
 /** 동계부를 가리키는 주소. 설정 화면이 동계부 항목을 바로 열게 한다. */
-private fun packageUri(context: Context) = "package:${context.packageName}".toUri()
+internal fun packageUri(context: Context) = "package:${context.packageName}".toUri()
 
 /** 동계부의 앱 정보 화면. 권한 안내와 앱 잠금(PIN 을 잊었을 때)이 같이 쓴다. */
 internal fun appInfoIntent(context: Context) = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, packageUri(context))
@@ -242,7 +247,7 @@ fun PermissionGate() {
     var rationaleBefore by rememberSaveable { mutableStateOf(false) }
     val launcher =
         rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-            val permission = requesting?.let { name -> AppPermission.entries.firstOrNull { it.name == name } }
+            val permission = requesting?.let { name -> APP_PERMISSIONS.firstOrNull { it.name == name } }
             requesting = null
             val runtime = permission?.runtimePermission ?: return@rememberLauncherForActivityResult
             promptHistory(context).record(
@@ -255,7 +260,7 @@ fun PermissionGate() {
         }
 
     LifecycleResumeEffect(postponed) {
-        missing = AppPermission.entries.firstOrNull { it.name !in postponed && !hidden.isHidden(it) && !it.isGranted(context) }
+        missing = APP_PERMISSIONS.firstOrNull { it.name !in postponed && !hidden.isHidden(it) && !it.isGranted(context) }
         onPauseOrDispose {}
     }
 

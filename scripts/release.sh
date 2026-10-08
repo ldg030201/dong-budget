@@ -53,9 +53,9 @@ info "버전 ${VERSION_NAME} (코드 ${VERSION_CODE})"
 
 # ── 빌드 ────────────────────────────────────────────────────────────────
 info "빌드 중..."
-./gradlew --quiet :app:assembleRelease
+./gradlew --quiet :app:assembleGithubRelease
 
-APK=$(find app/build/outputs/apk/release -name '*.apk' -type f | head -1)
+APK=$(find app/build/outputs/apk/github/release -name '*.apk' -type f | head -1)
 [ -n "$APK" ] || fail "APK 를 찾지 못했다."
 
 case "$APK" in

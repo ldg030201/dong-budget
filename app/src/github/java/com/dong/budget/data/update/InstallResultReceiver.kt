@@ -39,7 +39,7 @@ class InstallResultReceiver : BroadcastReceiver() {
                 confirmIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 DevLog.info(LogTag.UPDATE, "설치 확인이 필요해요 (화면 ${if (InstallEvents.appVisible) "보임" else "안 보여 맡겨 둠"})")
                 // 동계부 화면이 안 보이면(받는 동안 다른 앱으로 나감) 안드로이드가 확인창을 조용히 막는다.
-                // 그때는 맡겨 두었다가 동계부로 돌아올 때 띄운다(MainActivity.onResume).
+                // 그때는 맡겨 두었다가 동계부로 돌아올 때 띄운다(StoreUpdates 의 ScreenWatcher).
                 if (InstallEvents.appVisible) {
                     runCatching { context.startActivity(confirmIntent) }.onFailure { InstallEvents.holdConfirm(confirmIntent) }
                 } else {

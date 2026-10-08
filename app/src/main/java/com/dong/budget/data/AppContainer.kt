@@ -23,9 +23,7 @@ import com.dong.budget.data.settings.AutoSettings
 import com.dong.budget.data.settings.BottomMenu
 import com.dong.budget.data.settings.SettingsRepository
 import com.dong.budget.data.settings.ThemeMode
-import com.dong.budget.data.update.ApkInstaller
-import com.dong.budget.data.update.UpdateChecker
-import com.dong.budget.data.update.UpdateRepository
+import com.dong.budget.data.update.StoreUpdates
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
@@ -193,16 +191,11 @@ class AppContainer(context: Context) {
         settingsRepository.backupSchedule.stateIn(appScope, SharingStarted.Eagerly, BackupSchedule.DEFAULT)
     }
 
-    val updateRepository by lazy { UpdateRepository() }
-
-    val apkInstaller by lazy { ApkInstaller(context) }
-
-    val updateChecker by lazy {
-        UpdateChecker(
-            fetch = updateRepository::newerReleases,
-            prefs = context.getSharedPreferences(UpdateChecker.PREFS_NAME, Context.MODE_PRIVATE),
-        )
-    }
+    /**
+     * 새 버전 확인과 업데이트. 배포처마다 다른 것이 들어간다(src/<배포처> 의 StoreUpdates).
+     * 공통 화면은 [com.dong.budget.data.update.AppUpdates] 로만 보고, 배포처의 앱 정보 화면(AppInfoRoute)만 속을 직접 쓴다.
+     */
+    val updates by lazy { StoreUpdates(context, appScope) }
 
     val captureNotifier by lazy { CaptureNotifier(context) }
 

@@ -1,0 +1,272 @@
+package com.dong.budget.ui.settings
+
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ProgressIndicatorDefaults
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.lifecycle.compose.LifecycleResumeEffect
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
+import com.dong.budget.data.update.GalaxyAutoBlocker
+import com.dong.budget.data.update.StoreUpdates
+import com.dong.budget.ui.components.BudgetPrimaryButton
+import com.dong.budget.ui.components.BudgetTextButton
+import com.dong.budget.ui.components.HintText
+import com.dong.budget.ui.permission.InstallUpdatesPermission
+import com.dong.budget.ui.permission.PermissionDialog
+import com.dong.budget.ui.theme.BudgetTheme
+import com.dong.budget.ui.theme.Motion
+import java.util.Locale
+
+private const val BYTES_PER_MB = 1024.0 * 1024.0
+
+/** 업데이트 화면의 '바뀐 점' 줄 수. 설치 버튼 아래에 두지만 너무 길면 화면이 늘어진다. */
+private const val NOTES_MAX_LINES = 6
+
+/**
+ * 앱 정보(GitHub 배포). 새 버전을 확인하고, 있으면 내려받아 앱 안에서 설치한다.
+ * 앱을 열 때 이미 찾은 새 버전이 있으면 들어오자마자 내려받기 버튼이 보인다.
+ */
+@Composable
+fun AppInfoRoute(updates: StoreUpdates, onBack: () -> Unit) {
+    val viewModel: AppInfoViewModel =
+        viewModel(factory = viewModelFactory { initializer { AppInfoViewModel(updates.apkInstaller, updates.updateChecker) } })
+    val updateState by viewModel.updateState.collectAsStateWithLifecycle()
+    val downloadedVersion by viewModel.downloadedVersion.collectAsStateWithLifecycle()
+
+    val context = LocalContext.current
+    // 설치에는 '출처를 알 수 없는 앱 설치' 권한이 필요하다. 꺼진 채로 설치를 시작하면 시스템이 막고
+    // 설치가 '중단' 으로 끝나므로, 누르는 순간 먼저 확인하고 꺼져 있으면 설정으로 안내한다.
+    var askPermission by remember { mutableStateOf(false) }
+    // 창을 띄운 채 홈 화면을 거쳐 설정에서 직접 켜고 돌아와도 창이 닫히게 돌아올 때마다 다시 본다
+    LifecycleResumeEffect(askPermission) {
+        if (askPermission && InstallUpdatesPermission.isGranted(context)) askPermission = false
+        onPauseOrDispose {}
+    }
+    fun withInstallPermission(action: () -> Unit) {
+        if (InstallUpdatesPermission.isGranted(context)) action() else askPermission = true
+    }
+    if (askPermission) {
+        PermissionDialog(
+            permission = InstallUpdatesPermission,
+            onGoToSettings = { askPermission = false },
+            onLater = { askPermission = false },
+        )
+    }
+
+    val uriHandler = LocalUriHandler.current
+    val openReleasePage = {
+        // 브라우저가 하나도 없는 기기에서는 열 곳이 없다. 앱이 죽지 않게 조용히 넘어간다.
+        runCatching { uriHandler.openUri(viewModel.releasePageUrl) }
+        Unit
+    }
+
+    AppInfoScreen(
+        currentVersion = viewModel.currentVersion,
+        canCheckUpdate = !updateState.isBusy,
+        onCheckUpdate = viewModel::checkForUpdate,
+        onBack = onBack,
+    ) {
+        UpdateSection(
+            state = updateState,
+            downloadedVersion = downloadedVersion,
+            onDownloadUpdate = { withInstallPermission(viewModel::downloadAndInstall) },
+            onInstallDownloaded = { withInstallPermission(viewModel::installDownloadedManually) },
+            onOpenReleasePage = openReleasePage,
+        )
+    }
+}
+
+@Composable
+private fun UpdateSection(
+    state: UpdateUiState,
+    downloadedVersion: String?,
+    onDownloadUpdate: () -> Unit,
+    onInstallDownloaded: () -> Unit,
+    onOpenReleasePage: () -> Unit,
+) {
+    // 확인 중 → 새 버전 있음 → 내려받는 중처럼 단계가 바뀌면 겹쳐 바뀌고, 칸 높이도 한 번에 튀지 않는다.
+    // 같은 단계 안의 변화(내려받은 양)는 그 자리에서 바뀐다.
+    AnimatedContent(
+        targetState = state,
+        contentKey = { it::class },
+        transitionSpec = {
+            (fadeIn(Motion.standard()) togetherWith fadeOut(Motion.quick())).using(SizeTransform { _, _ -> Motion.standard() })
+        },
+        label = "updateSection",
+    ) { shown ->
+        Column { UpdateStep(shown, downloadedVersion, onDownloadUpdate, onInstallDownloaded, onOpenReleasePage) }
+    }
+}
+
+@Composable
+private fun UpdateStep(
+    state: UpdateUiState,
+    downloadedVersion: String?,
+    onDownloadUpdate: () -> Unit,
+    onInstallDownloaded: () -> Unit,
+    onOpenReleasePage: () -> Unit,
+) {
+    when (state) {
+        // 확인은 버전 옆 버튼으로 한다
+        UpdateUiState.Idle -> Unit
+
+        UpdateUiState.Checking ->
+            UpdateStatusText("새 버전이 있는지 확인하고 있어요")
+
+        UpdateUiState.UpToDate ->
+            UpdateStatusText("최신 버전을 쓰고 있어요")
+
+        is UpdateUiState.Available -> {
+            val release = state.release
+            Spacer(Modifier.height(BudgetTheme.spacing.inlineGap))
+            Text(
+                text = "새 버전(${release.version})이 있어요",
+                style = MaterialTheme.typography.titleMedium,
+                color = BudgetTheme.colors.textPrimary,
+            )
+            // 버튼을 바뀐 점보다 먼저 둔다.
+            // 글이 길어져도 버튼이 화면 밖으로 밀려나지 않게 하기 위함이다.
+            Spacer(Modifier.height(BudgetTheme.spacing.itemGap))
+            BudgetPrimaryButton(
+                // 이미 받아둔 파일이 있으면 다시 받지 않는다
+                text =
+                if (downloadedVersion == release.version) {
+                    "설치하기"
+                } else {
+                    "내려받고 설치 (${release.sizeBytes.toMegabytes()}MB)"
+                },
+                onClick = onDownloadUpdate,
+            )
+            Spacer(Modifier.height(BudgetTheme.spacing.inlineGap))
+            // 앱이 자기 자신을 업데이트하면 안드로이드가 실행 중인 앱을 종료한다.
+            // 미리 알려주지 않으면 앱이 죽은 줄 안다.
+            HintText("설치가 끝나면 앱이 닫혀요. 다시 열어주세요.")
+            OtherWays(downloadedVersion, onInstallDownloaded, onOpenReleasePage)
+            if (release.notes.isNotEmpty()) {
+                Spacer(Modifier.height(BudgetTheme.spacing.sectionPadding))
+                Text(
+                    text = "바뀐 점",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = BudgetTheme.colors.textSecondary,
+                )
+                Spacer(Modifier.height(BudgetTheme.spacing.tightGap))
+                // 길면 자른다. 전체는 패치노트에서 볼 수 있다.
+                Text(
+                    text = release.notes,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = BudgetTheme.colors.textPrimary,
+                    maxLines = NOTES_MAX_LINES,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+
+        is UpdateUiState.Downloading -> {
+            UpdateStatusText(if (state.progress >= 1f) "설치를 준비하고 있어요" else "${state.version} 버전을 내려받고 있어요")
+            Spacer(Modifier.height(BudgetTheme.spacing.itemGap))
+            // 내려받은 양이 띄엄띄엄 알려져도 막대는 이어서 차오른다
+            val progress by animateFloatAsState(state.progress, ProgressIndicatorDefaults.ProgressAnimationSpec, label = "downloadProgress")
+            LinearProgressIndicator(
+                progress = { progress },
+                modifier = Modifier.fillMaxWidth(),
+                color = MaterialTheme.colorScheme.primary,
+                // 회색 판 위라 빈 트랙은 화면 바탕색으로 둔다
+                trackColor = MaterialTheme.colorScheme.background,
+            )
+        }
+
+        UpdateUiState.AwaitingInstall -> {
+            // 확인창 없이 바로 설치될 수도 있고(자기 업데이트), 확인창이 뜰 수도 있다. 둘 다 안내한다.
+            UpdateStatusText("설치하고 있어요. 확인 창이 뜨면 '업데이트'를 눌러주세요. 끝나면 앱이 닫히니 다시 열어주세요.")
+            Spacer(Modifier.height(BudgetTheme.spacing.inlineGap))
+            // 스토어 밖에서 받은 앱은 Play 프로텍트가 한 번 더 묻는다. 여기서 '설치 안 함' 을 누르면 설치가 중단된다.
+            HintText("'앱 검사 권장됨'(Play 프로텍트) 창이 뜨면 '앱 검사'를 눌러주세요. '앱 설치 안함'을 누르면 설치가 멈춰요.")
+            // 설치 화면이 뜨지 않거나 거기서 막히면 여기서 바로 다른 길로 갈 수 있게 한다
+            OtherWays(downloadedVersion, onInstallDownloaded, onOpenReleasePage)
+        }
+
+        is UpdateUiState.Failed -> {
+            val failure = state.failure
+            UpdateStatusText(failure.reason)
+            if (failure.detail != null) {
+                Spacer(Modifier.height(BudgetTheme.spacing.tightGap))
+                // 기기마다 설치기가 달라 실패 이유가 제각각이다. 시스템 원문을 복사해서 알려줄 수 있게 선택 가능하게 둔다.
+                SelectionContainer { HintText("시스템 메시지: ${failure.detail}") }
+            }
+            // 갤럭시 자동 차단이 켜져 있으면 어느 길로 설치해도 막힌다. 끄는 화면으로 가는 길을 맨 앞에 둔다.
+            if (failure.suggestGalaxySecurity) {
+                val context = LocalContext.current
+                Spacer(Modifier.height(BudgetTheme.spacing.itemGap))
+                BudgetPrimaryButton(text = "보안 위험 자동 차단 열기", onClick = { GalaxyAutoBlocker.open(context) })
+                Spacer(Modifier.height(BudgetTheme.spacing.inlineGap))
+                HintText(
+                    "자동 차단을 끄고 돌아와서 '업데이트 확인'을 누르면 다시 설치할 수 있어요. " +
+                        "설치가 끝나면 다시 켜도 되지만, 다음 업데이트 때 다시 꺼야 해요.",
+                )
+            }
+            // 서명이 다르거나 저장 공간이 없으면 다른 길로 설치해도 똑같이 막힌다. 헛걸음을 권하지 않는다.
+            if (failure.canTryOtherWays) {
+                // 자동 차단이 켜져 있으면 아래 길도 똑같이 막힌다. 끈 뒤에도 막힐 때 쓰는 길이라고 알려준다.
+                OtherWays(
+                    downloadedVersion,
+                    onInstallDownloaded,
+                    onOpenReleasePage,
+                    title = if (failure.suggestGalaxySecurity) "자동 차단을 끈 뒤에도 막히면" else "설치가 안 되면",
+                )
+            }
+        }
+    }
+}
+
+/**
+ * 앱 안 설치가 안 될 때 쓰는 다른 길. 자주 쓰지 않으므로 글자 버튼 한 줄로 둔다.
+ *   1. 받은 파일로 설치: 이미 받은 파일을 시스템 설치 화면으로 연다. 파일 관리자에서 APK 를 누르는 것과 같다.
+ *   2. 브라우저에서 받기: 처음 설치할 때와 같은 길이라 어느 기기에서나 된다. 기록은 그대로 남는다.
+ *
+ * @param title 줄 위에 붙일 설명
+ */
+@Composable
+private fun OtherWays(
+    downloadedVersion: String?,
+    onInstallDownloaded: () -> Unit,
+    onOpenReleasePage: () -> Unit,
+    title: String = "설치가 안 되면",
+) {
+    Spacer(Modifier.height(BudgetTheme.spacing.itemGap))
+    HintText(title)
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        if (downloadedVersion != null) {
+            BudgetTextButton(text = "받은 파일로 설치", onClick = onInstallDownloaded)
+            Text(text = "·", style = MaterialTheme.typography.labelLarge, color = BudgetTheme.colors.textSecondary)
+        }
+        BudgetTextButton(text = "브라우저에서 받기", onClick = onOpenReleasePage)
+    }
+}
+
+// 기기 언어와 상관없이 같은 모양(12.3)으로 보인다. 로케일을 주지 않으면 독일어 기기에서 '12,3' 이 된다.
+private fun Long.toMegabytes(): String = String.format(Locale.KOREA, "%.1f", this / BYTES_PER_MB)

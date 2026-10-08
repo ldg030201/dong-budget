@@ -2,8 +2,8 @@ package com.dong.budget.ui.patchnotes
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.dong.budget.data.update.NewerRelease
-import com.dong.budget.data.update.UpdateChecker
+import com.dong.budget.data.update.AppUpdates
+import com.dong.budget.data.update.NewerNotes
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
@@ -16,10 +16,10 @@ import kotlinx.coroutines.launch
  *
  * @param autoCheck 스스로 확인해도 되는지. 저장소를 다 읽은 스위치 값을 돌려준다.
  */
-class PatchNotesViewModel(updateChecker: UpdateChecker, autoCheck: suspend () -> Boolean = { true }) : ViewModel() {
-    val newer: StateFlow<List<NewerRelease>> = updateChecker.newer
+class PatchNotesViewModel(updates: AppUpdates, autoCheck: suspend () -> Boolean = { true }) : ViewModel() {
+    val newer: StateFlow<List<NewerNotes>> = updates.newerNotes
 
     init {
-        viewModelScope.launch { if (autoCheck()) updateChecker.checkIfDue() }
+        viewModelScope.launch { if (autoCheck()) updates.checkIfDue() }
     }
 }

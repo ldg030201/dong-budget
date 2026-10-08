@@ -9,12 +9,15 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import com.dong.budget.ui.components.ActionRow
 import com.dong.budget.ui.permission.AppPermission
+import com.dong.budget.ui.permission.NotificationPermission
 import com.dong.budget.ui.permission.PermissionDialog
+import com.dong.budget.ui.permission.STORE_PERMISSIONS
 import com.dong.budget.ui.permission.openSettings
 import com.dong.budget.ui.theme.BudgetTheme
 
-/** 설정에 보이는 순서. 결제 알림을 읽는 것이 이 앱의 중심이라 맨 위에 둔다. */
-private val SETTINGS_ORDER = listOf(AppPermission.READ_NOTIFICATIONS, AppPermission.POST_NOTIFICATIONS, AppPermission.INSTALL_UPDATES)
+/** 설정에 보이는 순서. 결제 알림을 읽는 것이 이 앱의 중심이라 맨 위에 두고, 배포처에만 있는 권한(설치 허용)은 아래에 둔다. */
+private val SETTINGS_ORDER =
+    listOf(NotificationPermission.READ_NOTIFICATIONS, NotificationPermission.POST_NOTIFICATIONS) + STORE_PERMISSIONS
 
 /**
  * 권한이 켜져 있는지 한눈에 본다. 꺼진 줄을 누르면 왜 필요한지와 켜는 길을 알려 주는 안내창을,

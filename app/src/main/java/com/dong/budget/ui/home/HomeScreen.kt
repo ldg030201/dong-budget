@@ -63,6 +63,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import com.dong.budget.R
+import com.dong.budget.data.update.UpdateNotice
 import com.dong.budget.ui.components.AnimatedNoticeDot
 import com.dong.budget.ui.components.BudgetDivider
 import com.dong.budget.ui.components.BudgetIconButton
@@ -105,7 +106,7 @@ import java.time.YearMonth
 @Composable
 fun HomeScreen(
     state: HomeUiState,
-    updateVersion: String?,
+    updateNotice: UpdateNotice?,
     hasNewNotice: Boolean,
     onOpenUpdate: () -> Unit,
     onDismissUpdate: () -> Unit,
@@ -119,8 +120,8 @@ fun HomeScreen(
     onOpenHistory: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    // 새 버전 알림 줄을 닫을 때 묻는 중인지. 알리는 버전에 묶어 두어, 줄이 사라지거나 다른 버전으로 바뀌면 묻던 것도 거둔다.
-    var askCloseUpdate by rememberSaveable(updateVersion) { mutableStateOf(false) }
+    // 새 버전 알림 줄을 닫을 때 묻는 중인지. 알리는 소식에 묶어 두어, 줄이 사라지거나 다른 버전으로 바뀌면 묻던 것도 거둔다.
+    var askCloseUpdate by rememberSaveable(updateNotice) { mutableStateOf(false) }
     // 가로 화면의 좌우 인셋은 앱 전체(DongBudgetApp)에서 한 번에 뺀다
     Box(modifier = modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
@@ -133,20 +134,20 @@ fun HomeScreen(
             // 새 버전이 있으면 달 선택 아래에 알림 줄을 둔다. 목록 안이 아니라 고정 자리에 두어
             // 달력을 누를 때 쓰는 목록 줄 번호가 흔들리지 않게 한다.
             AnimatedVisibility(
-                visible = updateVersion != null,
+                visible = updateNotice != null,
                 enter = expandVertically(Motion.standard()) + fadeIn(Motion.standard()),
                 exit = shrinkVertically(Motion.standard()) + fadeOut(Motion.quick()),
             ) {
-                // 사라지는 애니메이션 동안에도 마지막 버전을 보여준다
-                var shownVersion by remember { mutableStateOf(updateVersion.orEmpty()) }
-                if (updateVersion != null) shownVersion = updateVersion
-                UpdateBanner(version = shownVersion, onOpen = onOpenUpdate, onDismiss = { askCloseUpdate = true })
+                // 사라지는 애니메이션 동안에도 마지막 소식을 보여준다
+                var shownNotice by remember { mutableStateOf(updateNotice) }
+                if (updateNotice != null) shownNotice = updateNotice
+                shownNotice?.let { UpdateBanner(notice = it, onOpen = onOpenUpdate, onDismiss = { askCloseUpdate = true }) }
             }
             // 알림 줄의 X 를 누르면 이번만 닫을지, 이 버전을 아예 건너뛸지 묻는다
-            if (askCloseUpdate && updateVersion != null) {
+            if (askCloseUpdate && updateNotice is UpdateNotice.Available) {
                 ConfirmDialog(
                     title = "새 버전 알림을 닫을까요?",
-                    message = closeUpdateMessage(updateVersion),
+                    message = closeUpdateMessage(updateNotice.version),
                     confirmLabel = "이 버전 건너뛰기",
                     dismissLabel = "나중에",
                     destructive = false,
@@ -371,7 +372,11 @@ internal fun closeUpdateMessage(version: String): String = "'나중에'를 누�
 
 /** 새 버전 알림 줄. 누르면 설정의 업데이트 화면으로 간다. X 를 누르면 이번만 닫을지, 이 버전을 건너뛸지 묻는다. */
 @Composable
-private fun UpdateBanner(version: String, onOpen: () -> Unit, onDismiss: () -> Unit) {
+private fun UpdateBanner(notice: UpdateNotice, onOpen: () -> Unit, onDismiss: () -> Unit) {
+    val title =
+        when (notice) {
+            is UpdateNotice.Available -> "새 버전(${notice.version})이 나왔어요"
+        }
     val shape = RoundedCornerShape(BudgetTheme.radius.control)
     val content = MaterialTheme.colorScheme.onPrimaryContainer
     Row(
@@ -394,7 +399,7 @@ private fun UpdateBanner(version: String, onOpen: () -> Unit, onDismiss: () -> U
         )
         Spacer(Modifier.width(BudgetTheme.spacing.itemGap))
         Column(modifier = Modifier.weight(1f).padding(vertical = BudgetTheme.spacing.itemGap)) {
-            Text(text = "새 버전($version)이 나왔어요", style = MaterialTheme.typography.labelLarge, color = content)
+            Text(text = title, style = MaterialTheme.typography.labelLarge, color = content)
             Text(text = "눌러서 업데이트하기", style = MaterialTheme.typography.bodySmall, color = content)
         }
         BudgetIconButton(

@@ -19,7 +19,8 @@ import com.dong.budget.data.salary.SalaryRepository
 import com.dong.budget.data.salary.toSettings
 import com.dong.budget.data.settings.SettingsRepository
 import com.dong.budget.data.settings.ThemeMode
-import com.dong.budget.data.update.UpdateChecker
+import com.dong.budget.data.update.AppUpdates
+import com.dong.budget.data.update.UpdateNotice
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
@@ -45,10 +46,10 @@ import java.time.LocalDate
  */
 data class BackupUiState(val busy: Boolean = false, val restore: RestorePreview? = null)
 
-/** 설정 첫 화면. 화면 테마와 백업·복원을 다룬다. 새 버전 확인·설치는 앱 정보([AppInfoViewModel])가 맡는다. */
+/** 설정 첫 화면. 화면 테마와 백업·복원을 다룬다. 새 버전 확인·설치는 앱 정보(배포처 소스의 AppInfoRoute)가 맡는다. */
 class SettingsViewModel(
     private val settingsRepository: SettingsRepository,
-    updateChecker: UpdateChecker,
+    updates: AppUpdates,
     private val backupRepository: BackupRepository,
     private val backupStorage: BackupStorage,
     private val backupExporter: BackupExporter,
@@ -62,9 +63,11 @@ class SettingsViewModel(
 
     /** 아직 설치하지 않은 가장 새 버전. 앱 정보 줄에서 알린다. 없으면 null */
     val newerVersion: StateFlow<String?> =
-        updateChecker.newer
-            .map { releases -> releases.firstOrNull()?.version }
-            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), updateChecker.newer.value.firstOrNull()?.version)
+        updates.newer
+            .map(::versionOf)
+            .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), versionOf(updates.newer.value))
+
+    private fun versionOf(notice: UpdateNotice?): String? = (notice as? UpdateNotice.Available)?.version
 
     fun selectThemeMode(mode: ThemeMode) {
         viewModelScope.launch { settingsRepository.setThemeMode(mode) }
