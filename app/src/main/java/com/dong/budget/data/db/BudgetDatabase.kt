@@ -103,6 +103,15 @@ private fun insertDefaultCategory(db: SupportSQLiteDatabase, c: DefaultCategory,
     )
 }
 
+/** 기본 결제수단·들어온 곳 한 줄을 넣는다. [orIgnore] 면 같은 목록에 같은 이름(또는 같은 uuid)이 있을 때 넣지 않는다. */
+internal fun insertDefaultPaymentMethod(db: SupportSQLiteDatabase, m: DefaultPaymentMethod, orIgnore: Boolean) {
+    db.execSQL(
+        "INSERT ${if (orIgnore) "OR IGNORE " else ""}INTO payment_methods " +
+            "(uuid, scope, name, type, sortOrder, isSystem, icon, color) VALUES (?, ?, ?, ?, ?, 0, ?, ?)",
+        arrayOf<Any?>(m.uuid, m.scope.name, m.name, m.type.name, m.sortOrder, m.icon, m.color),
+    )
+}
+
 /**
  * 첫 설치 때 기본 분류와 결제수단·들어온 곳을 넣는다(onCreate, 옛 DB 를 올리는 경우에는 불리지 않는다).
  * DB 를 열 때마다 지운 뒤 코드 없이 다시 만든 '고정지출'·'급여' 에 코드를 돌려준다(onOpen, 마이그레이션 뒤에 불린다).
@@ -114,12 +123,7 @@ private fun insertDefaultCategory(db: SupportSQLiteDatabase, c: DefaultCategory,
 private object SeedCallback : RoomDatabase.Callback() {
     override fun onCreate(db: SupportSQLiteDatabase) {
         DEFAULT_CATEGORIES.forEach { insertDefaultCategory(db, it, orIgnore = false) }
-        (DEFAULT_PAYMENT_METHODS + DEFAULT_INCOME_SOURCES).forEach { m ->
-            db.execSQL(
-                "INSERT INTO payment_methods (uuid, scope, name, type, sortOrder, isSystem, icon, color) VALUES (?, ?, ?, ?, ?, 0, ?, ?)",
-                arrayOf<Any?>(m.uuid, m.scope.name, m.name, m.type.name, m.sortOrder, m.icon, m.color),
-            )
-        }
+        (DEFAULT_PAYMENT_METHODS + DEFAULT_INCOME_SOURCES).forEach { insertDefaultPaymentMethod(db, it, orIgnore = false) }
     }
 
     override fun onOpen(db: SupportSQLiteDatabase) {

@@ -5,6 +5,7 @@ import com.dong.budget.data.db.BudgetDatabase
 import com.dong.budget.data.db.DEFAULT_CATEGORIES
 import com.dong.budget.data.db.DEFAULT_INCOME_SOURCES
 import com.dong.budget.data.db.DEFAULT_PAYMENT_METHODS
+import com.dong.budget.data.db.settleIncomeSources
 import com.dong.budget.data.db.toEntity
 import com.dong.budget.data.devlog.DevLog
 import com.dong.budget.data.devlog.LogTag
@@ -39,7 +40,8 @@ class BackupRepository(private val database: BudgetDatabase) {
             database.categoryDao().reclaimDefaultCodes()
             // 들어온 곳이 생기기 전(1.8.1 까지)의 백업이면 DB 를 올릴 때처럼 기본 들어온 곳을 넣고 옛 수입을 그리로 옮긴다.
             // 새 백업은 사용자가 지운 들어온 곳을 되살리지 않게 그대로 둔다.
-            if (backup.format < BACKUP_FORMAT_INCOME_SOURCES) dao.settleIncomeSources()
+            // 마이그레이션과 같은 함수를 쓴다. 이 블록은 Room 의 거래 스레드에서 돌아서 같은 거래 안에 든다(호환 모드).
+            if (backup.format < BACKUP_FORMAT_INCOME_SOURCES) settleIncomeSources(database.openHelper.writableDatabase)
         }
         DevLog.info(
             LogTag.BACKUP,

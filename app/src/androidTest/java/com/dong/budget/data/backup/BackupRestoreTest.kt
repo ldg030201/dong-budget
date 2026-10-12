@@ -23,7 +23,7 @@ import org.junit.runner.RunWith
 import java.time.Instant
 
 /**
- * 백업을 되살린 뒤 들어온 곳 정리(BackupDao.settleIncomeSources)가 실제 SQLite 에서 DB 5 → 6 과 같게 도는지 본다.
+ * 백업을 되살린 뒤 들어온 곳 정리(settleIncomeSources, 복원 거래 안)가 실제 SQLite 에서 DB 5 → 6 과 같게 도는지 본다.
  * 기기에서 돈다. 메모리 DB 를 써서 기기에 있는 실제 가계부(dong-budget.db)는 건드리지 않는다.
  */
 @RunWith(AndroidJUnit4::class)
