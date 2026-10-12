@@ -30,6 +30,7 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextAlign
 import com.dong.budget.data.db.TransactionListItem
 import com.dong.budget.data.db.TransactionType
+import com.dong.budget.ui.category.AddTarget
 import com.dong.budget.ui.components.BudgetTextButton
 import com.dong.budget.ui.components.BudgetTopAppBar
 import com.dong.budget.ui.components.CategoryBadge
@@ -41,6 +42,7 @@ import com.dong.budget.ui.components.transactionAmountColor
 import com.dong.budget.ui.components.transactionTitle
 import com.dong.budget.ui.editor.DeleteTransactionButton
 import com.dong.budget.ui.editor.DeleteTransactionDialog
+import com.dong.budget.ui.editor.categoryScope
 import com.dong.budget.ui.format.formatDate
 import com.dong.budget.ui.format.formatDayShort
 import com.dong.budget.ui.format.formatSignedAmount
@@ -183,7 +185,7 @@ private fun DetailFields(item: TransactionListItem, state: TransactionDetailUiSt
         val income = item.type == TransactionType.INCOME
         if (!income || item.paymentMethodName != null) {
             FieldRow(
-                label = if (income) "들어온 곳" else "결제수단",
+                label = AddTarget.forPayments(item.type.categoryScope()).noun,
                 value = item.paymentMethodName ?: Grouping.PAYMENT_METHOD.noneName,
                 badge =
                 item.paymentMethodName?.let {

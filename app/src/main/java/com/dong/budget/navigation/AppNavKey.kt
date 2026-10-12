@@ -1,6 +1,7 @@
 package com.dong.budget.navigation
 
 import androidx.navigation3.runtime.NavKey
+import com.dong.budget.data.db.TransactionType
 import com.dong.budget.data.settings.MenuItem
 import kotlinx.serialization.Serializable
 
@@ -59,20 +60,23 @@ data class EditorPrefill(
     val paymentMethodId: Long? = null,
 )
 
-/** 등록창을 채운 곳 */
+/**
+ * 등록창을 채운 곳
+ * @property type 등록창을 여는 거래 종류. 알림에서 읽은 카드·통장 이름도 이 종류의 목록(결제수단·들어온 곳)에서 찾는다.
+ */
 @Serializable
-enum class PrefillSource {
+enum class PrefillSource(val type: TransactionType) {
     /** 토스·카카오페이 결제 알림(지출) */
-    PAYMENT_ALERT,
+    PAYMENT_ALERT(TransactionType.EXPENSE),
 
     /** 월급날 알림이나 월급 탭(수입) */
-    PAYDAY,
+    PAYDAY(TransactionType.INCOME),
 
     /** 고정지출 탭의 '등록하기'(지출). 지난번 고정지출의 가게·금액·결제수단으로 채운다. */
-    FIXED_EXPENSE,
+    FIXED_EXPENSE(TransactionType.EXPENSE),
 
     /** 토스 입금 알림(수입). 보낸 사람이 내용, 들어온 통장이 들어온 곳이다. */
-    DEPOSIT_ALERT,
+    DEPOSIT_ALERT(TransactionType.INCOME),
 }
 
 /** 거래 등록/수정. transactionId 가 null 이면 새로 등록하는 것이다. prefill 이 있으면 그 값으로 채워 연다. */

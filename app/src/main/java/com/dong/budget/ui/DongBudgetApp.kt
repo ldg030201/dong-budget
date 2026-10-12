@@ -52,7 +52,6 @@ import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import com.dong.budget.BuildConfig
 import com.dong.budget.data.AppContainer
-import com.dong.budget.data.capture.CaptureKind
 import com.dong.budget.data.capture.CaptureStore
 import com.dong.budget.data.capture.PaymentCapture
 import com.dong.budget.data.db.SALARY_CATEGORY_CODE
@@ -102,11 +101,11 @@ import com.dong.budget.ui.detail.TransactionDetailViewModel
 import com.dong.budget.ui.devmode.DevModeBadge
 import com.dong.budget.ui.devmode.DeveloperScreen
 import com.dong.budget.ui.devmode.copyLog
-import com.dong.budget.ui.editor.ALREADY_REGISTERED_MESSAGE
-import com.dong.budget.ui.editor.DEPOSIT_ALREADY_REGISTERED_MESSAGE
 import com.dong.budget.ui.editor.SALARY_ALREADY_REGISTERED_MESSAGE
 import com.dong.budget.ui.editor.TransactionEditorScreen
 import com.dong.budget.ui.editor.TransactionEditorViewModel
+import com.dong.budget.ui.editor.alreadyRegisteredMessage
+import com.dong.budget.ui.editor.prefillSource
 import com.dong.budget.ui.editor.salaryPrefill
 import com.dong.budget.ui.editor.toPrefill
 import com.dong.budget.ui.fixed.FixedExpenseScreen
@@ -830,8 +829,7 @@ private suspend fun openCaptured(dedupKey: String, container: AppContainer, navi
         PaymentCapture.OpenResult.Expired -> Toast.makeText(context, EXPIRED_CAPTURE_MESSAGE, Toast.LENGTH_SHORT).show()
 
         is PaymentCapture.OpenResult.AlreadyRegistered -> {
-            val message = if (opened.kind == CaptureKind.DEPOSIT) DEPOSIT_ALREADY_REGISTERED_MESSAGE else ALREADY_REGISTERED_MESSAGE
-            Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, opened.kind.prefillSource.alreadyRegisteredMessage(), Toast.LENGTH_SHORT).show()
         }
 
         // 채우기 스위치는 저장소를 다 읽은 값으로 본다. 알림을 눌러 앱을 막 켠 때에도 끈 스위치가 켜진 것처럼 동작하지 않게 한다.

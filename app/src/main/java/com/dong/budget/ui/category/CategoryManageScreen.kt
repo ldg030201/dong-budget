@@ -71,11 +71,10 @@ fun CategoryManageScreen(
     pickUnusedColor: Boolean = true,
 ) {
     val isPayment = state.tab.isPayment
-    val noun = state.tab.noun
-    // 조사를 이어 붙이지 않고 통째로 둔다. 받침 유무에 따라 '분류를/결제수단을',
-    // '분류로/결제수단으로' 처럼 달라져서 붙이면 '분류을' 같은 틀린 문장이 된다.
-    val nounObject = state.tab.nounObject
-    val nounBy = state.tab.nounBy
+    // 조사가 붙은 꼴은 AddTarget 이 통째로 갖고 있다
+    val noun = state.tab.addTarget.noun
+    val nounObject = state.tab.addTarget.nounObject
+    val nounBy = state.tab.addTarget.nounBy
 
     state.pendingDelete?.let { target ->
         ConfirmDialog(
@@ -277,27 +276,3 @@ private fun DeleteButton(name: String, onClick: () -> Unit) {
         shape = CircleShape,
     )
 }
-
-/** 탭이 다루는 것의 이름. 분류 탭은 '분류' 다. */
-private val ManageTab.noun: String
-    get() = when (this) {
-        ManageTab.EXPENSE, ManageTab.INCOME -> "분류"
-        ManageTab.PAYMENT -> "결제수단"
-        ManageTab.INCOME_SOURCE -> "들어온 곳"
-    }
-
-/** [noun] 에 목적격 조사를 붙인 것 */
-private val ManageTab.nounObject: String
-    get() = when (this) {
-        ManageTab.EXPENSE, ManageTab.INCOME -> "분류를"
-        ManageTab.PAYMENT -> "결제수단을"
-        ManageTab.INCOME_SOURCE -> "들어온 곳을"
-    }
-
-/** [noun] 에 '(으)로' 를 붙인 것 */
-private val ManageTab.nounBy: String
-    get() = when (this) {
-        ManageTab.EXPENSE, ManageTab.INCOME -> "분류로"
-        ManageTab.PAYMENT -> "결제수단으로"
-        ManageTab.INCOME_SOURCE -> "들어온 곳으로"
-    }

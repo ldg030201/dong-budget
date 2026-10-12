@@ -1,5 +1,6 @@
 package com.dong.budget.ui.editor
 
+import com.dong.budget.data.capture.CaptureKind
 import com.dong.budget.data.capture.CapturedPayment
 import com.dong.budget.data.settings.AutoOption
 import com.dong.budget.data.settings.AutoSettings
@@ -23,5 +24,12 @@ internal fun CapturedPayment.toPrefill(auto: AutoSettings) = EditorPrefill(
     guessCategory = auto[AutoOption.FILL_CATEGORY],
     addMissingCard = auto[AutoOption.FILL_NEW_CARD],
     // 입금이면 수입으로 연다
-    source = if (isDeposit) PrefillSource.DEPOSIT_ALERT else PrefillSource.PAYMENT_ALERT,
+    source = kind.prefillSource,
 )
+
+/** 이 종류의 알림으로 채워 연 등록창의 출처. 이미 등록했을 때의 안내도 이것으로 고른다([alreadyRegisteredMessage]). */
+internal val CaptureKind.prefillSource: PrefillSource
+    get() = when (this) {
+        CaptureKind.PAYMENT -> PrefillSource.PAYMENT_ALERT
+        CaptureKind.DEPOSIT -> PrefillSource.DEPOSIT_ALERT
+    }

@@ -21,24 +21,19 @@ import kotlinx.coroutines.launch
 /**
  * 관리 화면의 탭.
  * @property scope 지출 쪽인지 수입 쪽인지. 분류 탭은 분류의, 결제수단 탭은 결제수단 표의 목록이다.
- * @property isPayment 결제수단 표(결제수단·들어온 곳)를 다루는 탭인지. 아니면 분류다.
+ * @property addTarget 이 탭의 추가 시트. 탭이 다루는 것의 이름(분류·결제수단·들어온 곳)도 여기서 읽는다.
  */
-enum class ManageTab(val label: String, val scope: CategoryScope, val isPayment: Boolean) {
-    EXPENSE("지출", CategoryScope.EXPENSE, isPayment = false),
-    INCOME("수입", CategoryScope.INCOME, isPayment = false),
-    PAYMENT("결제수단", CategoryScope.EXPENSE, isPayment = true),
+enum class ManageTab(val label: String, val scope: CategoryScope, val addTarget: AddTarget) {
+    EXPENSE("지출", CategoryScope.EXPENSE, AddTarget.CATEGORY),
+    INCOME("수입", CategoryScope.INCOME, AddTarget.CATEGORY),
+    PAYMENT("결제수단", CategoryScope.EXPENSE, AddTarget.PAYMENT),
 
     /** 수입이 들어온 곳(현금·통장 등). 결제수단 표의 수입 쪽 목록이다. */
-    INCOME_SOURCE("들어온 곳", CategoryScope.INCOME, isPayment = true),
+    INCOME_SOURCE("들어온 곳", CategoryScope.INCOME, AddTarget.INCOME_SOURCE),
     ;
 
-    /** 이 탭의 추가 시트 */
-    val addTarget: AddTarget
-        get() = when {
-            !isPayment -> AddTarget.CATEGORY
-            scope == CategoryScope.INCOME -> AddTarget.INCOME_SOURCE
-            else -> AddTarget.PAYMENT
-        }
+    /** 결제수단 표(결제수단·들어온 곳)를 다루는 탭인지. 아니면 분류다. */
+    val isPayment: Boolean get() = addTarget != AddTarget.CATEGORY
 }
 
 /** 관리 목록 한 줄. 분류와 결제수단·들어온 곳이 같은 모양으로 보인다. */

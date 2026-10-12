@@ -55,17 +55,35 @@ import com.dong.budget.ui.theme.BudgetTheme
 import com.dong.budget.ui.theme.Motion
 import com.dong.budget.ui.theme.pressScaleClickable
 
-/** 새로 만들 것. 추가 시트의 제목과 이름 예시가 정해진다. */
-enum class AddTarget(val title: String, val namePlaceholder: String) {
-    CATEGORY("분류 추가", "예: 카페"),
-    PAYMENT("결제수단 추가", "예: 신한카드"),
+/**
+ * 새로 만들 것. 추가 시트의 제목과 이름 예시, 화면들이 부르는 이름이 정해진다.
+ * 조사는 이어 붙이지 않고 통째로 둔다. 받침 유무에 따라 '분류를/결제수단을', '분류로/결제수단으로' 처럼 달라져서
+ * 붙이면 '분류을' 같은 틀린 문장이 된다.
+ * @property noun 부르는 이름. 결제수단 표는 지출 쪽이 '결제수단', 수입 쪽이 '들어온 곳' 이다.
+ * @property nounObject [noun] 에 목적격 조사를 붙인 것
+ * @property nounBy [noun] 에 '(으)로' 를 붙인 것
+ * @property paymentScope 결제수단 표의 어느 목록에 만드는지. 분류는 거래 종류를 따르므로 null 이다.
+ */
+enum class AddTarget(
+    val noun: String,
+    val nounObject: String,
+    val nounBy: String,
+    val namePlaceholder: String,
+    val paymentScope: CategoryScope?,
+) {
+    CATEGORY("분류", "분류를", "분류로", "예: 카페", null),
+    PAYMENT("결제수단", "결제수단을", "결제수단으로", "예: 신한카드", CategoryScope.EXPENSE),
 
     /** 수입이 들어온 곳(통장 등). 결제수단 표의 수입 쪽 목록이다. */
-    INCOME_SOURCE("들어온 곳 추가", "예: 토스뱅크 통장"),
+    INCOME_SOURCE("들어온 곳", "들어온 곳을", "들어온 곳으로", "예: 토스뱅크 통장", CategoryScope.INCOME),
     ;
 
-    /** 결제수단 표의 어느 목록에 만드는지. 분류는 거래 종류를 따르므로 쓰지 않는다. */
-    val paymentScope: CategoryScope get() = if (this == INCOME_SOURCE) CategoryScope.INCOME else CategoryScope.EXPENSE
+    val title: String get() = "$noun 추가"
+
+    companion object {
+        /** 결제수단 표의 [scope] 목록. 지출이면 결제수단, 수입이면 들어온 곳이다. */
+        fun forPayments(scope: CategoryScope): AddTarget = entries.first { it.paymentScope == scope }
+    }
 }
 
 /**

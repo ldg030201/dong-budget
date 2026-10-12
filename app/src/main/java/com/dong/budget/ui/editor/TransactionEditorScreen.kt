@@ -277,7 +277,8 @@ fun TransactionEditorScreen(
                 }
 
                 FormField(
-                    label = if (state.isIncome) "들어온 곳 (선택)" else "결제수단",
+                    // 수입의 들어온 곳은 비워도 된다
+                    label = state.paymentAddTarget.noun + if (state.isIncome) " (선택)" else "",
                     active = panel == EditorPanel.PAYMENT,
                     onClick = { toggle(EditorPanel.PAYMENT) },
                     modifier = fieldModifier(EditorPanel.PAYMENT),
@@ -286,8 +287,8 @@ fun TransactionEditorScreen(
                     val pendingName = state.visiblePendingPaymentName
                     // 고르거나 바꾸면 칸 값이 겹쳐 바뀐다(새로 추가될 카드 ↔ 있는 결제수단, 지출 ↔ 수입도)
                     FieldCrossfade(
-                        Triple(state.isPendingPaymentSelected, state.selectedPaymentMethod, state.isIncome),
-                    ) { (pendingSelected, method, income) ->
+                        Triple(state.isPendingPaymentSelected, state.selectedPaymentMethod, state.paymentAddTarget),
+                    ) { (pendingSelected, method, target) ->
                         if (pendingSelected && pendingName != null) {
                             // 알림에서 읽은 카드(통장)가 아직 결제수단(들어온 곳)에 없다. 저장할 때 새로 만든다.
                             // 저장할 때 만들어질 모양(아이콘·색)과 똑같이 보여준다
@@ -303,7 +304,7 @@ fun TransactionEditorScreen(
                                 text = "$pendingName (새로\u00A0추가돼요)",
                             )
                         } else if (method == null) {
-                            FormPlaceholder(if (income) "들어온 곳을 골라주세요" else "결제수단을 골라주세요")
+                            FormPlaceholder("${target.nounObject} 골라주세요")
                         } else {
                             FormIconValue(
                                 icon = { CategoryBadge(method.icon, method.color, size = BudgetTheme.size.badgeSmall) },

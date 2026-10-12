@@ -126,7 +126,7 @@ class EditorUiStateTest {
                 type = TransactionType.INCOME,
                 allPaymentMethods = methods,
                 pendingPaymentName = "토스뱅크 통장",
-                pendingPaymentScope = CategoryScope.INCOME,
+                prefillSource = PrefillSource.DEPOSIT_ALERT,
                 paymentPick = PaymentPick.Pending,
             )
         assertTrue(deposit.isPendingPaymentSelected)
@@ -208,7 +208,7 @@ class EditorUiStateTest {
                 type = TransactionType.INCOME,
                 allPaymentMethods = methods,
                 pendingPaymentName = "토스뱅크 통장",
-                pendingPaymentScope = CategoryScope.INCOME,
+                prefillSource = PrefillSource.DEPOSIT_ALERT,
                 paymentPick = PaymentPick.Pending,
             )
         val cleared = deposit.withPendingPaymentTapped()
@@ -225,7 +225,7 @@ class EditorUiStateTest {
             EditorUiState(
                 type = TransactionType.INCOME,
                 pendingPaymentName = "통장",
-                pendingPaymentScope = CategoryScope.INCOME,
+                prefillSource = PrefillSource.PAYDAY,
                 paymentPick = PaymentPick.Pending,
             )
         val loaded = payday.withPaymentMethods(methods, keepPending = false)

@@ -64,13 +64,16 @@ class Navigator(private val backStack: NavBackStack<NavKey>) {
 /** 개발자 모드 로그에 적는 화면 이름. 등록창은 채운 내용(금액·가게) 대신 어디서 열었는지만 적는다. */
 private fun AppNavKey.logName(): String = when (this) {
     is TransactionEditorKey ->
-        when {
-            transactionId != null -> "등록창(거래 #$transactionId)"
-            prefill?.source == PrefillSource.PAYDAY -> "등록창(월급날)"
-            prefill?.source == PrefillSource.FIXED_EXPENSE -> "등록창(고정지출)"
-            prefill?.source == PrefillSource.DEPOSIT_ALERT -> "등록창(입금 알림에서)"
-            prefill != null -> "등록창(알림에서)"
-            else -> "등록창(새 거래)"
+        if (transactionId != null) {
+            "등록창(거래 #$transactionId)"
+        } else {
+            when (prefill?.source) {
+                null -> "등록창(새 거래)"
+                PrefillSource.PAYMENT_ALERT -> "등록창(알림에서)"
+                PrefillSource.DEPOSIT_ALERT -> "등록창(입금 알림에서)"
+                PrefillSource.PAYDAY -> "등록창(월급날)"
+                PrefillSource.FIXED_EXPENSE -> "등록창(고정지출)"
+            }
         }
 
     is TransactionDetailKey -> "거래 상세(#$transactionId)"
