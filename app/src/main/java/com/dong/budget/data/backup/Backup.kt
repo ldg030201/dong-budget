@@ -38,8 +38,16 @@ import java.time.format.DateTimeParseException
 /** 동계부 백업이라는 표시 */
 const val BACKUP_APP = "dong-budget"
 
-/** 백업 모양의 판. 이 앱이 읽을 수 있는 가장 새 판이기도 하다. */
-const val BACKUP_FORMAT = 1
+/**
+ * 백업 모양의 판. 이 앱이 읽을 수 있는 가장 새 판이기도 하다.
+ * - 1: 1.8.1 까지. 결제수단에 목록(scope)이 없다. 모두 결제수단(지출)으로 읽고, 되살린 뒤 들어온 곳을 DB 5 → 6 과 같게 정리한다.
+ * - 2: 결제수단에 목록(scope)이 생겼다(들어온 곳). 결제수단 '현금' 과 들어온 곳 '현금' 처럼 목록이 다르면 이름이 같을 수 있다.
+ *   1.8.1 까지의 앱은 목록 칸을 모르고 넘어가 이름이 겹친다며 '망가진 백업' 으로 거절했다. 판을 올려 '앱을 업데이트하라' 고 알리게 한다.
+ */
+const val BACKUP_FORMAT = 2
+
+/** 결제수단에 목록(들어온 곳)이 생긴 판. 이보다 옛 백업은 되살린 뒤 들어온 곳을 정리한다(BackupRepository.restore). */
+const val BACKUP_FORMAT_INCOME_SOURCES = 2
 
 /**
  * 거래·분류·결제수단 전부와 월급 설정. 화면 테마·자동 기능과 알림 목록은 담지 않는다.
@@ -71,6 +79,7 @@ data class BackupCategory(
 )
 
 /**
+ * @property scope 어느 목록인지. 지출이면 결제수단, 수입이면 들어온 곳. 판 1 백업에는 없어서 결제수단으로 읽는다.
  * @property performanceTiers 카드 실적 구간 금액(원, 오름차순). 안 적었으면 비어 있다(실적 칸이 생기기 전 백업에도 없다).
  * @property performanceStartDay 카드 실적을 세기 시작하는 날(매달 N일)
  */
@@ -84,6 +93,7 @@ data class BackupPaymentMethod(
     val color: String = CategoryStyle.FALLBACK_COLOR,
     val performanceTiers: List<Long> = emptyList(),
     val performanceStartDay: Int = 1,
+    val scope: CategoryScope = CategoryScope.EXPENSE,
 )
 
 /**
@@ -173,7 +183,8 @@ internal fun problemOf(backup: Backup): String? {
 
     val paymentMethods = backup.paymentMethods
     duplicateOf(paymentMethods.map { it.uuid })?.let { return "결제수단 uuid 가 겹쳐요: $it" }
-    duplicateOf(paymentMethods.map { it.name })?.let { return "결제수단 이름이 겹쳐요: $it" }
+    // 이름은 목록(결제수단·들어온 곳) 안에서만 겹치지 않으면 된다
+    duplicateOf(paymentMethods.map { it.scope to it.name })?.let { return "결제수단 이름이 겹쳐요: ${it.second}" }
     paymentMethods.firstOrNull { it.name.isBlank() }?.let { return "이름 없는 결제수단이 있어요: ${it.uuid}" }
     // 구간 개수는 보지 않는다. 되살릴 때 앞에서부터 잘라 넣으므로, 개수 상한이 늘어난 다음 판의 백업도 거절하지 않는다.
     paymentMethods.forEach { m ->
@@ -246,6 +257,7 @@ fun backupOf(
         paymentMethods.map {
             BackupPaymentMethod(
                 uuid = it.uuid,
+                scope = it.scope,
                 name = it.name,
                 type = it.type,
                 sortOrder = it.sortOrder,
@@ -290,6 +302,7 @@ fun BackupCategory.toEntity(): CategoryEntity = CategoryEntity(
 /** 카드 실적은 저장소와 같은 규칙으로 정리해 넣는다(손으로 고친 백업의 순서·중복·개수). */
 fun BackupPaymentMethod.toEntity(): PaymentMethodEntity = PaymentMethodEntity(
     uuid = uuid,
+    scope = scope,
     name = name,
     type = type,
     sortOrder = sortOrder,

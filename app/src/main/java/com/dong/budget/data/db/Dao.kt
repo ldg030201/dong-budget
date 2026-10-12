@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Delete
 import androidx.room.Embedded
 import androidx.room.Insert
+import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Update
@@ -416,6 +417,24 @@ interface BackupDao {
 
     @Insert
     suspend fun insertPaymentMethod(paymentMethod: PaymentMethodEntity): Long
+
+    /** 같은 목록에 같은 이름(또는 같은 uuid)이 있으면 넣지 않는다. 넣지 않았으면 -1 */
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertPaymentMethodIfAbsent(paymentMethod: PaymentMethodEntity): Long
+
+    /** 수입 거래가 가리키는 종류 [fromType] 결제수단을 이름이 [sourceName] 인 들어온 곳으로 옮긴다([MOVE_INCOME_TO_SOURCE_SQL]) */
+    @Query(MOVE_INCOME_TO_SOURCE_SQL)
+    suspend fun moveIncomeToSource(sourceName: String, fromType: String)
+
+    /**
+     * 1.8.1 까지 만든 백업(판 1)을 되살린 뒤 들어온 곳을 정리한다. DB 를 5 → 6 으로 올릴 때(settleIncomeSources(db))와 같은 일이다.
+     * 기본 들어온 곳 '현금'·'통장' 을 넣고(같은 이름이 있으면 그것을 둔다), 현금·계좌이체로 적은 수입을 그리로 옮긴다.
+     */
+    @Transaction
+    suspend fun settleIncomeSources() {
+        DEFAULT_INCOME_SOURCES.forEach { insertPaymentMethodIfAbsent(it.toEntity()) }
+        DEFAULT_INCOME_SOURCES.forEach { moveIncomeToSource(sourceName = it.name, fromType = it.type.name) }
+    }
 
     @Insert
     suspend fun insertTransaction(transaction: TransactionEntity): Long

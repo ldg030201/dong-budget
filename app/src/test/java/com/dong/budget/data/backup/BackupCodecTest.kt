@@ -1,8 +1,10 @@
 package com.dong.budget.data.backup
 
 import com.dong.budget.data.db.CategoryEntity
+import com.dong.budget.data.db.CategoryScope
 import com.dong.budget.data.db.CategoryStyle
 import com.dong.budget.data.db.DEFAULT_CATEGORIES
+import com.dong.budget.data.db.DEFAULT_INCOME_SOURCES
 import com.dong.budget.data.db.DEFAULT_PAYMENT_METHODS
 import com.dong.budget.data.db.PaymentMethodEntity
 import com.dong.budget.data.db.TransactionEntity
@@ -19,9 +21,9 @@ import org.junit.Test
 import java.time.Instant
 
 class BackupCodecTest {
-    // 기본 분류·결제수단에 번호를 매긴 DB 줄. 식비가 1, 급여가 7, 현금이 101, 체크카드가 102
+    // 기본 분류·결제수단·들어온 곳에 번호를 매긴 DB 줄. 식비가 1, 급여가 7, 현금이 101, 체크카드가 102, 들어온 곳 현금이 105
     private val categories = DEFAULT_CATEGORIES.mapIndexed { i, c -> c.toEntity().copy(id = i + 1L) }
-    private val paymentMethods = DEFAULT_PAYMENT_METHODS.mapIndexed { i, m -> m.toEntity().copy(id = i + 101L) }
+    private val paymentMethods = (DEFAULT_PAYMENT_METHODS + DEFAULT_INCOME_SOURCES).mapIndexed { i, m -> m.toEntity().copy(id = i + 101L) }
     private val food = categories.first { it.code == "FOOD" }
     private val salary = categories.first { it.code == "SALARY" }
     private val check = paymentMethods.first { it.name == "체크카드" }
@@ -129,8 +131,39 @@ class BackupCodecTest {
 
     @Test
     fun `더 새 판의 백업은 앱을 업데이트하라고 한다`() {
-        val text = BackupCodec.encode(backup(), pretty = false).replace("\"format\":1", "\"format\":2")
+        val text = BackupCodec.encode(backup(), pretty = false).replace("\"format\":$BACKUP_FORMAT", "\"format\":${BACKUP_FORMAT + 1}")
         assertEquals(BackupCodec.TOO_NEW, reason(text))
+    }
+
+    @Test
+    fun `목록이 다르면 이름이 같아도 받고 같은 목록에서 겹치면 망가진 백업이다`() {
+        // 결제수단 '현금' 과 들어온 곳 '현금'
+        val both = decodeValid(BackupCodec.encode(backup(), pretty = false))
+        assertEquals(2, both.paymentMethods.count { it.name == "현금" })
+        assertEquals(
+            setOf(CategoryScope.EXPENSE, CategoryScope.INCOME),
+            both.paymentMethods.filter {
+                it.name == "현금"
+            }.map { it.scope }.toSet(),
+        )
+        val incomeDup = broken { b -> b.copy(paymentMethods = b.paymentMethods + b.paymentMethods.last().copy(uuid = "dup-income")) }
+        assertEquals(BackupCodec.BROKEN, reason(incomeDup))
+    }
+
+    @Test
+    fun `목록 칸이 없는 판 1 백업은 모두 결제수단으로 읽는다`() {
+        // 1.8.1 이 만든 모양: 판 1, 들어온 곳 없음, 결제수단에 목록 칸 없음
+        val expenseOnly = paymentMethods.filter { it.scope == CategoryScope.EXPENSE }
+        val old = backupOf(categories, expenseOnly, listOf(lunch), appVersion = "1.8.1", exportedAt = Instant.parse("2026-10-01T00:00:00Z"))
+        val encoded = BackupCodec.encode(old, pretty = false).replace("\"format\":$BACKUP_FORMAT", "\"format\":1")
+        // 결제수단 칸에서만 목록을 뺀다(분류의 목록은 판 1 에도 있다)
+        val methodsPart = encoded.substringAfter("\"paymentMethods\"").substringBefore("\"transactions\"")
+        val text = encoded.replace(methodsPart, methodsPart.replace(",\"scope\":\"EXPENSE\"", ""))
+        assertTrue("scope" !in text.substringAfter("\"paymentMethods\"").substringBefore("\"transactions\""))
+        val read = decodeValid(text)
+        assertEquals(1, read.format)
+        assertEquals(expenseOnly.map { it.copy(id = 0) }, read.paymentMethods.map { it.toEntity() })
+        assertTrue(read.paymentMethods.all { it.scope == CategoryScope.EXPENSE })
     }
 
     @Test

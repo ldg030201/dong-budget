@@ -114,4 +114,17 @@ class BackupTextTest {
         val preview = RestorePreview(backup(1).copy(salary = SalaryRecord(amount = 3_000_000)), Instant.parse("2026-09-29T05:03:00Z"), 0)
         assertTrue(restoreMessage(preview, today).contains("결제수단 1개 · 월급 설정\n"))
     }
+
+    @Test
+    fun `들어온 곳이 담긴 백업이면 결제수단과 따로 센다`() {
+        val withSource =
+            backup(1).let { b ->
+                b.copy(
+                    paymentMethods =
+                    b.paymentMethods + BackupPaymentMethod("p2", "통장", PaymentMethodType.ACCOUNT, scope = CategoryScope.INCOME),
+                )
+            }
+        val preview = RestorePreview(withSource, Instant.parse("2026-09-29T05:03:00Z"), 0)
+        assertTrue(restoreMessage(preview, today).contains("결제수단 1개 · 들어온 곳 1개\n"))
+    }
 }

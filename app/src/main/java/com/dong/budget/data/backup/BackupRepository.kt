@@ -37,11 +37,14 @@ class BackupRepository(private val database: BudgetDatabase) {
             }
             // 기본 분류를 지우고 코드 없이 다시 만든 때의 백업이면 그 분류에 코드를 돌려준다(고정지출 탭·월급 등록이 알아보게)
             database.categoryDao().reclaimDefaultCodes()
+            // 들어온 곳이 생기기 전(1.8.1 까지)의 백업이면 DB 를 올릴 때처럼 기본 들어온 곳을 넣고 옛 수입을 그리로 옮긴다.
+            // 새 백업은 사용자가 지운 들어온 곳을 되살리지 않게 그대로 둔다.
+            if (backup.format < BACKUP_FORMAT_INCOME_SOURCES) dao.settleIncomeSources()
         }
         DevLog.info(
             LogTag.BACKUP,
             "복원 · ${backup.exportedAt}(${backup.appVersion})에 만든 백업 · 거래 ${backup.transactions.size}건 · " +
-                "분류 ${backup.categories.size}개 · 결제수단 ${backup.paymentMethods.size}개",
+                "분류 ${backup.categories.size}개 · 결제수단·들어온 곳 ${backup.paymentMethods.size}개 · 판 ${backup.format}",
         )
     }
 

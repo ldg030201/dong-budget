@@ -6,6 +6,7 @@ import com.dong.budget.data.backup.BackupKind
 import com.dong.budget.data.backup.BackupSchedule
 import com.dong.budget.data.backup.LastBackup
 import com.dong.budget.data.db.BudgetTime
+import com.dong.budget.data.db.CategoryScope
 import com.dong.budget.data.settings.BottomMenu
 import com.dong.budget.ui.format.formatAmount
 import com.dong.budget.ui.format.formatDate
@@ -106,9 +107,13 @@ private const val AUTO_BACKUP_NOTICE = "지우기 전에 지금 데이터를 다
 internal fun restoreMessage(preview: RestorePreview, today: LocalDate): String {
     val backup = preview.backup
     val made = "${formatDate(preview.exportedAt, today)} ${formatTime(preview.exportedAt)}"
+    // 들어온 곳은 1.8.1 까지의 백업에는 없어서 있을 때만 적는다
+    val incomeSources = backup.paymentMethods.count { it.scope == CategoryScope.INCOME }
     return "${made}에 만든 백업이에요.\n" +
         "거래 ${formatAmount(backup.transactions.size.toLong())}건 · 분류 ${backup.categories.size}개 · " +
-        "결제수단 ${backup.paymentMethods.size}개${if (backup.salary != null) " · 월급 설정" else ""}\n\n" +
+        "결제수단 ${backup.paymentMethods.size - incomeSources}개" +
+        (if (incomeSources > 0) " · 들어온 곳 ${incomeSources}개" else "") +
+        "${if (backup.salary != null) " · 월급 설정" else ""}\n\n" +
         (if (preview.currentTransactions > 0) "지금 있는 거래 ${formatAmount(preview.currentTransactions.toLong())}건과 " else "지금 있는 ") +
         "분류·결제수단은 모두 지우고 백업 내용으로 바꿔요. " +
         if (preview.autoBackup) AUTO_BACKUP_NOTICE else "되돌릴 수 없어요."
