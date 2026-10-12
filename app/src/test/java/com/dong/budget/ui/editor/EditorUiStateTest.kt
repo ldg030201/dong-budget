@@ -28,7 +28,8 @@ class EditorUiStateTest {
     private val methods = listOf(hana, incomeCash, bank)
 
     /** 알림에서 채워 연 등록창. '토스뱅크' 는 아직 결제수단에 없다. */
-    private val prefilled = EditorUiState(pendingPaymentName = "토스뱅크", allPaymentMethods = listOf(hana))
+    private val prefilled =
+        EditorUiState(pendingPaymentName = "토스뱅크", paymentPick = PaymentPick.Pending, allPaymentMethods = listOf(hana))
 
     @Test
     fun `알림에서 읽은 새 카드는 다른 결제수단을 고르기 전까지 골라져 있다`() {
@@ -38,13 +39,13 @@ class EditorUiStateTest {
 
     @Test
     fun `다른 결제수단을 골라도 새 카드 이름은 남아 다시 고를 수 있다`() {
-        val switched = prefilled.copy(paymentMethodId = hana.id)
+        val switched = prefilled.withPaymentMethodTapped(hana.id)
         assertFalse(switched.isPendingPaymentSelected)
         assertEquals(hana, switched.selectedPaymentMethod)
         assertEquals("토스뱅크", switched.pendingPaymentName)
         assertFalse(RequiredField.PAYMENT in switched.missingFields)
 
-        assertTrue(switched.copy(paymentMethodId = null).isPendingPaymentSelected)
+        assertTrue(switched.withPendingPaymentTapped().isPendingPaymentSelected)
     }
 
     @Test
@@ -62,11 +63,16 @@ class EditorUiStateTest {
 
     @Test
     fun `번호로 고른 결제수단을 그사이 지웠으면 비어 있는 것으로 보고 고르게 한다`() {
-        val fixed = EditorUiState(prefillSource = PrefillSource.FIXED_EXPENSE, paymentMethodId = 99, allPaymentMethods = listOf(hana))
+        val fixed =
+            EditorUiState(
+                prefillSource = PrefillSource.FIXED_EXPENSE,
+                paymentPick = PaymentPick.Existing(99),
+                allPaymentMethods = listOf(hana),
+            )
         assertEquals(null, fixed.selectedPaymentMethod)
         assertFalse(fixed.isPendingPaymentSelected)
         assertTrue(RequiredField.PAYMENT in fixed.missingFields)
-        assertEquals(hana, fixed.copy(paymentMethodId = hana.id).selectedPaymentMethod)
+        assertEquals(hana, fixed.withPaymentMethodTapped(hana.id).selectedPaymentMethod)
     }
 
     @Test
@@ -103,7 +109,7 @@ class EditorUiStateTest {
                 isEditing = true,
                 type = TransactionType.INCOME,
                 allPaymentMethods = methods,
-                paymentMethodId = hana.id,
+                paymentPick = PaymentPick.Existing(hana.id),
                 loadedPaymentMethodId = hana.id,
                 loadedType = TransactionType.INCOME,
             )
@@ -121,17 +127,20 @@ class EditorUiStateTest {
                 allPaymentMethods = methods,
                 pendingPaymentName = "토스뱅크 통장",
                 pendingPaymentScope = CategoryScope.INCOME,
+                paymentPick = PaymentPick.Pending,
             )
         assertTrue(deposit.isPendingPaymentSelected)
         assertEquals("account_balance", deposit.pendingPaymentIcon)
         assertEquals(CategoryStyle.firstUnusedColor(setOf("green", "teal")), deposit.pendingPaymentColor)
         // 비우기로 했으면 고르지 않은 것이다
-        assertFalse(deposit.copy(paymentCleared = true).isPendingPaymentSelected)
+        assertFalse(deposit.copy(paymentPick = PaymentPick.None).isPendingPaymentSelected)
         // 지출로 바꾸면 숨고 결제수단을 골라야 한다
-        val expense = deposit.copy(type = TransactionType.EXPENSE)
+        val expense = deposit.withType(TransactionType.EXPENSE)
         assertEquals(null, expense.visiblePendingPaymentName)
         assertFalse(expense.isPendingPaymentSelected)
         assertTrue(RequiredField.PAYMENT in expense.missingFields)
+        // 수입으로 돌아오면 다시 골라진다
+        assertTrue(expense.withType(TransactionType.INCOME).isPendingPaymentSelected)
     }
 
     @Test
@@ -147,11 +156,31 @@ class EditorUiStateTest {
     @Test
     fun `지출과 수입을 바꾸면 새 목록에 없는 결제수단은 비운다`() {
         val expense = EditorUiState(allPaymentMethods = methods).withPaymentMethodTapped(hana.id)
-        assertEquals(null, expense.withType(TransactionType.INCOME).paymentMethodId)
+        assertEquals(PaymentPick.None, expense.withType(TransactionType.INCOME).paymentPick)
         val income = EditorUiState(type = TransactionType.INCOME, allPaymentMethods = methods).withPaymentMethodTapped(bank.id)
-        assertEquals(null, income.withType(TransactionType.EXPENSE).paymentMethodId)
-        // 목록을 아직 읽기 전이면 그대로 둔다
-        assertEquals(hana.id, EditorUiState(paymentMethodId = hana.id).withType(TransactionType.INCOME).paymentMethodId)
+        assertEquals(PaymentPick.None, income.withType(TransactionType.EXPENSE).paymentPick)
+        // 같은 종류를 다시 누르면 그대로 둔다
+        assertEquals(hana, expense.withType(TransactionType.EXPENSE).selectedPaymentMethod)
+    }
+
+    @Test
+    fun `목록을 읽기 전에 종류를 바꾸면 고른 것을 비워 보이지 않는 값이 남지 않는다`() {
+        // 고정지출로 연 지출(결제수단 번호)을 목록이 오기 전에 수입으로 바꿨다
+        val early = EditorUiState(paymentPick = PaymentPick.Existing(hana.id)).withType(TransactionType.INCOME)
+        assertEquals(PaymentPick.None, early.paymentPick)
+        // 목록이 와도 비어 있다. 수입은 비워도 저장되므로 결제수단 '하나카드' 가 몰래 저장되지 않는다
+        assertEquals(null, early.withPaymentMethods(methods, keepPending = true).selectedPaymentMethod)
+        // 같은 종류를 다시 누른 것이면 목록 전이라도 그대로 둔다
+        val same = EditorUiState(paymentPick = PaymentPick.Existing(hana.id)).withType(TransactionType.EXPENSE)
+        assertEquals(PaymentPick.Existing(hana.id), same.paymentPick)
+    }
+
+    @Test
+    fun `지금 종류의 표에 없는 결제수단은 고른 것으로 보지 않는다`() {
+        // 수입인데 결제수단(지출 쪽) 번호가 남아 있으면 화면처럼 빈 칸으로 보고 저장하지 않는다(저장은 selectedPaymentMethod 를 쓴다)
+        val income = EditorUiState(type = TransactionType.INCOME, allPaymentMethods = methods, paymentPick = PaymentPick.Existing(hana.id))
+        assertEquals(null, income.selectedPaymentMethod)
+        assertFalse(RequiredField.PAYMENT in income.missingFields)
     }
 
     @Test
@@ -161,7 +190,7 @@ class EditorUiStateTest {
                 isEditing = true,
                 type = TransactionType.INCOME,
                 allPaymentMethods = methods,
-                paymentMethodId = hana.id,
+                paymentPick = PaymentPick.Existing(hana.id),
                 loadedPaymentMethodId = hana.id,
                 loadedType = TransactionType.INCOME,
             )
@@ -180,6 +209,7 @@ class EditorUiStateTest {
                 allPaymentMethods = methods,
                 pendingPaymentName = "토스뱅크 통장",
                 pendingPaymentScope = CategoryScope.INCOME,
+                paymentPick = PaymentPick.Pending,
             )
         val cleared = deposit.withPendingPaymentTapped()
         assertFalse(cleared.isPendingPaymentSelected)
@@ -192,7 +222,12 @@ class EditorUiStateTest {
     @Test
     fun `월급날의 통장은 들어온 곳에서 찾아 고르고 결제수단에서 찾지 않는다`() {
         val payday =
-            EditorUiState(type = TransactionType.INCOME, pendingPaymentName = "통장", pendingPaymentScope = CategoryScope.INCOME)
+            EditorUiState(
+                type = TransactionType.INCOME,
+                pendingPaymentName = "통장",
+                pendingPaymentScope = CategoryScope.INCOME,
+                paymentPick = PaymentPick.Pending,
+            )
         val loaded = payday.withPaymentMethods(methods, keepPending = false)
         assertEquals(bank, loaded.selectedPaymentMethod)
         assertEquals(null, loaded.pendingPaymentName)
@@ -202,5 +237,6 @@ class EditorUiStateTest {
         val none = payday.withPaymentMethods(expenseOnly, keepPending = false)
         assertEquals(null, none.selectedPaymentMethod)
         assertEquals(null, none.pendingPaymentName)
+        assertEquals(PaymentPick.None, none.paymentPick)
     }
 }

@@ -384,7 +384,7 @@ fun TransactionEditorScreen(
                             InputPanelBox {
                                 PickerGrid(
                                     items = state.paymentMethods,
-                                    selectedId = state.paymentMethodId,
+                                    selectedId = state.selectedPaymentMethod?.id,
                                     onSelect = { id ->
                                         onSelectPaymentMethod(id)
                                         panel = null

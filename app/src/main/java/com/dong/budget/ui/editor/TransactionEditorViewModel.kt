@@ -65,20 +65,27 @@ sealed interface EditorEffect {
     data object Added : EditorEffect
 }
 
+/** 결제수단(수입이면 들어온 곳) 칸에서 고른 것 */
+sealed interface PaymentPick {
+    /** 고른 것이 없다. 수입에서 고른 것을 다시 눌러 비웠을 때도 이것이다. */
+    data object None : PaymentPick
+
+    /** 있는 결제수단(들어온 곳). 지금 종류의 표에 없으면 비어 보이고 저장하지 않는다([EditorUiState.selectedPaymentMethod]). */
+    data class Existing(val id: Long) : PaymentPick
+
+    /** 알림에서 읽은 이름으로 저장할 때 새로 만들 것([EditorUiState.pendingPaymentName]) */
+    data object Pending : PaymentPick
+}
+
 data class EditorUiState(
     val isEditing: Boolean = false,
     /**
      * 알림에서 읽은 카드(입금 알림이면 통장) 이름인데 같은 이름의 결제수단(들어온 곳)이 아직 없을 때 그 이름. 이것을 고른 채 저장하면 새로 만든다.
-     * 다른 것을 골라도 남겨 둔다. 표의 맨 뒤에 보여서 다시 고를 수 있다([isPendingPaymentSelected]).
+     * 다른 것을 골라도 남겨 둔다. 표의 맨 뒤에 보여서 다시 고를 수 있다([PaymentPick.Pending]).
      */
     val pendingPaymentName: String? = null,
     /** [pendingPaymentName] 을 만들 목록. 결제 알림이면 결제수단(지출), 입금 알림·월급날이면 들어온 곳(수입)이다. 다른 종류에서는 보이지 않는다. */
     val pendingPaymentScope: CategoryScope = CategoryScope.EXPENSE,
-    /**
-     * 수입에서 들어온 곳을 비워 두기로 했다(고른 것을 다시 눌러 풀었다). 새로 만들 들어온 곳([pendingPaymentName])이 있어도 고르지 않은 것으로 본다.
-     * 다른 것을 고르거나 지출·수입을 바꾸면 풀린다.
-     */
-    val paymentCleared: Boolean = false,
     /** 알림에서 읽은 결제의 열쇠. 같은 결제를 두 번 등록하지 않게 거래에 함께 저장한다. 직접 입력하거나 고정지출로 채웠으면 null */
     val dedupKey: String? = null,
     /** 채워 연 곳(결제·입금 알림·월급날·고정지출). 직접 입력하면 null */
@@ -89,7 +96,7 @@ data class EditorUiState(
     /** 숫자만 담는다. 표시할 때 세 자리마다 끊는다. */
     val amountDigits: String = "",
     val categoryId: Long? = null,
-    val paymentMethodId: Long? = null,
+    val paymentPick: PaymentPick = PaymentPick.None,
     val merchant: String = "",
     val memo: String = "",
     val occurredAt: Instant = Instant.now(),
@@ -147,25 +154,26 @@ data class EditorUiState(
 
     /**
      * 고르는 표에 둘 결제수단. 지금 종류의 목록(지출은 결제수단, 수입은 들어온 곳)에, 고쳐 여는 거래가 처음 가리키던 다른 목록의 것을
-     * 그 거래의 종류일 때만 맨 뒤에 붙인다([loadedPaymentMethodId]).
+     * 그 거래의 종류일 때만 맨 뒤에 붙인다([loadedPaymentMethodId]). 상태 하나에 한 번만 거른다(고른 것·빈 칸 찾기가 여러 번 읽는다).
      */
-    val paymentMethods: List<PaymentMethodEntity>
-        get() {
-            val scope = paymentScope
-            return allPaymentMethods.filter { it.scope == scope } +
-                allPaymentMethods.filter { it.scope != scope && type == loadedType && it.id == loadedPaymentMethodId }
-        }
+    val paymentMethods: List<PaymentMethodEntity> by lazy(LazyThreadSafetyMode.NONE) {
+        val scope = paymentScope
+        allPaymentMethods.filter { it.scope == scope } +
+            allPaymentMethods.filter { it.scope != scope && type == loadedType && it.id == loadedPaymentMethodId }
+    }
 
-    val selectedPaymentMethod: PaymentMethodEntity? get() = paymentMethods.firstOrNull { it.id == paymentMethodId }
+    /**
+     * 고른 결제수단(들어온 곳). 지금 종류의 표에 없으면 null 이다. 화면에 보이는 것이 곧 저장되는 것이라
+     * 저장할 때도 이것을 쓴다(목록을 다 읽기 전이거나 다른 목록의 것을 고른 채로 남아 있어도 보이지 않는 값을 저장하지 않는다).
+     */
+    val selectedPaymentMethod: PaymentMethodEntity?
+        get() = (paymentPick as? PaymentPick.Existing)?.let { pick -> paymentMethods.firstOrNull { it.id == pick.id } }
 
     /** 새로 만들 결제수단(들어온 곳) 이름. 그 목록의 종류일 때만 있다. 지출·수입을 바꾸면 숨었다가 돌아오면 다시 보인다. */
     val visiblePendingPaymentName: String? get() = pendingPaymentName?.takeIf { pendingPaymentScope == paymentScope }
 
-    /**
-     * 새로 만들 결제수단([pendingPaymentName])을 고른 상태인지. 다른 것을 고르지 않았으면 이것이 골라져 있다.
-     * 수입에서 고른 것을 다시 눌러 비웠으면([paymentCleared]) 고르지 않은 것이다.
-     */
-    val isPendingPaymentSelected: Boolean get() = visiblePendingPaymentName != null && paymentMethodId == null && !paymentCleared
+    /** 새로 만들 결제수단([pendingPaymentName])을 고른 상태인지. 지금 종류에서 보일 때만이다. */
+    val isPendingPaymentSelected: Boolean get() = paymentPick == PaymentPick.Pending && visiblePendingPaymentName != null
 
     /** [pendingPaymentName] 으로 새로 만들 것의 아이콘. 결제수단은 카드, 들어온 곳은 통장이다. 저장할 때 만들어질 모양(findOrCreate)과 같다. */
     val pendingPaymentIcon: String get() = PaymentMethodRepository.newItemIcon(pendingPaymentScope)
@@ -257,10 +265,18 @@ class TransactionEditorViewModel(
             pendingPaymentName = data.paymentName?.let(PaymentMethodRepository::normalizeName),
             // 입금 알림의 통장과 월급날의 '통장' 은 들어온 곳에서 찾는다
             pendingPaymentScope = type.categoryScope(),
-            // 번호로 고른 결제수단을 그사이 지웠으면 표에 없어 비어 보이고, 저장할 때 빈 칸으로 막혀 사용자가 고른다.
-            paymentMethodId = data.paymentMethodId,
             dedupKey = data.dedupKey,
-        )
+        ).let { state ->
+            // 번호로 고른 결제수단을 그사이 지웠으면 표에 없어 비어 보이고, 저장할 때 빈 칸으로 막혀 사용자가 고른다.
+            // 번호가 없고 알림에서 읽은 이름이 있으면 그것(새로 만들 것)을 고른 채 연다. 이름과 번호는 같이 오지 않는다.
+            val pick =
+                when {
+                    data.paymentMethodId != null -> PaymentPick.Existing(data.paymentMethodId)
+                    state.pendingPaymentName != null -> PaymentPick.Pending
+                    else -> PaymentPick.None
+                }
+            state.copy(paymentPick = pick)
+        }
     }
 
     /**
@@ -320,7 +336,7 @@ class TransactionEditorViewModel(
                     type = existing.type,
                     amountDigits = existing.amount.toString(),
                     categoryId = existing.categoryId,
-                    paymentMethodId = existing.paymentMethodId,
+                    paymentPick = existing.paymentMethodId?.let(PaymentPick::Existing) ?: PaymentPick.None,
                     loadedPaymentMethodId = existing.paymentMethodId,
                     loadedType = existing.type,
                     merchant = existing.merchant.orEmpty(),
@@ -426,7 +442,7 @@ class TransactionEditorViewModel(
                     AddTarget.CATEGORY -> it.copy(categoryId = result.id, addTarget = null, addError = null)
 
                     AddTarget.PAYMENT, AddTarget.INCOME_SOURCE ->
-                        it.copy(paymentMethodId = result.id, paymentCleared = false, addTarget = null, addError = null)
+                        it.copy(paymentPick = PaymentPick.Existing(result.id), addTarget = null, addError = null)
                 }
             }
             _effects.send(EditorEffect.Added)
@@ -468,7 +484,7 @@ class TransactionEditorViewModel(
                 }
                 // 알림에서 읽은 카드(통장)가 아직 결제수단(들어온 곳)에 없으면 이때 만든다. 등록을 취소하면 만들지 않는다.
                 val paymentMethodId =
-                    state.paymentMethodId ?: state.visiblePendingPaymentName?.takeIf { state.isPendingPaymentSelected }?.let {
+                    state.selectedPaymentMethod?.id ?: state.visiblePendingPaymentName?.takeIf { state.isPendingPaymentSelected }?.let {
                         paymentMethodRepository.findOrCreate(state.pendingPaymentScope, it, pickUnusedColor = state.pickUnusedColor)
                     }
                 try {
@@ -496,7 +512,7 @@ class TransactionEditorViewModel(
                     amount = state.amount,
                     occurredAt = state.occurredAt,
                     categoryId = state.categoryId,
-                    paymentMethodId = state.paymentMethodId,
+                    paymentMethodId = state.selectedPaymentMethod?.id,
                     merchant = state.merchant,
                     memo = state.memo,
                 )
@@ -536,24 +552,37 @@ fun TransactionType.categoryScope(): CategoryScope = if (this == TransactionType
 /**
  * 결제수단·들어온 곳 목록이 새로 왔다. 알림에서 읽은 카드(통장) 이름과 같은 것이 그 목록에 있으면(띄어쓰기·대소문자 무시,
  * 예전에 잘려 만든 이름 포함) 새로 만들 것이 없다. 그 이름을 고른 상태였으면 있는 것을 고른다. 등록창에서 같은 이름을 직접 추가한 경우도 여기로 온다.
- * @param keepPending 같은 이름이 없을 때 새로 만들 것으로 남겨 둘지('없는 카드·통장은 새로 추가하기')
+ * @param keepPending 같은 이름이 없을 때 새로 만들 것으로 남겨 둘지('없는 카드·통장은 새로 추가하기'). 안 남기면 고른 것도 비운다.
  */
 internal fun EditorUiState.withPaymentMethods(methods: List<PaymentMethodEntity>, keepPending: Boolean): EditorUiState {
     val sameList = methods.filter { it.scope == pendingPaymentScope }
     val match = pendingPaymentName?.let { PaymentMethodRepository.findSameCard(sameList, it) }
-    if (match == null) return copy(allPaymentMethods = methods, pendingPaymentName = pendingPaymentName.takeIf { keepPending })
-    val pick = paymentMethodId == null && !paymentCleared && pendingPaymentScope == type.categoryScope()
-    return copy(allPaymentMethods = methods, paymentMethodId = if (pick) match.id else paymentMethodId, pendingPaymentName = null)
+    val pending = if (match == null && keepPending) pendingPaymentName else null
+    val pick =
+        when {
+            paymentPick != PaymentPick.Pending -> paymentPick
+            match != null -> PaymentPick.Existing(match.id)
+            pending != null -> PaymentPick.Pending
+            else -> PaymentPick.None
+        }
+    return copy(allPaymentMethods = methods, pendingPaymentName = pending, paymentPick = pick)
 }
 
 /**
  * 지출·수입을 바꾼다. 고르는 목록도 바뀌어서(결제수단 ↔ 들어온 곳) 고른 것이 새 목록에 없으면 비운다(분류와 같다).
- * 목록을 아직 읽기 전이면 고른 것을 그대로 둔다. 수입에서 비워 두기로 한 것은 풀린다.
+ * 새 목록에 알림에서 읽은 새로 만들 것이 보이면 그것을 고른다(바꿨다 돌아오면 다시 골라진다). 수입에서 비운 것도 이때 풀린다.
+ * 목록을 아직 읽기 전이면 고른 것이 새 목록에 있는지 알 수 없어 비운다. 보이지 않는 값이 남지 않게 한다.
  */
 internal fun EditorUiState.withType(type: TransactionType): EditorUiState {
-    val next = copy(type = type, paymentCleared = false)
-    val stale = next.allPaymentMethods.isNotEmpty() && next.paymentMethodId != null && next.selectedPaymentMethod == null
-    return if (stale) next.copy(paymentMethodId = null) else next
+    if (type == this.type) return this
+    val next = copy(type = type)
+    val pick =
+        when {
+            next.selectedPaymentMethod != null -> paymentPick
+            next.visiblePendingPaymentName != null -> PaymentPick.Pending
+            else -> PaymentPick.None
+        }
+    return next.copy(paymentPick = pick)
 }
 
 /**
@@ -561,17 +590,16 @@ internal fun EditorUiState.withType(type: TransactionType): EditorUiState {
  * 결제수단(지출)은 필수라서 이미 고른 것을 다시 눌러도 풀지 않는다.
  * 알림에서 읽은 이름은 지우지 않는다. 마음이 바뀌면 표에서 다시 고를 수 있다.
  */
-internal fun EditorUiState.withPaymentMethodTapped(id: Long): EditorUiState = if (isIncome && paymentMethodId == id) {
-    copy(paymentMethodId = null, paymentCleared = true)
-} else {
-    copy(paymentMethodId = id, paymentCleared = false)
+internal fun EditorUiState.withPaymentMethodTapped(id: Long): EditorUiState {
+    val tapped = PaymentPick.Existing(id)
+    return copy(paymentPick = if (isIncome && paymentPick == tapped) PaymentPick.None else tapped)
 }
 
 /** 표에서 새로 만들 결제수단(들어온 곳)을 눌렀다. 그것을 고른다. 수입에서 이미 고른 채 다시 누르면 비운다. */
 internal fun EditorUiState.withPendingPaymentTapped(): EditorUiState = when {
     visiblePendingPaymentName == null -> this
-    isIncome && isPendingPaymentSelected -> copy(paymentCleared = true)
-    else -> copy(paymentMethodId = null, paymentCleared = false)
+    isIncome && isPendingPaymentSelected -> copy(paymentPick = PaymentPick.None)
+    else -> copy(paymentPick = PaymentPick.Pending)
 }
 
 /** 키패드 금액 칸에 둘 숫자. 0 이면 아직 적지 않은 것이라 비운다. */
