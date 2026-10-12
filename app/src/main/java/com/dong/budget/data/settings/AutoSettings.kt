@@ -13,7 +13,7 @@ enum class AutoOption(val key: String, val parent: AutoOption? = null) {
     /** 토스 입금 알림이 오면 수입으로 등록할지 묻는다. 내 다른 통장에서 옮긴 돈도 묻는다(2026-10-12 사용자 결정). */
     CAPTURE_DEPOSIT("auto_capture_deposit", parent = CAPTURE_PROMPT),
 
-    /** 결제 한 건이 알림 두 개로 오면(금액이 같고 5초 안) 먼저 온 것만 묻는다 */
+    /** 결제(입금) 한 건이 알림 두 개로 오면(종류·금액이 같고 5초 안) 먼저 온 것만 묻는다 */
     CAPTURE_DEDUPE("auto_capture_dedupe", parent = CAPTURE_PROMPT),
 
     /** 앱을 열 때마다 알림창에 남은 결제 알림을 다시 살펴 묻지 못한 결제를 묻는다 */

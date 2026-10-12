@@ -115,7 +115,7 @@ internal fun restoreMessage(preview: RestorePreview, today: LocalDate): String {
         (if (incomeSources > 0) " · 들어온 곳 ${incomeSources}개" else "") +
         "${if (backup.salary != null) " · 월급 설정" else ""}\n\n" +
         (if (preview.currentTransactions > 0) "지금 있는 거래 ${formatAmount(preview.currentTransactions.toLong())}건과 " else "지금 있는 ") +
-        "분류·결제수단은 모두 지우고 백업 내용으로 바꿔요. " +
+        "분류·결제수단·들어온 곳은 모두 지우고 백업 내용으로 바꿔요. " +
         if (preview.autoBackup) AUTO_BACKUP_NOTICE else "되돌릴 수 없어요."
 }
 
