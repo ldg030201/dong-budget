@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.dong.budget.data.PaymentMethodRepository
 import com.dong.budget.data.TransactionRepository
 import com.dong.budget.data.db.BudgetTime
+import com.dong.budget.data.db.CategoryScope
 import com.dong.budget.data.db.PaymentMethodEntity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -49,7 +50,8 @@ class CardPerformanceViewModel(
         viewModelScope.stateWhileAlive(clock, CardPerformanceUiState.loading(BudgetTime.toLocalDate(clock.instant()))) { todayFlow ->
             // 오늘·결제수단과 그에 맞춰 읽을 달 범위. 아래에서 두 번 쓰여 한 번만 구독하게 나눠 쓴다.
             val input =
-                combine(todayFlow, paymentMethodRepository.observeAll()) { today, methods ->
+                // 카드실적은 결제수단(지출 쪽 목록)만 본다. 들어온 곳은 읽지 않아 고쳐도 다시 계산하지 않는다.
+                combine(todayFlow, paymentMethodRepository.observe(CategoryScope.EXPENSE)) { today, methods ->
                     TabInput(today, methods, tabReadRange(today, methods))
                 }.flowOn(Dispatchers.Default)
                     .shareIn(viewModelScope, SharingStarted.WhileSubscribed(), replay = 1)

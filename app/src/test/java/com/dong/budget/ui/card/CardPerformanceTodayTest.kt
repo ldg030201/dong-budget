@@ -57,7 +57,7 @@ class CardPerformanceTodayTest {
                 PaymentMethodRepository(
                     fakeDao(PaymentMethodDao::class.java) { name, _ ->
                         if (name ==
-                            "observeAll"
+                            "observeByScope"
                         ) {
                             flowOf(listOf(card))
                         } else {
@@ -131,7 +131,7 @@ class CardPerformanceTodayTest {
                 PaymentMethodRepository(
                     fakeDao(PaymentMethodDao::class.java) { name, _ ->
                         if (name ==
-                            "observeAll"
+                            "observeByScope"
                         ) {
                             flowOf(listOf(card))
                         } else {

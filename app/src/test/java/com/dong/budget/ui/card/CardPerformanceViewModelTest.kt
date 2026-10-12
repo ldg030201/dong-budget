@@ -5,6 +5,7 @@ import com.dong.budget.data.PaymentMethodRepository
 import com.dong.budget.data.TransactionRepository
 import com.dong.budget.data.db.BudgetTime
 import com.dong.budget.data.db.CardSpendRow
+import com.dong.budget.data.db.CategoryScope
 import com.dong.budget.data.db.PaymentMethodDao
 import com.dong.budget.data.db.PaymentMethodEntity
 import com.dong.budget.data.db.PaymentMethodFirstUse
@@ -63,7 +64,12 @@ class CardPerformanceViewModelTest {
             }
         val viewModel =
             CardPerformanceViewModel(
-                PaymentMethodRepository(fakeDao(PaymentMethodDao::class.java) { name, _ -> if (name == "observeAll") methods else null }),
+                // 카드실적은 결제수단(지출 쪽 목록)만 읽는다. 들어온 곳까지 읽으면 이 가짜 DAO 가 막는다.
+                PaymentMethodRepository(
+                    fakeDao(PaymentMethodDao::class.java) { name, args ->
+                        if (name == "observeByScope" && args == listOf(CategoryScope.EXPENSE)) methods else null
+                    },
+                ),
                 TransactionRepository(transactions),
                 Clock.fixed(Instant.parse("2026-10-03T03:00:00Z"), BudgetTime.ZONE),
             )

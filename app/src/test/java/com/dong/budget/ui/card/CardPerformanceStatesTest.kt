@@ -1,6 +1,5 @@
 package com.dong.budget.ui.card
 
-import com.dong.budget.data.db.CategoryScope
 import com.dong.budget.data.db.PaymentMethodEntity
 import com.dong.budget.data.db.PaymentMethodType
 import com.dong.budget.data.db.TransactionListItem
@@ -52,25 +51,6 @@ class CardPerformanceStatesTest {
         tx("2026-10-02", 70_000, paymentId = 10),
         tx("2026-10-02", 20_000, paymentId = 5),
     )
-
-    @Test
-    fun `들어온 곳은 카드실적 탭에 나오지 않는다`() {
-        // 입금 알림으로 생긴 들어온 곳(통장)과 직접 만든 들어온 곳. 종류가 '기타' 여도 카드가 아니다
-        val sources =
-            listOf(
-                PaymentMethodEntity(
-                    id = 20,
-                    uuid = "s20",
-                    scope = CategoryScope.INCOME,
-                    name = "토스뱅크 통장",
-                    type = PaymentMethodType.ACCOUNT,
-                ),
-                PaymentMethodEntity(id = 21, uuid = "s21", scope = CategoryScope.INCOME, name = "용돈 봉투", type = PaymentMethodType.OTHER),
-            )
-        val state = buildCardPerformance(methods + sources, rows.cardSpending(), today, emptyMap())
-        val names = state.tracked.map { it.card.name } + state.untracked.map { it.card.name }
-        assertTrue(names.none { it == "토스뱅크 통장" || it == "용돈 봉투" })
-    }
 
     @Test
     fun `현금과 계좌이체는 빼고, 실적을 적은 카드는 결제수단 순서로 둔다`() {
