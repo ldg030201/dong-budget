@@ -52,7 +52,7 @@ import java.time.Instant
 import java.time.LocalDate
 
 /**
- * 알림 화면. 홈 오른쪽 위 종으로 들어온다. 지금은 결제 등록 알림만 모은다.
+ * 알림 화면. 홈 오른쪽 위 종으로 들어온다. 지금은 결제·입금 등록 알림만 모은다.
  *
  * 아직 눌러 보지 않은 알림은 연한 남색 바탕에 오른쪽 빨간 점, 눌러 본 알림은 바탕도 점도 없이 둔다.
  * 한 줄을 누르면 알림창의 알림을 누른 것과 똑같이 결제 내용이 채워진 등록창이 열린다.
@@ -146,7 +146,7 @@ fun InboxScreen(
                             // 맨 위를 보던 중에 새 결제가 들어오면 이 줄 바로 아래에 보인다(위쪽 밖에 숨지 않는다).
                             item(key = CAPTION_KEY) {
                                 Text(
-                                    text = "최근 ${CaptureStore.RETENTION_DAYS}일 동안 온 결제 알림이에요",
+                                    text = "최근 ${CaptureStore.RETENTION_DAYS}일 동안 온 결제·입금 알림이에요",
                                     style = MaterialTheme.typography.bodySmall,
                                     color = BudgetTheme.colors.textSecondary,
                                     modifier = Modifier.padding(
@@ -190,7 +190,7 @@ private fun EmptyInbox() {
             color = BudgetTheme.colors.textPrimary,
         )
         Text(
-            text = "결제 등록 알림이 오면 여기에 ${CaptureStore.RETENTION_DAYS}일 동안 모여요",
+            text = "결제·입금 등록 알림이 오면 여기에 ${CaptureStore.RETENTION_DAYS}일 동안 모여요",
             style = MaterialTheme.typography.bodyMedium,
             color = BudgetTheme.colors.textSecondary,
             textAlign = TextAlign.Center,
@@ -213,7 +213,10 @@ private fun RowScope.RowEnd(visible: Boolean, content: @Composable () -> Unit) {
     }
 }
 
-/** 알림 한 줄. 금액과 가게, 그 아래 카드·할부·온 때를 적는다. 화면 읽기는 한 번에 읽는다. */
+/**
+ * 알림 한 줄. 금액과 가게, 그 아래 카드·할부·온 때를 적는다. 화면 읽기는 한 번에 읽는다.
+ * 입금은 금액 뒤에 '입금' 을 붙이고 보낸 사람, 그 아래 들어온 통장·온 때를 적는다("200,000원 입금 · 이동건" / "토스뱅크 통장 · 오늘 오후 11:29").
+ */
 @Composable
 private fun InboxRow(item: InboxItem, today: LocalDate, onClick: () -> Unit, modifier: Modifier = Modifier) {
     val payment = item.payment
@@ -237,7 +240,11 @@ private fun InboxRow(item: InboxItem, today: LocalDate, onClick: () -> Unit, mod
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = listOfNotNull("${formatAmount(payment.amount)}원", payment.merchant.ifBlank { null }).joinToString(" · "),
+                text =
+                listOfNotNull(
+                    "${formatAmount(payment.amount)}원${if (payment.isDeposit) " 입금" else ""}",
+                    payment.merchant.ifBlank { null },
+                ).joinToString(" · "),
                 style = MaterialTheme.typography.bodyLarge,
                 color = BudgetTheme.colors.textPrimary,
                 maxLines = 1,

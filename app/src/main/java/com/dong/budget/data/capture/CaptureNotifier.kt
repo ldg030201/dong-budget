@@ -16,9 +16,9 @@ import com.dong.budget.R
 import java.util.Locale
 
 /**
- * '가계부에 등록할까요?' 알림.
+ * '가계부에 등록할까요?' 알림. 결제와 입금이 같은 채널·제목을 쓰고 본문만 다르다.
  *
- * 누르면 동계부가 열리고 결제 내용이 채워진 등록창이 뜬다(MainActivity → DongBudgetApp).
+ * 누르면 동계부가 열리고 결제(입금) 내용이 채워진 등록창이 뜬다(MainActivity → DongBudgetApp).
  * 눌러도 알림은 남는다. 등록창을 열었다가 그냥 닫으면 아직 등록하지 않은 것이므로 다시 누를 수 있어야 한다.
  * 저장하면 [dismiss] 로 치운다. 등록하지 않을 결제는 사용자가 밀어서 지운다.
  */
@@ -29,7 +29,7 @@ class CaptureNotifier(private val context: Context) : CapturePrompt {
     fun ensureChannel() {
         val channel =
             NotificationChannel(CHANNEL_ID, "결제 등록", NotificationManager.IMPORTANCE_DEFAULT).apply {
-                description = "토스·카카오페이 결제 알림을 읽고 가계부에 등록할지 물어봐요"
+                description = "토스·카카오페이 결제 알림과 토스 입금 알림을 읽고 가계부에 등록할지 물어봐요"
             }
         context.getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
     }
@@ -49,9 +49,11 @@ class CaptureNotifier(private val context: Context) : CapturePrompt {
         if (!hasPermission()) return
         ensureChannel()
         // 제목은 짧게 두고, 금액과 가게를 본문 앞에 둔다. 알림을 접은 상태에서는 한 줄만 보여 뒤가 잘린다.
+        // 입금은 금액 뒤에 '입금' 을 붙여 결제와 가른다. "200,000원 입금 · 이동건 · 토스뱅크 통장"
+        val amount = "${String.format(Locale.KOREA, "%,d", payment.amount)}원"
         val detail =
             listOfNotNull(
-                "${String.format(Locale.KOREA, "%,d", payment.amount)}원",
+                if (payment.isDeposit) "$amount 입금" else amount,
                 payment.merchant.ifBlank { null },
                 payment.paymentName,
                 payment.installmentLabel,

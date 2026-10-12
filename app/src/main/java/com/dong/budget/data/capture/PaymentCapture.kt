@@ -28,10 +28,11 @@ interface CapturePrompt {
 }
 
 /**
- * 다른 앱의 알림을 받아 결제면 등록할지 묻는다.
+ * 다른 앱의 알림을 받아 결제(토스 입금 알림이면 입금)면 등록할지 묻는다.
  *
  * 알림 읽기(PaymentNotificationListener)가 모든 알림을 여기로 넘긴다.
  * 결제 알림을 읽는 앱(토스·카카오페이)이 아닌 앱의 알림은 [isSource] 에서 바로 버리고, 어디에도 남기지 않는다.
+ * 입금은 결제와 같은 길을 지난다(기록·묻는 알림·알림 목록). [CapturedPayment.kind] 로 가른다.
  */
 class PaymentCapture(
     private val store: CaptureStore,
@@ -50,7 +51,7 @@ class PaymentCapture(
     private val mutex = Mutex()
 
     /**
-     * 결제 알림 앱(토스·카카오페이)의 알림 하나를 살펴 결제면 등록할지 묻는다.
+     * 결제 알림 앱(토스·카카오페이)의 알림 하나를 살펴 결제(입금)면 등록할지 묻는다.
      *
      * 제목과 본문은 알림에 따라 담기는 칸이 달라서 후보를 여러 개 받는다. 앞의 후보부터 맞춰 보고 처음 읽힌 것을 쓴다.
      * 알림 읽기는 펼친 본문을 앞에 둔다(PaymentNotificationListener). 파서는 본문을 줄마다 나눠 읽어 줄이 더 붙어도 괜찮고,
@@ -86,8 +87,8 @@ class PaymentCapture(
                 texts.firstNotNullOfOrNull { text -> parsers.firstNotNullOfOrNull { it.parse(title, text, occurredAtMillis) } }
             }
         if (payment == null) {
-            // 새 모양의 결제 알림을 고칠 때 실제 문구가 필요하다(개발자 모드 로그)
-            logSkipped("결제 알림 모양이 아니라 넘겼어요 · $packageName · 제목 ${quoted(titles)} · 본문 ${quoted(texts)}")
+            // 새 모양의 결제(입금) 알림을 고칠 때 실제 문구가 필요하다(개발자 모드 로그)
+            logSkipped("결제·입금 알림 모양이 아니라 넘겼어요 · $packageName · 제목 ${quoted(titles)} · 본문 ${quoted(texts)}")
             return false
         }
         // 이미 물어본 결제는 더 볼 것이 없다. 앱으로 돌아올 때마다 알림창에 남은 결제 알림을 다시 살피므로,
@@ -98,7 +99,7 @@ class PaymentCapture(
         // 스위치를 끄면 알림마다 묻는다(같은 금액을 5초 안에 두 번 결제하는 일이 잦은 경우).
         if (auto[AutoOption.CAPTURE_DEDUPE]) {
             store.findSamePayment(payment)?.let { first ->
-                logSkipped("같은 결제의 알림이 또 와서 넘겼어요 · ${describe(payment)} · 먼저 온 알림 ${first.dedupKey}")
+                logSkipped("같은 ${payment.word}의 알림이 또 와서 넘겼어요 · ${describe(payment)} · 먼저 온 알림 ${first.dedupKey}")
                 return false
             }
         }
@@ -110,7 +111,7 @@ class PaymentCapture(
         if (!store.remember(payment)) return false
         if (isRegistered(payment.dedupKey)) {
             store.markRegistered(payment.dedupKey)
-            DevLog.info(LogTag.CAPTURE, "이미 등록된 결제라 묻지 않았어요 · ${describe(payment)}")
+            DevLog.info(LogTag.CAPTURE, "이미 등록된 ${if (payment.isDeposit) "입금이라" else "결제라"} 묻지 않았어요 · ${describe(payment)}")
             return false
         }
         prompt.ask(payment)
@@ -180,7 +181,7 @@ class PaymentCapture(
         store.markRead(dedupKey)
         if (isRegistered(dedupKey)) {
             onRegistered(dedupKey)
-            return OpenResult.AlreadyRegistered
+            return OpenResult.AlreadyRegistered(payment.kind)
         }
         return OpenResult.Editor(payment)
     }
@@ -190,8 +191,8 @@ class PaymentCapture(
         /** 보관 기간이 지나 채울 내용이 없다 */
         data object Expired : OpenResult
 
-        /** 이미 등록한 결제 */
-        data object AlreadyRegistered : OpenResult
+        /** 이미 등록한 결제(입금). 무엇이었는지에 따라 알리는 말이 다르다. */
+        data class AlreadyRegistered(val kind: CaptureKind) : OpenResult
 
         /** 이 결제로 채운 등록창을 연다 */
         data class Editor(val payment: CapturedPayment) : OpenResult
@@ -285,9 +286,15 @@ class PaymentCapture(
         /** 카카오페이 앱. 카카오톡(com.kakao.talk)으로 오는 카카오페이 알림은 대화 알림과 섞여 있어 읽지 않는다. */
         const val KAKAOPAY_PACKAGE = "com.kakaopay.app"
 
-        /** 결제 알림을 읽는 앱과 그 앱의 알림을 읽는 법 */
-        private val parsers: Map<String, PaymentParser> =
-            mapOf(TOSS_PACKAGE to TossPaymentParser, KAKAOPAY_PACKAGE to KakaoPayPaymentParser)
+        /**
+         * 결제 알림을 읽는 앱과 그 앱의 알림을 읽는 법. 앞의 것부터 맞춰 본다.
+         * 토스 입금 알림은 머리에 '토스뱅크' 가 보이지만 토스 앱이 올린다고 본다(토스뱅크 앱은 따로 없다).
+         */
+        private val parsers: Map<String, List<PaymentParser>> =
+            mapOf(
+                TOSS_PACKAGE to listOf(TossPaymentParser, TossDepositParser),
+                KAKAOPAY_PACKAGE to listOf(KakaoPayPaymentParser),
+            )
 
         /** 개발 빌드에서는 adb 로 올린 가짜 알림(`adb shell cmd notification post`)도 받는다 */
         private const val SHELL_PACKAGE = "com.android.shell"
@@ -295,10 +302,19 @@ class PaymentCapture(
         private const val CLOCK_SKEW_MS = 60 * 1000L
         private const val MAX_DELAY_MS = 24 * 60 * 60 * 1000L
 
-        /** 로그에 적는 결제 한 줄. "15,000원 · 토스뱅크 · 구글페이먼트코리아 (toss:…)" */
-        private fun describe(payment: CapturedPayment): String =
-            listOfNotNull("${payment.amount}원", payment.paymentName, payment.merchant, payment.installmentLabel).joinToString(" · ") +
-                " (${payment.dedupKey})"
+        /** 로그에 적는 결제 한 줄. "15000원 · 토스뱅크 · 구글페이먼트코리아 (toss:…)", 입금은 "200000원 입금 · 이동건 → 토스뱅크 통장 (toss-deposit:…)" */
+        private fun describe(payment: CapturedPayment): String {
+            val body =
+                if (payment.isDeposit) {
+                    "${payment.amount}원 입금 · ${payment.merchant} → ${payment.paymentName}"
+                } else {
+                    listOfNotNull("${payment.amount}원", payment.paymentName, payment.merchant, payment.installmentLabel).joinToString(" · ")
+                }
+            return "$body (${payment.dedupKey})"
+        }
+
+        /** 로그에서 부르는 이름. 결제나 입금 */
+        private val CapturedPayment.word: String get() = if (isDeposit) "입금" else "결제"
 
         /** 알림 칸 후보들을 로그에 적는 모양. 비었거나 같은 글은 한 번만 적는다. */
         private fun quoted(candidates: List<CharSequence?>): String =
@@ -315,7 +331,7 @@ class PaymentCapture(
 
         /** 이 앱의 알림을 읽는 법. 결제 알림을 읽지 않는 앱이면 비어 있다. 개발 빌드의 adb 가짜 알림은 아는 모양을 모두 맞춰 본다. */
         private fun parsersOf(packageName: String): List<PaymentParser> =
-            if (BuildConfig.DEBUG && packageName == SHELL_PACKAGE) parsers.values.toList() else listOfNotNull(parsers[packageName])
+            if (BuildConfig.DEBUG && packageName == SHELL_PACKAGE) parsers.values.flatten() else parsers[packageName].orEmpty()
 
         /**
          * 결제 시각. 결제 알림 앱이 알림에 적은 시각(when)을 쓴다.

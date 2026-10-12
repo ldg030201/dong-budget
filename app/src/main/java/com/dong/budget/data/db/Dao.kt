@@ -164,17 +164,18 @@ interface TransactionDao {
     suspend fun findById(id: Long): TransactionEntity?
 
     /**
-     * 이 가게로 가장 최근에 등록한 지출의 분류. 알림으로 들어온 결제의 분류를 미리 고를 때 쓴다.
+     * 이 가게(입금이면 보낸 사람)로 가장 최근에 등록한 [type] 거래의 분류. 알림으로 들어온 결제(입금)의 분류를 미리 고를 때 쓴다.
+     * 지출과 수입은 분류 목록이 달라서 종류를 맞춰 찾는다.
      * 앞뒤 공백은 무시하고 비교한다. 예전에 공백째 저장된 가게 이름('스타벅스 ')도 찾기 위함이다.
      */
     @Query(
         """
         SELECT categoryId FROM transactions
-        WHERE TRIM(merchant) = TRIM(:merchant) AND type = 'EXPENSE' AND categoryId IS NOT NULL
+        WHERE TRIM(merchant) = TRIM(:merchant) AND type = :type AND categoryId IS NOT NULL
         ORDER BY occurredAt DESC LIMIT 1
         """,
     )
-    suspend fun lastCategoryIdForMerchant(merchant: String): Long?
+    suspend fun lastCategoryIdForMerchant(merchant: String, type: TransactionType): Long?
 
     /** 통계의 기록 시작 시각. 이체는 통계에서 빼므로 여기서도 뺀다. 거래가 없으면 null */
     @Query("SELECT MIN(occurredAt) FROM transactions WHERE type != 'TRANSFER'")

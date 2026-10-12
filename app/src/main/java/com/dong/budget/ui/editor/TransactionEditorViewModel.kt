@@ -50,6 +50,9 @@ enum class RequiredField { AMOUNT, CATEGORY, PAYMENT, MERCHANT }
 /** 알림에서 읽은 결제가 이미 가계부에 있을 때의 안내. 등록창과 알림을 눌러 들어올 때가 같이 쓴다. */
 const val ALREADY_REGISTERED_MESSAGE = "이미 가계부에 등록한 결제예요"
 
+/** 알림에서 읽은 입금이 이미 가계부에 있을 때의 안내. 등록창과 알림을 눌러 들어올 때가 같이 쓴다. */
+const val DEPOSIT_ALREADY_REGISTERED_MESSAGE = "이미 가계부에 등록한 입금이에요"
+
 /** 그달 월급을 이미 등록했을 때의 안내. 등록창과 월급날 알림을 눌러 들어올 때가 같이 쓴다. */
 const val SALARY_ALREADY_REGISTERED_MESSAGE = "이번 달 월급은 이미 등록했어요"
 
@@ -225,7 +228,7 @@ class TransactionEditorViewModel(
         }
         if (transactionId != null) loadExisting(transactionId)
         // '같은 가게면 지난 분류 고르기' 를 껐으면 분류는 사용자가 고른다
-        if (transactionId == null && prefill != null && prefill.guessCategory) guessCategory(prefill.merchant)
+        if (transactionId == null && prefill != null && prefill.guessCategory) guessCategory(prefill.merchant, _uiState.value.type)
     }
 
     /** 새 등록이면서 알림에서 읽은 값이 있으면 그 값으로 채워 시작한다 */
@@ -240,7 +243,7 @@ class TransactionEditorViewModel(
         val data = prefill?.takeIf { transactionId == null } ?: return base
         val type =
             when (data.source) {
-                PrefillSource.PAYDAY -> TransactionType.INCOME
+                PrefillSource.PAYDAY, PrefillSource.DEPOSIT_ALERT -> TransactionType.INCOME
                 PrefillSource.PAYMENT_ALERT, PrefillSource.FIXED_EXPENSE -> TransactionType.EXPENSE
             }
         return base.copy(
@@ -252,7 +255,7 @@ class TransactionEditorViewModel(
             occurredAt = Instant.ofEpochMilli(data.occurredAtMillis),
             // 저장할 때 만들 이름과 똑같이 다듬어 둔다. 그래야 이미 있는 결제수단과 맞춰 볼 수 있다.
             pendingPaymentName = data.paymentName?.let(PaymentMethodRepository::normalizeName),
-            // 월급날의 '통장' 은 들어온 곳에서 찾는다
+            // 입금 알림의 통장과 월급날의 '통장' 은 들어온 곳에서 찾는다
             pendingPaymentScope = type.categoryScope(),
             // 번호로 고른 결제수단을 그사이 지웠으면 표에 없어 비어 보이고, 저장할 때 빈 칸으로 막혀 사용자가 고른다.
             paymentMethodId = data.paymentMethodId,
@@ -260,12 +263,15 @@ class TransactionEditorViewModel(
         )
     }
 
-    /** 전에 같은 가게로 등록한 적이 있으면 그때의 분류를 미리 골라둔다. 사용자가 이미 골랐으면 건드리지 않는다. */
-    private fun guessCategory(merchant: String) {
+    /**
+     * 전에 같은 가게(입금이면 보낸 사람)로 같은 종류(지출·수입)를 등록한 적이 있으면 그때의 분류를 미리 골라둔다.
+     * 사용자가 이미 골랐거나 그사이 지출·수입을 바꿨으면 건드리지 않는다.
+     */
+    private fun guessCategory(merchant: String, type: TransactionType) {
         if (merchant.isBlank()) return
         viewModelScope.launch {
-            val categoryId = repository.lastCategoryIdForMerchant(merchant) ?: return@launch
-            _uiState.update { if (it.categoryId == null) it.copy(categoryId = categoryId) else it }
+            val categoryId = repository.lastCategoryIdForMerchant(merchant, type) ?: return@launch
+            _uiState.update { if (it.categoryId == null && it.type == type) it.copy(categoryId = categoryId) else it }
         }
     }
 
@@ -504,6 +510,7 @@ class TransactionEditorViewModel(
         val message =
             when (_uiState.value.prefillSource) {
                 PrefillSource.PAYDAY -> SALARY_ALREADY_REGISTERED_MESSAGE
+                PrefillSource.DEPOSIT_ALERT -> DEPOSIT_ALREADY_REGISTERED_MESSAGE
                 else -> ALREADY_REGISTERED_MESSAGE
             }
         _uiState.update { it.copy(saveError = message) }

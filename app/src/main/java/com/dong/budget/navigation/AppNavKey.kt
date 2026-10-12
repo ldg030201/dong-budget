@@ -25,18 +25,19 @@ sealed interface AppNavKey : NavKey
 data object ShellKey : AppNavKey
 
 /**
- * 등록창을 미리 채울 값. 결제 알림·월급날·고정지출 '등록하기'([source])에서 온다.
+ * 등록창을 미리 채울 값. 결제·입금 알림·월급날·고정지출 '등록하기'([source])에서 온다.
  * 이 값으로 채워진 채 열리고, 사용자가 확인하고 저장해야 거래가 된다.
  * 자동 기능 스위치(분류·결제수단·할부 채우기)는 열 때의 값을 여기에 담는다. 앱이 다시 떠도 처음 연 모양 그대로 되살아난다.
  *
  * @property paymentName 결제수단을 고를 카드 이름. 같은 이름의 결제수단이 없으면 저장할 때 새로 만든다([addMissingCard]).
- *   수입으로 여는 곳(월급날)이면 들어온 곳에서 찾는다. '카드 이름으로 결제수단 고르기' 를 껐으면 null 이다.
+ *   수입으로 여는 곳(입금 알림·월급날)이면 들어온 곳에서 찾는다(입금 알림은 통장 이름).
+ *   '카드·통장 이름으로 미리 고르기' 를 껐으면 null 이다.
  * @property memo 채울 메모(할부). '할부는 메모에 적기' 를 껐으면 null 이다.
  * @property dedupKey 같은 결제를 두 번 등록하지 않게 거래에 함께 저장한다. 막을 열쇠가 없는 곳(고정지출)은 null 이다.
  *   빈 글("")을 넣으면 안 된다. 거래의 UNIQUE 인덱스에 걸려 두 번째 저장부터 막힌다.
- * @property guessCategory 같은 가게로 전에 등록한 지출의 분류를 미리 고를지
+ * @property guessCategory 같은 가게(입금이면 보낸 사람)로 전에 등록한 같은 종류(지출·수입) 거래의 분류를 미리 고를지
  * @property addMissingCard [paymentName] 과 같은 결제수단이 없을 때 '신규' 로 골라 두고 저장할 때 만들지. 아니면 비워 둔다.
- * @property source 어디서 채운 값인지. 월급날이면 수입으로 연다.
+ * @property source 어디서 채운 값인지. 입금 알림·월급날이면 수입으로 연다.
  * @property categoryCode 미리 고를 기본 분류의 코드(월급날이면 급여 'SALARY'). 사용자가 지웠으면 비워 둔다.
  * @property paymentMethodId 이름 대신 번호로 고를 결제수단(고정지출은 지난번 결제수단). 그사이 지웠으면 비어 보이고 사용자가 고른다.
  *   [paymentName] 과 같이 주지 않는다.
@@ -69,6 +70,9 @@ enum class PrefillSource {
 
     /** 고정지출 탭의 '등록하기'(지출). 지난번 고정지출의 가게·금액·결제수단으로 채운다. */
     FIXED_EXPENSE,
+
+    /** 토스 입금 알림(수입). 보낸 사람이 내용, 들어온 통장이 들어온 곳이다. */
+    DEPOSIT_ALERT,
 }
 
 /** 거래 등록/수정. transactionId 가 null 이면 새로 등록하는 것이다. prefill 이 있으면 그 값으로 채워 연다. */

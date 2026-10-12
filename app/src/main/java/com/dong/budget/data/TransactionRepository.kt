@@ -92,8 +92,9 @@ class TransactionRepository(private val transactionDao: TransactionDao) {
     fun observeWithMerchantSince(start: LocalDate): Flow<List<TransactionListItem>> =
         transactionDao.observeWithMerchantSince(start.atStartOfDay(BudgetTime.ZONE).toInstant())
 
-    /** 이 가게로 가장 최근에 등록한 지출의 분류. 없으면 null */
-    suspend fun lastCategoryIdForMerchant(merchant: String): Long? = transactionDao.lastCategoryIdForMerchant(merchant)
+    /** 이 가게(입금이면 보낸 사람)로 가장 최근에 등록한 [type] 거래의 분류. 없으면 null */
+    suspend fun lastCategoryIdForMerchant(merchant: String, type: TransactionType = TransactionType.EXPENSE): Long? =
+        transactionDao.lastCategoryIdForMerchant(merchant, type)
 
     /** 알림에서 읽은 결제가 이미 등록됐는지 */
     suspend fun isRegistered(dedupKey: String): Boolean = transactionDao.existsByDedupKey(dedupKey)

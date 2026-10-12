@@ -1,8 +1,10 @@
 package com.dong.budget.ui.editor
 
+import com.dong.budget.data.capture.TossDepositParser
 import com.dong.budget.data.capture.TossPaymentParser
 import com.dong.budget.data.settings.AutoOption
 import com.dong.budget.data.settings.AutoSettings
+import com.dong.budget.navigation.PrefillSource
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -43,5 +45,23 @@ class CapturePrefillTest {
         val prefill = payment.toPrefill(AutoSettings().with(AutoOption.FILL_NEW_CARD, false))
         assertEquals("하나카드", prefill.paymentName)
         assertFalse(prefill.addMissingCard)
+    }
+
+    @Test
+    fun `입금 알림은 수입으로 열고 보낸 사람을 내용에 통장을 들어온 곳에 채운다`() {
+        val deposit = requireNotNull(TossDepositParser.parse("200,000원 입금", "이동건 → 내 토스뱅크 통장", 1_760_279_340_000L))
+        val prefill = deposit.toPrefill(AutoSettings())
+        assertEquals(PrefillSource.DEPOSIT_ALERT, prefill.source)
+        assertEquals(200_000L, prefill.amount)
+        assertEquals("이동건", prefill.merchant)
+        assertEquals("토스뱅크 통장", prefill.paymentName)
+        assertNull(prefill.memo)
+        assertEquals(deposit.dedupKey, prefill.dedupKey)
+        assertTrue(prefill.guessCategory)
+        assertTrue(prefill.addMissingCard)
+        // 결제 알림은 지출로 연다
+        assertEquals(PrefillSource.PAYMENT_ALERT, payment.toPrefill(AutoSettings()).source)
+        // 통장 이름으로 고르기를 끄면 들어온 곳은 비워 둔다
+        assertNull(deposit.toPrefill(AutoSettings().with(AutoOption.FILL_PAYMENT, false)).paymentName)
     }
 }

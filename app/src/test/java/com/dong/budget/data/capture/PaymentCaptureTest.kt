@@ -39,6 +39,14 @@ class PaymentCaptureTest {
         app: String = PaymentCapture.TOSS_PACKAGE,
     ) = onNotification(app, listOf(title, null), listOf(text, null), at)
 
+    /** 2026-10-12 사용자 스크린샷의 토스 입금 알림 */
+    private suspend fun PaymentCapture.postDeposit(
+        title: String = "200,000원 입금",
+        text: String = "이동건 → 내 토스뱅크 통장",
+        at: Long = clock,
+        app: String = PaymentCapture.TOSS_PACKAGE,
+    ) = post(title, text, at, app)
+
     /** 2026-10-06 에 받은 실제 카카오페이 알림 */
     private suspend fun PaymentCapture.postKakaoPay(text: String = "주식회사 카카오에서 2,500원을 결제했어요.", at: Long = clock) =
         post("결제가 완료되었어요", text, at, PaymentCapture.KAKAOPAY_PACKAGE)
@@ -409,7 +417,7 @@ class PaymentCaptureTest {
         val key = prompt.asked.single().dedupKey
         registered += key
 
-        assertEquals(PaymentCapture.OpenResult.AlreadyRegistered, capture.open(key))
+        assertEquals(PaymentCapture.OpenResult.AlreadyRegistered(CaptureKind.PAYMENT), capture.open(key))
 
         assertEquals(listOf(key), prompt.dismissed)
         assertTrue(capture.records.first().single().read)
@@ -515,6 +523,70 @@ class PaymentCaptureTest {
         assertFalse(capture.post("2,500원 결제", "하나카드 | 카카오페이(일시불)", at = clock + 2_000))
         assertEquals(listOf("카카오페이"), prompt.asked.map { it.paymentName })
     }
+
+    @Test
+    fun `토스 입금 알림이면 입금으로 묻고 누르면 같은 입금을 찾는다`() = runBlocking {
+        val capture = capture()
+        assertTrue(capture.postDeposit())
+        val asked = prompt.asked.single()
+        assertEquals(CaptureKind.DEPOSIT, asked.kind)
+        assertEquals(200_000L, asked.amount)
+        assertEquals("이동건", asked.merchant)
+        assertEquals("토스뱅크 통장", asked.paymentName)
+        assertEquals(asked, capture.find(asked.dedupKey))
+        assertEquals(asked, capture.records.first().single().payment)
+        // 앱으로 돌아와 알림창을 다시 살펴도 또 묻지 않는다
+        assertFalse(capture().postDeposit())
+        // 이미 등록한 입금을 누르면 입금이라고 알린다
+        registered += asked.dedupKey
+        assertEquals(PaymentCapture.OpenResult.AlreadyRegistered(CaptureKind.DEPOSIT), capture.open(asked.dedupKey))
+    }
+
+    @Test
+    fun `같은 금액의 결제와 입금이 함께 와도 둘 다 묻는다`() = runBlocking {
+        val capture = capture()
+        assertTrue(capture.post("200,000원 결제", "하나카드 | 가게(일시불)"))
+        assertTrue(capture.postDeposit(at = clock + 1_000))
+        assertEquals(listOf(CaptureKind.PAYMENT, CaptureKind.DEPOSIT), prompt.asked.map { it.kind })
+        // 입금끼리는 결제처럼 5초 안의 같은 금액을 한 번만 묻는다
+        assertFalse(capture.postDeposit(text = "이동건 -> 내 토스뱅크 통장", at = clock + 2_000))
+        assertEquals(2, prompt.asked.size)
+    }
+
+    @Test
+    fun `개발 빌드는 adb 로 올린 입금 알림도 읽는다`() = runBlocking {
+        assertTrue(capture().postDeposit(app = "com.android.shell"))
+        assertEquals(CaptureKind.DEPOSIT, prompt.asked.single().kind)
+        // 카카오페이 앱의 알림은 입금 모양으로 읽지 않는다
+        assertFalse(capture().postDeposit(text = "홍길동 → 내 통장", app = PaymentCapture.KAKAOPAY_PACKAGE))
+    }
+
+    @Test
+    fun `종류 칸이 없는 옛 기록은 결제로 읽고 지우지 않는다`() = runBlocking {
+        val payment = TossPaymentParser.parse("133,500원 결제", "하나카드 | 비비큐 강동밀레니얼점(일시불)", clock)!!
+        // 1.8.1 이 남긴 기록 모양. 결제에 종류(kind) 칸이 없다.
+        val old = OldPayment(payment.amount, payment.paymentName, payment.merchant, null, payment.occurredAtMillis, payment.dedupKey)
+        prefs.edit().putString("prompted:${payment.dedupKey}", Json.encodeToString(OldEntry2(old))).apply()
+        val record = capture().records.first().single()
+        assertEquals(payment, record.payment)
+        assertEquals(CaptureKind.PAYMENT, record.payment.kind)
+        assertTrue(capture().find(payment.dedupKey) != null)
+    }
+
+    /** 1.8.1 까지의 결제 기록. 종류(kind) 칸이 없다. */
+    @Serializable
+    private data class OldPayment(
+        val amount: Long,
+        val paymentName: String?,
+        val merchant: String,
+        val installmentMonths: Int?,
+        val occurredAtMillis: Long,
+        val dedupKey: String,
+    )
+
+    /** 1.8.1 까지의 기록 */
+    @Serializable
+    private data class OldEntry2(val payment: OldPayment, val dismissed: Boolean = false, val read: Boolean = false)
 
     /** 1.0.0 의 기록. 읽음 표시(read)가 없다. */
     @Serializable
