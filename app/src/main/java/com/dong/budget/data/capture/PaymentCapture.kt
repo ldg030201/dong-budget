@@ -39,7 +39,7 @@ class PaymentCapture(
     private val prompt: CapturePrompt,
     /** 이미 가계부에 등록한 결제인지. 보통 TransactionRepository.isRegistered */
     private val isRegistered: suspend (dedupKey: String) -> Boolean,
-    /** 자동 기능 스위치(묻기, 같은 결제 한 번만, 다시 살피기). 저장소를 다 읽은 값을 돌려준다. */
+    /** 자동 기능 스위치(묻기, 입금 묻기, 같은 결제 한 번만, 다시 살피기). 저장소를 다 읽은 값을 돌려준다. */
     private val settings: suspend () -> AutoSettings = { AutoSettings() },
     private val now: () -> Long = System::currentTimeMillis,
 ) {
@@ -91,6 +91,11 @@ class PaymentCapture(
             logSkipped("결제·입금 알림 모양이 아니라 넘겼어요 · $packageName · 제목 ${quoted(titles)} · 본문 ${quoted(texts)}")
             return false
         }
+        // 입금 묻기를 끈 동안 온 입금도 결제처럼 기록하지 않는다. 다시 켜면 알림창에 남아 있는 것부터 물을 수 있게 둔다.
+        if (payment.isDeposit && !auto[AutoOption.CAPTURE_DEPOSIT]) {
+            logSkipped("입금 알림으로 묻기가 꺼져 있어 넘겼어요 · ${describe(payment)}")
+            return false
+        }
         // 이미 물어본 결제는 더 볼 것이 없다. 앱으로 돌아올 때마다 알림창에 남은 결제 알림을 다시 살피므로,
         // 알림 권한·채널을 묻는 일(시스템 호출)보다 먼저 본다.
         if (store.knows(payment.dedupKey)) return false
@@ -139,12 +144,16 @@ class PaymentCapture(
     suspend fun restorePrompts(showing: Set<String>) = mutex.withLock {
         // 묻기를 끄면 지운 묻는 알림도 되살리지 않는다
         if (!prompt.canAsk() || !settings()[AutoOption.CAPTURE_PROMPT]) return@withLock
+        val askDeposits = settings()[AutoOption.CAPTURE_DEPOSIT]
         var restored = 0
         store.pending().forEach { payment ->
             when {
                 // 이미 등록한 결제는 답한 것으로 적는다. 0.1.6 은 등록해도 기록에 남기지 않아서 여기서 정리한다.
                 // 적어 두지 않으면 그 거래를 나중에 지웠을 때 묻는 알림이 되살아난다.
                 isRegistered(payment.dedupKey) -> store.markRegistered(payment.dedupKey)
+
+                // 입금 묻기를 끄면 지운 입금 묻는 알림도 되살리지 않는다
+                payment.isDeposit && !askDeposits -> Unit
 
                 payment.dedupKey !in showing -> {
                     prompt.ask(payment, quietly = true)

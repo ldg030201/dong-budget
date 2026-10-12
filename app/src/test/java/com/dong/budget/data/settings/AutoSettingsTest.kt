@@ -25,8 +25,9 @@ class AutoSettingsTest {
     }
 
     @Test
-    fun `묻기를 끄면 같은 결제 한 번만과 다시 살피기도 멈추고 채우기 스위치는 그대로다`() {
+    fun `묻기를 끄면 입금 묻기와 같은 결제 한 번만과 다시 살피기도 멈추고 채우기 스위치는 그대로다`() {
         val settings = AutoSettings().with(AutoOption.CAPTURE_PROMPT, false)
+        assertFalse(settings[AutoOption.CAPTURE_DEPOSIT])
         assertFalse(settings[AutoOption.CAPTURE_DEDUPE])
         assertFalse(settings[AutoOption.CAPTURE_RESCAN])
         // 알림 목록에서 지난 결제를 열어 등록할 때는 채우기 스위치를 따른다

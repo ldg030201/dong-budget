@@ -573,6 +573,39 @@ class PaymentCaptureTest {
         assertTrue(capture().find(payment.dedupKey) != null)
     }
 
+    @Test
+    fun `입금 묻기를 끄면 입금만 묻지도 기록하지도 않고 다시 켜면 그 입금을 묻는다`() = runBlocking {
+        val capture = capture()
+        auto = auto.with(AutoOption.CAPTURE_DEPOSIT, false)
+        assertFalse(capture.postDeposit())
+        assertTrue(capture.records.first().isEmpty())
+        // 결제는 그대로 묻는다
+        assertTrue(capture.post())
+        assertEquals(listOf(CaptureKind.PAYMENT), prompt.asked.map { it.kind })
+        // 알림창에 남은 알림을 다시 살피면 그때 묻는다
+        auto = auto.with(AutoOption.CAPTURE_DEPOSIT, true)
+        assertTrue(capture.postDeposit())
+        assertEquals(listOf(CaptureKind.PAYMENT, CaptureKind.DEPOSIT), prompt.asked.map { it.kind })
+    }
+
+    @Test
+    fun `결제 묻기를 끄면 입금도 묻지 않는다`() = runBlocking {
+        auto = auto.with(AutoOption.CAPTURE_PROMPT, false)
+        assertFalse(capture().postDeposit())
+        assertTrue(prompt.asked.isEmpty())
+    }
+
+    @Test
+    fun `입금 묻기를 끄면 지운 입금 묻는 알림은 되살리지 않고 결제는 되살린다`() = runBlocking {
+        val capture = capture()
+        capture.post()
+        capture.postDeposit(title = "50,000원 입금", at = clock + 10_000)
+        prompt.asked.clear()
+        auto = auto.with(AutoOption.CAPTURE_DEPOSIT, false)
+        capture.restorePrompts(showing = emptySet())
+        assertEquals(listOf(CaptureKind.PAYMENT), prompt.restored.map { it.kind })
+    }
+
     /** 1.8.1 까지의 결제 기록. 종류(kind) 칸이 없다. */
     @Serializable
     private data class OldPayment(

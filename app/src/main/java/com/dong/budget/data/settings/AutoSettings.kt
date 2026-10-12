@@ -7,8 +7,11 @@ package com.dong.budget.data.settings
  * @property parent 이 기능이 기대는 스위치. 그 스위치가 꺼져 있으면 이것도 동작하지 않는다(설정에서도 흐리게 막힌다).
  */
 enum class AutoOption(val key: String, val parent: AutoOption? = null) {
-    /** 토스·카카오페이 결제 알림이 오면 '가계부에 등록할까요?' 알림으로 묻는다 */
+    /** 토스·카카오페이 결제 알림이 오면 '가계부에 등록할까요?' 알림으로 묻는다. 끄면 알림을 읽어 묻는 일을 모두 멈춘다(입금 포함). */
     CAPTURE_PROMPT("auto_capture_prompt"),
+
+    /** 토스 입금 알림이 오면 수입으로 등록할지 묻는다. 내 다른 통장에서 옮긴 돈도 묻는다(2026-10-12 사용자 결정). */
+    CAPTURE_DEPOSIT("auto_capture_deposit", parent = CAPTURE_PROMPT),
 
     /** 결제 한 건이 알림 두 개로 오면(금액이 같고 5초 안) 먼저 온 것만 묻는다 */
     CAPTURE_DEDUPE("auto_capture_dedupe", parent = CAPTURE_PROMPT),
@@ -16,13 +19,13 @@ enum class AutoOption(val key: String, val parent: AutoOption? = null) {
     /** 앱을 열 때마다 알림창에 남은 결제 알림을 다시 살펴 묻지 못한 결제를 묻는다 */
     CAPTURE_RESCAN("auto_capture_rescan", parent = CAPTURE_PROMPT),
 
-    /** 알림으로 연 등록창에서 같은 가게로 전에 등록한 지출의 분류를 미리 고른다 */
+    /** 알림으로 연 등록창에서 같은 가게(입금이면 보낸 사람)로 전에 등록한 같은 종류(지출·수입)의 분류를 미리 고른다 */
     FILL_CATEGORY("auto_fill_category"),
 
-    /** 알림으로 연 등록창에서 알림의 카드 이름과 같은 결제수단을 미리 고른다 */
+    /** 알림으로 연 등록창에서 알림의 카드 이름과 같은 결제수단을(입금이면 통장 이름과 같은 들어온 곳을) 미리 고른다 */
     FILL_PAYMENT("auto_fill_payment"),
 
-    /** 알림의 카드와 같은 결제수단이 없으면 '신규' 로 골라 두고 저장할 때 새로 만든다 */
+    /** 알림의 카드(통장)와 같은 결제수단(들어온 곳)이 없으면 '신규' 로 골라 두고 저장할 때 새로 만든다 */
     FILL_NEW_CARD("auto_fill_new_card", parent = FILL_PAYMENT),
 
     /** 알림의 할부 표시를 메모에 'N개월 할부' 로 채운다 */

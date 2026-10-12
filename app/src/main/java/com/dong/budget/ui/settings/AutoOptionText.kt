@@ -10,11 +10,12 @@ import com.dong.budget.data.settings.AutoOption
 internal val AutoOption.title: String
     get() = when (this) {
         AutoOption.CAPTURE_PROMPT -> "결제 알림으로 등록할지 묻기"
+        AutoOption.CAPTURE_DEPOSIT -> "입금 알림으로 등록할지 묻기"
         AutoOption.CAPTURE_DEDUPE -> "같은 결제 알림은 한 번만 묻기"
         AutoOption.CAPTURE_RESCAN -> "앱을 열 때 놓친 알림 다시 살피기"
         AutoOption.FILL_CATEGORY -> "같은 가게면 지난 분류 고르기"
-        AutoOption.FILL_PAYMENT -> "카드 이름으로 결제수단 고르기"
-        AutoOption.FILL_NEW_CARD -> "없는 카드는 새로 추가하기"
+        AutoOption.FILL_PAYMENT -> "카드·통장 이름으로 미리 고르기"
+        AutoOption.FILL_NEW_CARD -> "없는 카드·통장은 새로 추가하기"
         AutoOption.FILL_INSTALLMENT -> "할부는 메모에 적기"
         AutoOption.EDITOR_KEYPAD -> "금액 키패드 바로 열기"
         AutoOption.EDITOR_SELECT_ADDED -> "새로 만든 분류·결제수단 바로 고르기"
@@ -27,12 +28,13 @@ internal val AutoOption.title: String
 /** 스위치 이름 아래 설명 */
 internal val AutoOption.description: String
     get() = when (this) {
-        AutoOption.CAPTURE_PROMPT -> "토스·카카오페이 결제 알림이 오면 '가계부에 등록할까요?' 알림을 띄워요"
+        AutoOption.CAPTURE_PROMPT -> "토스·카카오페이 결제 알림이 오면 '가계부에 등록할까요?' 알림을 띄워요. 끄면 입금 알림도 묻지 않아요"
+        AutoOption.CAPTURE_DEPOSIT -> "토스 입금 알림이 오면 수입으로 등록할지 물어요. 내 다른 통장에서 옮긴 돈도 물어요"
         AutoOption.CAPTURE_DEDUPE -> "결제 한 건이 알림 두 개로 오면 먼저 온 것만 물어요"
         AutoOption.CAPTURE_RESCAN -> "알림창에 남은 결제 알림 중 아직 묻지 못한 결제를 앱을 열 때 물어요"
-        AutoOption.FILL_CATEGORY -> "전에 같은 가게로 등록한 지출의 분류를 미리 골라 둬요"
-        AutoOption.FILL_PAYMENT -> "알림의 카드와 이름이 같은 결제수단을 미리 골라 둬요"
-        AutoOption.FILL_NEW_CARD -> "같은 이름의 결제수단이 없으면 저장할 때 그 카드로 새로 만들어요"
+        AutoOption.FILL_CATEGORY -> "전에 같은 가게로 등록한 분류를 미리 골라 둬요. 입금은 보낸 사람으로 찾아요"
+        AutoOption.FILL_PAYMENT -> "알림의 카드와 이름이 같은 결제수단을, 입금은 통장과 이름이 같은 들어온 곳을 미리 골라 둬요"
+        AutoOption.FILL_NEW_CARD -> "같은 이름이 없으면 저장할 때 그 카드나 통장으로 새로 만들어요"
         AutoOption.FILL_INSTALLMENT -> "할부 결제면 메모에 '3개월 할부'처럼 채워요"
         AutoOption.EDITOR_KEYPAD -> "새로 등록할 때 금액 키패드를 열어 둔 채 시작해요"
         AutoOption.EDITOR_SELECT_ADDED -> "등록하다가 새로 추가하면 바로 그것으로 골라 둬요"
@@ -44,7 +46,10 @@ internal val AutoOption.description: String
 
 /** 고급 설정에서 스위치를 모아 두는 묶음. 화면 위에서부터 이 순서다. 스위치는 모두 여기 어느 한 묶음에 있다. */
 internal enum class AutoGroup(val label: String, val options: List<AutoOption>) {
-    CAPTURE("결제 알림", listOf(AutoOption.CAPTURE_PROMPT, AutoOption.CAPTURE_DEDUPE, AutoOption.CAPTURE_RESCAN)),
+    CAPTURE(
+        "결제·입금 알림",
+        listOf(AutoOption.CAPTURE_PROMPT, AutoOption.CAPTURE_DEPOSIT, AutoOption.CAPTURE_DEDUPE, AutoOption.CAPTURE_RESCAN),
+    ),
     FILL(
         "알림으로 등록할 때",
         listOf(AutoOption.FILL_CATEGORY, AutoOption.FILL_PAYMENT, AutoOption.FILL_NEW_CARD, AutoOption.FILL_INSTALLMENT),
