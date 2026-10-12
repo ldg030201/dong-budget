@@ -92,8 +92,9 @@ class PaymentCapture(
             return false
         }
         // 입금 묻기를 끈 동안 온 입금도 결제처럼 기록하지 않는다. 다시 켜면 알림창에 남아 있는 것부터 물을 수 있게 둔다.
-        if (payment.isDeposit && !auto[AutoOption.CAPTURE_DEPOSIT]) {
-            logSkipped("입금 알림으로 묻기가 꺼져 있어 넘겼어요 · ${describe(payment)}")
+        // 결제의 스위치는 위에서 본 묻기 스위치라 여기서 걸리는 것은 입금뿐이다.
+        if (!auto[payment.kind.option]) {
+            logSkipped("${payment.kind.word} 알림으로 묻기가 꺼져 있어 넘겼어요 · ${describe(payment)}")
             return false
         }
         // 이미 물어본 결제는 더 볼 것이 없다. 앱으로 돌아올 때마다 알림창에 남은 결제 알림을 다시 살피므로,
@@ -104,7 +105,7 @@ class PaymentCapture(
         // 스위치를 끄면 알림마다 묻는다(같은 금액을 5초 안에 두 번 결제하는 일이 잦은 경우).
         if (auto[AutoOption.CAPTURE_DEDUPE]) {
             store.findSamePayment(payment)?.let { first ->
-                logSkipped("같은 ${payment.word}의 알림이 또 와서 넘겼어요 · ${describe(payment)} · 먼저 온 알림 ${first.dedupKey}")
+                logSkipped("같은 ${payment.kind.word}의 알림이 또 와서 넘겼어요 · ${describe(payment)} · 먼저 온 알림 ${first.dedupKey}")
                 return false
             }
         }
@@ -116,7 +117,7 @@ class PaymentCapture(
         if (!store.remember(payment)) return false
         if (isRegistered(payment.dedupKey)) {
             store.markRegistered(payment.dedupKey)
-            DevLog.info(LogTag.CAPTURE, "이미 등록된 ${if (payment.isDeposit) "입금이라" else "결제라"} 묻지 않았어요 · ${describe(payment)}")
+            DevLog.info(LogTag.CAPTURE, "이미 등록된 ${payment.kind.word} 알림이라 묻지 않았어요 · ${describe(payment)}")
             return false
         }
         prompt.ask(payment)
@@ -154,7 +155,7 @@ class PaymentCapture(
                 isRegistered(payment.dedupKey) -> store.markRegistered(payment.dedupKey)
 
                 // 입금 묻기를 끄면 지운 입금 묻는 알림도 되살리지 않는다
-                payment.isDeposit && !auto[AutoOption.CAPTURE_DEPOSIT] -> Unit
+                !auto[payment.kind.option] -> Unit
 
                 payment.dedupKey !in showing -> {
                     prompt.ask(payment, quietly = true)
@@ -322,9 +323,6 @@ class PaymentCapture(
                 }
             return "$body (${payment.dedupKey})"
         }
-
-        /** 로그에서 부르는 이름. 결제나 입금 */
-        private val CapturedPayment.word: String get() = if (isDeposit) "입금" else "결제"
 
         /** 알림 칸 후보들을 로그에 적는 모양. 비었거나 같은 글은 한 번만 적는다. */
         private fun quoted(candidates: List<CharSequence?>): String =

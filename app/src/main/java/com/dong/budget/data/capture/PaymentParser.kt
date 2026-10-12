@@ -1,18 +1,25 @@
 package com.dong.budget.data.capture
 
 import com.dong.budget.data.MAX_AMOUNT_DIGITS
+import com.dong.budget.data.settings.AutoOption
 import kotlinx.serialization.Serializable
 import java.text.Normalizer
+import java.util.Locale
 import kotlin.math.abs
 
-/** 알림에서 읽은 것이 무엇인지 */
+/**
+ * 알림에서 읽은 것이 무엇인지. 기록(CaptureStore)에는 이름으로 저장돼서 칸을 더해도 옛 기록을 읽는다.
+ * @property word 묻는 알림·알림 목록·로그가 부르는 이름
+ * @property amountSuffix 금액 뒤에 붙이는 말. 입금은 '200,000원 입금' 으로 결제와 가른다.
+ * @property option 이 종류를 묻는 스위치. 결제는 묻기 스위치 자체고, 입금은 그 밑의 입금 스위치다.
+ */
 @Serializable
-enum class CaptureKind {
+enum class CaptureKind(val word: String, val amountSuffix: String, val option: AutoOption) {
     /** 결제(지출). 토스·카카오페이 결제 알림 */
-    PAYMENT,
+    PAYMENT("결제", "", AutoOption.CAPTURE_PROMPT),
 
     /** 입금(수입). 토스 입금 알림 */
-    DEPOSIT,
+    DEPOSIT("입금", " 입금", AutoOption.CAPTURE_DEPOSIT),
 }
 
 /**
@@ -39,6 +46,9 @@ data class CapturedPayment(
 ) {
     /** 입금 알림에서 읽었는지. 등록창을 수입으로 열고 들어온 곳을 고른다. */
     val isDeposit: Boolean get() = kind == CaptureKind.DEPOSIT
+
+    /** 묻는 알림과 알림 목록 맨 앞의 금액. '15,000원', 입금은 '200,000원 입금' */
+    val amountLabel: String get() = "${String.format(Locale.KOREA, "%,d", amount)}원${kind.amountSuffix}"
 
     /** 할부면 '3개월 할부'. 묻는 알림과 등록창 메모가 같은 말을 쓴다. */
     val installmentLabel: String? get() = installmentMonths?.let { "${it}개월 할부" }

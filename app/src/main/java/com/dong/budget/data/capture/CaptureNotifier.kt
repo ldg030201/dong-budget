@@ -13,7 +13,6 @@ import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import com.dong.budget.MainActivity
 import com.dong.budget.R
-import java.util.Locale
 
 /**
  * '가계부에 등록할까요?' 알림. 결제와 입금이 같은 채널·제목을 쓰고 본문만 다르다.
@@ -50,10 +49,9 @@ class CaptureNotifier(private val context: Context) : CapturePrompt {
         ensureChannel()
         // 제목은 짧게 두고, 금액과 가게를 본문 앞에 둔다. 알림을 접은 상태에서는 한 줄만 보여 뒤가 잘린다.
         // 입금은 금액 뒤에 '입금' 을 붙여 결제와 가른다. "200,000원 입금 · 이동건 · 토스뱅크 통장"
-        val amount = "${String.format(Locale.KOREA, "%,d", payment.amount)}원"
         val detail =
             listOfNotNull(
-                if (payment.isDeposit) "$amount 입금" else amount,
+                payment.amountLabel,
                 payment.merchant.ifBlank { null },
                 payment.paymentName,
                 payment.installmentLabel,

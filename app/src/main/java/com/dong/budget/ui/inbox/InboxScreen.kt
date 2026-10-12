@@ -43,7 +43,6 @@ import com.dong.budget.ui.components.BudgetSmallButton
 import com.dong.budget.ui.components.BudgetTopAppBar
 import com.dong.budget.ui.components.ConfirmDialog
 import com.dong.budget.ui.components.NoticeDot
-import com.dong.budget.ui.format.formatAmount
 import com.dong.budget.ui.format.formatNoticeTime
 import com.dong.budget.ui.theme.BudgetTheme
 import com.dong.budget.ui.theme.Motion
@@ -242,7 +241,7 @@ private fun InboxRow(item: InboxItem, today: LocalDate, onClick: () -> Unit, mod
             Text(
                 text =
                 listOfNotNull(
-                    "${formatAmount(payment.amount)}원${if (payment.isDeposit) " 입금" else ""}",
+                    payment.amountLabel,
                     payment.merchant.ifBlank { null },
                 ).joinToString(" · "),
                 style = MaterialTheme.typography.bodyLarge,
