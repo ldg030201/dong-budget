@@ -143,8 +143,9 @@ class PaymentCapture(
      */
     suspend fun restorePrompts(showing: Set<String>) = mutex.withLock {
         // 묻기를 끄면 지운 묻는 알림도 되살리지 않는다
-        if (!prompt.canAsk() || !settings()[AutoOption.CAPTURE_PROMPT]) return@withLock
-        val askDeposits = settings()[AutoOption.CAPTURE_DEPOSIT]
+        if (!prompt.canAsk()) return@withLock
+        val auto = settings()
+        if (!auto[AutoOption.CAPTURE_PROMPT]) return@withLock
         var restored = 0
         store.pending().forEach { payment ->
             when {
@@ -153,7 +154,7 @@ class PaymentCapture(
                 isRegistered(payment.dedupKey) -> store.markRegistered(payment.dedupKey)
 
                 // 입금 묻기를 끄면 지운 입금 묻는 알림도 되살리지 않는다
-                payment.isDeposit && !askDeposits -> Unit
+                payment.isDeposit && !auto[AutoOption.CAPTURE_DEPOSIT] -> Unit
 
                 payment.dedupKey !in showing -> {
                     prompt.ask(payment, quietly = true)
