@@ -18,14 +18,30 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-/** 관리 화면의 탭 */
-enum class ManageTab(val label: String) {
-    EXPENSE("지출"),
-    INCOME("수입"),
-    PAYMENT("결제수단"),
+/**
+ * 관리 화면의 탭.
+ * @property scope 지출 쪽인지 수입 쪽인지. 분류 탭은 분류의, 결제수단 탭은 결제수단 표의 목록이다.
+ * @property isPayment 결제수단 표(결제수단·들어온 곳)를 다루는 탭인지. 아니면 분류다.
+ */
+enum class ManageTab(val label: String, val scope: CategoryScope, val isPayment: Boolean) {
+    EXPENSE("지출", CategoryScope.EXPENSE, isPayment = false),
+    INCOME("수입", CategoryScope.INCOME, isPayment = false),
+    PAYMENT("결제수단", CategoryScope.EXPENSE, isPayment = true),
+
+    /** 수입이 들어온 곳(현금·통장 등). 결제수단 표의 수입 쪽 목록이다. */
+    INCOME_SOURCE("들어온 곳", CategoryScope.INCOME, isPayment = true),
+    ;
+
+    /** 이 탭의 추가 시트 */
+    val addTarget: AddTarget
+        get() = when {
+            !isPayment -> AddTarget.CATEGORY
+            scope == CategoryScope.INCOME -> AddTarget.INCOME_SOURCE
+            else -> AddTarget.PAYMENT
+        }
 }
 
-/** 관리 목록 한 줄. 분류와 결제수단이 같은 모양으로 보인다. */
+/** 관리 목록 한 줄. 분류와 결제수단·들어온 곳이 같은 모양으로 보인다. */
 data class ManagedItem(
     val id: Long,
     val name: String,
@@ -95,14 +111,12 @@ class CategoryManageViewModel(
         }
     }
 
-    private fun itemsFor(tab: ManageTab): Flow<List<ManagedItem>> = when (tab) {
-        ManageTab.EXPENSE, ManageTab.INCOME ->
-            categoryRepository.observeWithCount(tab.scope()).map { list -> list.map { ManagedItem.of(it.category, it.transactionCount) } }
-
-        ManageTab.PAYMENT ->
-            paymentMethodRepository.observeWithCount(CategoryScope.EXPENSE).map { list ->
-                list.map { ManagedItem.of(it.paymentMethod, it.transactionCount) }
-            }
+    private fun itemsFor(tab: ManageTab): Flow<List<ManagedItem>> = if (tab.isPayment) {
+        paymentMethodRepository.observeWithCount(tab.scope).map { list ->
+            list.map { ManagedItem.of(it.paymentMethod, it.transactionCount) }
+        }
+    } else {
+        categoryRepository.observeWithCount(tab.scope).map { list -> list.map { ManagedItem.of(it.category, it.transactionCount) } }
     }
 
     fun selectTab(tab: ManageTab) {
@@ -121,9 +135,10 @@ class CategoryManageViewModel(
         val tab = _uiState.value.tab
         viewModelScope.launch {
             val result =
-                when (tab) {
-                    ManageTab.EXPENSE, ManageTab.INCOME -> categoryRepository.add(tab.scope(), name, icon, color)
-                    ManageTab.PAYMENT -> paymentMethodRepository.add(CategoryScope.EXPENSE, name, icon, color)
+                if (tab.isPayment) {
+                    paymentMethodRepository.add(tab.scope, name, icon, color)
+                } else {
+                    categoryRepository.add(tab.scope, name, icon, color)
                 }
             _uiState.update {
                 if (result is AddResult.Added) {
@@ -145,10 +160,7 @@ class CategoryManageViewModel(
         // 저장이 끝나기 전에 목록이 예전 순서로 잠깐 되돌아가 보이지 않게 먼저 바꿔 둔다
         _uiState.update { if (it.tab == tab) it.copy(items = items) else it }
         viewModelScope.launch {
-            when (tab) {
-                ManageTab.EXPENSE, ManageTab.INCOME -> categoryRepository.reorder(orderedIds)
-                ManageTab.PAYMENT -> paymentMethodRepository.reorder(orderedIds)
-            }
+            if (tab.isPayment) paymentMethodRepository.reorder(orderedIds) else categoryRepository.reorder(orderedIds)
         }
     }
 
@@ -166,12 +178,8 @@ class CategoryManageViewModel(
         val target = state.pendingDelete ?: return
         _uiState.update { it.copy(pendingDelete = null) }
         viewModelScope.launch {
-            when (state.tab) {
-                ManageTab.EXPENSE, ManageTab.INCOME -> categoryRepository.delete(target.id)
-                ManageTab.PAYMENT -> paymentMethodRepository.delete(target.id)
-            }
+            // 결제수단·들어온 곳은 비워 둘 수 있는 칸이라 걸린 거래에서 비우고, 분류는 '기타' 로 옮긴다
+            if (state.tab.isPayment) paymentMethodRepository.delete(target.id) else categoryRepository.delete(target.id)
         }
     }
 }
-
-private fun ManageTab.scope(): CategoryScope = if (this == ManageTab.INCOME) CategoryScope.INCOME else CategoryScope.EXPENSE

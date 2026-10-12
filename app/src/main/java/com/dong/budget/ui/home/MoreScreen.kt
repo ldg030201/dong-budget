@@ -57,7 +57,7 @@ fun MoreScreen(
         MenuRow(MenuItem.SALARY, onOpenMenu)
         BudgetListItem(
             title = "분류 관리",
-            subtitle = "분류와 결제수단을 추가하거나 지워요",
+            subtitle = "분류·결제수단·들어온 곳을 추가하거나 지워요",
             leading = { IconBadge(iconRes = R.drawable.ic_sym_category, swatch = BudgetTheme.categoryPalette["indigo"]) },
             onClick = onOpenCategories,
         )

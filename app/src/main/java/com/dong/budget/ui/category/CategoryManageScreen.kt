@@ -50,8 +50,8 @@ import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
 
 /**
- * 전체 → 분류 관리. 지출·수입 분류와 결제수단을 추가하고 지우고, 길게 눌러 끌어서 순서를 바꾼다.
- * 바꾼 순서는 거래 등록 화면의 분류·결제수단 표에도 그대로 쓰인다.
+ * 전체 → 분류 관리. 지출·수입 분류와 결제수단·들어온 곳을 추가하고 지우고, 길게 눌러 끌어서 순서를 바꾼다.
+ * 바꾼 순서는 거래 등록 화면의 분류·결제수단(들어온 곳) 표에도 그대로 쓰인다.
  *
  * @param pickUnusedColor 추가 창의 처음 색을 안 쓴 색으로 고를지('새 분류·결제수단은 안 쓴 색으로'). 아니면 회색이다.
  */
@@ -70,12 +70,12 @@ fun CategoryManageScreen(
     modifier: Modifier = Modifier,
     pickUnusedColor: Boolean = true,
 ) {
-    val isPayment = state.tab == ManageTab.PAYMENT
-    val noun = if (isPayment) "결제수단" else "분류"
+    val isPayment = state.tab.isPayment
+    val noun = state.tab.noun
     // 조사를 이어 붙이지 않고 통째로 둔다. 받침 유무에 따라 '분류를/결제수단을',
     // '분류로/결제수단으로' 처럼 달라져서 붙이면 '분류을' 같은 틀린 문장이 된다.
-    val nounObject = if (isPayment) "결제수단을" else "분류를"
-    val nounBy = if (isPayment) "결제수단으로" else "분류로"
+    val nounObject = state.tab.nounObject
+    val nounBy = state.tab.nounBy
 
     state.pendingDelete?.let { target ->
         ConfirmDialog(
@@ -84,8 +84,8 @@ fun CategoryManageScreen(
             when {
                 target.transactionCount == 0 -> "이 $nounBy 적힌 거래는 없어요."
 
-                // 분류는 '기타' 로 옮기고, 결제수단은 비워둘 수 있는 칸이라 비운다
-                isPayment -> "이 결제수단으로 적힌 거래 ${target.transactionCount}건은 결제수단 없이 남아요."
+                // 분류는 '기타' 로 옮기고, 결제수단·들어온 곳은 비워둘 수 있는 칸이라 비운다
+                isPayment -> "이 $nounBy 적힌 거래 ${target.transactionCount}건은 $noun 없이 남아요."
 
                 else -> "이 분류로 적힌 거래 ${target.transactionCount}건은 '기타'로 옮겨져요."
             },
@@ -96,13 +96,7 @@ fun CategoryManageScreen(
     }
 
     AddItemSheet(
-        target = if (!state.showAdd) {
-            null
-        } else if (isPayment) {
-            AddTarget.PAYMENT
-        } else {
-            AddTarget.CATEGORY
-        },
+        target = state.tab.addTarget.takeIf { state.showAdd },
         usedColors = state.usedColors,
         pickUnusedColor = pickUnusedColor,
         error = state.addError,
@@ -283,3 +277,27 @@ private fun DeleteButton(name: String, onClick: () -> Unit) {
         shape = CircleShape,
     )
 }
+
+/** 탭이 다루는 것의 이름. 분류 탭은 '분류' 다. */
+private val ManageTab.noun: String
+    get() = when (this) {
+        ManageTab.EXPENSE, ManageTab.INCOME -> "분류"
+        ManageTab.PAYMENT -> "결제수단"
+        ManageTab.INCOME_SOURCE -> "들어온 곳"
+    }
+
+/** [noun] 에 목적격 조사를 붙인 것 */
+private val ManageTab.nounObject: String
+    get() = when (this) {
+        ManageTab.EXPENSE, ManageTab.INCOME -> "분류를"
+        ManageTab.PAYMENT -> "결제수단을"
+        ManageTab.INCOME_SOURCE -> "들어온 곳을"
+    }
+
+/** [noun] 에 '(으)로' 를 붙인 것 */
+private val ManageTab.nounBy: String
+    get() = when (this) {
+        ManageTab.EXPENSE, ManageTab.INCOME -> "분류로"
+        ManageTab.PAYMENT -> "결제수단으로"
+        ManageTab.INCOME_SOURCE -> "들어온 곳으로"
+    }
