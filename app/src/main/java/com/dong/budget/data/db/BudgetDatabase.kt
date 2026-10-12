@@ -123,7 +123,7 @@ internal fun insertDefaultPaymentMethod(db: SupportSQLiteDatabase, m: DefaultPay
 private object SeedCallback : RoomDatabase.Callback() {
     override fun onCreate(db: SupportSQLiteDatabase) {
         DEFAULT_CATEGORIES.forEach { insertDefaultCategory(db, it, orIgnore = false) }
-        (DEFAULT_PAYMENT_METHODS + DEFAULT_INCOME_SOURCES).forEach { insertDefaultPaymentMethod(db, it, orIgnore = false) }
+        ALL_DEFAULT_PAYMENT_METHODS.forEach { insertDefaultPaymentMethod(db, it, orIgnore = false) }
     }
 
     override fun onOpen(db: SupportSQLiteDatabase) {

@@ -1,10 +1,9 @@
 package com.dong.budget.data.backup
 
 import androidx.room.withTransaction
+import com.dong.budget.data.db.ALL_DEFAULT_PAYMENT_METHODS
 import com.dong.budget.data.db.BudgetDatabase
 import com.dong.budget.data.db.DEFAULT_CATEGORIES
-import com.dong.budget.data.db.DEFAULT_INCOME_SOURCES
-import com.dong.budget.data.db.DEFAULT_PAYMENT_METHODS
 import com.dong.budget.data.db.settleIncomeSources
 import com.dong.budget.data.db.toEntity
 import com.dong.budget.data.devlog.DevLog
@@ -55,7 +54,7 @@ class BackupRepository(private val database: BudgetDatabase) {
         database.withTransaction {
             dao.deleteAll()
             DEFAULT_CATEGORIES.forEach { dao.insertCategory(it.toEntity()) }
-            (DEFAULT_PAYMENT_METHODS + DEFAULT_INCOME_SOURCES).forEach { dao.insertPaymentMethod(it.toEntity()) }
+            ALL_DEFAULT_PAYMENT_METHODS.forEach { dao.insertPaymentMethod(it.toEntity()) }
         }
         DevLog.info(LogTag.BACKUP, "데이터 초기화 · 처음 설치한 상태로")
     }

@@ -2,6 +2,8 @@ package com.dong.budget.ui.editor
 
 import com.dong.budget.data.MAX_AMOUNT
 import com.dong.budget.data.db.BudgetTime
+import com.dong.budget.data.db.DEFAULT_INCOME_SOURCES
+import com.dong.budget.data.db.PaymentMethodType
 import com.dong.budget.data.db.SALARY_CATEGORY_CODE
 import com.dong.budget.data.salary.SalarySettings
 import com.dong.budget.data.salary.salaryKey
@@ -34,5 +36,5 @@ fun salaryPrefill(settings: SalarySettings, month: YearMonth): EditorPrefill = E
 /** 월급 거래의 가게 이름 */
 const val SALARY_MERCHANT = "월급"
 
-/** 월급이 들어오는 곳. 기본 들어온 곳 이름이다(DEFAULT_INCOME_SOURCES). */
-internal const val SALARY_PAYMENT = "통장"
+/** 월급이 들어오는 곳. 기본 들어온 곳 '통장'(DEFAULT_INCOME_SOURCES 의 계좌)의 이름이다. */
+internal val SALARY_PAYMENT: String = DEFAULT_INCOME_SOURCES.first { it.type == PaymentMethodType.ACCOUNT }.name

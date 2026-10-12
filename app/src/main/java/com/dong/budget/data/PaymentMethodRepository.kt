@@ -19,18 +19,17 @@ import java.util.UUID
  */
 class PaymentMethodRepository(private val dao: PaymentMethodDao) {
     companion object {
-        /** 결제 알림에서 읽어 새로 만드는 결제수단은 모두 카드다. 등록창의 '새로 추가돼요' 미리보기도 이 아이콘을 쓴다. */
-        const val NEW_CARD_ICON = "credit_card"
+        /**
+         * 알림에서 읽은 이름으로 새로 만들 것의 아이콘과 종류. 등록창의 '새로 추가돼요' 미리보기도 이 아이콘을 쓴다.
+         * 결제 알림의 결제수단은 카드 아이콘이고 카드인지 알 수 없어 종류는 '기타', 입금 알림의 들어온 곳은 통장(계좌)이다.
+         */
+        private fun newItemStyle(scope: CategoryScope): Pair<String, PaymentMethodType> = when (scope) {
+            CategoryScope.EXPENSE -> "credit_card" to PaymentMethodType.OTHER
+            CategoryScope.INCOME -> "account_balance" to PaymentMethodType.ACCOUNT
+        }
 
-        /** 입금 알림에서 읽어 새로 만드는 들어온 곳은 모두 통장이다. */
-        const val NEW_ACCOUNT_ICON = "account_balance"
-
-        /** 알림에서 읽은 이름으로 새로 만들 것의 아이콘. 결제수단은 카드, 들어온 곳은 통장이다. */
-        fun newItemIcon(scope: CategoryScope): String = if (scope == CategoryScope.INCOME) NEW_ACCOUNT_ICON else NEW_CARD_ICON
-
-        /** 알림에서 읽은 이름으로 새로 만들 것의 종류. 들어온 곳은 통장(계좌)이고, 결제수단은 카드인지 알 수 없어 '기타' 다. */
-        private fun newItemType(scope: CategoryScope): PaymentMethodType =
-            if (scope == CategoryScope.INCOME) PaymentMethodType.ACCOUNT else PaymentMethodType.OTHER
+        /** 알림에서 읽은 이름으로 새로 만들 것의 아이콘([newItemStyle]) */
+        fun newItemIcon(scope: CategoryScope): String = newItemStyle(scope).first
 
         /** 띄어쓰기와 대소문자를 무시하고 같은 이름인지 본다. '하나 카드' 와 '하나카드' 는 같다. */
         fun sameName(a: String, b: String): Boolean = a.replace(" ", "").equals(b.replace(" ", ""), ignoreCase = true)
@@ -119,7 +118,8 @@ class PaymentMethodRepository(private val dao: PaymentMethodDao) {
         val existing = dao.getByScope(scope)
         findSameCard(existing, name)?.let { return it.id }
         val color = if (pickUnusedColor) CategoryStyle.firstUnusedColor(existing.colors()) else CategoryStyle.FALLBACK_COLOR
-        return when (val result = add(scope, name, newItemIcon(scope), color, newItemType(scope))) {
+        val (icon, type) = newItemStyle(scope)
+        return when (val result = add(scope, name, icon, color, type)) {
             is AddResult.Added -> result.id
 
             // 그사이 같은 이름이 생겼으면 그것을 쓴다

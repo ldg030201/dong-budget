@@ -164,3 +164,6 @@ val DEFAULT_INCOME_SOURCES =
         DefaultPaymentMethod("INCOME_CASH", "현금", PaymentMethodType.CASH, "payments", "green", 0, CategoryScope.INCOME),
         DefaultPaymentMethod("INCOME_ACCOUNT", "통장", PaymentMethodType.ACCOUNT, "account_balance", "teal", 1, CategoryScope.INCOME),
     )
+
+/** 새로 설치할 때·데이터 초기화 때 넣는 결제수단 표 전부(기본 결제수단과 기본 들어온 곳) */
+val ALL_DEFAULT_PAYMENT_METHODS = DEFAULT_PAYMENT_METHODS + DEFAULT_INCOME_SOURCES
