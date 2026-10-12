@@ -16,7 +16,7 @@ import java.time.YearMonth
  * - 날짜는 그달 월급날의 출근 시각이다. 누른 때를 쓰면 누를 때마다 값이 달라져 같은 등록창이 두 번 쌓인다.
  * - 가게 이름은 '월급' 하나로 둔다. 달마다 이름이 다르면 거래 상세의 '최근 내역' 에 지난 월급이 모이지 않는다. 몇 월분인지는 메모에 적는다.
  * - 들어온 곳은 기본 들어온 곳 '통장' 을 고른다. 사용자가 지웠으면 새로 만들지 않고 비워 둔다(들어온 곳은 비워도 된다).
- * - 같은 가게 분류 짐작은 끈다. 그 짐작은 지출만 보므로 수입에 지출 분류가 들어갈 수 있다. 분류는 급여를 고른다.
+ * - 같은 가게 분류 짐작은 끈다. 분류는 늘 기본 분류 급여(코드 'SALARY')로 고른다. 짐작을 켜면 지난 월급에 고른 분류가 먼저 골라질 수 있다.
  */
 fun salaryPrefill(settings: SalarySettings, month: YearMonth): EditorPrefill = EditorPrefill(
     amount = settings.payFor(month).coerceIn(0, MAX_AMOUNT),
