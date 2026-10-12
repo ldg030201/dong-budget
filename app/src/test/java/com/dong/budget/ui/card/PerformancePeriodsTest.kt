@@ -1,6 +1,7 @@
 package com.dong.budget.ui.card
 
 import com.dong.budget.data.db.CardSpendRow
+import com.dong.budget.data.db.CategoryScope
 import com.dong.budget.data.db.PaymentMethodEntity
 import com.dong.budget.data.db.PaymentMethodType
 import com.dong.budget.data.db.TransactionType
@@ -347,5 +348,13 @@ class PerformancePeriodsTest {
         assertTrue(method(PaymentMethodType.CARD).isPerformanceTarget())
         // 알림으로 생긴 카드·직접 만든 결제수단
         assertTrue(method(PaymentMethodType.OTHER).isPerformanceTarget())
+    }
+
+    @Test
+    fun `들어온 곳은 종류와 상관없이 카드실적을 보지 않는다`() {
+        PaymentMethodType.entries.forEach { type ->
+            val source = PaymentMethodEntity(id = 1, uuid = "u", scope = CategoryScope.INCOME, name = "토스뱅크 통장", type = type)
+            assertFalse(type.name, source.isPerformanceTarget())
+        }
     }
 }

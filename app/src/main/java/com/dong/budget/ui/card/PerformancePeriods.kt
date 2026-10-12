@@ -3,6 +3,7 @@ package com.dong.budget.ui.card
 import com.dong.budget.data.card.performanceTierList
 import com.dong.budget.data.db.BudgetTime
 import com.dong.budget.data.db.CardSpendRow
+import com.dong.budget.data.db.CategoryScope
 import com.dong.budget.data.db.PaymentMethodEntity
 import com.dong.budget.data.db.PaymentMethodType
 import com.dong.budget.ui.home.netExpenseOf
@@ -89,10 +90,12 @@ fun tabReadRange(today: LocalDate, methods: List<PaymentMethodEntity>): Pair<Yea
 }
 
 /**
- * 카드실적을 볼 결제수단인지. 현금과 계좌이체만 뺀다.
+ * 카드실적을 볼 결제수단인지. 결제수단(지출 쪽 목록)에서 현금과 계좌이체만 뺀다. 들어온 곳(수입 쪽 목록)은 카드가 아니라 모두 뺀다.
  * 알림으로 생긴 카드와 직접 만든 결제수단은 종류가 '기타' 로 저장돼서, 종류가 카드인 것만 고르면 기본 카드 두 개만 남는다.
+ * 직접 만든 들어온 곳도 종류가 '기타' 라서 목록으로 가른다.
  */
-fun PaymentMethodEntity.isPerformanceTarget(): Boolean = type != PaymentMethodType.CASH && type != PaymentMethodType.ACCOUNT
+fun PaymentMethodEntity.isPerformanceTarget(): Boolean =
+    scope == CategoryScope.EXPENSE && type != PaymentMethodType.CASH && type != PaymentMethodType.ACCOUNT
 
 /**
  * [period] 에 이 카드 기록이 있는지. 카드를 처음 쓴 날([firstUse])보다 앞에 끝난 기간은 기록이 없다.

@@ -73,7 +73,7 @@ data class CardPerformanceUiState(
 
 /**
  * 탭의 상태를 만든다.
- * @param methods 결제수단 전부(결제수단 순서). 현금·계좌이체는 여기서 뺀다([isPerformanceTarget]).
+ * @param methods 결제수단 전부(결제수단 순서). 현금·계좌이체와 들어온 곳은 여기서 뺀다([isPerformanceTarget]).
  * @param rows 결제수단으로 쓴 지출·환불([tabReadRange] 범위)
  * @param firstUse 결제수단마다 지출·환불을 처음 쓴 날. 한 번도 안 쓴 결제수단은 없다.
  */
