@@ -33,7 +33,6 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.input.ImeAction
-import com.dong.budget.data.PaymentMethodRepository
 import com.dong.budget.data.db.BudgetTime
 import com.dong.budget.data.db.TransactionType
 import com.dong.budget.navigation.PrefillSource
@@ -70,7 +69,7 @@ import java.time.LocalDate
 /** 화면 아래에 열리는 입력판. 한 번에 하나만 열린다. */
 enum class EditorPanel { AMOUNT, CATEGORY, PAYMENT, DATE, TIME }
 
-/** 저장을 눌렀는데 이 칸이 비어 있을 때 칸 밑에 나오는 안내. 무엇을 해야 하는지 칸 이름으로 알려준다. */
+/** 저장을 눌렀는데 이 칸이 비어 있을 때 칸 밑에 나오는 안내. 무엇을 해야 하는지 칸 이름으로 알려준다. 결제수단은 지출에서만 필수다. */
 private fun RequiredField.missingMessage(): String = when (this) {
     RequiredField.AMOUNT -> "금액을 입력해주세요"
     RequiredField.CATEGORY -> "분류를 선택해주세요"
@@ -97,8 +96,9 @@ private val TYPE_OPTIONS = listOf(TransactionType.EXPENSE to "지출", Transacti
  *   금액 → 숫자 키패드 / 분류·결제수단 → 아이콘 표 / 내용·메모 → 시스템 키보드
  *   날짜 → 달력 / 시간 → 시계
  * 모든 선택지를 한꺼번에 펼치지 않아서 화면이 복잡하지 않다.
+ * 수입이면 결제수단 칸이 '들어온 곳 (선택)' 이 된다. 들어온 곳 목록에서 고르고, 고른 것을 다시 누르면 비운다.
  *
- * 메모를 뺀 칸은 모두 채워야 저장된다. 빈 칸이 있는데 저장을 누르면
+ * 메모와 수입의 들어온 곳을 뺀 칸은 모두 채워야 저장된다. 빈 칸이 있는데 저장을 누르면
  * 위에서부터 첫 빈 칸으로 옮겨 가고, 그 칸 밑에 '분류를 선택해주세요' 같은 안내가 나온다.
  * 안내는 저장을 누른 뒤에만 나온다. 입력하는 도중에 미리 빨갛게 표시하지 않는다.
  *
@@ -276,22 +276,24 @@ fun TransactionEditorScreen(
                 }
 
                 FormField(
-                    label = "결제수단",
+                    label = if (state.isIncome) "들어온 곳 (선택)" else "결제수단",
                     active = panel == EditorPanel.PAYMENT,
                     onClick = { toggle(EditorPanel.PAYMENT) },
                     modifier = fieldModifier(EditorPanel.PAYMENT),
                     error = missingMessage(RequiredField.PAYMENT),
                 ) {
-                    val pendingName = state.pendingPaymentName
-                    // 고르거나 바꾸면 칸 값이 겹쳐 바뀐다(새로 추가될 카드 ↔ 있는 결제수단도)
-                    FieldCrossfade(state.isPendingPaymentSelected to state.selectedPaymentMethod) { (pendingSelected, method) ->
+                    val pendingName = state.visiblePendingPaymentName
+                    // 고르거나 바꾸면 칸 값이 겹쳐 바뀐다(새로 추가될 카드 ↔ 있는 결제수단, 지출 ↔ 수입도)
+                    FieldCrossfade(
+                        Triple(state.isPendingPaymentSelected, state.selectedPaymentMethod, state.isIncome),
+                    ) { (pendingSelected, method, income) ->
                         if (pendingSelected && pendingName != null) {
-                            // 알림에서 읽은 카드가 아직 결제수단에 없다. 저장할 때 새로 만든다.
+                            // 알림에서 읽은 카드(통장)가 아직 결제수단(들어온 곳)에 없다. 저장할 때 새로 만든다.
                             // 저장할 때 만들어질 모양(아이콘·색)과 똑같이 보여준다
                             FormIconValue(
                                 icon = {
                                     CategoryBadge(
-                                        PaymentMethodRepository.NEW_CARD_ICON,
+                                        state.pendingPaymentIcon,
                                         state.pendingPaymentColor,
                                         size = BudgetTheme.size.badgeSmall,
                                     )
@@ -300,7 +302,7 @@ fun TransactionEditorScreen(
                                 text = "$pendingName (새로\u00A0추가돼요)",
                             )
                         } else if (method == null) {
-                            FormPlaceholder("결제수단을 골라주세요")
+                            FormPlaceholder(if (income) "들어온 곳을 골라주세요" else "결제수단을 골라주세요")
                         } else {
                             FormIconValue(
                                 icon = { CategoryBadge(method.icon, method.color, size = BudgetTheme.size.badgeSmall) },
@@ -386,14 +388,15 @@ fun TransactionEditorScreen(
                                         onSelectPaymentMethod(id)
                                         panel = null
                                     },
-                                    onAdd = { onOpenAdd(AddTarget.PAYMENT) },
+                                    // 수입이면 들어온 곳을 만든다
+                                    onAdd = { onOpenAdd(state.paymentAddTarget) },
                                     modifier = Modifier.fillMaxSize(),
                                     // 알림에서 읽은 카드는 저장해야 생기지만, 다른 것을 골랐다가도 되돌아올 수 있게 표에 미리 둔다
                                     preview =
-                                    state.pendingPaymentName?.let { name ->
+                                    state.visiblePendingPaymentName?.let { name ->
                                         PickerPreview(
                                             name = name,
-                                            icon = PaymentMethodRepository.NEW_CARD_ICON,
+                                            icon = state.pendingPaymentIcon,
                                             color = state.pendingPaymentColor,
                                             selected = state.isPendingPaymentSelected,
                                             onSelect = {

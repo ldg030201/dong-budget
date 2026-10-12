@@ -1,6 +1,8 @@
 package com.dong.budget.ui.editor
 
 import com.dong.budget.data.db.BudgetTime
+import com.dong.budget.data.db.DEFAULT_INCOME_SOURCES
+import com.dong.budget.data.db.PaymentMethodType
 import com.dong.budget.data.db.SALARY_CATEGORY_CODE
 import com.dong.budget.data.salary.PayBasis
 import com.dong.budget.data.salary.SalarySettings
@@ -32,6 +34,8 @@ class SalaryPrefillTest {
             LocalDateTime.of(2026, 10, 23, 9, 0),
             Instant.ofEpochMilli(prefill.occurredAtMillis).atZone(BudgetTime.ZONE).toLocalDateTime(),
         )
+        // 들어온 곳은 기본 들어온 곳 '통장' 에서 고른다
+        assertEquals(DEFAULT_INCOME_SOURCES.first { it.type == PaymentMethodType.ACCOUNT }.name, prefill.paymentName)
         // 지출만 보는 같은 가게 분류 짐작과 없는 결제수단 만들기는 끈다
         assertFalse(prefill.guessCategory)
         assertFalse(prefill.addMissingCard)

@@ -43,6 +43,7 @@ import java.time.LocalDate
 /**
  * 저장하려면 반드시 채워야 하는 칸. 화면 위에서부터의 순서다.
  * 메모는 비워도 된다. 날짜와 시간은 처음부터 값이 있어서 비는 일이 없다.
+ * 결제수단(PAYMENT)은 지출에서만 채워야 한다. 수입의 들어온 곳은 비워도 된다.
  */
 enum class RequiredField { AMOUNT, CATEGORY, PAYMENT, MERCHANT }
 
@@ -57,20 +58,27 @@ sealed interface EditorEffect {
     /** 저장을 눌렀는데 비어 있던 첫 칸으로 옮겨 간다 */
     data class JumpTo(val field: RequiredField) : EditorEffect
 
-    /** 분류나 결제수단을 새로 만들어 골랐다. 입력판을 닫는다. */
+    /** 분류나 결제수단(들어온 곳)을 새로 만들어 골랐다. 입력판을 닫는다. */
     data object Added : EditorEffect
 }
 
 data class EditorUiState(
     val isEditing: Boolean = false,
     /**
-     * 알림에서 읽은 카드 이름인데 같은 이름의 결제수단이 아직 없을 때 그 이름. 이것을 고른 채 저장하면 새로 만든다.
-     * 다른 결제수단을 골라도 남겨 둔다. 결제수단 표의 맨 뒤에 보여서 다시 고를 수 있다([isPendingPaymentSelected]).
+     * 알림에서 읽은 카드(입금 알림이면 통장) 이름인데 같은 이름의 결제수단(들어온 곳)이 아직 없을 때 그 이름. 이것을 고른 채 저장하면 새로 만든다.
+     * 다른 것을 골라도 남겨 둔다. 표의 맨 뒤에 보여서 다시 고를 수 있다([isPendingPaymentSelected]).
      */
     val pendingPaymentName: String? = null,
+    /** [pendingPaymentName] 을 만들 목록. 결제 알림이면 결제수단(지출), 입금 알림·월급날이면 들어온 곳(수입)이다. 다른 종류에서는 보이지 않는다. */
+    val pendingPaymentScope: CategoryScope = CategoryScope.EXPENSE,
+    /**
+     * 수입에서 들어온 곳을 비워 두기로 했다(고른 것을 다시 눌러 풀었다). 새로 만들 들어온 곳([pendingPaymentName])이 있어도 고르지 않은 것으로 본다.
+     * 다른 것을 고르거나 지출·수입을 바꾸면 풀린다.
+     */
+    val paymentCleared: Boolean = false,
     /** 알림에서 읽은 결제의 열쇠. 같은 결제를 두 번 등록하지 않게 거래에 함께 저장한다. 직접 입력하거나 고정지출로 채웠으면 null */
     val dedupKey: String? = null,
-    /** 채워 연 곳(결제 알림·월급날·고정지출). 직접 입력하면 null */
+    /** 채워 연 곳(결제·입금 알림·월급날·고정지출). 직접 입력하면 null */
     val prefillSource: PrefillSource? = null,
     /** 저장이 거절된 이유(이미 등록한 결제 등). 없으면 null */
     val saveError: String? = null,
@@ -83,7 +91,14 @@ data class EditorUiState(
     val memo: String = "",
     val occurredAt: Instant = Instant.now(),
     val categories: List<CategoryEntity> = emptyList(),
-    val paymentMethods: List<PaymentMethodEntity> = emptyList(),
+    /** 결제수단과 들어온 곳 모두. 고르는 표는 거래 종류에 맞는 목록([paymentMethods])만 본다. */
+    val allPaymentMethods: List<PaymentMethodEntity> = emptyList(),
+    /**
+     * 고쳐 여는 거래가 처음 가리키던 결제수단과 그 거래의 종류. 1.8.1 까지 수입에 고른 카드처럼 그 종류의 목록에 없는 것도
+     * 그 종류에서는 표에 함께 두어 골라진 채 보이게 한다(DB 6 에서 들어온 곳으로 옮기지 못한 옛 수입). 새로 등록하면 null
+     */
+    val loadedPaymentMethodId: Long? = null,
+    val loadedType: TransactionType? = null,
     /** 열려 있는 추가 시트. 없으면 null */
     val addTarget: AddTarget? = null,
     val addError: String? = null,
@@ -91,7 +106,7 @@ data class EditorUiState(
     val invalidField: RequiredField? = null,
     /** 새로 등록할 때 금액 키패드를 열어 둔 채 시작할지('금액 키패드 바로 열기'). 열 때의 스위치 값이다. */
     val keypadOnStart: Boolean = true,
-    /** 새로 만드는 분류·결제수단의 색을 아직 안 쓴 색으로 고를지('새 분류·결제수단은 안 쓴 색으로'). 아니면 회색이다. */
+    /** 새로 만드는 분류·결제수단(들어온 곳)의 색을 아직 안 쓴 색으로 고를지('새 분류·결제수단은 안 쓴 색으로'). 아니면 회색이다. */
     val pickUnusedColor: Boolean = true,
     /** 저장이나 삭제가 끝났다. 화면을 닫는다. */
     val saved: Boolean = false,
@@ -100,19 +115,25 @@ data class EditorUiState(
 ) {
     val amount: Long get() = amountDigits.toLongOrNull() ?: 0L
 
-    /** 결제 알림·월급날·고정지출에서 채워 연 등록창인지. 금액이 채워져 있어 키패드를 열지 않고 시작한다. 열쇠가 없는 고정지출도 들어간다. */
+    /** 결제·입금 알림·월급날·고정지출에서 채워 연 등록창인지. 금액이 채워져 있어 키패드를 열지 않고 시작한다. 열쇠가 없는 고정지출도 들어간다. */
     val isPrefilled: Boolean get() = prefillSource != null
+
+    /** 수입이면 결제수단 칸이 '들어온 곳' 이 된다. 들어온 곳 목록에서 고르고, 비워 둬도 된다. */
+    val isIncome: Boolean get() = type == TransactionType.INCOME
+
+    /** 지금 종류의 결제수단 목록. 지출이면 결제수단, 수입이면 들어온 곳이다. */
+    private val paymentScope: CategoryScope get() = type.categoryScope()
 
     /**
      * 아직 비어 있는 필수 칸. 화면에 보이는 것과 같은 기준으로 본다.
-     * 예를 들어 지운 결제수단이 걸린 옛 거래는 칸이 비어 보이므로 비어 있는 것으로 친다.
+     * 예를 들어 지운 결제수단이 걸린 옛 거래는 칸이 비어 보이므로 비어 있는 것으로 친다. 수입의 들어온 곳은 비워도 된다.
      */
     val missingFields: List<RequiredField>
         get() =
             buildList {
                 if (amount <= 0) add(RequiredField.AMOUNT)
                 if (selectedCategory == null) add(RequiredField.CATEGORY)
-                if (selectedPaymentMethod == null && !isPendingPaymentSelected) add(RequiredField.PAYMENT)
+                if (!isIncome && selectedPaymentMethod == null && !isPendingPaymentSelected) add(RequiredField.PAYMENT)
                 if (merchant.isBlank()) add(RequiredField.MERCHANT)
             }
 
@@ -121,19 +142,48 @@ data class EditorUiState(
 
     val selectedCategory: CategoryEntity? get() = categories.firstOrNull { it.id == categoryId }
 
+    /**
+     * 고르는 표에 둘 결제수단. 지금 종류의 목록(지출은 결제수단, 수입은 들어온 곳)에, 고쳐 여는 거래가 처음 가리키던 다른 목록의 것을
+     * 그 거래의 종류일 때만 맨 뒤에 붙인다([loadedPaymentMethodId]).
+     */
+    val paymentMethods: List<PaymentMethodEntity>
+        get() {
+            val scope = paymentScope
+            return allPaymentMethods.filter { it.scope == scope } +
+                allPaymentMethods.filter { it.scope != scope && type == loadedType && it.id == loadedPaymentMethodId }
+        }
+
     val selectedPaymentMethod: PaymentMethodEntity? get() = paymentMethods.firstOrNull { it.id == paymentMethodId }
 
-    /** 새로 만들 결제수단([pendingPaymentName])을 고른 상태인지. 다른 결제수단을 고르지 않았으면 이것이 골라져 있다. */
-    val isPendingPaymentSelected: Boolean get() = pendingPaymentName != null && paymentMethodId == null
+    /** 새로 만들 결제수단(들어온 곳) 이름. 그 목록의 종류일 때만 있다. 지출·수입을 바꾸면 숨었다가 돌아오면 다시 보인다. */
+    val visiblePendingPaymentName: String? get() = pendingPaymentName?.takeIf { pendingPaymentScope == paymentScope }
 
-    /** [pendingPaymentName] 으로 새로 만들 결제수단의 색. 저장할 때 만들어질 색(findOrCreate)과 같다. */
+    /**
+     * 새로 만들 결제수단([pendingPaymentName])을 고른 상태인지. 다른 것을 고르지 않았으면 이것이 골라져 있다.
+     * 수입에서 고른 것을 다시 눌러 비웠으면([paymentCleared]) 고르지 않은 것이다.
+     */
+    val isPendingPaymentSelected: Boolean get() = visiblePendingPaymentName != null && paymentMethodId == null && !paymentCleared
+
+    /** [pendingPaymentName] 으로 새로 만들 것의 아이콘. 결제수단은 카드, 들어온 곳은 통장이다. 저장할 때 만들어질 모양(findOrCreate)과 같다. */
+    val pendingPaymentIcon: String get() = PaymentMethodRepository.newItemIcon(pendingPaymentScope)
+
+    /** [pendingPaymentName] 으로 새로 만들 것의 색. 저장할 때 만들어질 색(findOrCreate, 그 목록에서 안 쓴 색)과 같다. */
     val pendingPaymentColor: String
-        get() = if (pickUnusedColor) CategoryStyle.firstUnusedColor(usedPaymentColors) else CategoryStyle.FALLBACK_COLOR
+        get() =
+            if (pickUnusedColor) {
+                CategoryStyle.firstUnusedColor(allPaymentMethods.filter { it.scope == pendingPaymentScope }.colors())
+            } else {
+                CategoryStyle.FALLBACK_COLOR
+            }
 
-    val usedPaymentColors: Set<String> get() = paymentMethods.colors()
+    /** 결제수단 표의 + 가 여는 추가 시트. 수입이면 들어온 곳을 만든다. */
+    val paymentAddTarget: AddTarget get() = if (isIncome) AddTarget.INCOME_SOURCE else AddTarget.PAYMENT
 
-    /** 추가 시트가 기본 색을 겹치지 않게 고를 때 본다 */
-    fun usedColors(target: AddTarget): Set<String> = if (target == AddTarget.PAYMENT) usedPaymentColors else categories.colors()
+    /** 추가 시트가 기본 색을 겹치지 않게 고를 때 본다. 결제수단·들어온 곳은 그 목록의 색만 본다. */
+    fun usedColors(target: AddTarget): Set<String> = when (target) {
+        AddTarget.CATEGORY -> categories.colors()
+        AddTarget.PAYMENT, AddTarget.INCOME_SOURCE -> allPaymentMethods.filter { it.scope == target.paymentScope }.colors()
+    }
 }
 
 class TransactionEditorViewModel(
@@ -165,19 +215,12 @@ class TransactionEditorViewModel(
             }
         }
         viewModelScope.launch {
-            paymentMethodRepository.observe(CategoryScope.EXPENSE).collect { methods ->
-                _uiState.update { state ->
-                    // 알림에서 읽은 카드 이름과 같은 결제수단이 있으면(띄어쓰기·대소문자 무시, 예전에 잘려 만든 이름 포함) 새로 만들 것이 없다.
-                    // 그 이름을 고른 상태였으면 있는 결제수단을 고른다. 등록창에서 같은 이름을 직접 추가한 경우도 여기로 온다.
-                    val match = state.pendingPaymentName?.let { PaymentMethodRepository.findSameCard(methods, it) }
-                    if (match == null) {
-                        // '없는 카드는 새로 추가하기' 를 껐으면 새로 만들 카드를 두지 않는다. 결제수단은 사용자가 고른다.
-                        val keepPending = prefill?.addMissingCard != false
-                        state.copy(paymentMethods = methods, pendingPaymentName = state.pendingPaymentName.takeIf { keepPending })
-                    } else {
-                        state.copy(paymentMethods = methods, paymentMethodId = state.paymentMethodId ?: match.id, pendingPaymentName = null)
-                    }
-                }
+            // 두 목록을 함께 따라간다. 표는 거래 종류에 맞는 목록만 보여 주고(EditorUiState.paymentMethods),
+            // 고쳐 여는 옛 수입이 가리키는 결제수단도 찾을 수 있게 한다.
+            // '없는 카드·통장은 새로 추가하기' 를 껐으면 새로 만들 것을 두지 않는다. 사용자가 고른다.
+            val keepPending = prefill?.addMissingCard != false
+            paymentMethodRepository.observeAll().collect { methods ->
+                _uiState.update { it.withPaymentMethods(methods, keepPending) }
             }
         }
         if (transactionId != null) loadExisting(transactionId)
@@ -195,12 +238,13 @@ class TransactionEditorViewModel(
                 pickUnusedColor = auto[AutoOption.NEW_ITEM_COLOR],
             )
         val data = prefill?.takeIf { transactionId == null } ?: return base
-        return base.copy(
-            type =
+        val type =
             when (data.source) {
                 PrefillSource.PAYDAY -> TransactionType.INCOME
                 PrefillSource.PAYMENT_ALERT, PrefillSource.FIXED_EXPENSE -> TransactionType.EXPENSE
-            },
+            }
+        return base.copy(
+            type = type,
             prefillSource = data.source,
             amountDigits = data.amount.takeIf { it > 0 }?.toString()?.take(MAX_AMOUNT_DIGITS).orEmpty(),
             merchant = data.merchant,
@@ -208,6 +252,8 @@ class TransactionEditorViewModel(
             occurredAt = Instant.ofEpochMilli(data.occurredAtMillis),
             // 저장할 때 만들 이름과 똑같이 다듬어 둔다. 그래야 이미 있는 결제수단과 맞춰 볼 수 있다.
             pendingPaymentName = data.paymentName?.let(PaymentMethodRepository::normalizeName),
+            // 월급날의 '통장' 은 들어온 곳에서 찾는다
+            pendingPaymentScope = type.categoryScope(),
             // 번호로 고른 결제수단을 그사이 지웠으면 표에 없어 비어 보이고, 저장할 때 빈 칸으로 막혀 사용자가 고른다.
             paymentMethodId = data.paymentMethodId,
             dedupKey = data.dedupKey,
@@ -269,6 +315,8 @@ class TransactionEditorViewModel(
                     amountDigits = existing.amount.toString(),
                     categoryId = existing.categoryId,
                     paymentMethodId = existing.paymentMethodId,
+                    loadedPaymentMethodId = existing.paymentMethodId,
+                    loadedType = existing.type,
                     merchant = existing.merchant.orEmpty(),
                     memo = existing.memo.orEmpty(),
                     occurredAt = existing.occurredAt,
@@ -278,7 +326,7 @@ class TransactionEditorViewModel(
     }
 
     fun selectType(type: TransactionType) {
-        _uiState.update { it.copy(type = type) }
+        _uiState.update { it.withType(type) }
     }
 
     // 숫자 규칙은 월급 설정·카드 실적 편집과 같은 것을 쓴다. 0 이면 빈 칸(안내 글)으로 둔다.
@@ -302,14 +350,12 @@ class TransactionEditorViewModel(
     }
 
     fun selectPaymentMethod(id: Long) {
-        // 결제수단은 필수라서 이미 고른 것을 다시 눌러도 선택을 풀지 않는다.
-        // 알림에서 읽은 카드 이름은 지우지 않는다. 마음이 바뀌면 표에서 다시 고를 수 있다.
-        _uiState.update { it.copy(paymentMethodId = id) }
+        _uiState.update { it.withPaymentMethodTapped(id) }
     }
 
-    /** 알림에서 읽은 카드 이름으로 새로 만들 결제수단을 다시 고른다 */
+    /** 알림에서 읽은 이름으로 새로 만들 결제수단(들어온 곳)을 다시 고른다. 수입에서 이미 고른 채 다시 누르면 비운다. */
     fun selectPendingPaymentMethod() {
-        _uiState.update { if (it.pendingPaymentName != null) it.copy(paymentMethodId = null) else it }
+        _uiState.update { it.withPendingPaymentTapped() }
     }
 
     /**
@@ -348,7 +394,7 @@ class TransactionEditorViewModel(
     }
 
     /**
-     * 등록 도중에 분류나 결제수단을 새로 만든다. '새로 만든 분류·결제수단 바로 고르기' 가 켜져 있으면 그것을 고르고 표를 닫는다.
+     * 등록 도중에 분류나 결제수단(수입이면 들어온 곳)을 새로 만든다. '새로 만든 분류·결제수단 바로 고르기' 가 켜져 있으면 그것을 고르고 표를 닫는다.
      * 꺼져 있으면 추가 창만 닫고 표는 열어 둔다.
      */
     fun submitAdd(name: String, icon: String, color: String) {
@@ -358,7 +404,7 @@ class TransactionEditorViewModel(
             val result =
                 when (target) {
                     AddTarget.CATEGORY -> categoryRepository.add(state.type.categoryScope(), name, icon, color)
-                    AddTarget.PAYMENT -> paymentMethodRepository.add(CategoryScope.EXPENSE, name, icon, color)
+                    AddTarget.PAYMENT, AddTarget.INCOME_SOURCE -> paymentMethodRepository.add(target.paymentScope, name, icon, color)
                 }
             if (result !is AddResult.Added) {
                 _uiState.update { it.copy(addError = result.message()) }
@@ -372,7 +418,9 @@ class TransactionEditorViewModel(
             _uiState.update {
                 when (target) {
                     AddTarget.CATEGORY -> it.copy(categoryId = result.id, addTarget = null, addError = null)
-                    AddTarget.PAYMENT -> it.copy(paymentMethodId = result.id, addTarget = null, addError = null)
+
+                    AddTarget.PAYMENT, AddTarget.INCOME_SOURCE ->
+                        it.copy(paymentMethodId = result.id, paymentCleared = false, addTarget = null, addError = null)
                 }
             }
             _effects.send(EditorEffect.Added)
@@ -412,10 +460,10 @@ class TransactionEditorViewModel(
                     rejectAlreadyRegistered(dedupKey)
                     return@launch
                 }
-                // 알림에서 읽은 카드가 아직 결제수단에 없으면 이때 만든다. 등록을 취소하면 만들지 않는다.
+                // 알림에서 읽은 카드(통장)가 아직 결제수단(들어온 곳)에 없으면 이때 만든다. 등록을 취소하면 만들지 않는다.
                 val paymentMethodId =
-                    state.paymentMethodId ?: state.pendingPaymentName?.let {
-                        paymentMethodRepository.findOrCreate(CategoryScope.EXPENSE, it, pickUnusedColor = state.pickUnusedColor)
+                    state.paymentMethodId ?: state.visiblePendingPaymentName?.takeIf { state.isPendingPaymentSelected }?.let {
+                        paymentMethodRepository.findOrCreate(state.pendingPaymentScope, it, pickUnusedColor = state.pickUnusedColor)
                     }
                 try {
                     repository.add(
@@ -453,13 +501,11 @@ class TransactionEditorViewModel(
 
     private fun rejectAlreadyRegistered(dedupKey: String) {
         onCaptureRegistered(dedupKey)
-        val message = if (_uiState.value.prefillSource ==
-            PrefillSource.PAYDAY
-        ) {
-            SALARY_ALREADY_REGISTERED_MESSAGE
-        } else {
-            ALREADY_REGISTERED_MESSAGE
-        }
+        val message =
+            when (_uiState.value.prefillSource) {
+                PrefillSource.PAYDAY -> SALARY_ALREADY_REGISTERED_MESSAGE
+                else -> ALREADY_REGISTERED_MESSAGE
+            }
         _uiState.update { it.copy(saveError = message) }
         busy = false
     }
@@ -476,6 +522,50 @@ class TransactionEditorViewModel(
 }
 
 fun TransactionType.categoryScope(): CategoryScope = if (this == TransactionType.INCOME) CategoryScope.INCOME else CategoryScope.EXPENSE
+
+// ── 결제수단 칸의 상태 바꾸기 ──
+// 화면 모델은 아래를 부르기만 한다. 화면 모델 없이 규칙을 시험하려고 상태 위의 함수로 둔다.
+
+/**
+ * 결제수단·들어온 곳 목록이 새로 왔다. 알림에서 읽은 카드(통장) 이름과 같은 것이 그 목록에 있으면(띄어쓰기·대소문자 무시,
+ * 예전에 잘려 만든 이름 포함) 새로 만들 것이 없다. 그 이름을 고른 상태였으면 있는 것을 고른다. 등록창에서 같은 이름을 직접 추가한 경우도 여기로 온다.
+ * @param keepPending 같은 이름이 없을 때 새로 만들 것으로 남겨 둘지('없는 카드·통장은 새로 추가하기')
+ */
+internal fun EditorUiState.withPaymentMethods(methods: List<PaymentMethodEntity>, keepPending: Boolean): EditorUiState {
+    val sameList = methods.filter { it.scope == pendingPaymentScope }
+    val match = pendingPaymentName?.let { PaymentMethodRepository.findSameCard(sameList, it) }
+    if (match == null) return copy(allPaymentMethods = methods, pendingPaymentName = pendingPaymentName.takeIf { keepPending })
+    val pick = paymentMethodId == null && !paymentCleared && pendingPaymentScope == type.categoryScope()
+    return copy(allPaymentMethods = methods, paymentMethodId = if (pick) match.id else paymentMethodId, pendingPaymentName = null)
+}
+
+/**
+ * 지출·수입을 바꾼다. 고르는 목록도 바뀌어서(결제수단 ↔ 들어온 곳) 고른 것이 새 목록에 없으면 비운다(분류와 같다).
+ * 목록을 아직 읽기 전이면 고른 것을 그대로 둔다. 수입에서 비워 두기로 한 것은 풀린다.
+ */
+internal fun EditorUiState.withType(type: TransactionType): EditorUiState {
+    val next = copy(type = type, paymentCleared = false)
+    val stale = next.allPaymentMethods.isNotEmpty() && next.paymentMethodId != null && next.selectedPaymentMethod == null
+    return if (stale) next.copy(paymentMethodId = null) else next
+}
+
+/**
+ * 표에서 결제수단(들어온 곳) [id] 를 눌렀다. 들어온 곳(수입)은 비워 둘 수 있어서 고른 것을 다시 누르면 선택을 푼다.
+ * 결제수단(지출)은 필수라서 이미 고른 것을 다시 눌러도 풀지 않는다.
+ * 알림에서 읽은 이름은 지우지 않는다. 마음이 바뀌면 표에서 다시 고를 수 있다.
+ */
+internal fun EditorUiState.withPaymentMethodTapped(id: Long): EditorUiState = if (isIncome && paymentMethodId == id) {
+    copy(paymentMethodId = null, paymentCleared = true)
+} else {
+    copy(paymentMethodId = id, paymentCleared = false)
+}
+
+/** 표에서 새로 만들 결제수단(들어온 곳)을 눌렀다. 그것을 고른다. 수입에서 이미 고른 채 다시 누르면 비운다. */
+internal fun EditorUiState.withPendingPaymentTapped(): EditorUiState = when {
+    visiblePendingPaymentName == null -> this
+    isIncome && isPendingPaymentSelected -> copy(paymentCleared = true)
+    else -> copy(paymentMethodId = null, paymentCleared = false)
+}
 
 /** 키패드 금액 칸에 둘 숫자. 0 이면 아직 적지 않은 것이라 비운다. */
 private fun amountText(amount: Long): String = amount.takeIf { it > 0 }?.toString().orEmpty()

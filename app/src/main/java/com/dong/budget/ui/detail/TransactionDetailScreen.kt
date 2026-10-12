@@ -29,6 +29,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextAlign
 import com.dong.budget.data.db.TransactionListItem
+import com.dong.budget.data.db.TransactionType
 import com.dong.budget.ui.components.BudgetTextButton
 import com.dong.budget.ui.components.BudgetTopAppBar
 import com.dong.budget.ui.components.CategoryBadge
@@ -56,7 +57,7 @@ import com.dong.budget.ui.theme.BudgetTheme
  * 위에서부터
  * - 상단 바: 뒤로, 오른쪽 위 '삭제'(한 번 더 묻고 지운다)와 '수정'(그 거래의 등록창)
  * - 머리: 분류 뱃지, 가게 이름, 큰 금액
- * - 칸: 분류, 결제수단, 날짜, 시간, 메모(적었을 때만)
+ * - 칸: 분류, 결제수단(수입이면 들어온 곳, 비웠으면 칸이 없다), 날짜, 시간, 메모(적었을 때만)
  * - 최근 내역: 같은 가게에서 최근 1년 동안 쓴(받은) 거래를 달별로. 지금 보는 거래는 바탕색만 달리하고 누를 수 없다.
  *   다른 거래를 누르면 그 거래의 상세가 위에 열린다.
  *
@@ -164,7 +165,7 @@ private fun DetailHeader(item: TransactionListItem) {
     }
 }
 
-/** 분류·결제수단·날짜·시간·메모 칸. 메모는 적었을 때만 둔다. */
+/** 분류·결제수단·날짜·시간·메모 칸. 메모는 적었을 때만 둔다. 수입은 결제수단 대신 들어온 곳이고, 비워 둘 수 있는 칸이라 비웠으면 두지 않는다. */
 @Composable
 private fun DetailFields(item: TransactionListItem, state: TransactionDetailUiState.Shown) {
     Column(
@@ -179,14 +180,17 @@ private fun DetailFields(item: TransactionListItem, state: TransactionDetailUiSt
             value = item.categoryName ?: Grouping.CATEGORY.noneName,
             badge = item.categoryName?.let { { CategoryBadge(item.categoryIcon, item.categoryColor, size = BudgetTheme.size.badgeSmall) } },
         )
-        FieldRow(
-            label = "결제수단",
-            value = item.paymentMethodName ?: Grouping.PAYMENT_METHOD.noneName,
-            badge =
-            item.paymentMethodName?.let {
-                { CategoryBadge(item.paymentMethodIcon, item.paymentMethodColor, size = BudgetTheme.size.badgeSmall) }
-            },
-        )
+        val income = item.type == TransactionType.INCOME
+        if (!income || item.paymentMethodName != null) {
+            FieldRow(
+                label = if (income) "들어온 곳" else "결제수단",
+                value = item.paymentMethodName ?: Grouping.PAYMENT_METHOD.noneName,
+                badge =
+                item.paymentMethodName?.let {
+                    { CategoryBadge(item.paymentMethodIcon, item.paymentMethodColor, size = BudgetTheme.size.badgeSmall) }
+                },
+            )
+        }
         FieldRow(label = "날짜", value = formatDate(item.occurredAt, state.today))
         FieldRow(label = "시간", value = formatTime(item.occurredAt))
         item.memo?.let { FieldRow(label = "메모", value = it) }

@@ -41,6 +41,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import com.dong.budget.data.AddResult
 import com.dong.budget.data.MAX_NAME_LENGTH
+import com.dong.budget.data.db.CategoryScope
 import com.dong.budget.data.db.CategoryStyle
 import com.dong.budget.ui.components.AnimatedErrorText
 import com.dong.budget.ui.components.BudgetPrimaryButton
@@ -58,10 +59,17 @@ import com.dong.budget.ui.theme.pressScaleClickable
 enum class AddTarget(val title: String, val namePlaceholder: String) {
     CATEGORY("분류 추가", "예: 카페"),
     PAYMENT("결제수단 추가", "예: 신한카드"),
+
+    /** 수입이 들어온 곳(통장 등). 결제수단 표의 수입 쪽 목록이다. */
+    INCOME_SOURCE("들어온 곳 추가", "예: 토스뱅크 통장"),
+    ;
+
+    /** 결제수단 표의 어느 목록에 만드는지. 분류는 거래 종류를 따르므로 쓰지 않는다. */
+    val paymentScope: CategoryScope get() = if (this == INCOME_SOURCE) CategoryScope.INCOME else CategoryScope.EXPENSE
 }
 
 /**
- * 분류나 결제수단을 새로 만드는 시트. 이름, 색, 아이콘을 고른다.
+ * 분류나 결제수단·들어온 곳을 새로 만드는 시트. 이름, 색, 아이콘을 고른다.
  *
  * [target] 이 있으면 띄운다. 입력 중인 값은 이 시트 안에만 있다. 저장이 끝나면 부르는 쪽이 target 을 null 로 바꾸고,
  * 시트는 아래로 내려간 뒤에 사라진다. 사라지면 값도 함께 사라져 다음에 열 때 새로 시작한다.
