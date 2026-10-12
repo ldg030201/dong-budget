@@ -165,7 +165,7 @@ class TransactionEditorViewModel(
             }
         }
         viewModelScope.launch {
-            paymentMethodRepository.observeAll().collect { methods ->
+            paymentMethodRepository.observe(CategoryScope.EXPENSE).collect { methods ->
                 _uiState.update { state ->
                     // 알림에서 읽은 카드 이름과 같은 결제수단이 있으면(띄어쓰기·대소문자 무시, 예전에 잘려 만든 이름 포함) 새로 만들 것이 없다.
                     // 그 이름을 고른 상태였으면 있는 결제수단을 고른다. 등록창에서 같은 이름을 직접 추가한 경우도 여기로 온다.
@@ -358,7 +358,7 @@ class TransactionEditorViewModel(
             val result =
                 when (target) {
                     AddTarget.CATEGORY -> categoryRepository.add(state.type.categoryScope(), name, icon, color)
-                    AddTarget.PAYMENT -> paymentMethodRepository.add(name, icon, color)
+                    AddTarget.PAYMENT -> paymentMethodRepository.add(CategoryScope.EXPENSE, name, icon, color)
                 }
             if (result !is AddResult.Added) {
                 _uiState.update { it.copy(addError = result.message()) }
@@ -415,7 +415,7 @@ class TransactionEditorViewModel(
                 // 알림에서 읽은 카드가 아직 결제수단에 없으면 이때 만든다. 등록을 취소하면 만들지 않는다.
                 val paymentMethodId =
                     state.paymentMethodId ?: state.pendingPaymentName?.let {
-                        paymentMethodRepository.findOrCreate(it, pickUnusedColor = state.pickUnusedColor)
+                        paymentMethodRepository.findOrCreate(CategoryScope.EXPENSE, it, pickUnusedColor = state.pickUnusedColor)
                     }
                 try {
                     repository.add(

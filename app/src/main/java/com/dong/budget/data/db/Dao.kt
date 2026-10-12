@@ -65,7 +65,7 @@ private const val INCOME_WITH_CODE_EXISTS =
         )
     """
 
-/** 결제수단 목록에 거래 건수를 붙인 것 */
+/** 결제수단(들어온 곳) 목록에 거래 건수를 붙인 것 */
 data class PaymentMethodWithCount(@Embedded val paymentMethod: PaymentMethodEntity, val transactionCount: Int)
 
 /** 분류 목록에 거래 건수를 붙인 것. 지울 때 '몇 건이 옮겨진다' 를 알려주는 데 쓴다. */
@@ -311,17 +311,23 @@ interface CategoryDao {
 
 @Dao
 interface PaymentMethodDao {
-    @Query("SELECT * FROM payment_methods ORDER BY sortOrder, name")
+    /** 결제수단과 들어온 곳 모두. 결제수단이 먼저다. 등록창이 옛 거래가 가리키는 다른 목록의 것까지 찾을 때 쓴다. */
+    @Query("SELECT * FROM payment_methods ORDER BY scope, sortOrder, name")
     fun observeAll(): Flow<List<PaymentMethodEntity>>
+
+    /** 한 목록(결제수단이나 들어온 곳)만 */
+    @Query("SELECT * FROM payment_methods WHERE scope = :scope ORDER BY sortOrder, name")
+    fun observeByScope(scope: CategoryScope): Flow<List<PaymentMethodEntity>>
 
     @Query(
         """
         SELECT p.*, (SELECT COUNT(*) FROM transactions t WHERE t.paymentMethodId = p.id) AS transactionCount
         FROM payment_methods p
+        WHERE p.scope = :scope
         ORDER BY p.sortOrder, p.name
         """,
     )
-    fun observeWithCount(): Flow<List<PaymentMethodWithCount>>
+    fun observeWithCount(scope: CategoryScope): Flow<List<PaymentMethodWithCount>>
 
     @Query("SELECT * FROM payment_methods WHERE id = :id")
     suspend fun findById(id: Long): PaymentMethodEntity?
@@ -330,11 +336,12 @@ interface PaymentMethodDao {
     @Query("SELECT * FROM payment_methods WHERE id = :id")
     fun observeById(id: Long): Flow<PaymentMethodEntity?>
 
-    @Query("SELECT * FROM payment_methods")
-    suspend fun getAll(): List<PaymentMethodEntity>
+    @Query("SELECT * FROM payment_methods WHERE scope = :scope")
+    suspend fun getByScope(scope: CategoryScope): List<PaymentMethodEntity>
 
-    @Query("SELECT COALESCE(MAX(sortOrder), -1) FROM payment_methods")
-    suspend fun maxSortOrder(): Int
+    /** 새 결제수단(들어온 곳)을 그 목록 맨 뒤에 두기 위한 값 */
+    @Query("SELECT COALESCE(MAX(sortOrder), -1) FROM payment_methods WHERE scope = :scope")
+    suspend fun maxSortOrder(scope: CategoryScope): Int
 
     @Query("UPDATE payment_methods SET sortOrder = :sortOrder WHERE id = :id")
     suspend fun updateSortOrder(id: Long, sortOrder: Int)

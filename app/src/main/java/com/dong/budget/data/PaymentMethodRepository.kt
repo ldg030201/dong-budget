@@ -3,6 +3,7 @@ package com.dong.budget.data
 import android.database.sqlite.SQLiteConstraintException
 import com.dong.budget.data.card.encodePerformanceTiers
 import com.dong.budget.data.card.normalizePerformanceStartDay
+import com.dong.budget.data.db.CategoryScope
 import com.dong.budget.data.db.CategoryStyle
 import com.dong.budget.data.db.PaymentMethodDao
 import com.dong.budget.data.db.PaymentMethodEntity
@@ -13,10 +14,23 @@ import kotlinx.coroutines.flow.Flow
 import java.time.Instant
 import java.util.UUID
 
+/**
+ * 결제수단(지출)과 들어온 곳(수입) 저장소. 둘은 한 표에 [CategoryScope] 로 나뉘어 있어서 목록마다 따로 읽고 만든다.
+ */
 class PaymentMethodRepository(private val dao: PaymentMethodDao) {
     companion object {
-        /** 알림에서 읽어 새로 만드는 결제수단은 모두 카드다. 등록창의 '새로 추가돼요' 미리보기도 이 아이콘을 쓴다. */
+        /** 결제 알림에서 읽어 새로 만드는 결제수단은 모두 카드다. 등록창의 '새로 추가돼요' 미리보기도 이 아이콘을 쓴다. */
         const val NEW_CARD_ICON = "credit_card"
+
+        /** 입금 알림에서 읽어 새로 만드는 들어온 곳은 모두 통장이다. */
+        const val NEW_ACCOUNT_ICON = "account_balance"
+
+        /** 알림에서 읽은 이름으로 새로 만들 것의 아이콘. 결제수단은 카드, 들어온 곳은 통장이다. */
+        fun newItemIcon(scope: CategoryScope): String = if (scope == CategoryScope.INCOME) NEW_ACCOUNT_ICON else NEW_CARD_ICON
+
+        /** 알림에서 읽은 이름으로 새로 만들 것의 종류. 들어온 곳은 통장(계좌)이고, 결제수단은 카드인지 알 수 없어 '기타' 다. */
+        private fun newItemType(scope: CategoryScope): PaymentMethodType =
+            if (scope == CategoryScope.INCOME) PaymentMethodType.ACCOUNT else PaymentMethodType.OTHER
 
         /** 띄어쓰기와 대소문자를 무시하고 같은 이름인지 본다. '하나 카드' 와 '하나카드' 는 같다. */
         fun sameName(a: String, b: String): Boolean = a.replace(" ", "").equals(b.replace(" ", ""), ignoreCase = true)
@@ -44,9 +58,13 @@ class PaymentMethodRepository(private val dao: PaymentMethodDao) {
         private const val LEGACY_NAME_LENGTH = 10
     }
 
+    /** 결제수단과 들어온 곳 모두. 결제수단이 먼저다. */
     fun observeAll(): Flow<List<PaymentMethodEntity>> = dao.observeAll()
 
-    fun observeWithCount(): Flow<List<PaymentMethodWithCount>> = dao.observeWithCount()
+    /** 한 목록만. 지출이면 결제수단, 수입이면 들어온 곳이다. */
+    fun observe(scope: CategoryScope): Flow<List<PaymentMethodEntity>> = dao.observeByScope(scope)
+
+    fun observeWithCount(scope: CategoryScope): Flow<List<PaymentMethodWithCount>> = dao.observeWithCount(scope)
 
     /** 결제수단 하나. 고치면 새 값을, 지우면 null 을 내보낸다. */
     fun observe(id: Long): Flow<PaymentMethodEntity?> = dao.observeById(id)
@@ -58,50 +76,61 @@ class PaymentMethodRepository(private val dao: PaymentMethodDao) {
     suspend fun setPerformance(id: Long, tiers: List<Long>, startDay: Int): Boolean =
         dao.updatePerformance(id, encodePerformanceTiers(tiers), normalizePerformanceStartDay(startDay)) > 0
 
-    suspend fun add(rawName: String, icon: String, color: String): AddResult {
+    /**
+     * [scope] 목록(결제수단이나 들어온 곳) 맨 뒤에 새로 만든다.
+     * @param type 세부 종류. 사용자가 만든 것은 쓰는 곳이 없어 '기타' 다. 카드실적은 결제수단 중 현금·계좌가 아닌 것을 본다.
+     */
+    suspend fun add(
+        scope: CategoryScope,
+        rawName: String,
+        icon: String,
+        color: String,
+        type: PaymentMethodType = PaymentMethodType.OTHER,
+    ): AddResult {
         val name = rawName.trim()
         nameProblem(name)?.let { return it }
 
         val method =
             PaymentMethodEntity(
                 uuid = UUID.randomUUID().toString(),
+                scope = scope,
                 name = name,
-                // 사용자가 만든 결제수단의 세부 종류는 아직 쓰는 곳이 없다
-                type = PaymentMethodType.OTHER,
-                sortOrder = dao.maxSortOrder() + 1,
+                type = type,
+                sortOrder = dao.maxSortOrder(scope) + 1,
                 icon = CategoryStyle.iconOrFallback(icon),
                 color = CategoryStyle.colorOrFallback(color),
             )
         return try {
             AddResult.Added(dao.insert(method))
         } catch (e: SQLiteConstraintException) {
-            // name 에 UNIQUE 인덱스가 있다
+            // (scope, name) 에 UNIQUE 인덱스가 있다
             AddResult.DuplicateName
         }
     }
 
     /**
-     * 이름이 같은 결제수단을 찾고, 없으면 카드 아이콘으로 새로 만든다. 알림에서 읽은 카드 이름을 저장할 때 쓴다.
-     * @param pickUnusedColor 새로 만들 때 아직 안 쓴 색을 고를지. 아니면 회색이다('새 분류·결제수단은 안 쓴 색으로').
-     * @return 결제수단 id. 이름이 비어 있으면 null
+     * [scope] 목록에서 이름이 같은 것을 찾고, 없으면 새로 만든다. 알림에서 읽은 카드(결제수단)나 통장(들어온 곳) 이름을 저장할 때 쓴다.
+     * 새로 만들면 결제수단은 카드 아이콘, 들어온 곳은 통장 아이콘이다([newItemIcon]).
+     * @param pickUnusedColor 새로 만들 때 그 목록에서 아직 안 쓴 색을 고를지. 아니면 회색이다('새 분류·결제수단은 안 쓴 색으로').
+     * @return 결제수단(들어온 곳) id. 이름이 비어 있으면 null
      */
-    suspend fun findOrCreate(rawName: String, pickUnusedColor: Boolean = true): Long? {
+    suspend fun findOrCreate(scope: CategoryScope, rawName: String, pickUnusedColor: Boolean = true): Long? {
         val name = normalizeName(rawName) ?: return null
-        val existing = dao.getAll()
+        val existing = dao.getByScope(scope)
         findSameCard(existing, name)?.let { return it.id }
         val color = if (pickUnusedColor) CategoryStyle.firstUnusedColor(existing.colors()) else CategoryStyle.FALLBACK_COLOR
-        return when (val result = add(name, NEW_CARD_ICON, color)) {
+        return when (val result = add(scope, name, newItemIcon(scope), color, newItemType(scope))) {
             is AddResult.Added -> result.id
 
             // 그사이 같은 이름이 생겼으면 그것을 쓴다
-            else -> findSameCard(dao.getAll(), name)?.id
+            else -> findSameCard(dao.getByScope(scope), name)?.id
         }
     }
 
-    /** 결제수단 순서를 바꾼다. 거래 등록 화면의 결제수단 표도 이 순서를 따른다. */
+    /** 한 목록의 순서를 바꾼다. 거래 등록 화면의 결제수단(들어온 곳) 표도 이 순서를 따른다. */
     suspend fun reorder(orderedIds: List<Long>) = dao.reorder(orderedIds)
 
-    /** 결제수단을 지운다. 그 결제수단으로 적힌 거래는 결제수단 없이 남는다. */
+    /** 결제수단(들어온 곳)을 지운다. 그것으로 적힌 거래는 결제수단(들어온 곳) 없이 남는다. */
     suspend fun delete(id: Long): Boolean {
         val method = dao.findById(id) ?: return false
         if (method.isSystem) return false

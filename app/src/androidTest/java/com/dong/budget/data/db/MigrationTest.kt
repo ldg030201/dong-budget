@@ -14,7 +14,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 
 /**
- * 0.1.2 이하(DB 1)·1.6.1 이하(DB 2)·1.7.0(DB 4)에서 올리는 사용자의 가계부가 마이그레이션 뒤에도 그대로 남는지 실제 SQLite 로 확인한다.
+ * 0.1.2 이하(DB 1)·1.6.1 이하(DB 2)·1.7.0(DB 4)·1.8.1 이하(DB 5)에서 올리는 사용자의 가계부가 마이그레이션 뒤에도 그대로 남는지 실제 SQLite 로 확인한다.
  *
  * 옛 앱이 첫 설치 때 넣던 기본 분류·결제수단(v0.1.2 의 SeedCallback)을 그대로 만들고, 거래를 몇 건 넣은 뒤 2·3·4 로 올린다.
  * 원칙은 '거래는 하나도 잃지 않는다' 다(Migration1To2).
@@ -28,7 +28,7 @@ class MigrationTest {
         MigrationTestHelper(
             InstrumentationRegistry.getInstrumentation(),
             BudgetDatabase::class.java,
-            listOf(Migration1To2(), Migration4To5()),
+            listOf(Migration1To2(), Migration4To5(), Migration5To6()),
         )
 
     @Test
@@ -287,6 +287,132 @@ class MigrationTest {
         db.row("SELECT sortOrder FROM categories WHERE code = '$GAME_CATEGORY_CODE'") { assertEquals(5, it.getInt(0)) }
         db.row("SELECT sortOrder FROM categories WHERE code = '$SAVINGS_CATEGORY_CODE'") { assertEquals(6, it.getInt(0)) }
     }
+
+    @Test
+    fun `5 에서 6 으로 올리면 있던 결제수단은 결제수단으로 남고 현금·계좌이체로 적은 수입은 들어온 곳으로 옮겨 간다`() {
+        helper.createDatabase(TEST_DB, 5).apply {
+            seedPaymentMethodsLikeVersion5()
+            // 지출 둘, 수입 다섯(현금·계좌이체·체크카드·직접 만든 카드·비움)
+            insertTransactionWith("e-cash", "EXPENSE", "seed:payment:CASH")
+            insertTransactionWith("e-account", "EXPENSE", "seed:payment:ACCOUNT")
+            insertTransactionWith("i-cash", "INCOME", "seed:payment:CASH")
+            insertTransactionWith("i-account", "INCOME", "seed:payment:ACCOUNT")
+            insertTransactionWith("i-check", "INCOME", "seed:payment:CHECK_CARD")
+            insertTransactionWith("i-hana", "INCOME", "user:hana")
+            insertTransactionWith("i-none", "INCOME", null)
+            close()
+        }
+        val db = helper.runMigrationsAndValidate(TEST_DB, 6, true)
+
+        // 결제수단 표를 새로 만들어도(칸 추가) 거래가 가리키던 번호는 하나도 비지 않는다
+        assertEquals(7, db.count("SELECT COUNT(*) FROM transactions"))
+        assertEquals(6, db.count("SELECT COUNT(*) FROM transactions WHERE paymentMethodId IS NOT NULL"))
+        assertEquals(
+            0,
+            db.count(
+                "SELECT COUNT(*) FROM transactions WHERE paymentMethodId IS NOT NULL AND paymentMethodId NOT IN (SELECT id FROM payment_methods)",
+            ),
+        )
+
+        // 있던 결제수단은 모두 결제수단(지출)이고, 기본 들어온 곳 둘이 새로 생긴다
+        assertEquals(DEFAULT_PAYMENT_METHODS.size + 1, db.count("SELECT COUNT(*) FROM payment_methods WHERE scope = 'EXPENSE'"))
+        DEFAULT_INCOME_SOURCES.forEach { m ->
+            db.row("SELECT scope, name, type, icon, color, sortOrder, isSystem FROM payment_methods WHERE uuid = '${m.uuid}'") {
+                assertEquals("INCOME", it.getString(0))
+                assertEquals(m.name, it.getString(1))
+                assertEquals(m.type.name, it.getString(2))
+                assertEquals(m.icon, it.getString(3))
+                assertEquals(m.color, it.getString(4))
+                assertEquals(m.sortOrder, it.getInt(5))
+                assertEquals(0, it.getInt(6))
+            }
+        }
+        assertEquals(DEFAULT_INCOME_SOURCES.size, db.count("SELECT COUNT(*) FROM payment_methods WHERE scope = 'INCOME'"))
+
+        // 지출은 그대로, 현금·계좌이체로 적은 수입은 들어온 곳 '현금'·'통장' 으로, 카드로 적은 수입은 그대로다
+        assertEquals("EXPENSE 현금", db.paymentOf("e-cash"))
+        assertEquals("EXPENSE 계좌이체", db.paymentOf("e-account"))
+        assertEquals("INCOME 현금", db.paymentOf("i-cash"))
+        assertEquals("INCOME 통장", db.paymentOf("i-account"))
+        assertEquals("EXPENSE 체크카드", db.paymentOf("i-check"))
+        assertEquals("EXPENSE 하나카드", db.paymentOf("i-hana"))
+        assertNull(db.paymentOf("i-none"))
+
+        // 이름은 목록 안에서만 겹치지 않으면 된다
+        assertTrue(db.exists(INDEX_SQL + "'index_payment_methods_scope_name'"))
+        assertFalse(db.exists(INDEX_SQL + "'index_payment_methods_name'"))
+    }
+
+    @Test
+    fun `들어온 곳 정리는 같은 이름의 들어온 곳이 있으면 그것을 두고 두 번 돌려도 같다`() {
+        helper.createDatabase(TEST_DB, 6).use { db ->
+            db.seedPaymentMethodsLikeVersion5()
+            // 사용자가 먼저 만든 들어온 곳 '통장'(다른 모양)
+            db.execSQL(
+                "INSERT INTO payment_methods (uuid, scope, name, type, sortOrder, isSystem, icon, color) " +
+                    "VALUES ('user:bank', 'INCOME', '통장', 'OTHER', 0, 0, 'savings', 'blue')",
+            )
+            db.insertTransactionWith("i-account", "INCOME", "seed:payment:ACCOUNT")
+
+            settleIncomeSources(db)
+            settleIncomeSources(db)
+
+            assertEquals(1, db.count("SELECT COUNT(*) FROM payment_methods WHERE scope = 'INCOME' AND name = '통장'"))
+            db.row("SELECT uuid, icon, color FROM payment_methods WHERE scope = 'INCOME' AND name = '통장'") {
+                assertEquals("user:bank", it.getString(0))
+                assertEquals("savings", it.getString(1))
+                assertEquals("blue", it.getString(2))
+            }
+            assertEquals(1, db.count("SELECT COUNT(*) FROM payment_methods WHERE scope = 'INCOME' AND name = '현금'"))
+            db.row("SELECT p.uuid FROM transactions t JOIN payment_methods p ON p.id = t.paymentMethodId WHERE t.uuid = 'i-account'") {
+                assertEquals("user:bank", it.getString(0))
+            }
+        }
+    }
+
+    @Test
+    fun `옛 가계부를 1 에서 6 까지 한 번에 올리면 계좌이체로 적은 수입은 통장으로 간다`() {
+        helper.createDatabase(TEST_DB, 1).apply {
+            seedLikeVersion1()
+            insertTransaction("t1", "EXPENSE", 12_000, categoryCode = "FOOD", payment = "ACCOUNT")
+            insertTransaction("t2", "INCOME", 300_000, categoryCode = "SALARY", payment = "ACCOUNT")
+            close()
+        }
+        val db = helper.runMigrationsAndValidate(TEST_DB, 6, true)
+        assertEquals(2, db.count("SELECT COUNT(*) FROM transactions"))
+        assertEquals("EXPENSE 계좌이체", db.paymentOf("t1"))
+        assertEquals("INCOME 통장", db.paymentOf("t2"))
+        assertEquals("급여", db.categoryNameOf("t2"))
+    }
+
+    /** 1.8.1 이 첫 설치 때 넣던 기본 결제수단과 알림으로 생긴 카드 */
+    private fun SupportSQLiteDatabase.seedPaymentMethodsLikeVersion5() {
+        DEFAULT_PAYMENT_METHODS.forEach { m ->
+            execSQL(
+                "INSERT INTO payment_methods (uuid, name, type, sortOrder, isSystem, icon, color) VALUES (?, ?, ?, ?, 0, ?, ?)",
+                arrayOf<Any?>(m.uuid, m.name, m.type.name, m.sortOrder, m.icon, m.color),
+            )
+        }
+        execSQL(
+            "INSERT INTO payment_methods (uuid, name, type, sortOrder, isSystem, icon, color) " +
+                "VALUES ('user:hana', '하나카드', 'OTHER', 10, 0, 'credit_card', 'red')",
+        )
+    }
+
+    /** [paymentUuid] 결제수단으로 적은 거래 한 건. 분류는 비운다. */
+    private fun SupportSQLiteDatabase.insertTransactionWith(uuid: String, type: String, paymentUuid: String?) {
+        execSQL(
+            "INSERT INTO transactions (uuid, type, amount, occurredAt, occurredDate, paymentMethodId, createdAt, updatedAt) " +
+                "VALUES (?, ?, 10000, 1758783600000, 20250925, (SELECT id FROM payment_methods WHERE uuid = ?), 0, 0)",
+            arrayOf<Any?>(uuid, type, paymentUuid),
+        )
+    }
+
+    /** 거래가 가리키는 결제수단의 '목록 이름'. 비웠으면 null */
+    private fun SupportSQLiteDatabase.paymentOf(transactionUuid: String): String? = query(
+        "SELECT p.scope, p.name FROM transactions t JOIN payment_methods p ON p.id = t.paymentMethodId WHERE t.uuid = ?",
+        arrayOf<Any?>(transactionUuid),
+    ).use { if (it.moveToFirst()) "${it.getString(0)} ${it.getString(1)}" else null }
 
     /** 1.7.0 이 첫 설치 때 넣던 기본 분류(게임·저축 없음) */
     private fun SupportSQLiteDatabase.seedLikeVersion4() {

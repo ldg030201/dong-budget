@@ -125,7 +125,7 @@ fun etcCodeFor(scope: CategoryScope): String = when (scope) {
     CategoryScope.INCOME -> ETC_INCOME_CODE
 }
 
-/** 기본 결제수단 한 줄 */
+/** 기본 결제수단·들어온 곳 한 줄. [scope] 가 수입이면 들어온 곳이다. */
 data class DefaultPaymentMethod(
     val code: String,
     val name: String,
@@ -133,8 +133,12 @@ data class DefaultPaymentMethod(
     val icon: String,
     val color: String,
     val sortOrder: Int,
+    val scope: CategoryScope = CategoryScope.EXPENSE,
 ) {
-    /** 1.x 부터 쓰던 uuid 를 그대로 쓴다. 결제수단은 이름이 바뀌지 않아서 겹칠 일이 없다. */
+    /**
+     * 1.x 부터 쓰던 uuid 를 그대로 쓴다. 결제수단은 이름이 바뀌지 않아서 겹칠 일이 없다.
+     * 들어온 곳은 결제수단과 코드가 겹치지 않게 'INCOME_' 을 붙인 코드를 쓴다.
+     */
     val uuid: String get() = "seed:payment:$code"
 }
 
@@ -148,4 +152,15 @@ val DEFAULT_PAYMENT_METHODS =
         DefaultPaymentMethod("CHECK_CARD", "체크카드", PaymentMethodType.CARD, "credit_card", "blue", 1),
         DefaultPaymentMethod("CREDIT_CARD", "신용카드", PaymentMethodType.CARD, "credit_card", "purple", 2),
         DefaultPaymentMethod("ACCOUNT", "계좌이체", PaymentMethodType.ACCOUNT, "account_balance", "teal", 3),
+    )
+
+/**
+ * 기본 들어온 곳(수입 쪽 결제수단). 새로 설치할 때(SeedCallback)·데이터 초기화·DB 5 → 6(Migration5To6)·옛 백업 복원이 같은 목록을 쓴다.
+ * 종류는 옛 수입 거래를 옮길 곳을 정한다. 현금 종류 결제수단으로 적은 수입은 '현금' 으로, 계좌 종류('계좌이체')는 '통장' 으로 옮긴다.
+ * 들어온 곳도 비워 둘 수 있는 칸이라 지울 수 없는 것은 두지 않는다.
+ */
+val DEFAULT_INCOME_SOURCES =
+    listOf(
+        DefaultPaymentMethod("INCOME_CASH", "현금", PaymentMethodType.CASH, "payments", "green", 0, CategoryScope.INCOME),
+        DefaultPaymentMethod("INCOME_ACCOUNT", "통장", PaymentMethodType.ACCOUNT, "account_balance", "teal", 1, CategoryScope.INCOME),
     )

@@ -15,7 +15,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         CategoryEntity::class,
         PaymentMethodEntity::class,
     ],
-    version = 5,
+    version = 6,
     exportSchema = true,
     autoMigrations = [
         // 1 → 2: 분류에 아이콘·색 칸을 추가하고 기본 분류를 새 목록으로 바꾼다.
@@ -29,6 +29,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         // 4 → 5: 기본 지출 분류 '게임'·'저축' 을 이미 쓰던 가계부에도 둔다(같은 이름이 있으면 그 분류를 기본값으로 바꾼다).
         // 스키마는 그대로고 줄만 바꾼다(Migration4To5).
         AutoMigration(from = 4, to = 5, spec = Migration4To5::class),
+        // 5 → 6: 결제수단에 목록(scope) 칸을 더해 수입 전용 목록 '들어온 곳' 을 둔다. 있던 줄은 모두 결제수단이 되고,
+        // 이름 UNIQUE 가 (목록, 이름)으로 바뀐다. 칸·인덱스는 Room 이 만들고, 기본 들어온 곳과 옛 수입 거래 옮기기는 Migration5To6 이 한다.
+        AutoMigration(from = 5, to = 6, spec = Migration5To6::class),
     ],
 )
 @TypeConverters(Converters::class)
@@ -81,9 +84,10 @@ fun DefaultCategory.toEntity(): CategoryEntity = CategoryEntity(
     color = color,
 )
 
-/** 기본 결제수단을 DB 줄로. [DefaultCategory.toEntity] 와 같은 까닭이다. */
+/** 기본 결제수단·들어온 곳을 DB 줄로. [DefaultCategory.toEntity] 와 같은 까닭이다. */
 fun DefaultPaymentMethod.toEntity(): PaymentMethodEntity = PaymentMethodEntity(
     uuid = uuid,
+    scope = scope,
     name = name,
     type = type,
     sortOrder = sortOrder,
@@ -100,7 +104,7 @@ private fun insertDefaultCategory(db: SupportSQLiteDatabase, c: DefaultCategory,
 }
 
 /**
- * 첫 설치 때 기본 분류와 결제수단을 넣는다(onCreate, 옛 DB 를 올리는 경우에는 불리지 않는다).
+ * 첫 설치 때 기본 분류와 결제수단·들어온 곳을 넣는다(onCreate, 옛 DB 를 올리는 경우에는 불리지 않는다).
  * DB 를 열 때마다 지운 뒤 코드 없이 다시 만든 '고정지출'·'급여' 에 코드를 돌려준다(onOpen, 마이그레이션 뒤에 불린다).
  *
  * 주의: 둘 다 SupportSQLiteDatabase 버전이다. Room 은 onCreate/onOpen(SQLiteConnection) 을 부르고, 그 기본 구현은 연결이
@@ -110,10 +114,10 @@ private fun insertDefaultCategory(db: SupportSQLiteDatabase, c: DefaultCategory,
 private object SeedCallback : RoomDatabase.Callback() {
     override fun onCreate(db: SupportSQLiteDatabase) {
         DEFAULT_CATEGORIES.forEach { insertDefaultCategory(db, it, orIgnore = false) }
-        DEFAULT_PAYMENT_METHODS.forEach { m ->
+        (DEFAULT_PAYMENT_METHODS + DEFAULT_INCOME_SOURCES).forEach { m ->
             db.execSQL(
-                "INSERT INTO payment_methods (uuid, name, type, sortOrder, isSystem, icon, color) VALUES (?, ?, ?, ?, 0, ?, ?)",
-                arrayOf<Any?>(m.uuid, m.name, m.type.name, m.sortOrder, m.icon, m.color),
+                "INSERT INTO payment_methods (uuid, scope, name, type, sortOrder, isSystem, icon, color) VALUES (?, ?, ?, ?, ?, 0, ?, ?)",
+                arrayOf<Any?>(m.uuid, m.scope.name, m.name, m.type.name, m.sortOrder, m.icon, m.color),
             )
         }
     }
@@ -230,5 +234,21 @@ class Migration4To5 : AutoMigrationSpec {
                 arrayOf<Any?>(c.code, c.icon, c.color, c.sortOrder, c.scope.name, c.name),
             )
         }
+    }
+}
+
+/**
+ * 5 → 6 데이터 정리. 1.8.1 까지 수입에도 고르던 결제수단을 수입 전용 목록 '들어온 곳' 으로 나눈다.
+ *
+ * - 칸: 결제수단에 목록(scope) 칸이 생기고, 있던 줄은 모두 결제수단(EXPENSE)이 된다. 여기까지는 Room 이 스키마 JSON 을 비교해 만든다.
+ * - 기본 들어온 곳 '현금'·'통장' 을 넣고, 현금·계좌이체로 적은 옛 수입 거래를 그리로 옮긴다([settleIncomeSources]).
+ *   카드나 직접 만든 결제수단으로 적은 수입은 그대로 둔다. 등록창은 그 거래를 고칠 때 원래 결제수단을 골라 둔 채 보여 준다.
+ * - 한 번만 돈다. 사용자가 나중에 지우거나 옮긴 들어온 곳을 앱을 열 때마다 되돌리지 않는다.
+ *
+ * 주의: [Migration1To2] 와 같은 함정이 있다(드라이버를 바꾸면 onPostMigrate(SupportSQLiteDatabase) 가 조용히 건너뛰어진다).
+ */
+class Migration5To6 : AutoMigrationSpec {
+    override fun onPostMigrate(db: SupportSQLiteDatabase) {
+        settleIncomeSources(db)
     }
 }

@@ -100,7 +100,9 @@ class CategoryManageViewModel(
             categoryRepository.observeWithCount(tab.scope()).map { list -> list.map { ManagedItem.of(it.category, it.transactionCount) } }
 
         ManageTab.PAYMENT ->
-            paymentMethodRepository.observeWithCount().map { list -> list.map { ManagedItem.of(it.paymentMethod, it.transactionCount) } }
+            paymentMethodRepository.observeWithCount(CategoryScope.EXPENSE).map { list ->
+                list.map { ManagedItem.of(it.paymentMethod, it.transactionCount) }
+            }
     }
 
     fun selectTab(tab: ManageTab) {
@@ -121,7 +123,7 @@ class CategoryManageViewModel(
             val result =
                 when (tab) {
                     ManageTab.EXPENSE, ManageTab.INCOME -> categoryRepository.add(tab.scope(), name, icon, color)
-                    ManageTab.PAYMENT -> paymentMethodRepository.add(name, icon, color)
+                    ManageTab.PAYMENT -> paymentMethodRepository.add(CategoryScope.EXPENSE, name, icon, color)
                 }
             _uiState.update {
                 if (result is AddResult.Added) {

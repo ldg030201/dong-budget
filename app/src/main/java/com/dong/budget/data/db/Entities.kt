@@ -22,6 +22,10 @@ enum class TransactionType {
     REFUND,
 }
 
+/**
+ * 지출 쪽 목록인지 수입 쪽 목록인지. 분류와 결제수단이 같이 쓴다.
+ * 결제수단은 지출 쪽이 '결제수단', 수입 쪽이 '들어온 곳'(현금·통장 등) 목록이다(DB 6). 두 목록은 따로라 하나는 한 목록에만 든다.
+ */
 enum class CategoryScope {
     EXPENSE,
     INCOME,
@@ -140,17 +144,26 @@ data class CategoryEntity(
     @ColumnInfo(defaultValue = CategoryStyle.FALLBACK_COLOR) override val color: String = CategoryStyle.FALLBACK_COLOR,
 ) : StyledItem
 
+/**
+ * 결제수단(지출)과 들어온 곳(수입). 분류처럼 [scope] 로 두 목록을 나눈다(DB 6).
+ * 이름은 목록 안에서만 겹치지 않으면 된다. 결제수단 '현금' 과 들어온 곳 '현금' 이 함께 있다.
+ */
 @Entity(
     tableName = "payment_methods",
     indices = [
         Index(value = ["uuid"], unique = true),
-        Index(value = ["name"], unique = true),
-        Index(value = ["sortOrder"]),
+        Index(value = ["scope", "name"], unique = true),
+        Index(value = ["scope", "sortOrder"]),
     ],
 )
 data class PaymentMethodEntity(
     @PrimaryKey(autoGenerate = true) override val id: Long = 0,
     val uuid: String,
+    /**
+     * 어느 목록인지. 지출이면 결제수단, 수입이면 들어온 곳이다. DB 5 까지의 줄은 모두 결제수단이 된다(SQL 기본값).
+     * SQL 기본값과 Kotlin 기본값이 같아야 칸을 더할 때와 새로 만들 때 같은 줄이 된다.
+     */
+    @ColumnInfo(defaultValue = "EXPENSE") val scope: CategoryScope = CategoryScope.EXPENSE,
     override val name: String,
     val type: PaymentMethodType,
     val sortOrder: Int = 0,
