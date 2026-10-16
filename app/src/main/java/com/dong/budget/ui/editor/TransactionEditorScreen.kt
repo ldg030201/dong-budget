@@ -318,7 +318,8 @@ fun TransactionEditorScreen(
                     label = "내용",
                     value = state.merchant,
                     onValueChange = onMerchantChange,
-                    placeholder = "어디에 썼나요",
+                    // 수입은 어디에 쓴 게 아니라 들어온 돈이라 묻는 말을 바꾼다
+                    placeholder = if (state.isIncome) "어떻게 들어왔나요" else "어디에 썼나요",
                     error = missingMessage(RequiredField.MERCHANT),
                     focusRequester = merchantFocus,
                     onFocusChanged = { focused -> if (focused) panel = null },
