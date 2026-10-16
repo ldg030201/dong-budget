@@ -94,4 +94,21 @@ class BottomMenuEditTest {
         saves.saved(first)
         assertEquals(restored, saves.arrived(restored))
     }
+
+    @Test
+    fun `끝내 안 돌아온 저장은 잊어서 나중에 밖에서 그 차림으로 바뀌어도 따라간다`() {
+        var clock = 0L
+        val saves = MenuSaves(now = { clock })
+        // 끌었다가 원래대로 되돌렸다. 저장소는 마지막 값이 처음과 같아 아무것도 다시 주지 않았다.
+        val moved = menu.moveTo(HISTORY, MenuSpot.Shown(0))
+        saves.saved(moved)
+        saves.saved(menu)
+        // 한참 뒤 백업을 복원해 밖에서 그 끌었던 차림으로 바뀌었다. 제 저장으로 보고 넘기면 편집기가 옛 차림에 머문다.
+        clock += 60_000
+        assertEquals(moved, saves.arrived(moved))
+        // 바로 돌아온 저장은 지금처럼 넘긴다
+        saves.saved(menu)
+        clock += 10
+        assertNull(saves.arrived(menu))
+    }
 }
