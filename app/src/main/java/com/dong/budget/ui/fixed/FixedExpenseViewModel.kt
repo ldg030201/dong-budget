@@ -9,19 +9,24 @@ import com.dong.budget.data.TransactionRepository
 import com.dong.budget.data.db.BudgetTime
 import com.dong.budget.data.db.CategoryScope
 import com.dong.budget.data.db.FIXED_CATEGORY_CODE
+import com.dong.budget.data.db.FixedMerchantEntity
 import com.dong.budget.data.db.fixedHistoryEnd
 import com.dong.budget.data.db.fixedHistoryStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.Clock
@@ -86,12 +91,29 @@ class FixedExpenseViewModel(
      */
     private val pickedMonth = MutableStateFlow<YearMonth?>(null)
 
-    /** '고정지출' 분류가 있는지. 이름·순서를 바꿔도 다시 계산하지 않게 있고 없음만 따라간다. */
+    /**
+     * '고정지출' 분류가 있는지. 이름·순서를 바꿔도 다시 계산하지 않게 있고 없음만 따라간다.
+     * 고른 달과 상관없어서, 달을 넘겨도 다시 읽지 않게 화면 모델이 살아 있는 동안 나눠 쓴다.
+     */
     private val hasCategory: Flow<Boolean> =
         categories
             .observe(CategoryScope.EXPENSE)
             .map { list -> list.any { it.code == FIXED_CATEGORY_CODE } }
             .distinctUntilChanged()
+            .shareIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), replay = 1)
+
+    /**
+     * '고정지출' 지출이 하나도 남지 않은 곳을 목록에서 지운다. 목록은 이 탭에서만 보여서 앱을 켤 때가 아니라 탭을 열 때 한 번 한다.
+     * 목록은 정리가 끝난 뒤에 읽는다. 첫 판이 정리된 목록을 보고, 정리 때문에 판을 한 번 더 계산하지 않는다.
+     */
+    private val pruned = viewModelScope.async { fixedMerchants.prune() }
+
+    /** 고정지출 목록. [hasCategory] 처럼 고른 달과 상관없어 나눠 쓴다. */
+    private val registry: Flow<Map<String, FixedMerchantEntity>> =
+        flow {
+            pruned.await()
+            emitAll(fixedMerchants.observe())
+        }.shareIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), replay = 1)
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val uiState: StateFlow<FixedExpenseUiState> =
@@ -108,13 +130,10 @@ class FixedExpenseViewModel(
                         fixedHistoryStart(month),
                         fixedHistoryEnd(month, today),
                     ),
-                    fixedMerchants.observe(),
-                    transactions.observeCreatedWithCategoryCode(
-                        FIXED_CATEGORY_CODE,
-                        fixedHistoryStart(month),
-                        fixedHistoryEnd(month, today),
-                    ),
-                ) { has, rows, registry, created ->
+                    registry,
+                ) { has, fixedRows, registry ->
+                    val rows = fixedRows.map { it.item }
+                    val created = fixedRows.associate { it.item.id to it.createdAt }
                     val split = splitByRegistry(rows, registry, created, today)
                     FixedExpenseUiState(
                         loaded = true,
@@ -133,11 +152,6 @@ class FixedExpenseViewModel(
                 started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS),
                 initialValue = FixedExpenseUiState.loading(BudgetTime.toLocalDate(clock.instant())),
             )
-
-    init {
-        // '고정지출' 지출이 하나도 남지 않은 곳을 목록에서 지운다. 목록은 이 탭에서만 보여서 앱을 켤 때가 아니라 탭을 열 때 한다.
-        viewModelScope.launch { fixedMerchants.prune() }
-    }
 
     fun showPreviousMonth() = showMonth(currentMonth().minusMonths(1))
 

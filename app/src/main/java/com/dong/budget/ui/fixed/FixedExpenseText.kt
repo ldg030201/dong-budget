@@ -239,9 +239,15 @@ internal fun dueLabel(board: FixedExpenseBoard, month: YearMonth, today: LocalDa
 internal fun countSentence(board: FixedExpenseBoard, month: YearMonth, today: LocalDate): String {
     val total = board.dueCount
     return when {
+        // 목록에 넣은 곳이 없는데 묻는 곳 · 등록 안 한 곳만 있을 때. '낼 고정지출이 없어요' 로 적으면 고정지출이 정말 없는 것처럼 읽힌다.
+        board.isEmpty -> noRegisteredSentence(month, today)
+
         total == 0 -> if (month == YearMonth.from(today)) "이번 달에 낼 고정지출이 없어요" else "${monthLabel(month, today)}엔 낼 고정지출이 없었어요"
+
         board.due.isNotEmpty() -> "${total}개 중 ${board.paid.size}개 냈어요"
+
         total == 1 -> "모두 냈어요"
+
         else -> "${total}개 모두 냈어요"
     }
 }
@@ -306,10 +312,10 @@ internal fun askDeclineLabel(name: String): String = "$name 등록 안 함"
 
 /** 묻는 줄 · 등록 안 한 줄의 부제. 가장 최근에 낸 날과 결제수단: "마지막 10월 3일 · 하나카드" */
 internal fun candidateSubtitle(candidate: FixedCandidate, today: LocalDate): String =
-    listOfNotNull("마지막 ${dateText(candidate.lastPaidOn, YearMonth.from(today))}", candidate.paymentMethodName).joinToString(" · ")
+    listOfNotNull("마지막 ${dateText(candidate.lastPaidOn, YearMonth.from(today))}", candidate.latest.paymentMethodName).joinToString(" · ")
 
 /** 묻는 줄 · 등록 안 한 줄 오른쪽 금액. 가장 최근에 낸 돈 */
-internal fun candidateAmount(candidate: FixedCandidate): String = "${formatAmount(candidate.lastAmount)}원"
+internal fun candidateAmount(candidate: FixedCandidate): String = "${formatAmount(candidate.latest.amount)}원"
 
 /** 접어 두는 등록 안 한 곳 묶음의 제목. '안 함' 을 눌렀거나 목록에서 뺀 곳이다. */
 internal const val DECLINED_TITLE = "등록 안 한 곳"

@@ -25,7 +25,7 @@ const val NO_MERCHANT_KEY = ""
 fun fixedMerchantKey(merchant: String?): String = merchantKey(merchant) ?: NO_MERCHANT_KEY
 
 /** 고정지출 탭이 고른 달 앞으로 읽는 달 수. 매년(직전 간격 최대 13) + 한 달 늦음(1) + 그 앞 해(12) + 첫 달 몫을 전달 말에 낸 것(1) */
-const val FIXED_HISTORY_MONTHS = 27L
+internal const val FIXED_HISTORY_MONTHS = 27L
 
 /**
  * [month] 를 계산하려면 읽어야 하는 첫 달. 매년 내는 것이 한 달 늦어진 때에도 그 앞 해의 결제까지 보여야 매년인 줄 알 수 있어서,
@@ -40,9 +40,6 @@ fun fixedHistoryStart(month: YearMonth): YearMonth = month.minusMonths(FIXED_HIS
  */
 fun fixedHistoryEnd(month: YearMonth, today: LocalDate): YearMonth = maxOf(month, YearMonth.from(today))
 
-/** 코드 FIXED('고정지출') 분류로 적은 지출의 가게 이름. 뒤에 조건을 붙여 쓴다. 첫째 자리(:code)에 [FIXED_CATEGORY_CODE] 를 넘긴다. */
-private const val FIXED_MERCHANTS_SQL = "SELECT DISTINCT t.merchant FROM transactions t WHERE $EXPENSE_WITH_CATEGORY_CODE"
-
 /**
  * [today] 에 고정지출 탭에 보였을 곳을 모두 등록한다(아직 안 냈어요 · 냈어요 · 이번 달엔 안 내요 · 한동안 안 냈어요 모두).
  * 탭이 이번 달을 볼 때 읽는 첫 달([fixedHistoryStart]) 뒤로 '고정지출' 분류 지출이 있는 곳이다. 날짜를 앞으로 적어 둔 다음 달 이후의
@@ -52,8 +49,16 @@ private const val FIXED_MERCHANTS_SQL = "SELECT DISTINCT t.merchant FROM transac
  */
 internal fun registerShownFixedMerchants(db: SupportSQLiteDatabase, today: LocalDate, now: Instant): Int {
     val start = BudgetTime.monthRange(fixedHistoryStart(YearMonth.from(today))).first
-    val keys = fixedMerchantKeys(db, "$FIXED_MERCHANTS_SQL AND t.occurredAt >= ?", FIXED_CATEGORY_CODE, start.toEpochMilli())
-    val added = keys - storedKeys(db)
+    // 첫째 자리(:code)가 분류 코드, 둘째가 첫 달 1일이다
+    val keys =
+        db.query(
+            "$MERCHANTS_WITH_CATEGORY_CODE_SQL AND t.occurredAt >= ?",
+            arrayOf<Any>(FIXED_CATEGORY_CODE, start.toEpochMilli()),
+        ).use { c ->
+            buildSet { while (c.moveToNext()) add(fixedMerchantKey(if (c.isNull(0)) null else c.getString(0))) }
+        }
+    val stored = db.query(FIXED_MERCHANT_KEYS_SQL).use { c -> buildSet { while (c.moveToNext()) add(c.getString(0)) } }
+    val added = keys - stored
     added.forEach { key ->
         db.execSQL(
             "INSERT INTO fixed_merchants (merchantKey, state, decidedAt) VALUES (?, ?, ?)",
@@ -70,15 +75,4 @@ internal fun registerShownFixedMerchants(db: SupportSQLiteDatabase, today: Local
 internal fun staleFixedMerchants(stored: List<String>, merchants: List<String?>): List<String> {
     val alive = merchants.mapTo(HashSet(), ::fixedMerchantKey)
     return stored.filterNot { it in alive }
-}
-
-/** [sql] (가게 이름 한 칸)이 읽은 가게들의 열쇠 */
-private fun fixedMerchantKeys(db: SupportSQLiteDatabase, sql: String, vararg args: Any): Set<String> =
-    db.query(sql, arrayOf(*args)).use { c ->
-        buildSet { while (c.moveToNext()) add(fixedMerchantKey(if (c.isNull(0)) null else c.getString(0))) }
-    }
-
-/** 목록에 정해 둔 곳들의 열쇠 */
-private fun storedKeys(db: SupportSQLiteDatabase): Set<String> = db.query("SELECT merchantKey FROM fixed_merchants").use { c ->
-    buildSet { while (c.moveToNext()) add(c.getString(0)) }
 }

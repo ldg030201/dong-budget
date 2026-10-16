@@ -3,7 +3,6 @@ package com.dong.budget.ui.fixed
 import androidx.compose.runtime.Immutable
 import com.dong.budget.data.db.FixedMerchantEntity
 import com.dong.budget.data.db.FixedMerchantState
-import com.dong.budget.data.db.NO_MERCHANT_KEY
 import com.dong.budget.data.db.TransactionListItem
 import com.dong.budget.data.db.TransactionType
 import com.dong.budget.data.db.fixedHistoryEnd
@@ -24,28 +23,16 @@ import java.time.YearMonth
 // ─────────────────────────────────────────────────────────────────────
 
 /**
- * 고정지출 목록에 없는(묻거나 등록 안 한) 한 곳. 가장 최근 '고정지출' 분류 지출로 보여 준다.
+ * 고정지출 목록에 없는(묻거나 등록 안 한) 한 곳. 가장 최근 '고정지출' 분류 지출([latest])로 보여 준다.
  * @property key 고정지출 탭이 묶는 열쇠([fixedMerchantKey]). 목록에 이 열쇠로 정한다.
- * @property name 가장 최근 지출의 가게 이름(앞뒤 공백을 뺀다). 이름 없이 묶인 것은 [NO_MERCHANT_NAME]
- * @property lastPaidOn 가장 최근에 낸 날
- * @property lastAmount 가장 최근에 낸 돈
- * @property latestId 가장 최근 거래. 줄을 누르면 이 거래의 상세가 열린다.
- * @property paymentMethodId 가장 최근 거래의 결제수단. 지웠거나 비웠으면 null이고, 이름·아이콘·색도 같다.
+ * @property name 보이는 이름([fixedMerchantName]). 이름 없이 묶인 것은 [NO_MERCHANT_NAME]
+ * @property latest 가장 최근 지출. 줄을 누르면 이 거래의 상세가 열리고, 뱃지 · 결제수단 · 금액도 이것으로 보여 준다.
  */
 @Immutable
-data class FixedCandidate(
-    val key: String,
-    val name: String,
-    val lastPaidOn: LocalDate,
-    val lastAmount: Long,
-    val latestId: Long,
-    val paymentMethodId: Long?,
-    val paymentMethodName: String?,
-    val paymentMethodIcon: String?,
-    val paymentMethodColor: String?,
-    val categoryIcon: String?,
-    val categoryColor: String?,
-)
+data class FixedCandidate(val key: String, val name: String, val latest: TransactionListItem) {
+    /** 가장 최근에 낸 날 */
+    val lastPaidOn: LocalDate get() = latest.localDate()
+}
 
 /**
  * 고정지출 목록으로 나눈 '고정지출' 분류 지출.
@@ -53,11 +40,10 @@ data class FixedCandidate(
  * @property candidates 등록할지 물을 곳. 가장 최근에 낸 곳부터
  * @property declined 등록 안 한 곳(다시 묻지 않는 것). 가장 최근에 낸 곳부터
  */
-@Immutable
 data class FixedRegistrySplit(
-    val registered: List<TransactionListItem> = emptyList(),
-    val candidates: List<FixedCandidate> = emptyList(),
-    val declined: List<FixedCandidate> = emptyList(),
+    val registered: List<TransactionListItem>,
+    val candidates: List<FixedCandidate>,
+    val declined: List<FixedCandidate>,
 )
 
 /**
@@ -65,7 +51,7 @@ data class FixedRegistrySplit(
  * 묻는 곳 · 등록 안 한 곳은 [today] 에 탭이 이번 달을 볼 때 읽는 기간의 지출로만 본다(지출이 아닌 행은 거른다).
  * 등록 안 한 곳은 정한 때([FixedMerchantEntity.decidedAt]) 뒤에 낸 지출이 있어야 다시 묻는다. 날짜를 앞으로 적어 둔 옛 거래가 정하자마자
  * 다시 묻게 하지 않도록, 그 지출도 정한 뒤에 적은 것이어야 한다([isNewSince]).
- * @param created [rows] 의 거래 번호 → 처음 적은 때(TransactionRepository.observeCreatedWithCategoryCode). 없는 번호는 낸 때로만 본다.
+ * @param created [rows] 의 거래 번호 → 처음 적은 때(FixedExpenseRow.createdAt). 없는 번호는 낸 때로만 본다.
  */
 fun splitByRegistry(
     rows: List<TransactionListItem>,
@@ -77,21 +63,19 @@ fun splitByRegistry(
     val from = fixedHistoryStart(thisMonth).atDay(1)
     val until = fixedHistoryEnd(thisMonth, today).atEndOfMonth()
     // 가게 열쇠는 줄마다 한 번만 만든다(띄어쓰기를 빼고 소문자로 바꾸는 일이라). 등록한 곳의 줄은 받은 순서 그대로 둔다.
-    val keyed = rows.map { fixedMerchantKey(it.merchant) to it }
-    val registered = keyed.filter { (key, _) -> registry[key]?.state == FixedMerchantState.REGISTERED }.map { it.second }
+    val (registered, rest) =
+        rows.map { fixedMerchantKey(it.merchant) to it }.partition { (key, _) -> registry[key]?.state == FixedMerchantState.REGISTERED }
     val unlisted =
-        keyed
-            .filter { (key, row) ->
-                registry[key]?.state != FixedMerchantState.REGISTERED && row.type == TransactionType.EXPENSE &&
-                    row.localDate() in from..until
-            }.groupBy({ it.first }, { it.second })
+        rest
+            .filter { (_, row) -> row.type == TransactionType.EXPENSE && row.localDate() in from..until }
+            .groupBy({ it.first }, { it.second })
     val (asked, quiet) =
         unlisted.entries.partition { (key, pays) ->
             val decided = registry[key] ?: return@partition true
             pays.any { isNewSince(it, created[it.id], decided.decidedAt) }
         }
     return FixedRegistrySplit(
-        registered = registered,
+        registered = registered.map { it.second },
         candidates = asked.map { (key, pays) -> candidateOf(key, pays) }.sortedWith(latestFirst),
         declined = quiet.map { (key, pays) -> candidateOf(key, pays) }.sortedWith(latestFirst),
     )
@@ -107,19 +91,7 @@ internal fun isNewSince(row: TransactionListItem, createdAt: Instant?, at: Insta
 /** 한 곳의 지출([pays], 비어 있지 않다)을 가장 최근 것으로 보여 줄 줄 */
 private fun candidateOf(key: String, pays: List<TransactionListItem>): FixedCandidate {
     val latest = pays.maxWith(compareBy<TransactionListItem> { it.occurredAt }.thenBy { it.id })
-    return FixedCandidate(
-        key = key,
-        name = latest.merchant?.trim()?.takeIf { key != NO_MERCHANT_KEY } ?: NO_MERCHANT_NAME,
-        lastPaidOn = latest.localDate(),
-        lastAmount = latest.amount,
-        latestId = latest.id,
-        paymentMethodId = latest.paymentMethodId,
-        paymentMethodName = latest.paymentMethodName,
-        paymentMethodIcon = latest.paymentMethodIcon,
-        paymentMethodColor = latest.paymentMethodColor,
-        categoryIcon = latest.categoryIcon,
-        categoryColor = latest.categoryColor,
-    )
+    return FixedCandidate(key = key, name = fixedMerchantName(key, latest.merchant) ?: NO_MERCHANT_NAME, latest = latest)
 }
 
 /** 가장 최근에 낸 곳부터, 같으면 이름순 */

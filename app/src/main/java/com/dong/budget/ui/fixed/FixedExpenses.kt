@@ -279,7 +279,7 @@ private fun fixedItem(
     val prepaidOn = shares[ahead]?.minOf { it.date }?.takeIf { status == FixedStatus.NOT_THIS_MONTH && it <= month.atEndOfMonth() }
     val lastPays = (shares.getValue(last) + extras[last].orEmpty()).sortedWith(paidByTime)
     val latest = (shares.filterKeys { it <= month }.values.flatten() + matching.extras.filter { it.month <= month }).maxWith(paidByTime)
-    val name = latest.row.merchant?.trim()?.takeIf { key != NO_MERCHANT_KEY }
+    val name = fixedMerchantName(key, latest.row.merchant)
     val item =
         FixedExpenseItem(
             key = key,
@@ -460,6 +460,12 @@ private fun remainingAmount(here: List<Paid>, reference: List<Paid>, slotOf: Map
 
 /** 가게 이름 없이 적은 지출 묶음의 이름 */
 const val NO_MERCHANT_NAME = "이름 없음"
+
+/**
+ * 묶음([key])의 가게 이름. 그 묶음 거래의 가게 이름에서 앞뒤 공백을 뺀다. 이름 없이 묶인 것은 null 이다(보일 때는 [NO_MERCHANT_NAME]).
+ * 판의 줄과 묻는 줄이 같은 이름을 쓰게 한 곳에 둔다(묻는 줄에서 등록하면 판의 줄로 옮겨 간다).
+ */
+internal fun fixedMerchantName(key: String, merchant: String?): String? = merchant?.trim()?.takeIf { key != NO_MERCHANT_KEY }
 
 /** 평소 날이 이 날이면 달마다 그 달 말일에 낸다고 본다([FixedExpenseItem.usualDateIn] 이 그 달 말일로 자른다) */
 internal const val LAST_DAY = 31

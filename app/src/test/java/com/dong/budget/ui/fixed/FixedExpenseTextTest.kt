@@ -223,7 +223,8 @@ class FixedExpenseTextTest {
             "9월 고정지출. 2개 중 1개 냈어요. 낸 돈 85,000원, 안 낸 돈 1,317,000원",
             summarySpoken(board, YearMonth.of(2026, 9), today),
         )
-        assertEquals("이번 달 고정지출. 이번 달에 낼 고정지출이 없어요", summarySpoken(FixedExpenseBoard(), october, today))
+        // 판이 비어 있으면(목록에 넣은 곳 없이 묻는 곳만 있다) 목록에 넣은 곳이 없다고 읽는다
+        assertEquals("이번 달 고정지출. 아직 목록에 넣은 고정지출이 없어요", summarySpoken(FixedExpenseBoard(), october, today))
     }
 
     @Test
@@ -370,7 +371,7 @@ class FixedExpenseTextTest {
         assertEquals("17,000원", candidateAmount(candidate))
         assertEquals(
             "마지막 2025년 12월 30일",
-            candidateSubtitle(candidate.copy(lastPaidOn = day("2025-12-30"), paymentMethodName = null), today),
+            candidateSubtitle(candidate.copy(latest = tx("2025-12-30", 17_000, categoryId = 4, merchant = "넷플릭스")), today),
         )
     }
 

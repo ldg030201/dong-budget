@@ -110,6 +110,17 @@ fun FixedExpenseScreen(
     if (removing != null && removingItem == null && state.loaded) {
         LaunchedEffect(removing) { removing = null }
     }
+    // 줄에서 하는 일. 그릴 때마다 새로 만들면 줄들이 다시 그려져서(같은 값으로 보지 못해) 한 번만 만든다.
+    val actions =
+        remember(onRegister, onOpenTransaction, onRegisterMerchant, onDeclineMerchant) {
+            RowActions(
+                onRegister = onRegister,
+                onOpenTransaction = onOpenTransaction,
+                onRemove = { removing = it },
+                onRegisterMerchant = onRegisterMerchant,
+                onDeclineMerchant = onDeclineMerchant,
+            )
+        }
     removingItem?.let { item ->
         ConfirmDialog(
             title = removeTitle(item.name),
@@ -156,23 +167,16 @@ fun FixedExpenseScreen(
             } else {
                 BoardList(
                     state = shown,
-                    folds = Folds(stoppedOpen, declinedOpen, { stoppedOpen = !stoppedOpen }, { declinedOpen = !declinedOpen }),
-                    actions =
-                    RowActions(
-                        onRegister = onRegister,
-                        onOpenTransaction = onOpenTransaction,
-                        onRemove = { removing = it },
-                        onRegisterMerchant = onRegisterMerchant,
-                        onDeclineMerchant = onDeclineMerchant,
-                    ),
+                    stoppedOpen = stoppedOpen,
+                    declinedOpen = declinedOpen,
+                    onToggleStopped = { stoppedOpen = !stoppedOpen },
+                    onToggleDeclined = { declinedOpen = !declinedOpen },
+                    actions = actions,
                 )
             }
         }
     }
 }
-
-/** 접는 두 묶음('한동안 안 냈어요' · '등록 안 한 곳')을 펼쳤는지와 바꾸기 */
-private class Folds(val stoppedOpen: Boolean, val declinedOpen: Boolean, val onToggleStopped: () -> Unit, val onToggleDeclined: () -> Unit)
 
 /**
  * 줄에서 하는 일들.
@@ -186,17 +190,23 @@ private class RowActions(
     val onDeclineMerchant: (String) -> Unit,
 )
 
+/** [stoppedOpen] · [declinedOpen] 은 접는 두 묶음('한동안 안 냈어요' · '등록 안 한 곳')을 펼쳤는지 */
 @Composable
-private fun BoardList(state: FixedExpenseUiState, folds: Folds, actions: RowActions) {
+private fun BoardList(
+    state: FixedExpenseUiState,
+    stoppedOpen: Boolean,
+    declinedOpen: Boolean,
+    onToggleStopped: () -> Unit,
+    onToggleDeclined: () -> Unit,
+    actions: RowActions,
+) {
     val board = state.board
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(top = BudgetTheme.spacing.inlineGap, bottom = BudgetTheme.spacing.sectionGap),
     ) {
         askGroup(state, actions)
-        animatedItem(key = SUMMARY_KEY) {
-            if (board.isEmpty) NoRegisteredBlock(state = state) else SummaryBlock(state = state)
-        }
+        animatedItem(key = SUMMARY_KEY) { SummaryBlock(state = state) }
         statusGroup(FixedStatus.DUE, board.due, state, actions)
         statusGroup(FixedStatus.PAID, board.paid, state, actions)
         statusGroup(FixedStatus.NOT_THIS_MONTH, board.notThisMonth, state, actions)
@@ -205,11 +215,11 @@ private fun BoardList(state: FixedExpenseUiState, folds: Folds, actions: RowActi
                 FoldHeader(
                     title = STOPPED_TITLE,
                     count = board.stopped.size,
-                    expanded = folds.stoppedOpen,
-                    onToggle = folds.onToggleStopped,
+                    expanded = stoppedOpen,
+                    onToggle = onToggleStopped,
                 )
             }
-            if (folds.stoppedOpen) {
+            if (stoppedOpen) {
                 animatedItems(items = board.stopped, key = ::itemKey) { item -> FixedRow(item = item, state = state, actions = actions) }
             }
         }
@@ -218,11 +228,11 @@ private fun BoardList(state: FixedExpenseUiState, folds: Folds, actions: RowActi
                 FoldHeader(
                     title = DECLINED_TITLE,
                     count = state.declined.size,
-                    expanded = folds.declinedOpen,
-                    onToggle = folds.onToggleDeclined,
+                    expanded = declinedOpen,
+                    onToggle = onToggleDeclined,
                 )
             }
-            if (folds.declinedOpen) {
+            if (declinedOpen) {
                 animatedItems(items = state.declined, key = { "declined-${it.key}" }) { candidate ->
                     CandidateRow(candidate = candidate, today = state.today, asking = false, actions = actions)
                 }
@@ -337,28 +347,6 @@ private fun SummaryLine(label: String, amount: Long) {
 }
 
 /**
- * 목록에 넣은 곳이 고른 달까지 하나도 없는데 물을 곳이나 등록 안 한 곳만 있을 때 요약 자리. 요약 판과 같은 모양으로 그렇다고만 적는다.
- * 빈 판의 '이번 달에 낼 고정지출이 없어요' 로 적으면 고정지출이 정말 없는 것처럼 읽힌다.
- */
-@Composable
-private fun NoRegisteredBlock(state: FixedExpenseUiState) {
-    val title = summaryTitle(state.month, state.today)
-    val sentence = noRegisteredSentence(state.month, state.today)
-    Column(
-        modifier =
-        Modifier
-            .padding(horizontal = BudgetTheme.spacing.screenHorizontal)
-            .fillMaxWidth()
-            .sectionBlock()
-            .clearAndSetSemantics { contentDescription = "$title. $sentence" },
-    ) {
-        Text(text = title, style = MaterialTheme.typography.bodyMedium, color = BudgetTheme.colors.textSecondary)
-        Spacer(Modifier.height(BudgetTheme.spacing.tightGap))
-        Text(text = sentence, style = MaterialTheme.typography.titleMedium, color = BudgetTheme.colors.textPrimary)
-    }
-}
-
-/**
  * 가게 한 줄. 뱃지(지난번 결제수단, 없으면 분류), 이름, 부제(언제·어느 카드), 덧붙임 한 줄(지났어요·올랐어요 등), 오른쪽에 금액.
  * 이번 달에 아직 안 냈으면 금액 아래에 '등록하기' 를 둔다. 가게 이름 없이 묶인 것은 무엇을 등록할지 몰라 두지 않는다.
  * 길게 누르면 고정지출 목록에서 뺄지 묻는다(지난 거래의 분류는 그대로다).
@@ -379,11 +367,7 @@ private fun FixedRow(item: FixedExpenseItem, state: FixedExpenseUiState, actions
         modifier = Modifier.semantics { stateDescription = status },
         // 모두 같은 '고정지출' 분류라 분류 뱃지는 줄마다 같다. 어느 카드로 내는지가 더 잘 가려 준다.
         leading = {
-            if (item.paymentMethodId != null) {
-                CategoryBadge(icon = item.paymentMethodIcon, color = item.paymentMethodColor)
-            } else {
-                CategoryBadge(icon = item.categoryIcon, color = item.categoryColor)
-            }
+            LatestBadge(item.paymentMethodId, item.paymentMethodIcon, item.paymentMethodColor, item.categoryIcon, item.categoryColor)
         },
         // 덧붙임은 두 줄까지 둔다(부제는 한 줄)
         note =
@@ -407,6 +391,25 @@ private fun FixedRow(item: FixedExpenseItem, state: FixedExpenseUiState, actions
 }
 
 /**
+ * 줄의 뱃지. 가장 최근 거래의 결제수단, 없으면(비웠거나 지웠다) 분류. 판의 줄과 묻는 줄이 같이 써서
+ * 묻는 줄에서 등록해 판으로 옮겨 가도 아이콘이 그대로다.
+ */
+@Composable
+private fun LatestBadge(
+    paymentMethodId: Long?,
+    paymentIcon: String?,
+    paymentColor: String?,
+    categoryIcon: String?,
+    categoryColor: String?,
+) {
+    if (paymentMethodId != null) {
+        CategoryBadge(icon = paymentIcon, color = paymentColor)
+    } else {
+        CategoryBadge(icon = categoryIcon, color = categoryColor)
+    }
+}
+
+/**
  * 고정지출 목록에 없는 한 곳. 판의 줄과 같은 뱃지 · 이름에, 부제는 마지막으로 낸 날과 결제수단, 오른쪽에 그때 낸 돈.
  * 부제 아래에 '등록' 과([asking] 이면) '안 함' 을 둔다. 버튼 둘을 금액 옆에 두면 좁은 화면(320dp)에서 이름이 너무 줄어 줄을 나눴다.
  * 줄을 누르면 가장 최근 거래 상세가 열린다(판의 줄과 같다).
@@ -420,11 +423,14 @@ private fun CandidateRow(candidate: FixedCandidate, today: LocalDate, asking: Bo
         subtitle = candidateSubtitle(candidate, today),
         modifier = if (asking) Modifier else Modifier.semantics { stateDescription = DECLINED_STATE },
         leading = {
-            if (candidate.paymentMethodId != null) {
-                CategoryBadge(icon = candidate.paymentMethodIcon, color = candidate.paymentMethodColor)
-            } else {
-                CategoryBadge(icon = candidate.categoryIcon, color = candidate.categoryColor)
-            }
+            val latest = candidate.latest
+            LatestBadge(
+                latest.paymentMethodId,
+                latest.paymentMethodIcon,
+                latest.paymentMethodColor,
+                latest.categoryIcon,
+                latest.categoryColor,
+            )
         },
         note = {
             Row(horizontalArrangement = Arrangement.spacedBy(BudgetTheme.spacing.inlineGap)) {
@@ -446,7 +452,7 @@ private fun CandidateRow(candidate: FixedCandidate, today: LocalDate, asking: Bo
             }
         },
         onClickLabel = ROW_CLICK_LABEL,
-        onClick = { actions.onOpenTransaction(candidate.latestId) },
+        onClick = { actions.onOpenTransaction(candidate.latest.id) },
         trailing = {
             Text(
                 text = candidateAmount(candidate),

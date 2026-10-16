@@ -2,6 +2,7 @@ package com.dong.budget.data
 
 import com.dong.budget.data.db.BudgetTime
 import com.dong.budget.data.db.CardSpendRow
+import com.dong.budget.data.db.FixedExpenseRow
 import com.dong.budget.data.db.TransactionDao
 import com.dong.budget.data.db.TransactionEntity
 import com.dong.budget.data.db.TransactionListItem
@@ -68,16 +69,10 @@ class TransactionRepository(private val transactionDao: TransactionDao) {
      * [first] 달 1일부터 [last] 달 말일까지, 코드가 [code] 인 분류(고정지출 'FIXED')의 지출. 고정지출 탭이 쓴다.
      * 그 분류를 지웠으면 빈 목록이다.
      */
-    fun observeExpensesWithCategoryCode(code: String, first: YearMonth, last: YearMonth): Flow<List<TransactionListItem>> =
+    fun observeExpensesWithCategoryCode(code: String, first: YearMonth, last: YearMonth): Flow<List<FixedExpenseRow>> =
         transactionDao.observeExpensesWithCategoryCode(code, BudgetTime.monthRange(first).first, BudgetTime.monthRange(last).second)
-
-    /**
-     * [observeExpensesWithCategoryCode] 와 같은 거래를 처음 적은 때(거래 번호 → 적은 때). 고정지출 탭이 '등록 안 함' 뒤에 새로 적은 지출인지 본다.
-     * 목록 줄(TransactionListItem)에 두지 않고 따로 읽는다. 이것 하나 때문에 모든 화면의 목록 줄이 커지지 않게.
-     */
-    fun observeCreatedWithCategoryCode(code: String, first: YearMonth, last: YearMonth): Flow<Map<Long, Instant>> =
-        transactionDao.observeCreatedWithCategoryCode(code, BudgetTime.monthRange(first).first, BudgetTime.monthRange(last).second)
-            .map { list -> list.associate { it.id to it.createdAt } }
+            // Room 은 거래 표에 쓰기만 해도 다시 내보낸다. 고정지출과 상관없는 거래를 적었으면 판을 다시 계산하지 않게 거른다.
+            .distinctUntilChanged()
 
     /** [from] 날(서울 0시)부터 [until] 날 0시 전까지 결제수단 [paymentMethodId] 로 쓴 지출·환불. 카드실적 상세가 쓴다. */
     fun observeByPaymentMethod(paymentMethodId: Long, from: LocalDate, until: LocalDate): Flow<List<TransactionListItem>> =

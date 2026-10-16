@@ -34,8 +34,11 @@ data class TransactionListItem(
     val categorySortOrder: Int? = null,
 )
 
-/** 거래를 처음 적은 때. 고정지출 탭이 '등록 안 함' 뒤에 새로 적은 지출인지 볼 때만 따로 읽는다. */
-data class TransactionCreated(val id: Long, val createdAt: Instant)
+/**
+ * 고정지출 탭의 한 줄. 목록 줄에 처음 적은 때를 더했다. '등록 안 함' 뒤에 새로 적은 지출인지는 이 탭만 봐서,
+ * 모든 화면이 쓰는 목록 줄([TransactionListItem])에는 두지 않는다.
+ */
+data class FixedExpenseRow(@Embedded val item: TransactionListItem, val createdAt: Instant)
 
 /**
  * 분류 코드가 :code 인 분류(기본 분류)의 지출(거래는 t). 고정지출 탭의 조회와 고정지출 목록 등록 · 정리가 같은 거래를 보게 한 곳에 둔다.
@@ -44,10 +47,19 @@ data class TransactionCreated(val id: Long, val createdAt: Instant)
  */
 internal const val EXPENSE_WITH_CATEGORY_CODE = "t.categoryId IN (SELECT id FROM categories WHERE code = :code) AND t.type = 'EXPENSE'"
 
-/** [TransactionListItem] 을 읽는 SELECT. 뒤에 WHERE·ORDER BY 를 붙여 쓴다. 목록·상세가 같은 값을 읽게 한 곳에 둔다. */
-private const val LIST_ITEM_SELECT =
+/**
+ * 코드가 :code 인 분류로 적은 지출의 가게 이름들(기간 없이 모두). 뒤에 조건을 붙여 쓸 수 있다.
+ * 고정지출 목록 정리(FixedMerchantDao)와 등록(registerShownFixedMerchants, Room 밖)이 같은 글을 쓴다.
+ */
+internal const val MERCHANTS_WITH_CATEGORY_CODE_SQL = "SELECT DISTINCT t.merchant FROM transactions t WHERE " + EXPENSE_WITH_CATEGORY_CODE
+
+/** 고정지출 목록에 정해 둔 곳들의 열쇠. FixedMerchantDao 와 registerShownFixedMerchants(Room 밖)가 같은 글을 쓴다. */
+internal const val FIXED_MERCHANT_KEYS_SQL = "SELECT merchantKey FROM fixed_merchants"
+
+/** [TransactionListItem] 의 칸들. 고정지출 탭은 여기에 처음 적은 때를 더해 읽는다([FixedExpenseRow]). */
+private const val LIST_ITEM_COLUMNS =
     """
-        SELECT t.id, t.type, t.amount, t.occurredAt, t.occurredDate,
+               t.id, t.type, t.amount, t.occurredAt, t.occurredDate,
                t.merchant, t.memo,
                c.name AS categoryName,
                c.icon AS categoryIcon,
@@ -57,10 +69,18 @@ private const val LIST_ITEM_SELECT =
                p.icon AS paymentMethodIcon,
                p.color AS paymentMethodColor,
                c.sortOrder AS categorySortOrder
+    """
+
+/** [LIST_ITEM_COLUMNS] 를 읽는 표와 이음 */
+private const val LIST_ITEM_FROM =
+    """
         FROM transactions t
         LEFT JOIN categories c ON c.id = t.categoryId
         LEFT JOIN payment_methods p ON p.id = t.paymentMethodId
     """
+
+/** [TransactionListItem] 을 읽는 SELECT. 뒤에 WHERE·ORDER BY 를 붙여 쓴다. 목록·상세가 같은 값을 읽게 한 곳에 둔다. */
+private const val LIST_ITEM_SELECT = "SELECT " + LIST_ITEM_COLUMNS + LIST_ITEM_FROM
 
 /**
  * 기간 안([start], [end])에 코드가 붙은 분류(기본 분류)의 수입이 있는지. 직접 적은 월급을 찾는다.
@@ -113,21 +133,14 @@ interface TransactionDao {
     fun observeBetween(start: Instant, end: Instant): Flow<List<TransactionListItem>>
 
     /**
-     * 기간 안에 코드가 [code] 인 분류(기본 분류)의 지출을 최신순으로. 고정지출 탭이 쓴다([EXPENSE_WITH_CATEGORY_CODE]).
+     * 기간 안에 코드가 [code] 인 분류(기본 분류)의 지출을 최신순으로, 처음 적은 때와 함께. 고정지출 탭이 쓴다([EXPENSE_WITH_CATEGORY_CODE]).
      * 그 분류를 지웠으면 거래가 '기타' 로 옮겨 가서 아무것도 안 나온다. 날짜를 앞으로 적어 둔 거래도 [end] 앞이면 들어온다.
      */
     @Query(
-        LIST_ITEM_SELECT + " WHERE " + EXPENSE_WITH_CATEGORY_CODE +
+        "SELECT " + LIST_ITEM_COLUMNS + ", t.createdAt AS createdAt" + LIST_ITEM_FROM + " WHERE " + EXPENSE_WITH_CATEGORY_CODE +
             " AND t.occurredAt >= :start AND t.occurredAt < :end ORDER BY t.occurredAt DESC, t.id DESC",
     )
-    fun observeExpensesWithCategoryCode(code: String, start: Instant, end: Instant): Flow<List<TransactionListItem>>
-
-    /** [observeExpensesWithCategoryCode] 와 같은 거래를 처음 적은 때. 고정지출 탭이 '등록 안 함' 뒤에 새로 적은 지출인지 본다. */
-    @Query(
-        "SELECT t.id, t.createdAt FROM transactions t WHERE " + EXPENSE_WITH_CATEGORY_CODE +
-            " AND t.occurredAt >= :start AND t.occurredAt < :end",
-    )
-    fun observeCreatedWithCategoryCode(code: String, start: Instant, end: Instant): Flow<List<TransactionCreated>>
+    fun observeExpensesWithCategoryCode(code: String, start: Instant, end: Instant): Flow<List<FixedExpenseRow>>
 
     /** 기간 안에 결제수단 [paymentMethodId] 로 쓴 지출과 환불을 최신순으로. 카드실적 상세가 쓴다(쓴 돈 = 지출 − 환불). */
     @Query(
@@ -401,11 +414,10 @@ interface FixedMerchantDao {
     @Upsert
     suspend fun upsert(merchant: FixedMerchantEntity)
 
-    /** 코드가 [code] 인 분류로 적은 지출의 가게 이름들(기간 없이 모두) */
-    @Query("SELECT DISTINCT t.merchant FROM transactions t WHERE " + EXPENSE_WITH_CATEGORY_CODE)
+    @Query(MERCHANTS_WITH_CATEGORY_CODE_SQL)
     suspend fun merchantsWithCategoryCode(code: String): List<String?>
 
-    @Query("SELECT merchantKey FROM fixed_merchants")
+    @Query(FIXED_MERCHANT_KEYS_SQL)
     suspend fun keys(): List<String>
 
     @Query("DELETE FROM fixed_merchants WHERE merchantKey IN (:keys)")

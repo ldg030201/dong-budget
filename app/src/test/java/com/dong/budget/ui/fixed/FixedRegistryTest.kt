@@ -149,9 +149,9 @@ class FixedRegistryTest {
 
         assertEquals("유튜브프리미엄", candidate.key)
         assertEquals("유튜브프리미엄", candidate.name)
-        assertEquals(16_900L, candidate.lastAmount)
-        assertEquals(rows[1].id, candidate.latestId)
-        assertEquals(11L, candidate.paymentMethodId)
+        assertEquals(16_900L, candidate.latest.amount)
+        assertEquals(rows[1].id, candidate.latest.id)
+        assertEquals(11L, candidate.latest.paymentMethodId)
     }
 
     @Test
