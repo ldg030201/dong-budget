@@ -445,13 +445,14 @@ class MigrationTest {
             db.insertExpense("f2", YearMonth.of(2026, 10), "넷플릭스")
             // 다른 분류로 옮긴 곳
             db.insertExpense("e1", YearMonth.of(2026, 10), "헬스장", categoryCode = "FOOD")
-            listOf("오래된 구독", "넷플릭스", "헬스장", "지운 곳").forEach { key ->
+            // 목록은 가게 열쇠(띄어쓰기를 뺀 것)로 적혀 있다
+            listOf("오래된구독", "넷플릭스", "헬스장", "지운곳").forEach { key ->
                 db.execSQL("INSERT INTO fixed_merchants (merchantKey, state, decidedAt) VALUES (?, 'DECLINED', 0)", arrayOf<Any?>(key))
             }
 
             assertEquals(2, pruneFixedMerchants(db))
 
-            assertEquals(setOf("오래된 구독", "넷플릭스"), db.strings("SELECT merchantKey FROM fixed_merchants").toSet())
+            assertEquals(setOf("오래된구독", "넷플릭스"), db.strings("SELECT merchantKey FROM fixed_merchants").toSet())
         }
     }
 
