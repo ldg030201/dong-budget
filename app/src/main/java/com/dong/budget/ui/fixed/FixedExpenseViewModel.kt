@@ -4,6 +4,7 @@ import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dong.budget.data.CategoryRepository
+import com.dong.budget.data.FixedMerchantRepository
 import com.dong.budget.data.TransactionRepository
 import com.dong.budget.data.db.BudgetTime
 import com.dong.budget.data.db.CategoryScope
@@ -20,6 +21,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import java.time.Clock
 import java.time.LocalDate
 import java.time.YearMonth
@@ -29,6 +31,9 @@ import java.time.YearMonth
  * @property loaded 첫 계산이 끝났는지. 끝나기 전에는 탭 머리만 그린다(빈 상태 안내가 잠깐 비치지 않게).
  * @property month 보고 있는 달. 이번 달보다 뒤로는 가지 않는다.
  * @property hasCategory '고정지출'(코드 FIXED) 분류가 있는지. 분류 관리에서 지웠고 같은 이름(띄어쓰기 무시)의 분류도 없으면 false
+ * @property board 고정지출 목록에 등록한 곳만 센 판
+ * @property candidates '고정지출' 분류로 적었는데 목록에 등록할지 물을 곳([splitByRegistry]). 고른 달과 상관없이 같다.
+ * @property declined 등록 안 한 곳. 접어 두고 다시 등록할 수 있게 한다.
  */
 @Immutable
 data class FixedExpenseUiState(
@@ -37,8 +42,13 @@ data class FixedExpenseUiState(
     val today: LocalDate,
     val hasCategory: Boolean,
     val board: FixedExpenseBoard,
+    val candidates: List<FixedCandidate> = emptyList(),
+    val declined: List<FixedCandidate> = emptyList(),
 ) {
     val isThisMonth: Boolean get() = month == YearMonth.from(today)
+
+    /** 보여 줄 것이 하나도 없는지(등록한 곳 · 물을 곳 · 등록 안 한 곳 모두 없다) */
+    val isEmpty: Boolean get() = board.isEmpty && candidates.isEmpty() && declined.isEmpty()
 
     companion object {
         /** 첫 계산 전 자리 값 */
@@ -53,10 +63,11 @@ data class FixedExpenseUiState(
 }
 
 /**
- * 고정지출 탭. [fixedHistoryStart] 부터 [fixedHistoryEnd](오늘이 든 달)까지의 '고정지출' 분류 지출을 읽어 순수 함수([buildFixedExpenses])로 나눈다.
+ * 고정지출 탭. [fixedHistoryStart] 부터 [fixedHistoryEnd](오늘이 든 달)까지의 '고정지출' 분류 지출을 읽어, 고정지출 목록에 등록한 곳의 것만
+ * 순수 함수([buildFixedExpenses])로 나눈다. 목록에 없는 곳은 등록할지 묻는다([splitByRegistry]).
  * 지난 달을 볼 때도 이번 달까지 읽어, 일정은 오늘이 든 달 기준 기록으로 짐작하고(같은 날 본 모든 달 화면이 같은 일정) 다음 달에 밀려 낸
  * 고른 달 몫도 센다.
- * 등록창에서 저장하거나 거래를 고치면 조회가 다시 내보내서 '아직 안 냈어요' 가 바로 '냈어요' 로 옮겨 간다.
+ * 등록창에서 저장하거나 거래를 고치면 조회가 다시 내보내서 '아직 안 냈어요' 가 바로 '냈어요' 로 옮겨 간다. 목록을 바꿔도 그렇다.
  * 달을 바꾸면 새 계산이 끝날 때까지 이전 달 화면을 그대로 둔다(빈 화면이 깜빡이지 않게).
  *
  * @param clock 지금 시각. 테스트에서 날짜를 고정하려고 바꿀 수 있게 둔다.
@@ -64,6 +75,7 @@ data class FixedExpenseUiState(
 class FixedExpenseViewModel(
     transactions: TransactionRepository,
     categories: CategoryRepository,
+    private val fixedMerchants: FixedMerchantRepository,
     private val clock: Clock = Clock.system(BudgetTime.ZONE),
 ) : ViewModel() {
     /**
@@ -94,13 +106,17 @@ class FixedExpenseViewModel(
                         fixedHistoryStart(month),
                         fixedHistoryEnd(month, today),
                     ),
-                ) { has, rows ->
+                    fixedMerchants.observe(),
+                ) { has, rows, registry ->
+                    val split = splitByRegistry(rows, registry, today)
                     FixedExpenseUiState(
                         loaded = true,
                         month = month,
                         today = today,
                         hasCategory = has,
-                        board = buildFixedExpenses(month, today, rows),
+                        board = buildFixedExpenses(month, today, split.registered),
+                        candidates = split.candidates,
+                        declined = split.declined,
                     )
                 }
                     // 계산만 기본 풀에서 한다. 조회는 Room 이 자기 스레드에서 한다.
@@ -119,6 +135,16 @@ class FixedExpenseViewModel(
     /** 달 줄 오른쪽 '이번 달' 버튼. 다시 '이번 달 따라가기' 로 둔다. */
     fun showThisMonth() {
         pickedMonth.value = null
+    }
+
+    /** '등록' 을 누른 곳([key])을 고정지출 목록에 넣는다. 묻던 줄이 사라지고 판에 나타난다. */
+    fun register(key: String) {
+        viewModelScope.launch { fixedMerchants.register(key, clock.instant()) }
+    }
+
+    /** '안 함' 을 누르거나 탭에서 뺀 곳([key]). 지난 거래의 분류는 그대로이고, 지금 뒤에 새로 낸 '고정지출' 지출이 생기면 다시 묻는다. */
+    fun decline(key: String) {
+        viewModelScope.launch { fixedMerchants.decline(key, clock.instant()) }
     }
 
     private fun currentMonth(): YearMonth = pickedMonth.value ?: YearMonth.now(clock)

@@ -361,4 +361,29 @@ class FixedExpenseTextTest {
         assertEquals("15일, 말일쯤", usualDaysText(listOf(15, LAST_DAY)))
         assertEquals("말일쯤", usualDaysText(listOf(LAST_DAY)))
     }
+
+    @Test
+    fun `묻는 줄은 마지막으로 낸 날과 결제수단을 적고 다른 해면 해를 붙인다`() {
+        val rows = listOf(tx("2026-10-03", 17_000, categoryId = 4, paymentId = 10, merchant = "넷플릭스", paymentName = "하나카드"))
+        val candidate = splitByRegistry(rows, emptyMap(), today).candidates.single()
+        assertEquals("마지막 10월 3일 · 하나카드", candidateSubtitle(candidate, today))
+        assertEquals("17,000원", candidateAmount(candidate))
+        assertEquals(
+            "마지막 2025년 12월 30일",
+            candidateSubtitle(candidate.copy(lastPaidOn = day("2025-12-30"), paymentMethodName = null), today),
+        )
+    }
+
+    @Test
+    fun `목록에서 빼기와 묻기 문구는 가게 이름 뒤에 조사를 붙이지 않는다`() {
+        assertEquals("'넷플릭스' 고정지출 목록에서 뺄까요?", removeTitle("넷플릭스"))
+        assertEquals("넷플릭스 고정지출로 등록", askRegisterLabel("넷플릭스"))
+        assertEquals("넷플릭스 등록 안 함", askDeclineLabel("넷플릭스"))
+    }
+
+    @Test
+    fun `목록에 넣은 곳이 없으면 요약 자리에 그렇다고만 적는다`() {
+        assertEquals("아직 목록에 넣은 고정지출이 없어요", noRegisteredSentence(october, today))
+        assertEquals("9월까지는 목록에 넣은 고정지출이 없어요", noRegisteredSentence(YearMonth.of(2026, 9), today))
+    }
 }

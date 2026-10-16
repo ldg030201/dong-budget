@@ -32,6 +32,11 @@ data class TransactionListItem(
     val paymentMethodColor: String? = null,
     /** 설정의 분류 목록 순서. 날마다 쓴 돈이 이 순서로 쌓는다. 비웠거나 지웠으면 null */
     val categorySortOrder: Int? = null,
+    /**
+     * 적은(처음 저장한) 때. 고정지출 탭이 '등록 안 함' 뒤에 새로 낸 지출인지 볼 때 쓴다(날짜를 앞으로 적어 둔 옛 거래는 새 지출이 아니다).
+     * 조회는 늘 채운다. 비어 있으면(테스트에서 만든 줄) 모른다.
+     */
+    val createdAt: Instant? = null,
 )
 
 /** [TransactionListItem] 을 읽는 SELECT. 뒤에 WHERE·ORDER BY 를 붙여 쓴다. 목록·상세가 같은 값을 읽게 한 곳에 둔다. */
@@ -46,7 +51,8 @@ private const val LIST_ITEM_SELECT =
                t.categoryId, t.paymentMethodId,
                p.icon AS paymentMethodIcon,
                p.color AS paymentMethodColor,
-               c.sortOrder AS categorySortOrder
+               c.sortOrder AS categorySortOrder,
+               t.createdAt
         FROM transactions t
         LEFT JOIN categories c ON c.id = t.categoryId
         LEFT JOIN payment_methods p ON p.id = t.paymentMethodId

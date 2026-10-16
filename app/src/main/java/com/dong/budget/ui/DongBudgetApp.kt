@@ -226,7 +226,7 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
     val menuPage: @Composable (MenuItem) -> Unit = { item ->
         when (item) {
             // '등록하기' 는 지난번 값으로 채운 등록창을, 줄은 그 가게의 가장 최근 거래 상세를 연다.
-            // '고정지출' 분류를 지웠으면 다시 만들러 분류 관리를 연다.
+            // '고정지출' 분류를 지웠으면 다시 만들러 분류 관리를 연다. '등록' · '안 함' · 빼기는 고정지출 목록을 고친다.
             MenuItem.FIXED_EXPENSE -> {
                 val fixedViewModel: FixedExpenseViewModel = viewModel(factory = fixedExpenseViewModelFactory(container))
                 val fixedState by fixedViewModel.uiState.collectAsStateWithLifecycle()
@@ -239,6 +239,8 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
                     onRegister = { prefill -> if (settled()) navigator.go(TransactionEditorKey(prefill = prefill)) },
                     onOpenTransaction = { id -> if (settled()) navigator.go(TransactionDetailKey(id)) },
                     onOpenCategories = { if (settled()) navigator.go(CategoryManageKey) },
+                    onRegisterMerchant = fixedViewModel::register,
+                    onDeclineMerchant = fixedViewModel::decline,
                 )
             }
 
@@ -965,7 +967,7 @@ private fun salaryViewModelFactory(container: AppContainer) = viewModelFactory {
 // ── 고정지출 탭 화면 모델 ──
 // 고정지출 탭의 화면 모델 공장을 여기에 둔다(카드실적 것은 파일 맨 끝).
 private fun fixedExpenseViewModelFactory(container: AppContainer) = viewModelFactory {
-    initializer { FixedExpenseViewModel(container.transactionRepository, container.categoryRepository) }
+    initializer { FixedExpenseViewModel(container.transactionRepository, container.categoryRepository, container.fixedMerchantRepository) }
 }
 
 private fun historyViewModelFactory(container: AppContainer) = viewModelFactory {

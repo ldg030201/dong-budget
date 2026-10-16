@@ -23,6 +23,8 @@ import com.dong.budget.ui.theme.pressScaleClickable
  * 구분선 대신 여백으로 항목을 나눈다.
  * @param note 부제 아래 덧붙임(고정지출의 '평소보다 2일 지났어요' 처럼 줄마다 다른 한두 줄). 부제와 같은 간격을 두고 그 아래에 둔다.
  * @param onClickLabel 누르면 무엇을 하는지 화면 읽기가 알려 줄 말. 없으면 기본 말로 읽는다.
+ * @param onLongClick 길게 누르면 할 보조 동작(고정지출의 '목록에서 빼기'). [onClick] 이 있을 때만 받는다. 없으면 null
+ * @param onLongClickLabel 길게 누르면 무엇을 하는지 화면 읽기가 알려 줄 말
  */
 @Composable
 fun BudgetListItem(
@@ -34,6 +36,8 @@ fun BudgetListItem(
     note: @Composable (() -> Unit)? = null,
     onClickLabel: String? = null,
     onClick: (() -> Unit)? = null,
+    onLongClick: (() -> Unit)? = null,
+    onLongClickLabel: String? = null,
 ) {
     val base =
         modifier
@@ -43,6 +47,8 @@ fun BudgetListItem(
                     m.pressScaleClickable(
                         shape = RoundedCornerShape(BudgetTheme.radius.chip),
                         onClickLabel = onClickLabel,
+                        onLongClick = onLongClick,
+                        onLongClickLabel = onLongClickLabel,
                         onClick = onClick,
                     )
                 } else {

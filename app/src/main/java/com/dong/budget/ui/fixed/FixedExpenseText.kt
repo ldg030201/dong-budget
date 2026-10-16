@@ -275,10 +275,68 @@ internal fun emptyTitle(month: YearMonth, today: LocalDate): String = if (month 
     "${monthLabel(month, today)}까지는 고정지출로 등록한 지출이 없어요"
 }
 
-internal const val EMPTY_BODY = "월세·구독료처럼 매달 나가는 돈을 '고정지출' 분류로 등록하면, 이번 달에 냈는지 여기서 볼 수 있어요."
+internal const val EMPTY_BODY = "월세·구독료처럼 매달 나가는 돈을 '고정지출' 분류로 등록하면, 여기서 목록에 넣을지 물어보고 이번 달에 냈는지 보여 줘요."
 
-/** 목록 맨 아래 안내. 어떻게 묶고 짐작하는지 알려 둔다(가게 이름을 바꿔 적으면 따로 보이는 까닭). */
-internal const val FOOTNOTE = "'고정지출' 분류로 등록한 지출을 가게 이름으로 묶었어요. 언제 얼마를 내는지는 지난 기록으로 짐작해요."
+/**
+ * 목록 맨 아래 안내. 어떻게 묶고 짐작하는지(가게 이름을 바꿔 적으면 따로 보이는 까닭)와 목록에서 빼는 법을 알려 둔다.
+ * 빼기는 줄을 길게 눌러야 해서 눈에 안 띈다.
+ */
+internal const val FOOTNOTE =
+    "'고정지출' 분류로 등록한 지출 가운데 목록에 넣은 곳만 가게 이름으로 묶었어요. 언제 얼마를 내는지는 지난 기록으로 짐작해요. " +
+        "줄을 길게 누르면 목록에서 뺄 수 있어요."
+
+// ── 고정지출 목록(등록할지 묻기 · 빼기) ─────────────────────────────────
+// '고정지출' 분류와 탭의 목록은 따로다. 분류로 적은 곳 가운데 목록에 등록한 곳만 판에 보이고, 처음 보는 곳은 등록할지 묻는다.
+
+/** 묻는 묶음의 제목 */
+internal const val ASK_TITLE = "고정지출로 등록할까요?"
+
+/** 묻는 묶음 제목 아래 안내. 분류와 목록이 따로라는 것을 알린다. */
+internal const val ASK_HINT = "'고정지출' 분류로 적은 곳이에요. 등록하면 매달 냈는지 여기서 볼 수 있어요."
+
+internal const val ASK_REGISTER_TEXT = "등록"
+
+internal const val ASK_DECLINE_TEXT = "안 함"
+
+/** '등록' 버튼(화면 읽기). 줄마다 같은 버튼이라 가게 이름을 붙인다: "넷플릭스 고정지출로 등록" */
+internal fun askRegisterLabel(name: String): String = "$name 고정지출로 등록"
+
+/** '안 함' 버튼(화면 읽기): "넷플릭스 등록 안 함" */
+internal fun askDeclineLabel(name: String): String = "$name 등록 안 함"
+
+/** 묻는 줄 · 등록 안 한 줄의 부제. 가장 최근에 낸 날과 결제수단: "마지막 10월 3일 · 하나카드" */
+internal fun candidateSubtitle(candidate: FixedCandidate, today: LocalDate): String =
+    listOfNotNull("마지막 ${dateText(candidate.lastPaidOn, YearMonth.from(today))}", candidate.paymentMethodName).joinToString(" · ")
+
+/** 묻는 줄 · 등록 안 한 줄 오른쪽 금액. 가장 최근에 낸 돈 */
+internal fun candidateAmount(candidate: FixedCandidate): String = "${formatAmount(candidate.lastAmount)}원"
+
+/** 접어 두는 등록 안 한 곳 묶음의 제목. '안 함' 을 눌렀거나 목록에서 뺀 곳이다. */
+internal const val DECLINED_TITLE = "등록 안 한 곳"
+
+/** 등록 안 한 줄의 상태(화면 읽기) */
+internal const val DECLINED_STATE = "등록 안 함"
+
+/** 판의 줄을 길게 누르면 하는 일(화면 읽기도 이 이름으로 알린다) */
+internal const val REMOVE_ACTION_LABEL = "고정지출 목록에서 빼기"
+
+/** 빼기 확인 창 제목. 사용자가 적은 가게 이름 뒤에 조사를 붙이지 않게 따옴표로 묶는다: "'넷플릭스' 고정지출 목록에서 뺄까요?" */
+internal fun removeTitle(name: String): String = "'$name' 고정지출 목록에서 뺄까요?"
+
+/** 빼기 확인 창 글. 분류는 그대로라는 것과 다시 묻는 때를 알린다. */
+internal const val REMOVE_MESSAGE = "지난 거래는 '고정지출' 분류 그대로 남아요. 나중에 '고정지출' 분류로 새로 내면 등록할지 다시 물어볼게요."
+
+internal const val REMOVE_CONFIRM = "빼기"
+
+/**
+ * 목록에 등록한 곳이 고른 달까지 하나도 없는데 물을 곳이나 등록 안 한 곳만 있을 때 요약 자리의 문장.
+ * "아직 목록에 넣은 고정지출이 없어요", 지난 달이면 "9월까지는 목록에 넣은 고정지출이 없어요"
+ */
+internal fun noRegisteredSentence(month: YearMonth, today: LocalDate): String = if (month == YearMonth.from(today)) {
+    "아직 목록에 넣은 고정지출이 없어요"
+} else {
+    "${monthLabel(month, today)}까지는 목록에 넣은 고정지출이 없어요"
+}
 
 // ── 날짜 ──────────────────────────────────────────────────────────────
 

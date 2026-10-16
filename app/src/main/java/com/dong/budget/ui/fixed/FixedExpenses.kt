@@ -161,6 +161,9 @@ data class FixedExpenseBoard(
     val dueCount: Int get() = due.size + paid.size
 
     val isEmpty: Boolean get() = due.isEmpty() && paid.isEmpty() && notThisMonth.isEmpty() && stopped.isEmpty()
+
+    /** 열쇠가 [key] 인 곳. 판에 없으면 null */
+    fun itemOf(key: String): FixedExpenseItem? = (due + paid + notThisMonth + stopped).firstOrNull { it.key == key }
 }
 
 /**

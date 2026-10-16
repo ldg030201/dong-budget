@@ -25,6 +25,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -45,6 +46,7 @@ import com.dong.budget.ui.components.BudgetListItem
 import com.dong.budget.ui.components.BudgetPrimaryButton
 import com.dong.budget.ui.components.BudgetSmallButton
 import com.dong.budget.ui.components.CategoryBadge
+import com.dong.budget.ui.components.ConfirmDialog
 import com.dong.budget.ui.components.HintText
 import com.dong.budget.ui.components.MonthStepper
 import com.dong.budget.ui.components.TabEmptyState
@@ -61,23 +63,29 @@ import com.dong.budget.ui.theme.BudgetTheme
 import com.dong.budget.ui.theme.Motion
 import com.dong.budget.ui.theme.pressScaleClickable
 import com.dong.budget.ui.theme.slideByDirection
-import java.time.YearMonth
+import java.time.LocalDate
 
 /**
  * 고정지출 탭. '고정지출' 분류로 등록한 지출을 가게별로 묶어 얼마 내는지 · 고른 달에 냈는지 · 평소 언제 내는지를 보여 준다.
  *
+ * '고정지출' 분류와 탭의 목록은 따로다. 분류로 적은 곳 가운데 고정지출 목록에 등록한 곳만 판에 보이고, 처음 보는 곳은 등록할지 묻는다.
+ *
  * 위에서부터
  * - 탭 머리와 달 줄. 이번 달보다 뒤로는 넘기지 않고, 지난 달을 보면 오른쪽에 '이번 달' 이 나온다.
- * - 요약: "6개 중 4개 냈어요", 낸 만큼 차는 막대, 낸 돈 · 낼 돈
+ * - 고정지출로 등록할까요?: '고정지출' 분류로 적었는데 목록에 없는 곳(등록 안 한 뒤 새로 낸 곳 포함). 줄마다 '등록' · '안 함'. 없으면 숨긴다.
+ * - 요약: "6개 중 4개 냈어요", 낸 만큼 차는 막대, 낸 돈 · 낼 돈. 목록에 넣은 곳이 아직 없으면 그렇다고만 적는다.
  * - 아직 안 냈어요 · 냈어요 · 이번 달엔 안 내요 · 한동안 안 냈어요(접힌 채 시작). 빈 묶음은 숨긴다.
  *   이번 달에 아직 안 낸 줄에는 지난번 값으로 채운 등록창을 여는 '등록하기' 가 있다.
- *   줄을 누르면 그 가게의 가장 최근 거래 상세가 열린다(거기서 같은 가게의 최근 1년 내역을 본다).
+ *   줄을 누르면 그 가게의 가장 최근 거래 상세가 열린다(거기서 같은 가게의 최근 1년 내역을 본다). 길게 누르면 목록에서 뺄지 묻는다.
+ * - 등록 안 한 곳(접힌 채 시작): '안 함' 을 눌렀거나 뺀 곳. 줄마다 '등록' 이 있어 잘못 뺀 것을 되돌린다.
  *
  * 상단 인셋은 이 화면이, 하단은 셸의 아래 메뉴가 처리한다(HomeShell).
  *
  * @param onRegister '등록하기'. 채울 값을 넘긴다. 사용자가 확인하고 저장해야 거래가 된다.
  * @param onOpenTransaction 줄을 누르면 그 가게의 가장 최근 고정지출 거래
  * @param onOpenCategories '고정지출' 분류를 지웠을 때 다시 만들러 분류 관리로
+ * @param onRegisterMerchant 묻는 줄 · 등록 안 한 줄의 '등록'. 그곳의 열쇠를 넘긴다.
+ * @param onDeclineMerchant 묻는 줄의 '안 함', 판의 줄을 빼기. 그곳의 열쇠를 넘긴다.
  */
 @Composable
 fun FixedExpenseScreen(
@@ -88,10 +96,33 @@ fun FixedExpenseScreen(
     onRegister: (EditorPrefill) -> Unit,
     onOpenTransaction: (Long) -> Unit,
     onOpenCategories: () -> Unit,
+    onRegisterMerchant: (String) -> Unit,
+    onDeclineMerchant: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    // '한동안 안 냈어요' 를 펼쳤는지. 그만둔 것들이라 접은 채 시작하고, 달을 넘겨도 사용자가 고른 대로 둔다.
+    // '한동안 안 냈어요' · '등록 안 한 곳' 을 펼쳤는지. 잘 안 볼 것들이라 접은 채 시작하고, 달을 넘겨도 사용자가 고른 대로 둔다.
     var stoppedOpen by rememberSaveable { mutableStateOf(false) }
+    var declinedOpen by rememberSaveable { mutableStateOf(false) }
+    // 빼려고 길게 누른 줄의 열쇠. 확인 창을 띄운다. 그사이 그 줄이 판에서 사라졌으면(거래를 지움 등) 창을 닫고 잊는다.
+    var removing by rememberSaveable { mutableStateOf<String?>(null) }
+    val removingItem = removing?.let(state.board::itemOf)
+    if (removing != null && removingItem == null && state.loaded) {
+        LaunchedEffect(removing) { removing = null }
+    }
+    removingItem?.let { item ->
+        ConfirmDialog(
+            title = removeTitle(item.name),
+            message = REMOVE_MESSAGE,
+            confirmLabel = REMOVE_CONFIRM,
+            // 거래는 그대로이고 '등록 안 한 곳' 에서 되돌릴 수 있어 빨강으로 두지 않는다
+            destructive = false,
+            onConfirm = {
+                removing = null
+                onDeclineMerchant(item.key)
+            },
+            onDismiss = { removing = null },
+        )
+    }
     Column(modifier = modifier.fillMaxSize().statusBarsPadding()) {
         TabHeader(title = FIXED_TAB_TITLE)
         // 첫 계산 전에는 비워 둔다. 빈 상태 안내가 잠깐 보였다 사라지지 않게 한다.
@@ -119,45 +150,80 @@ fun FixedExpenseScreen(
             modifier = Modifier.weight(1f),
             label = "fixedMonth",
         ) { shown ->
-            if (shown.board.isEmpty) {
+            if (shown.isEmpty) {
                 FixedEmpty(title = emptyTitle(shown.month, shown.today), body = EMPTY_BODY)
             } else {
                 BoardList(
                     state = shown,
-                    stoppedOpen = stoppedOpen,
-                    onToggleStopped = { stoppedOpen = !stoppedOpen },
-                    onRegister = onRegister,
-                    onOpenTransaction = onOpenTransaction,
+                    folds = Folds(stoppedOpen, declinedOpen, { stoppedOpen = !stoppedOpen }, { declinedOpen = !declinedOpen }),
+                    actions =
+                    RowActions(
+                        onRegister = onRegister,
+                        onOpenTransaction = onOpenTransaction,
+                        onRemove = { removing = it },
+                        onRegisterMerchant = onRegisterMerchant,
+                        onDeclineMerchant = onDeclineMerchant,
+                    ),
                 )
             }
         }
     }
 }
 
+/** 접는 두 묶음('한동안 안 냈어요' · '등록 안 한 곳')을 펼쳤는지와 바꾸기 */
+private class Folds(val stoppedOpen: Boolean, val declinedOpen: Boolean, val onToggleStopped: () -> Unit, val onToggleDeclined: () -> Unit)
+
+/**
+ * 줄에서 하는 일들.
+ * @property onRemove 판의 줄을 길게 눌러 빼려 한다(확인 창을 띄운다). 그곳의 열쇠를 넘긴다.
+ */
+private class RowActions(
+    val onRegister: (EditorPrefill) -> Unit,
+    val onOpenTransaction: (Long) -> Unit,
+    val onRemove: (String) -> Unit,
+    val onRegisterMerchant: (String) -> Unit,
+    val onDeclineMerchant: (String) -> Unit,
+)
+
 @Composable
-private fun BoardList(
-    state: FixedExpenseUiState,
-    stoppedOpen: Boolean,
-    onToggleStopped: () -> Unit,
-    onRegister: (EditorPrefill) -> Unit,
-    onOpenTransaction: (Long) -> Unit,
-) {
+private fun BoardList(state: FixedExpenseUiState, folds: Folds, actions: RowActions) {
     val board = state.board
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(top = BudgetTheme.spacing.inlineGap, bottom = BudgetTheme.spacing.sectionGap),
     ) {
-        animatedItem(key = SUMMARY_KEY) { SummaryBlock(state = state) }
-        statusGroup(FixedStatus.DUE, board.due, state, onRegister, onOpenTransaction)
-        statusGroup(FixedStatus.PAID, board.paid, state, onRegister, onOpenTransaction)
-        statusGroup(FixedStatus.NOT_THIS_MONTH, board.notThisMonth, state, onRegister, onOpenTransaction)
+        askGroup(state, actions)
+        animatedItem(key = SUMMARY_KEY) {
+            if (board.isEmpty) NoRegisteredBlock(state = state) else SummaryBlock(state = state)
+        }
+        statusGroup(FixedStatus.DUE, board.due, state, actions)
+        statusGroup(FixedStatus.PAID, board.paid, state, actions)
+        statusGroup(FixedStatus.NOT_THIS_MONTH, board.notThisMonth, state, actions)
         if (board.stopped.isNotEmpty()) {
             animatedItem(key = STOPPED_KEY) {
-                StoppedHeader(count = board.stopped.size, expanded = stoppedOpen, onToggle = onToggleStopped)
+                FoldHeader(
+                    title = STOPPED_TITLE,
+                    count = board.stopped.size,
+                    expanded = folds.stoppedOpen,
+                    onToggle = folds.onToggleStopped,
+                )
             }
-            if (stoppedOpen) {
-                animatedItems(items = board.stopped, key = ::itemKey) { item ->
-                    FixedRow(item = item, state = state, onRegister = onRegister, onOpenTransaction = onOpenTransaction)
+            if (folds.stoppedOpen) {
+                animatedItems(items = board.stopped, key = ::itemKey) { item -> FixedRow(item = item, state = state, actions = actions) }
+            }
+        }
+        if (state.declined.isNotEmpty()) {
+            animatedItem(key = DECLINED_KEY) {
+                FoldHeader(
+                    title = DECLINED_TITLE,
+                    count = state.declined.size,
+                    expanded = folds.declinedOpen,
+                    onToggle = folds.onToggleDeclined,
+                )
+            }
+            if (folds.declinedOpen) {
+                animatedItems(items = state.declined, key = { "declined-${it.key}" }) { candidate ->
+                    CandidateRow(candidate = candidate, today = state.today, asking = false, actions = actions)
                 }
             }
         }
@@ -174,16 +240,29 @@ private fun BoardList(
 }
 
 /**
+ * '고정지출로 등록할까요?' 묶음. 제목과 안내, 물을 곳들. 없으면 아무것도 두지 않는다.
+ * 줄의 key 가 가게마다 하나라서, '등록' 을 누르면 이 줄이 사라지고 판의 줄이 나타난다.
+ */
+private fun LazyListScope.askGroup(state: FixedExpenseUiState, actions: RowActions) {
+    if (state.candidates.isEmpty()) return
+    animatedItem(key = ASK_KEY) {
+        Column(modifier = Modifier.padding(horizontal = BudgetTheme.spacing.screenHorizontal)) {
+            SectionTitle(text = ASK_TITLE)
+            HintText(text = ASK_HINT, modifier = Modifier.padding(top = BudgetTheme.spacing.tightGap))
+        }
+    }
+    animatedItems(items = state.candidates, key = { "ask-${it.key}" }) { candidate ->
+        CandidateRow(candidate = candidate, today = state.today, asking = true, actions = actions)
+    }
+    // 요약 판과 띄운다(판은 위 여백이 없다)
+    animatedItem(key = ASK_GAP_KEY) { Spacer(Modifier.height(BudgetTheme.spacing.sectionGap)) }
+}
+
+/**
  * 상태 하나의 묶음. 제목과 줄들. 비었으면 아무것도 두지 않는다.
  * 줄의 key 는 가게마다 하나라서, 등록해서 '아직 안 냈어요' 에서 '냈어요' 로 옮겨 가면 그 줄이 제자리로 미끄러진다.
  */
-private fun LazyListScope.statusGroup(
-    status: FixedStatus,
-    items: List<FixedExpenseItem>,
-    state: FixedExpenseUiState,
-    onRegister: (EditorPrefill) -> Unit,
-    onOpenTransaction: (Long) -> Unit,
-) {
+private fun LazyListScope.statusGroup(status: FixedStatus, items: List<FixedExpenseItem>, state: FixedExpenseUiState, actions: RowActions) {
     if (items.isEmpty()) return
     animatedItem(key = "title-${status.name}") {
         // 줄은 스스로 좌우 여백을 가진다(거래 줄과 같다). 제목만 화면 여백 안에 넣는다.
@@ -195,9 +274,7 @@ private fun LazyListScope.statusGroup(
                 .padding(top = BudgetTheme.spacing.sectionGap),
         )
     }
-    animatedItems(items = items, key = ::itemKey) { item ->
-        FixedRow(item = item, state = state, onRegister = onRegister, onOpenTransaction = onOpenTransaction)
-    }
+    animatedItems(items = items, key = ::itemKey) { item -> FixedRow(item = item, state = state, actions = actions) }
 }
 
 private fun itemKey(item: FixedExpenseItem): String = "item-${item.key}"
@@ -259,19 +336,37 @@ private fun SummaryLine(label: String, amount: Long) {
 }
 
 /**
- * 가게 한 줄. 뱃지(지난번 결제수단, 없으면 분류), 이름, 부제(언제·어느 카드), 덧붙임 한 줄(지났어요·올랐어요 등), 오른쪽에 금액.
- * 이번 달에 아직 안 냈으면 금액 아래에 '등록하기' 를 둔다. 가게 이름 없이 묶인 것은 무엇을 등록할지 몰라 두지 않는다.
- *
- * 화면 읽기는 줄을 한 번에 읽고 상태(냈어요·아직 안 냈어요 등)를 덧붙인다. 묶음 제목뿐 아니라 줄마다 상태를 글로 알린다.
- * '등록하기' 는 따로 읽히고, 줄마다 같은 버튼이라 가게 이름을 붙여 "넷플릭스 등록하기" 로 읽는다.
+ * 목록에 넣은 곳이 고른 달까지 하나도 없는데 물을 곳이나 등록 안 한 곳만 있을 때 요약 자리. 요약 판과 같은 모양으로 그렇다고만 적는다.
+ * 빈 판의 '이번 달에 낼 고정지출이 없어요' 로 적으면 고정지출이 정말 없는 것처럼 읽힌다.
  */
 @Composable
-private fun FixedRow(
-    item: FixedExpenseItem,
-    state: FixedExpenseUiState,
-    onRegister: (EditorPrefill) -> Unit,
-    onOpenTransaction: (Long) -> Unit,
-) {
+private fun NoRegisteredBlock(state: FixedExpenseUiState) {
+    val title = summaryTitle(state.month, state.today)
+    val sentence = noRegisteredSentence(state.month, state.today)
+    Column(
+        modifier =
+        Modifier
+            .padding(horizontal = BudgetTheme.spacing.screenHorizontal)
+            .fillMaxWidth()
+            .sectionBlock()
+            .clearAndSetSemantics { contentDescription = "$title. $sentence" },
+    ) {
+        Text(text = title, style = MaterialTheme.typography.bodyMedium, color = BudgetTheme.colors.textSecondary)
+        Spacer(Modifier.height(BudgetTheme.spacing.tightGap))
+        Text(text = sentence, style = MaterialTheme.typography.titleMedium, color = BudgetTheme.colors.textPrimary)
+    }
+}
+
+/**
+ * 가게 한 줄. 뱃지(지난번 결제수단, 없으면 분류), 이름, 부제(언제·어느 카드), 덧붙임 한 줄(지났어요·올랐어요 등), 오른쪽에 금액.
+ * 이번 달에 아직 안 냈으면 금액 아래에 '등록하기' 를 둔다. 가게 이름 없이 묶인 것은 무엇을 등록할지 몰라 두지 않는다.
+ * 길게 누르면 고정지출 목록에서 뺄지 묻는다(지난 거래의 분류는 그대로다).
+ *
+ * 화면 읽기는 줄을 한 번에 읽고 상태(냈어요·아직 안 냈어요 등)를 덧붙인다. 묶음 제목뿐 아니라 줄마다 상태를 글로 알린다.
+ * '등록하기' 는 따로 읽히고, 줄마다 같은 버튼이라 가게 이름을 붙여 "넷플릭스 등록하기" 로 읽는다. 길게 누르기는 '고정지출 목록에서 빼기' 로 알린다.
+ */
+@Composable
+private fun FixedRow(item: FixedExpenseItem, state: FixedExpenseUiState, actions: RowActions) {
     val note = rowNote(item, state.month, state.today)
     val status = rowStatus(item, state.month, state.today)
     val canRegister = item.status == FixedStatus.DUE && state.isThisMonth && item.merchant != null
@@ -303,8 +398,61 @@ private fun FixedRow(
             }
         },
         onClickLabel = ROW_CLICK_LABEL,
-        onClick = { onOpenTransaction(item.latestId) },
-        trailing = { RowTrailing(item = item, state = state, quiet = quiet, canRegister = canRegister, onRegister = onRegister) },
+        onClick = { actions.onOpenTransaction(item.latestId) },
+        onLongClick = { actions.onRemove(item.key) },
+        onLongClickLabel = REMOVE_ACTION_LABEL,
+        trailing = { RowTrailing(item = item, state = state, quiet = quiet, canRegister = canRegister, onRegister = actions.onRegister) },
+    )
+}
+
+/**
+ * 고정지출 목록에 없는 한 곳. 판의 줄과 같은 뱃지 · 이름에, 부제는 마지막으로 낸 날과 결제수단, 오른쪽에 그때 낸 돈.
+ * 부제 아래에 '등록' 과([asking] 이면) '안 함' 을 둔다. 버튼 둘을 금액 옆에 두면 좁은 화면(320dp)에서 이름이 너무 줄어 줄을 나눴다.
+ * 줄을 누르면 가장 최근 거래 상세가 열린다(판의 줄과 같다).
+ *
+ * @param asking 묻는 줄이면 true, 등록 안 한 곳의 줄이면 false('안 함' 없이 '등록' 만, 금액을 흐리게, 상태를 '등록 안 함' 으로 알린다)
+ */
+@Composable
+private fun CandidateRow(candidate: FixedCandidate, today: LocalDate, asking: Boolean, actions: RowActions) {
+    BudgetListItem(
+        title = candidate.name,
+        subtitle = candidateSubtitle(candidate, today),
+        modifier = if (asking) Modifier else Modifier.semantics { stateDescription = DECLINED_STATE },
+        leading = {
+            if (candidate.paymentMethodId != null) {
+                CategoryBadge(icon = candidate.paymentMethodIcon, color = candidate.paymentMethodColor)
+            } else {
+                CategoryBadge(icon = candidate.categoryIcon, color = candidate.categoryColor)
+            }
+        },
+        note = {
+            Row(horizontalArrangement = Arrangement.spacedBy(BudgetTheme.spacing.inlineGap)) {
+                BudgetSmallButton(
+                    text = ASK_REGISTER_TEXT,
+                    onClick = { actions.onRegisterMerchant(candidate.key) },
+                    modifier = Modifier.semantics { contentDescription = askRegisterLabel(candidate.name) },
+                    // 판의 '등록하기' 와 같은 연한 남색이다
+                    container = MaterialTheme.colorScheme.primaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                )
+                if (asking) {
+                    BudgetSmallButton(
+                        text = ASK_DECLINE_TEXT,
+                        onClick = { actions.onDeclineMerchant(candidate.key) },
+                        modifier = Modifier.semantics { contentDescription = askDeclineLabel(candidate.name) },
+                    )
+                }
+            }
+        },
+        onClickLabel = ROW_CLICK_LABEL,
+        onClick = { actions.onOpenTransaction(candidate.latestId) },
+        trailing = {
+            Text(
+                text = candidateAmount(candidate),
+                style = BudgetTheme.amount.medium,
+                color = if (asking) BudgetTheme.colors.textPrimary else BudgetTheme.colors.textSecondary,
+            )
+        },
     )
 }
 
@@ -348,16 +496,16 @@ private fun noteColor(tone: NoteTone): Color = when (tone) {
 }
 
 /**
- * '한동안 안 냈어요' 묶음의 제목. 누르면 줄들을 펼치고 접는다. 오른쪽에 개수와 도는 화살표.
+ * 접는 묶음('한동안 안 냈어요' · '등록 안 한 곳')의 제목. 누르면 줄들을 펼치고 접는다. 오른쪽에 개수와 도는 화살표.
  * 화면 읽기는 제목으로 건너뛸 수 있고, 펼쳐졌는지 접혔는지 알려 준다.
  */
 @Composable
-private fun StoppedHeader(count: Int, expanded: Boolean, onToggle: () -> Unit) {
+private fun FoldHeader(title: String, count: Int, expanded: Boolean, onToggle: () -> Unit) {
     // 화살표가 줄이 펼쳐지는 것과 같은 빠르기로 돈다
     val arrowRotation by animateFloatAsState(
         targetValue = if (expanded) EXPANDED_ROTATION else 0f,
         animationSpec = Motion.standard(),
-        label = "stoppedArrow",
+        label = "foldArrow",
     )
     Row(
         modifier =
@@ -371,7 +519,7 @@ private fun StoppedHeader(count: Int, expanded: Boolean, onToggle: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            text = STOPPED_TITLE,
+            text = title,
             style = MaterialTheme.typography.titleMedium,
             color = BudgetTheme.colors.textPrimary,
             modifier = Modifier.weight(1f).semantics { heading() },
@@ -397,6 +545,9 @@ private fun FixedEmpty(title: String, body: String, action: (@Composable () -> U
 // 목록의 고정 줄 key. 달마다 묶음이 숨었다 나타나도 스크롤 기준이 흔들리지 않게 고정한다.
 private const val SUMMARY_KEY = "summary"
 private const val STOPPED_KEY = "stopped"
+private const val DECLINED_KEY = "declined"
+private const val ASK_KEY = "ask"
+private const val ASK_GAP_KEY = "ask-gap"
 private const val FOOTNOTE_KEY = "footnote"
 
 /** 달을 넘길 때 한 판을 옮기는 거리. 화면 폭의 1/5 만 옮기고 나머지는 흐려짐으로 보여 준다(홈과 같다). */
