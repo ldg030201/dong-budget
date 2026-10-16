@@ -3,10 +3,10 @@ package com.dong.budget.ui.detail
 import androidx.compose.runtime.Immutable
 import com.dong.budget.data.db.TransactionListItem
 import com.dong.budget.data.db.TransactionType
+import com.dong.budget.data.db.merchantKey
 import com.dong.budget.ui.home.localDate
 import com.dong.budget.ui.stats.calc.Measure
 import com.dong.budget.ui.stats.calc.averageTicket
-import com.dong.budget.ui.stats.calc.merchantKey
 import java.time.LocalDate
 import java.time.YearMonth
 

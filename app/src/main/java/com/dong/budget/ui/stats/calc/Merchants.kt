@@ -2,24 +2,14 @@ package com.dong.budget.ui.stats.calc
 
 import com.dong.budget.data.db.TransactionListItem
 import com.dong.budget.data.db.TransactionType
+import com.dong.budget.data.db.merchantKey
 import com.dong.budget.ui.home.totals
 import com.dong.budget.ui.stats.MerchantStat
-import java.util.Locale
 
 // ─────────────────────────────────────────────────────────────────────
-// 많이 쓴 곳. 가게 이름으로 묶는다.
+// 많이 쓴 곳. 가게 이름으로 묶는다(열쇠는 merchantKey).
 // 이름이 비슷한 가게(예: '스타벅스 강남점' 과 '스타벅스')는 합치지 않는다. 틀리게 합치면 통계가 망가진다.
 // ─────────────────────────────────────────────────────────────────────
-
-/**
- * 가게를 묶는 열쇠. 공백을 모두 빼고 소문자로 만든다(결제수단 이름을 견주는 규칙과 같다).
- * '스타벅스 ' 와 '스타 벅스', 'GS25' 와 'gs25' 가 한 가게가 된다.
- * @return 이름이 없거나 공백뿐이면 null. 그런 거래는 가게별로 세지 않는다.
- */
-fun merchantKey(merchant: String?): String? = merchant
-    ?.filterNot { it.isWhitespace() }
-    ?.lowercase(Locale.ROOT)
-    ?.takeIf { it.isNotEmpty() }
 
 /**
  * 가게별 순지출(지출 − 환불) 상위 [limit] 곳. 순지출이 0 이하인 가게는 뺀다.

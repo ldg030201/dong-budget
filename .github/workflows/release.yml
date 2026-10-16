@@ -87,7 +87,6 @@ jobs:
               app/src/main/java/com/dong/budget/data/db \
               app/src/main/java/com/dong/budget/data/holiday \
               app/src/main/java/com/dong/budget/ui/home/MonthOverview.kt \
-              app/src/main/java/com/dong/budget/ui/stats/calc/Merchants.kt \
               app/src/test/java/com/dong/budget/ui/fixed \
               app/src/test/java/com/dong/budget/testing; then
             echo "지난 배포 ${PREV_TAG} 뒤로 시뮬레이션이 보는 코드가 안 바뀌어 고정지출 시뮬레이션을 건너뛴다."

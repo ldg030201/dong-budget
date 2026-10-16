@@ -3,6 +3,7 @@ package com.dong.budget.ui.stats.calc
 import com.dong.budget.data.db.TransactionType.INCOME
 import com.dong.budget.data.db.TransactionType.REFUND
 import com.dong.budget.data.db.TransactionType.TRANSFER
+import com.dong.budget.data.db.merchantKey
 import com.dong.budget.testing.tx
 import com.dong.budget.ui.stats.MerchantStat
 import org.junit.Assert.assertEquals
