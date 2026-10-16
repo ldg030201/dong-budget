@@ -6,6 +6,8 @@ import com.dong.budget.data.db.CategoryStyle
 import com.dong.budget.data.db.DEFAULT_CATEGORIES
 import com.dong.budget.data.db.DEFAULT_INCOME_SOURCES
 import com.dong.budget.data.db.DEFAULT_PAYMENT_METHODS
+import com.dong.budget.data.db.FixedMerchantEntity
+import com.dong.budget.data.db.FixedMerchantState
 import com.dong.budget.data.db.PaymentMethodEntity
 import com.dong.budget.data.db.TransactionEntity
 import com.dong.budget.data.db.TransactionType
@@ -16,6 +18,7 @@ import com.dong.budget.data.salary.SalarySettings
 import com.dong.budget.data.salary.toRecord
 import com.dong.budget.data.salary.toSettings
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.Instant
@@ -283,5 +286,57 @@ class BackupCodecTest {
         assertEquals(BackupCodec.BROKEN, reason(broken { it.copy(salary = SalaryRecord(amount = 1_000_000_000_000)) }))
         val odd = decodeValid(broken { it.copy(salary = SalaryRecord(basis = "WEEKLY", amount = 3_000_000)) })
         assertEquals(PayBasis.MONTHLY, odd.salary!!.toSettings().basis)
+    }
+
+    @Test
+    fun `고정지출 목록도 담았다가 그대로 되살린다`() {
+        val fixed =
+            listOf(
+                FixedMerchantEntity("넷플릭스", FixedMerchantState.REGISTERED, Instant.parse("2026-10-16T01:00:00.123Z")),
+                FixedMerchantEntity("헬스장", FixedMerchantState.DECLINED, Instant.parse("2026-10-16T02:00:00Z")),
+                // 가게 이름 없이 묶인 것은 빈 열쇠다
+                FixedMerchantEntity("", FixedMerchantState.REGISTERED, Instant.parse("2026-10-16T03:00:00Z")),
+            )
+        val exported = backupOf(categories, paymentMethods, listOf(lunch), "2.0.0", Instant.parse("2026-10-16T05:00:00Z"), fixed)
+        assertEquals("2026-10-16T11:00:00+09:00", exported.fixedMerchants?.get(1)?.decidedAt)
+
+        listOf(true, false).forEach { pretty ->
+            val restored = decodeValid(BackupCodec.encode(exported, pretty))
+            assertEquals(exported, restored)
+            assertEquals(fixed, restored.fixedMerchants?.map { it.toEntity() })
+        }
+    }
+
+    @Test
+    fun `목록이 비어도 빈 목록으로 적어 목록이 생기기 전 백업과 가른다`() {
+        val text = BackupCodec.encode(backup(), pretty = false)
+        assertTrue("\"fixedMerchants\":[]" in text)
+        assertEquals(emptyList<BackupFixedMerchant>(), decodeValid(text).fixedMerchants)
+    }
+
+    @Test
+    fun `고정지출 목록 칸이 없는 옛 백업은 판을 올리지 않고 읽는다`() {
+        // 1.9.0 이 만든 모양: 판 2, 목록 칸 없음
+        val text = BackupCodec.encode(backup(), pretty = false).replace(",\"fixedMerchants\":[]", "")
+        assertTrue("fixedMerchants" !in text)
+        val read = decodeValid(text)
+        assertEquals(BACKUP_FORMAT, read.format)
+        assertNull(read.fixedMerchants)
+    }
+
+    @Test
+    fun `고정지출 목록이 겹치거나 때를 읽을 수 없으면 망가진 백업이다`() {
+        val one = BackupFixedMerchant("넷플릭스", FixedMerchantState.REGISTERED, "2026-10-16T10:00:00+09:00")
+        assertEquals(
+            BackupCodec.BROKEN,
+            reason(
+                broken {
+                    it.copy(fixedMerchants = listOf(one, one.copy(state = FixedMerchantState.DECLINED)))
+                },
+            ),
+        )
+        assertEquals(BackupCodec.BROKEN, reason(broken { it.copy(fixedMerchants = listOf(one.copy(decidedAt = "어제"))) }))
+        val text = broken { it.copy(fixedMerchants = listOf(one)) }
+        assertEquals(BackupCodec.BROKEN, reason(text.replace("\"REGISTERED\"", "\"MAYBE\"")))
     }
 }

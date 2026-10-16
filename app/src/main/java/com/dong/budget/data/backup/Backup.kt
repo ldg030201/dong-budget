@@ -9,6 +9,8 @@ import com.dong.budget.data.db.BudgetTime
 import com.dong.budget.data.db.CategoryEntity
 import com.dong.budget.data.db.CategoryScope
 import com.dong.budget.data.db.CategoryStyle
+import com.dong.budget.data.db.FixedMerchantEntity
+import com.dong.budget.data.db.FixedMerchantState
 import com.dong.budget.data.db.PaymentMethodEntity
 import com.dong.budget.data.db.PaymentMethodType
 import com.dong.budget.data.db.TransactionEntity
@@ -50,9 +52,12 @@ const val BACKUP_FORMAT = 2
 const val BACKUP_FORMAT_INCOME_SOURCES = 2
 
 /**
- * 거래·분류·결제수단 전부와 월급 설정. 화면 테마·자동 기능과 알림 목록은 담지 않는다.
+ * 거래·분류·결제수단 전부와 고정지출 목록, 월급 설정. 화면 테마·자동 기능과 알림 목록은 담지 않는다.
  * @property appVersion 만든 앱 버전. 읽을 때 쓰지는 않고, 문제가 생겼을 때 어느 버전에서 만든 것인지 보려고 남긴다.
  * @property salary 월급 설정. 정한 적 없으면 없다(월급 탭이 생기기 전 백업에도 없다). 없으면 되살릴 때 지금 설정을 그대로 둔다.
+ * @property fixedMerchants 고정지출 목록(DB 7). 내보낼 때는 비어 있어도 늘 적는다. 칸이 없으면(목록이 생기기 전 백업) 되살린 뒤
+ *   DB 를 6 → 7 로 올릴 때처럼 그날 고정지출 탭에 보였을 곳을 등록한다(BackupRepository.restore).
+ *   칸을 더하기만 해서 판은 그대로다. 옛 앱(판 2)은 모르는 칸을 건너뛰고 읽는데, 옛 앱에는 목록이 없어 잃는 것이 없다.
  */
 @Serializable
 data class Backup(
@@ -64,7 +69,16 @@ data class Backup(
     val paymentMethods: List<BackupPaymentMethod>,
     val transactions: List<BackupTransaction>,
     val salary: SalaryRecord? = null,
+    val fixedMerchants: List<BackupFixedMerchant>? = null,
 )
+
+/**
+ * 고정지출 목록 한 줄.
+ * @property merchantKey 고정지출 탭이 가게를 묶는 열쇠(띄어쓰기를 빼고 소문자). 가게 이름 없이 묶인 것은 빈 글이다.
+ * @property decidedAt 정한 때(서울 기준 ISO-8601)
+ */
+@Serializable
+data class BackupFixedMerchant(val merchantKey: String, val state: FixedMerchantState, val decidedAt: String)
 
 @Serializable
 data class BackupCategory(
@@ -201,6 +215,10 @@ internal fun problemOf(backup: Backup): String? {
     backup.salary?.let { salary ->
         if (salary.amount !in 0..MAX_AMOUNT || salary.takeHome !in 0..MAX_AMOUNT) return "월급 금액이 범위를 벗어나요"
     }
+    backup.fixedMerchants?.let { list ->
+        duplicateOf(list.map { it.merchantKey })?.let { return "고정지출 목록이 겹쳐요: $it" }
+        list.firstOrNull { parseBackupTime(it.decidedAt) == null }?.let { return "고정지출 목록의 때를 읽을 수 없어요: ${it.decidedAt}" }
+    }
     transactions.forEach { t ->
         val problem =
             when {
@@ -242,6 +260,7 @@ fun backupOf(
     transactions: List<TransactionEntity>,
     appVersion: String,
     exportedAt: Instant,
+    fixedMerchants: List<FixedMerchantEntity> = emptyList(),
 ): Backup {
     val categoryUuids = categories.associate { it.id to it.uuid }
     val paymentUuids = paymentMethods.associate { it.id to it.uuid }
@@ -284,8 +303,12 @@ fun backupOf(
                 updatedAt = formatBackupTime(t.updatedAt),
             )
         },
+        fixedMerchants = fixedMerchants.map { BackupFixedMerchant(it.merchantKey, it.state, formatBackupTime(it.decidedAt)) },
     )
 }
+
+/** 검사를 마친 백업의 고정지출 목록 한 줄을 DB 줄로 */
+fun BackupFixedMerchant.toEntity(): FixedMerchantEntity = FixedMerchantEntity(merchantKey, state, checkNotNull(parseBackupTime(decidedAt)))
 
 /** 화면이 그릴 수 없는 아이콘·색 이름은 기본 모양으로 바꿔 넣는다(손으로 고친 백업). */
 fun BackupCategory.toEntity(): CategoryEntity = CategoryEntity(

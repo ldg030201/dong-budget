@@ -8,6 +8,9 @@ import com.dong.budget.data.db.CategoryScope
 import com.dong.budget.data.db.DEFAULT_CATEGORIES
 import com.dong.budget.data.db.DEFAULT_INCOME_SOURCES
 import com.dong.budget.data.db.DEFAULT_PAYMENT_METHODS
+import com.dong.budget.data.db.FIXED_CATEGORY_CODE
+import com.dong.budget.data.db.FixedMerchantEntity
+import com.dong.budget.data.db.FixedMerchantState
 import com.dong.budget.data.db.PaymentMethodEntity
 import com.dong.budget.data.db.PaymentMethodType
 import com.dong.budget.data.db.TransactionEntity
@@ -23,7 +26,8 @@ import org.junit.runner.RunWith
 import java.time.Instant
 
 /**
- * 백업을 되살린 뒤 들어온 곳 정리(settleIncomeSources, 복원 거래 안)가 실제 SQLite 에서 DB 5 → 6 과 같게 도는지 본다.
+ * 백업을 되살린 뒤 들어온 곳 정리(settleIncomeSources)와 고정지출 목록 등록(registerShownFixedMerchants)이 복원 거래 안에서
+ * 실제 SQLite 로 DB 5 → 6 · 6 → 7 과 같게 도는지 본다. 데이터 초기화가 고정지출 목록을 비우는지도 본다.
  * 기기에서 돈다. 메모리 DB 를 써서 기기에 있는 실제 가계부(dong-budget.db)는 건드리지 않는다.
  */
 @RunWith(AndroidJUnit4::class)
@@ -109,5 +113,74 @@ class BackupRestoreTest {
         repository.restore(backup)
 
         assertEquals(listOf("현금"), database.backupDao().paymentMethods().filter { it.scope == CategoryScope.INCOME }.map { it.name })
+    }
+
+    private val fixed = categories.first { it.code == FIXED_CATEGORY_CODE }
+    private val food = categories.first { it.code == "FOOD" }
+
+    /** [at] (UTC)에 [merchant] 에서 낸 지출. 분류는 [category] 다. */
+    private fun spend(uuid: String, merchant: String, at: String, category: Long = fixed.id): TransactionEntity {
+        val instant = Instant.parse(at)
+        return TransactionEntity(
+            id = uuid.hashCode().toLong(),
+            uuid = uuid,
+            type = TransactionType.EXPENSE,
+            amount = 17_000,
+            occurredAt = instant,
+            occurredDate = 20260101,
+            categoryId = category,
+            merchant = merchant,
+            createdAt = instant,
+            updatedAt = instant,
+        )
+    }
+
+    private val spends =
+        listOf(
+            spend("f1", "넷플릭스", "2026-10-05T03:00:00Z"),
+            spend("f2", " 넷 플릭스", "2026-09-05T03:00:00Z"),
+            spend("f3", "헬스장", "2025-01-10T03:00:00Z"),
+            // 탭이 2026년 10월을 볼 때 읽는 27달(2024년 7월부터) 앞
+            spend("f4", "오래된 구독", "2024-06-10T03:00:00Z"),
+            spend("e1", "스타벅스", "2026-10-05T03:00:00Z", category = food.id),
+        )
+
+    @Test
+    fun `고정지출 목록이 없는 옛 백업을 되살리면 그날 탭에 보였을 곳을 등록한다`() = runBlocking {
+        val now = Instant.parse("2026-10-16T03:00:00Z")
+        val old = backupOf(categories, expenseMethods, spends, appVersion = "1.9.0", exportedAt = now).copy(fixedMerchants = null)
+
+        repository.restore(old, now)
+
+        assertEquals(
+            listOf(
+                FixedMerchantEntity("넷플릭스", FixedMerchantState.REGISTERED, now),
+                FixedMerchantEntity("헬스장", FixedMerchantState.REGISTERED, now),
+            ),
+            database.backupDao().fixedMerchants(),
+        )
+    }
+
+    @Test
+    fun `새 백업은 고정지출 목록을 그대로 되살리고 보이던 곳을 더 등록하지 않는다`() = runBlocking {
+        val decided = Instant.parse("2026-10-01T00:00:00Z")
+        val list = listOf(FixedMerchantEntity("헬스장", FixedMerchantState.DECLINED, decided))
+        val backup = backupOf(categories, expenseMethods, spends, "2.0.0", Instant.parse("2026-10-16T03:00:00Z"), list)
+
+        repository.restore(backup)
+
+        assertEquals(list, database.backupDao().fixedMerchants())
+        // 다시 내보내면 같은 목록이다
+        assertEquals(backup.fixedMerchants, repository.export("2.0.0").fixedMerchants)
+    }
+
+    @Test
+    fun `데이터 초기화는 고정지출 목록도 비운다`() = runBlocking {
+        repository.restore(backupOf(categories, expenseMethods, spends, "2.0.0", Instant.now()).copy(fixedMerchants = null))
+        database.fixedMerchantDao().upsert(FixedMerchantEntity("유튜브", FixedMerchantState.DECLINED, Instant.now()))
+
+        repository.resetToDefaults()
+
+        assertEquals(emptyList<FixedMerchantEntity>(), database.backupDao().fixedMerchants())
     }
 }
