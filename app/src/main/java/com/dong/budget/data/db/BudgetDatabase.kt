@@ -8,14 +8,18 @@ import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import androidx.room.migration.AutoMigrationSpec
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.dong.budget.data.devlog.DevLog
+import com.dong.budget.data.devlog.LogTag
+import java.time.Instant
 
 @Database(
     entities = [
         TransactionEntity::class,
         CategoryEntity::class,
         PaymentMethodEntity::class,
+        FixedMerchantEntity::class,
     ],
-    version = 6,
+    version = 7,
     exportSchema = true,
     autoMigrations = [
         // 1 → 2: 분류에 아이콘·색 칸을 추가하고 기본 분류를 새 목록으로 바꾼다.
@@ -32,6 +36,9 @@ import androidx.sqlite.db.SupportSQLiteDatabase
         // 5 → 6: 결제수단에 목록(scope) 칸을 더해 수입 전용 목록 '들어온 곳' 을 둔다. 있던 줄은 모두 결제수단이 되고,
         // 이름 UNIQUE 가 (목록, 이름)으로 바뀐다. 칸·인덱스는 Room 이 만들고, 기본 들어온 곳과 옛 수입 거래 옮기기는 Migration5To6 이 한다.
         AutoMigration(from = 5, to = 6, spec = Migration5To6::class),
+        // 6 → 7: 고정지출 목록(fixed_merchants)을 둔다. 고정지출 탭은 이제 등록한 곳만 보인다. 표는 Room 이 만들고,
+        // 올리는 날 탭에 보이던 곳을 등록하는 것은 Migration6To7 이 한다.
+        AutoMigration(from = 6, to = 7, spec = Migration6To7::class),
     ],
 )
 @TypeConverters(Converters::class)
@@ -43,6 +50,8 @@ abstract class BudgetDatabase : RoomDatabase() {
     abstract fun paymentMethodDao(): PaymentMethodDao
 
     abstract fun backupDao(): BackupDao
+
+    abstract fun fixedMerchantDao(): FixedMerchantDao
 
     companion object {
         private const val NAME = "dong-budget.db"
@@ -114,7 +123,8 @@ internal fun insertDefaultPaymentMethod(db: SupportSQLiteDatabase, m: DefaultPay
 
 /**
  * 첫 설치 때 기본 분류와 결제수단·들어온 곳을 넣는다(onCreate, 옛 DB 를 올리는 경우에는 불리지 않는다).
- * DB 를 열 때마다 지운 뒤 코드 없이 다시 만든 '고정지출'·'급여' 에 코드를 돌려준다(onOpen, 마이그레이션 뒤에 불린다).
+ * DB 를 열 때마다 지운 뒤 코드 없이 다시 만든 '고정지출'·'급여' 에 코드를 돌려주고, '고정지출' 지출이 없어진 곳을 고정지출 목록에서 지운다
+ * (onOpen, 마이그레이션 뒤에 불린다).
  *
  * 주의: 둘 다 SupportSQLiteDatabase 버전이다. Room 은 onCreate/onOpen(SQLiteConnection) 을 부르고, 그 기본 구현은 연결이
  * SupportSQLiteConnection 일 때만 이 버전으로 넘긴다. 지금은 드라이버를 따로 지정하지 않아서(호환 모드) 넘어오지만,
@@ -128,6 +138,8 @@ private object SeedCallback : RoomDatabase.Callback() {
 
     override fun onOpen(db: SupportSQLiteDatabase) {
         reclaimDefaultCodesOnOpen(db)
+        // 코드를 돌려받은 '고정지출' 분류의 지출까지 센 뒤에 지운다
+        pruneFixedMerchantsOnOpen(db)
     }
 }
 
@@ -254,5 +266,23 @@ class Migration4To5 : AutoMigrationSpec {
 class Migration5To6 : AutoMigrationSpec {
     override fun onPostMigrate(db: SupportSQLiteDatabase) {
         settleIncomeSources(db)
+    }
+}
+
+/**
+ * 6 → 7 데이터 정리. 고정지출 탭이 '고정지출' 분류 지출을 모두 보이던 것을, 탭에서 등록한 곳(고정지출 목록)만 보이게 바꾼다.
+ *
+ * - 표: 고정지출 목록(fixed_merchants)이 생긴다. Room 이 스키마 JSON 을 비교해 만든다.
+ * - 올리는 날 탭에 보이던 곳(아직 안 냈어요 · 냈어요 · 이번 달엔 안 내요 · 한동안 안 냈어요 모두)을 등록한다([registerShownFixedMerchants]).
+ *   그래서 올린 뒤에도 탭이 그대로이고, 고정지출이 아니게 된 곳은 사용자가 탭에서 뺀다.
+ * - 한 번만 돈다. 그 뒤에 새로 '고정지출' 분류로 적은 곳은 탭이 등록할지 묻는다.
+ *
+ * 주의: [Migration1To2] 와 같은 함정이 있다(드라이버를 바꾸면 onPostMigrate(SupportSQLiteDatabase) 가 조용히 건너뛰어진다).
+ */
+class Migration6To7 : AutoMigrationSpec {
+    override fun onPostMigrate(db: SupportSQLiteDatabase) {
+        val now = Instant.now()
+        val registered = registerShownFixedMerchants(db, BudgetTime.toLocalDate(now), now)
+        DevLog.info(LogTag.APP, "DB 6 → 7 · 고정지출 탭에 보이던 ${registered}곳을 고정지출 목록에 등록했어요")
     }
 }

@@ -180,3 +180,22 @@ data class PaymentMethodEntity(
     /** 카드 실적을 세기 시작하는 날(매달 N일, 1~31). 그 달에 없는 날이면 말일부터 센다. */
     @ColumnInfo(defaultValue = "1") val performanceStartDay: Int = 1,
 ) : StyledItem
+
+/** 고정지출 목록에서 한 곳을 어떻게 정했는지 */
+enum class FixedMerchantState {
+    /** 고정지출 탭에 보인다 */
+    REGISTERED,
+
+    /** 탭에 넣지 않는다. 묻던 것에 '안 함' 을 눌렀거나 탭에서 뺐다. 정한 뒤에 그곳의 '고정지출' 지출이 새로 생기면 다시 묻는다. */
+    DECLINED,
+}
+
+/**
+ * 고정지출 목록(DB 7). '고정지출' 분류와 따로, 고정지출 탭에 어느 곳을 보일지 정해 둔다.
+ * 분류는 거래마다 그대로 두고, 탭은 등록한 곳의 '고정지출' 분류 지출만 센다. 정한 적 없는 곳은 탭이 등록할지 묻는다.
+ *
+ * @property merchantKey 고정지출 탭이 가게를 묶는 열쇠([fixedMerchantKey]). 가게 이름 없이 적은 지출은 [NO_MERCHANT_KEY] 다.
+ * @property decidedAt 정한 때. [FixedMerchantState.DECLINED] 면 이때 뒤에 낸(그리고 적은) '고정지출' 지출이 생겨야 다시 묻는다.
+ */
+@Entity(tableName = "fixed_merchants")
+data class FixedMerchantEntity(@PrimaryKey val merchantKey: String, val state: FixedMerchantState, val decidedAt: Instant)

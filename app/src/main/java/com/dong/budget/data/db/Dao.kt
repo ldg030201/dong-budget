@@ -7,6 +7,7 @@ import androidx.room.Insert
 import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Update
+import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
 import java.time.Instant
 
@@ -375,6 +376,18 @@ interface PaymentMethodDao {
         clearFromTransactions(id, now)
         return deleteById(id) > 0
     }
+}
+
+/** 고정지출 목록([FixedMerchantEntity]) */
+@Dao
+interface FixedMerchantDao {
+    /** 정해 둔 곳 모두. 고정지출 탭이 따라간다. */
+    @Query("SELECT * FROM fixed_merchants")
+    fun observeAll(): Flow<List<FixedMerchantEntity>>
+
+    /** 한 곳을 정한다. 이미 정한 곳이면 새로 정한 것으로 바꾼다. */
+    @Upsert
+    suspend fun upsert(merchant: FixedMerchantEntity)
 }
 
 /**

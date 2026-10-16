@@ -1,9 +1,11 @@
 package com.dong.budget.ui.fixed
 
 import androidx.compose.runtime.Immutable
+import com.dong.budget.data.db.FIXED_HISTORY_MONTHS
+import com.dong.budget.data.db.NO_MERCHANT_KEY
 import com.dong.budget.data.db.TransactionListItem
 import com.dong.budget.data.db.TransactionType
-import com.dong.budget.data.db.merchantKey
+import com.dong.budget.data.db.fixedMerchantKey
 import com.dong.budget.data.holiday.KoreanHolidays
 import com.dong.budget.ui.home.localDate
 import java.time.Instant
@@ -15,7 +17,7 @@ import java.time.YearMonth
 // 가게는 많이 쓴 곳과 같은 열쇠(merchantKey: 띄어쓰기·대소문자 무시)로 묶는다. 이름이 비슷하기만 한 가게는 합치지 않는다.
 // 몇 달마다 · 며칠쯤 · 얼마를 내는지는 따로 적어 두지 않고 지난 기록에서 그때그때 짐작한다.
 // 1. 일정([estimateSchedule]): 한 달에 몇 차례 · 차례마다 평소 날 · 몇 달마다를, 결제가 가장 가까운 차례의 낼 날과 덜 떨어지는 쪽으로 고른다.
-//    오늘이 든 달까지 최근 [HISTORY_MONTHS] 달 기록으로만 짐작해서 같은 날 본 모든 달 화면이 같은 일정을 쓴다.
+//    오늘이 든 달까지 최근 [FIXED_HISTORY_MONTHS] 달 기록으로만 짐작해서 같은 날 본 모든 달 화면이 같은 일정을 쓴다.
 //    연간 결제처럼 금액이 동떨어진 결제는 따로 낸 것으로 보고 일정 짐작에서 뺀다.
 // 2. 몫([matchPayments]): 결제를 날짜 차례대로 차례(몇 월 몫의 몇 번째)에 짝짓는다. 쉬는 날로 밀린 말일 자동이체, 1일 월세를 미리 낸 것,
 //    밀린 몫을 늦게 함께 낸 것, 같은 날 새로 생긴 회선, 이미 낸 앞 달 대신 이번 달을 일찍 낸 것이 모두 같은 셈으로 정해진다.
@@ -45,7 +47,7 @@ enum class FixedStatus {
 /**
  * 고정지출 한 가게. 모두 고른 달까지의 기록으로 낸 값이다.
  *
- * @property key 묶는 열쇠(merchantKey). 가게 이름 없이 적은 지출(백업으로만 들어온다)은 모두 [NO_MERCHANT_KEY] 하나로 묶는다.
+ * @property key 묶는 열쇠([fixedMerchantKey]). 가게 이름 없이 적은 지출(백업으로만 들어온다)은 모두 [NO_MERCHANT_KEY] 하나로 묶는다.
  * @property name 보이는 이름. 가장 최근 거래의 가게 이름(앞뒤 공백을 뺀다), 이름이 없으면 [NO_MERCHANT_NAME]
  * @property merchant 등록창에 채울 가게 이름. 이름 없이 묶인 것은 null
  * @property cadence 몇 달마다 내는지. 1(매달), 2~10(그 달마다), 12(매년)
@@ -191,7 +193,7 @@ internal fun buildFixedExpenses(month: YearMonth, today: LocalDate, rows: List<T
             .filter { it.type == TransactionType.EXPENSE }
             .map { Paid(it, it.localDate()) }
             .filter { !it.date.isAfter(knownUntil) }
-            .groupBy { merchantKey(it.row.merchant) ?: NO_MERCHANT_KEY }
+            .groupBy { fixedMerchantKey(it.row.merchant) }
             .mapNotNull { (key, pays) ->
                 val estimation = pays.filter { !it.date.isBefore(estimationFrom) }.ifEmpty { pays }
                 fixedItem(key, pays, estimateSchedule(estimation, base, dues), month, today, dues)
@@ -215,9 +217,9 @@ internal fun buildFixedExpenses(month: YearMonth, today: LocalDate, rows: List<T
 
 /**
  * [month] 를 계산하려면 읽어야 하는 첫 달. 매년 내는 것이 한 달 늦어진 때에도 그 앞 해의 결제까지 보여야 매년인 줄 알 수 있어서,
- * 고른 달 앞으로 [HISTORY_MONTHS] 달을 읽는다. 첫 달 몫을 전달 말에 미리 냈을 수도 있어 한 달 더 읽는다.
+ * 고른 달 앞으로 [FIXED_HISTORY_MONTHS] 달을 읽는다. 첫 달 몫을 전달 말에 미리 냈을 수도 있어 한 달 더 읽는다.
  */
-fun fixedHistoryStart(month: YearMonth): YearMonth = month.minusMonths(HISTORY_MONTHS)
+fun fixedHistoryStart(month: YearMonth): YearMonth = month.minusMonths(FIXED_HISTORY_MONTHS)
 
 /**
  * [month] 를 [today] 에 계산하려면 읽어야 하는 마지막 달. 오늘이 든 달이다. 말일에 낼 것이 쉬는 날로 다음 달에 밀렸으면
@@ -465,9 +467,6 @@ private fun remainingAmount(here: List<Paid>, reference: List<Paid>, slotOf: Map
     }
 }
 
-/** 가게 이름 없이 적은 지출을 묶는 열쇠. merchantKey 는 빈 글을 내지 않으므로 어느 가게와도 겹치지 않는다. */
-const val NO_MERCHANT_KEY = ""
-
 /** 가게 이름 없이 적은 지출 묶음의 이름 */
 const val NO_MERCHANT_NAME = "이름 없음"
 
@@ -501,6 +500,3 @@ private const val MATCH_PASSES = 4
 
 /** 낼 차례가 된 달부터 이만큼(그 달과 다음 달) '아직 안 냈어요' 로 두고, 그 뒤로는 '한동안 안 냈어요' 로 접는다. */
 private const val DUE_MONTHS = 2
-
-/** 고른 달 앞으로 읽는 달 수. 매년(직전 간격 최대 13) + 한 달 늦음(1) + 그 앞 해(12) + 첫 달 몫을 전달 말에 낸 것(1) */
-private const val HISTORY_MONTHS = 27L

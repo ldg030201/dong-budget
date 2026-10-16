@@ -12,9 +12,12 @@ import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import java.time.Instant
+import java.time.LocalDate
+import java.time.YearMonth
 
 /**
- * 0.1.2 이하(DB 1)·1.6.1 이하(DB 2)·1.7.0(DB 4)·1.8.1 이하(DB 5)에서 올리는 사용자의 가계부가 마이그레이션 뒤에도 그대로 남는지 실제 SQLite 로 확인한다.
+ * 0.1.2 이하(DB 1)·1.6.1 이하(DB 2)·1.7.0(DB 4)·1.8.1 이하(DB 5)·1.9.0(DB 6)에서 올리는 사용자의 가계부가 마이그레이션 뒤에도 그대로 남는지 실제 SQLite 로 확인한다.
  *
  * 옛 앱이 첫 설치 때 넣던 기본 분류·결제수단(v0.1.2 의 SeedCallback)을 그대로 만들고, 거래를 몇 건 넣은 뒤 2·3·4 로 올린다.
  * 원칙은 '거래는 하나도 잃지 않는다' 다(Migration1To2).
@@ -28,7 +31,7 @@ class MigrationTest {
         MigrationTestHelper(
             InstrumentationRegistry.getInstrumentation(),
             BudgetDatabase::class.java,
-            listOf(Migration1To2(), Migration4To5(), Migration5To6()),
+            listOf(Migration1To2(), Migration4To5(), Migration5To6(), Migration6To7()),
         )
 
     @Test
@@ -383,6 +386,127 @@ class MigrationTest {
         assertEquals("EXPENSE 계좌이체", db.paymentOf("t1"))
         assertEquals("INCOME 통장", db.paymentOf("t2"))
         assertEquals("급여", db.categoryNameOf("t2"))
+    }
+
+    @Test
+    fun `6 에서 7 로 올리면 고정지출 탭에 보이던 곳을 모두 등록하고 거래는 그대로다`() {
+        val thisMonth = YearMonth.now(BudgetTime.ZONE)
+        helper.createDatabase(TEST_DB, 6).apply {
+            seedCategoriesLikeVersion6()
+            // 이번 달 · 지난달(띄어쓰기만 다른 같은 곳) · 20달 전(한동안 안 냈어요) · 이름 없음은 탭에 보인다
+            insertExpense("f1", thisMonth, "넷플릭스")
+            insertExpense("f2", thisMonth.minusMonths(1), " 넷 플릭스 ")
+            insertExpense("f3", thisMonth.minusMonths(20), "자동차보험")
+            insertExpense("f4", thisMonth.minusMonths(2), null)
+            // 탭이 읽는 기간(27달) 앞 · 다른 분류 · 환불은 탭에 안 보인다
+            insertExpense("f5", thisMonth.minusMonths(FIXED_HISTORY_MONTHS + 1), "오래된 구독")
+            insertExpense("e1", thisMonth, "스타벅스", categoryCode = "FOOD")
+            insertExpense("r1", thisMonth, "환불받은 곳", type = "REFUND")
+            close()
+        }
+        val db = helper.runMigrationsAndValidate(TEST_DB, 7, true)
+
+        assertEquals(7, db.count("SELECT COUNT(*) FROM transactions"))
+        assertEquals(setOf("넷플릭스", "자동차보험", NO_MERCHANT_KEY), db.strings("SELECT merchantKey FROM fixed_merchants").toSet())
+        assertEquals(0, db.count("SELECT COUNT(*) FROM fixed_merchants WHERE state != 'REGISTERED'"))
+        // 거래의 분류는 그대로다
+        assertEquals("고정지출", db.categoryNameOf("f5"))
+    }
+
+    @Test
+    fun `보이던 곳 등록은 이미 정한 곳을 그대로 두고 두 번 돌려도 같다`() {
+        helper.createDatabase(TEST_DB, 7).use { db ->
+            db.seedCategoriesLikeVersion6()
+            db.insertExpense("f1", YearMonth.of(2026, 10), "넷플릭스")
+            db.insertExpense("f2", YearMonth.of(2026, 9), "헬스장")
+            db.execSQL("INSERT INTO fixed_merchants (merchantKey, state, decidedAt) VALUES ('헬스장', 'DECLINED', 1000)")
+            val today = LocalDate.of(2026, 10, 16)
+
+            assertEquals(1, registerShownFixedMerchants(db, today, Instant.ofEpochMilli(5000)))
+            assertEquals(0, registerShownFixedMerchants(db, today, Instant.ofEpochMilli(6000)))
+
+            db.row("SELECT state, decidedAt FROM fixed_merchants WHERE merchantKey = '넷플릭스'") {
+                assertEquals("REGISTERED", it.getString(0))
+                assertEquals(5000, it.getLong(1))
+            }
+            db.row("SELECT state, decidedAt FROM fixed_merchants WHERE merchantKey = '헬스장'") {
+                assertEquals("DECLINED", it.getString(0))
+                assertEquals(1000, it.getLong(1))
+            }
+        }
+    }
+
+    @Test
+    fun `고정지출 목록 정리는 고정지출 지출이 하나도 남지 않은 곳만 지운다`() {
+        helper.createDatabase(TEST_DB, 7).use { db ->
+            db.seedCategoriesLikeVersion6()
+            // 탭이 읽는 기간 앞에만 낸 곳도 지출이 남아 있으면 둔다
+            db.insertExpense("f1", YearMonth.of(2020, 1), "오래된 구독")
+            db.insertExpense("f2", YearMonth.of(2026, 10), "넷플릭스")
+            // 다른 분류로 옮긴 곳
+            db.insertExpense("e1", YearMonth.of(2026, 10), "헬스장", categoryCode = "FOOD")
+            listOf("오래된 구독", "넷플릭스", "헬스장", "지운 곳").forEach { key ->
+                db.execSQL("INSERT INTO fixed_merchants (merchantKey, state, decidedAt) VALUES (?, 'DECLINED', 0)", arrayOf<Any?>(key))
+            }
+
+            assertEquals(2, pruneFixedMerchants(db))
+
+            assertEquals(setOf("오래된 구독", "넷플릭스"), db.strings("SELECT merchantKey FROM fixed_merchants").toSet())
+        }
+    }
+
+    @Test
+    fun `옛 가계부를 5 에서 7 까지 한 번에 올려도 거래는 그대로이고 고정지출은 등록된다`() {
+        helper.createDatabase(TEST_DB, 5).apply {
+            seedCategoriesLikeVersion6()
+            seedPaymentMethodsLikeVersion5()
+            insertExpense("f1", YearMonth.now(BudgetTime.ZONE), "넷플릭스")
+            insertTransactionWith("i-account", "INCOME", "seed:payment:ACCOUNT")
+            close()
+        }
+        val db = helper.runMigrationsAndValidate(TEST_DB, 7, true)
+        assertEquals(2, db.count("SELECT COUNT(*) FROM transactions"))
+        assertEquals("INCOME 통장", db.paymentOf("i-account"))
+        assertEquals(listOf("넷플릭스"), db.strings("SELECT merchantKey FROM fixed_merchants"))
+    }
+
+    /** 1.9.0 이 첫 설치 때 넣던 기본 분류(고정지출 · 식비 포함) */
+    private fun SupportSQLiteDatabase.seedCategoriesLikeVersion6() {
+        DEFAULT_CATEGORIES.forEach { c ->
+            execSQL(
+                "INSERT INTO categories (uuid, scope, name, code, sortOrder, isSystem, icon, color) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                arrayOf<Any?>(
+                    "seed:v2:category:${c.code}",
+                    c.scope.name,
+                    c.name,
+                    c.code,
+                    c.sortOrder,
+                    if (c.isSystem) 1 else 0,
+                    c.icon,
+                    c.color,
+                ),
+            )
+        }
+    }
+
+    /** [month] 1일 낮 12시(서울)에 [merchant] 에서 낸 [categoryCode] 분류 거래 한 건 */
+    private fun SupportSQLiteDatabase.insertExpense(
+        uuid: String,
+        month: YearMonth,
+        merchant: String?,
+        categoryCode: String = FIXED_CATEGORY_CODE,
+        type: String = "EXPENSE",
+    ) {
+        val at = month.atDay(1).atTime(12, 0).atZone(BudgetTime.ZONE).toInstant()
+        execSQL(
+            "INSERT INTO transactions (uuid, type, amount, occurredAt, occurredDate, categoryId, merchant, createdAt, updatedAt) " +
+                "VALUES (?, ?, 17000, ?, ?, (SELECT id FROM categories WHERE code = ?), ?, 0, 0)",
+            arrayOf<Any?>(uuid, type, at.toEpochMilli(), BudgetTime.toDateKey(at), categoryCode, merchant),
+        )
+    }
+
+    private fun SupportSQLiteDatabase.strings(sql: String): List<String> = query(sql).use {
+        buildList { while (it.moveToNext()) add(it.getString(0)) }
     }
 
     /** 1.8.1 이 첫 설치 때 넣던 기본 결제수단과 알림으로 생긴 카드 */

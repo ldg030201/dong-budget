@@ -61,6 +61,9 @@ class AppContainer(context: Context) {
 
     val paymentMethodRepository by lazy { PaymentMethodRepository(database.paymentMethodDao()) }
 
+    /** 고정지출 탭에 보일 곳(고정지출 목록) */
+    val fixedMerchantRepository by lazy { FixedMerchantRepository(database.fixedMerchantDao()) }
+
     val settingsRepository by lazy { SettingsRepository(context) }
 
     val backupRepository by lazy { BackupRepository(database) }
