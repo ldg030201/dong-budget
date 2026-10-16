@@ -2,6 +2,7 @@ package com.dong.budget.ui.settings
 
 import com.dong.budget.data.backup.Backup
 import com.dong.budget.data.backup.BackupCategory
+import com.dong.budget.data.backup.BackupExtra
 import com.dong.budget.data.backup.BackupInterval
 import com.dong.budget.data.backup.BackupKind
 import com.dong.budget.data.backup.BackupPaymentMethod
@@ -164,11 +165,11 @@ class BackupTextTest {
 
     @Test
     fun `월급 설정이나 앱 설정을 다 넣지 못하면 못 넣은 것만 알린다`() {
-        assertEquals("거래는 되살렸지만 월급 설정을 되살리지 못했어요", restorePartlyFailedMessage(salary = true, settings = false))
-        assertEquals("거래는 되살렸지만 화면·자동 기능 설정을 되살리지 못했어요", restorePartlyFailedMessage(salary = false, settings = true))
+        assertEquals("거래는 되살렸지만 월급 설정을 되살리지 못했어요", restorePartlyFailedMessage(setOf(BackupExtra.SALARY)))
+        assertEquals("거래는 되살렸지만 화면·자동 기능 설정을 되살리지 못했어요", restorePartlyFailedMessage(setOf(BackupExtra.SETTINGS)))
         assertEquals(
             "거래는 되살렸지만 월급 설정과 화면·자동 기능 설정을 되살리지 못했어요",
-            restorePartlyFailedMessage(salary = true, settings = true),
+            restorePartlyFailedMessage(setOf(BackupExtra.SETTINGS, BackupExtra.SALARY)),
         )
     }
 }

@@ -991,7 +991,6 @@ private fun settingsViewModelFactory(container: AppContainer) = viewModelFactory
             backupRepository = container.backupRepository,
             backupStorage = container.backupStorage,
             backupExporter = container.backupExporter,
-            salaryRepository = container.salaryRepository,
             appThemeMode = container.themeMode,
             anyLockOn = { container.appLock.state.value.enabled || container.salaryLock.state.value.enabled },
         )

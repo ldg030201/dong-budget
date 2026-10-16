@@ -1,6 +1,7 @@
 package com.dong.budget.ui.settings
 
 import com.dong.budget.data.backup.Backup
+import com.dong.budget.data.backup.BackupExtra
 import com.dong.budget.data.backup.BackupInterval
 import com.dong.budget.data.backup.BackupKind
 import com.dong.budget.data.backup.BackupSchedule
@@ -132,10 +133,16 @@ internal fun restoreMessage(preview: RestorePreview, today: LocalDate): String {
 
 internal fun restoredMessage(backup: Backup): String = "백업으로 복원했어요 · 거래 ${formatAmount(backup.transactions.size.toLong())}건"
 
-/** 거래는 되살렸는데 DB 밖에 따로 넣는 월급 설정·앱 설정을 다 넣지 못했을 때. 못 넣은 것만 적는다. */
-internal fun restorePartlyFailedMessage(salary: Boolean, settings: Boolean): String {
-    val failed = listOfNotNull("월급 설정".takeIf { salary }, "화면·자동 기능 설정".takeIf { settings })
-    return "거래는 되살렸지만 ${failed.joinToString("과 ")}을 되살리지 못했어요"
+/** 거래는 되살렸는데 DB 밖에 따로 넣는 월급 설정·앱 설정([failed])을 다 넣지 못했을 때. 못 넣은 것만 적는다. */
+internal fun restorePartlyFailedMessage(failed: Set<BackupExtra>): String {
+    val names =
+        BackupExtra.entries.filter { it in failed }.map {
+            when (it) {
+                BackupExtra.SALARY -> "월급 설정"
+                BackupExtra.SETTINGS -> "화면·자동 기능 설정"
+            }
+        }
+    return "거래는 되살렸지만 ${names.joinToString("과 ")}을 되살리지 못했어요"
 }
 
 /** 데이터 초기화를 묻는 창의 글. [autoBackup] 이면 지우기 전에 자동으로 백업한다고 알리고, 아니면 먼저 백업해 두라고 권한다. */

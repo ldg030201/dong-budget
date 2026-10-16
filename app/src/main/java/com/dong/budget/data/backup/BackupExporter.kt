@@ -1,18 +1,24 @@
 package com.dong.budget.data.backup
 
 import com.dong.budget.BuildConfig
+import com.dong.budget.data.devlog.DevLog
+import com.dong.budget.data.devlog.LogTag
 import com.dong.budget.data.salary.SalaryRepository
 import com.dong.budget.data.salary.SalarySettings
 import com.dong.budget.data.salary.toRecord
+import com.dong.budget.data.salary.toSettings
 import com.dong.budget.data.settings.SettingsRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 
+/** 백업에서 DB 밖에 따로 넣는 것. 거래·분류는 DB 거래 하나로 되살리지만 이것들은 따로 넣어서 하나씩 실패할 수 있다. */
+enum class BackupExtra { SALARY, SETTINGS }
+
 /**
  * 지금 데이터를 백업 글로 만들어 클립보드나 다운로드 폴더에 둔다. 설정의 백업 줄과 복원·데이터 초기화 전 자동 백업이 함께 쓴다.
- * 백업을 마치면 [history] 에 적는다.
+ * 백업을 마치면 [history] 에 적는다. 되살릴 때 DB 밖의 것(월급 설정 · 앱 설정)을 넣는 것도 한다([restoreExtras]).
  */
 class BackupExporter(
     private val backupRepository: BackupRepository,
@@ -29,6 +35,27 @@ class BackupExporter(
         val backup = backupRepository.export(appVersion).copy(salary = salary, settings = settings)
         // 거래가 많으면 글로 바꾸는 데 시간이 걸린다. 화면이 멈추지 않게 뒤에서 한다.
         return withContext(Dispatchers.Default) { BackupCodec.encode(backup, pretty) }
+    }
+
+    /**
+     * [backup] 의 월급 설정과 앱 설정을 넣는다([encode] 가 담은 DB 밖의 것의 짝). 거래를 되살린 뒤에 부른다.
+     * 백업에 없으면(월급을 정하기 전 · 1.9.0 까지의 백업) 지금 것을 그대로 둔다. 자동 백업을 켜는 백업이어도 바로 백업하지 않는다.
+     * @return 넣지 못한 것. 다 넣었으면 비어 있다.
+     */
+    suspend fun restoreExtras(backup: Backup): Set<BackupExtra> = buildSet {
+        if (!restoreExtra("월급 설정") { backup.salary?.let { salaryRepository.save(it.toSettings()) } }) add(BackupExtra.SALARY)
+        if (!restoreExtra("앱 설정") { backup.settings?.let { settingsRepository.restore(it) } }) add(BackupExtra.SETTINGS)
+    }
+
+    /** DB 밖의 것 하나([what])를 넣는다. 실패하면 로그만 남기고 false(거래는 이미 되살렸다) */
+    private suspend fun restoreExtra(what: String, block: suspend () -> Unit): Boolean = try {
+        block()
+        true
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        DevLog.warn(LogTag.BACKUP, "${what}을 되살리지 못했어요", e)
+        false
     }
 
     /** 한 줄 JSON 으로 클립보드에 넣는다. @return 넣었는지(거래가 아주 많으면 클립보드에 안 들어간다) */
