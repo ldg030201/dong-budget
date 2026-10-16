@@ -123,8 +123,7 @@ internal fun insertDefaultPaymentMethod(db: SupportSQLiteDatabase, m: DefaultPay
 
 /**
  * 첫 설치 때 기본 분류와 결제수단·들어온 곳을 넣는다(onCreate, 옛 DB 를 올리는 경우에는 불리지 않는다).
- * DB 를 열 때마다 지운 뒤 코드 없이 다시 만든 '고정지출'·'급여' 에 코드를 돌려주고, '고정지출' 지출이 없어진 곳을 고정지출 목록에서 지운다
- * (onOpen, 마이그레이션 뒤에 불린다).
+ * DB 를 열 때마다 지운 뒤 코드 없이 다시 만든 '고정지출'·'급여' 에 코드를 돌려준다(onOpen, 마이그레이션 뒤에 불린다).
  *
  * 주의: 둘 다 SupportSQLiteDatabase 버전이다. Room 은 onCreate/onOpen(SQLiteConnection) 을 부르고, 그 기본 구현은 연결이
  * SupportSQLiteConnection 일 때만 이 버전으로 넘긴다. 지금은 드라이버를 따로 지정하지 않아서(호환 모드) 넘어오지만,
@@ -138,8 +137,6 @@ private object SeedCallback : RoomDatabase.Callback() {
 
     override fun onOpen(db: SupportSQLiteDatabase) {
         reclaimDefaultCodesOnOpen(db)
-        // 코드를 돌려받은 '고정지출' 분류의 지출까지 센 뒤에 지운다
-        pruneFixedMerchantsOnOpen(db)
     }
 }
 
@@ -281,6 +278,9 @@ class Migration5To6 : AutoMigrationSpec {
  */
 class Migration6To7 : AutoMigrationSpec {
     override fun onPostMigrate(db: SupportSQLiteDatabase) {
+        // 지운 뒤 코드 없이 다시 만든 '고정지출' 분류에 코드를 먼저 돌려준다. onOpen 은 이 뒤에 돌아서, 먼저 하지 않으면 그 분류로 적은 곳이
+        // 등록되지 않고 묻는 곳으로 빠진다(올리기 전 탭에는 보였다). 실패해도 올리기는 막지 않는다(onOpen 이 다시 한다).
+        reclaimDefaultCodesOnOpen(db)
         val now = Instant.now()
         val registered = registerShownFixedMerchants(db, BudgetTime.toLocalDate(now), now)
         DevLog.info(LogTag.APP, "DB 6 → 7 · 고정지출 탭에 보이던 ${registered}곳을 고정지출 목록에 등록했어요")

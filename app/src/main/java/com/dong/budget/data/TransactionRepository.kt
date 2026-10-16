@@ -71,6 +71,14 @@ class TransactionRepository(private val transactionDao: TransactionDao) {
     fun observeExpensesWithCategoryCode(code: String, first: YearMonth, last: YearMonth): Flow<List<TransactionListItem>> =
         transactionDao.observeExpensesWithCategoryCode(code, BudgetTime.monthRange(first).first, BudgetTime.monthRange(last).second)
 
+    /**
+     * [observeExpensesWithCategoryCode] 와 같은 거래를 처음 적은 때(거래 번호 → 적은 때). 고정지출 탭이 '등록 안 함' 뒤에 새로 적은 지출인지 본다.
+     * 목록 줄(TransactionListItem)에 두지 않고 따로 읽는다. 이것 하나 때문에 모든 화면의 목록 줄이 커지지 않게.
+     */
+    fun observeCreatedWithCategoryCode(code: String, first: YearMonth, last: YearMonth): Flow<Map<Long, Instant>> =
+        transactionDao.observeCreatedWithCategoryCode(code, BudgetTime.monthRange(first).first, BudgetTime.monthRange(last).second)
+            .map { list -> list.associate { it.id to it.createdAt } }
+
     /** [from] 날(서울 0시)부터 [until] 날 0시 전까지 결제수단 [paymentMethodId] 로 쓴 지출·환불. 카드실적 상세가 쓴다. */
     fun observeByPaymentMethod(paymentMethodId: Long, from: LocalDate, until: LocalDate): Flow<List<TransactionListItem>> =
         transactionDao.observeByPaymentMethod(paymentMethodId, from.startInstant(), until.startInstant())

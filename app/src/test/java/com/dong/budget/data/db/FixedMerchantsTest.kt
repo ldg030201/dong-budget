@@ -1,7 +1,5 @@
 package com.dong.budget.data.db
 
-import com.dong.budget.ui.fixed.fixedHistoryEnd
-import com.dong.budget.ui.fixed.fixedHistoryStart
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.time.LocalDate
@@ -17,16 +15,19 @@ class FixedMerchantsTest {
     }
 
     @Test
-    fun `보이던 곳을 등록하는 기간은 탭이 이번 달을 볼 때 읽는 기간과 같다`() {
-        listOf(
-            LocalDate.of(2026, 10, 16),
-            LocalDate.of(2027, 1, 1),
-            LocalDate.of(2028, 2, 29),
-            LocalDate.of(2026, 12, 31),
-        ).forEach { today ->
-            val month = YearMonth.from(today)
-            val tab = BudgetTime.monthRange(fixedHistoryStart(month)).first to BudgetTime.monthRange(fixedHistoryEnd(month, today)).second
-            assertEquals("$today", tab, fixedShownRange(today))
-        }
+    fun `목록 정리는 고정지출 지출이 하나도 남지 않은 곳만 고른다`() {
+        // 목록은 가게 열쇠(띄어쓰기를 빼고 소문자)로 적혀 있고, 지출의 가게 이름은 적은 그대로다
+        val stored = listOf("오래된구독", "netflix", "헬스장", NO_MERCHANT_KEY, "지운곳")
+        val merchants = listOf(" 오래된 구독", "Netflix", null)
+        assertEquals(listOf("헬스장", "지운곳"), staleFixedMerchants(stored, merchants))
+        assertEquals(emptyList<String>(), staleFixedMerchants(emptyList(), merchants))
+    }
+
+    @Test
+    fun `탭이 읽는 기간은 고른 달 앞 27달부터 오늘이 든 달까지다`() {
+        val today = LocalDate.of(2026, 10, 16)
+        assertEquals(YearMonth.of(2024, 7), fixedHistoryStart(YearMonth.of(2026, 10)))
+        // 지난 달을 봐도 오늘이 든 달까지 읽는다(다음 달로 밀려 낸 몫을 센다)
+        assertEquals(YearMonth.of(2026, 10), fixedHistoryEnd(YearMonth.of(2026, 8), today))
     }
 }

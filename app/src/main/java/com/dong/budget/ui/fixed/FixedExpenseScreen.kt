@@ -28,6 +28,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -105,7 +106,7 @@ fun FixedExpenseScreen(
     var declinedOpen by rememberSaveable { mutableStateOf(false) }
     // 빼려고 길게 누른 줄의 열쇠. 확인 창을 띄운다. 그사이 그 줄이 판에서 사라졌으면(거래를 지움 등) 창을 닫고 잊는다.
     var removing by rememberSaveable { mutableStateOf<String?>(null) }
-    val removingItem = removing?.let(state.board::itemOf)
+    val removingItem = remember(removing, state.board) { removing?.let(state.board::itemOf) }
     if (removing != null && removingItem == null && state.loaded) {
         LaunchedEffect(removing) { removing = null }
     }

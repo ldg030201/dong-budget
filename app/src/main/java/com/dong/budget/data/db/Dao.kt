@@ -32,12 +32,17 @@ data class TransactionListItem(
     val paymentMethodColor: String? = null,
     /** 설정의 분류 목록 순서. 날마다 쓴 돈이 이 순서로 쌓는다. 비웠거나 지웠으면 null */
     val categorySortOrder: Int? = null,
-    /**
-     * 적은(처음 저장한) 때. 고정지출 탭이 '등록 안 함' 뒤에 새로 낸 지출인지 볼 때 쓴다(날짜를 앞으로 적어 둔 옛 거래는 새 지출이 아니다).
-     * 조회는 늘 채운다. 비어 있으면(테스트에서 만든 줄) 모른다.
-     */
-    val createdAt: Instant? = null,
 )
+
+/** 거래를 처음 적은 때. 고정지출 탭이 '등록 안 함' 뒤에 새로 적은 지출인지 볼 때만 따로 읽는다. */
+data class TransactionCreated(val id: Long, val createdAt: Instant)
+
+/**
+ * 분류 코드가 :code 인 분류(기본 분류)의 지출(거래는 t). 고정지출 탭의 조회와 고정지출 목록 등록 · 정리가 같은 거래를 보게 한 곳에 둔다.
+ * 분류는 번호 목록으로 걸러 categoryId 인덱스로 그 분류 거래만 읽는다(코드로 이어 붙여 거르면 기간 안의 모든 거래를 읽었다).
+ * Room 이 아닌 곳(SupportSQLiteDatabase)에서 쓸 때는 :code 가 첫째 자리다.
+ */
+internal const val EXPENSE_WITH_CATEGORY_CODE = "t.categoryId IN (SELECT id FROM categories WHERE code = :code) AND t.type = 'EXPENSE'"
 
 /** [TransactionListItem] 을 읽는 SELECT. 뒤에 WHERE·ORDER BY 를 붙여 쓴다. 목록·상세가 같은 값을 읽게 한 곳에 둔다. */
 private const val LIST_ITEM_SELECT =
@@ -51,8 +56,7 @@ private const val LIST_ITEM_SELECT =
                t.categoryId, t.paymentMethodId,
                p.icon AS paymentMethodIcon,
                p.color AS paymentMethodColor,
-               c.sortOrder AS categorySortOrder,
-               t.createdAt
+               c.sortOrder AS categorySortOrder
         FROM transactions t
         LEFT JOIN categories c ON c.id = t.categoryId
         LEFT JOIN payment_methods p ON p.id = t.paymentMethodId
@@ -109,19 +113,21 @@ interface TransactionDao {
     fun observeBetween(start: Instant, end: Instant): Flow<List<TransactionListItem>>
 
     /**
-     * 기간 안에 코드가 [code] 인 분류(기본 분류)의 지출을 최신순으로. 고정지출 탭이 쓴다.
+     * 기간 안에 코드가 [code] 인 분류(기본 분류)의 지출을 최신순으로. 고정지출 탭이 쓴다([EXPENSE_WITH_CATEGORY_CODE]).
      * 그 분류를 지웠으면 거래가 '기타' 로 옮겨 가서 아무것도 안 나온다. 날짜를 앞으로 적어 둔 거래도 [end] 앞이면 들어온다.
-     * 분류는 번호 목록으로 걸러 categoryId 인덱스로 그 분류 거래만 읽는다(코드로 이어 붙여 거르면 기간 안의 모든 거래를 읽었다).
      */
     @Query(
-        LIST_ITEM_SELECT +
-            """
-        WHERE t.categoryId IN (SELECT id FROM categories WHERE code = :code)
-          AND t.type = 'EXPENSE' AND t.occurredAt >= :start AND t.occurredAt < :end
-        ORDER BY t.occurredAt DESC, t.id DESC
-        """,
+        LIST_ITEM_SELECT + " WHERE " + EXPENSE_WITH_CATEGORY_CODE +
+            " AND t.occurredAt >= :start AND t.occurredAt < :end ORDER BY t.occurredAt DESC, t.id DESC",
     )
     fun observeExpensesWithCategoryCode(code: String, start: Instant, end: Instant): Flow<List<TransactionListItem>>
+
+    /** [observeExpensesWithCategoryCode] 와 같은 거래를 처음 적은 때. 고정지출 탭이 '등록 안 함' 뒤에 새로 적은 지출인지 본다. */
+    @Query(
+        "SELECT t.id, t.createdAt FROM transactions t WHERE " + EXPENSE_WITH_CATEGORY_CODE +
+            " AND t.occurredAt >= :start AND t.occurredAt < :end",
+    )
+    fun observeCreatedWithCategoryCode(code: String, start: Instant, end: Instant): Flow<List<TransactionCreated>>
 
     /** 기간 안에 결제수단 [paymentMethodId] 로 쓴 지출과 환불을 최신순으로. 카드실적 상세가 쓴다(쓴 돈 = 지출 − 환불). */
     @Query(
@@ -394,6 +400,28 @@ interface FixedMerchantDao {
     /** 한 곳을 정한다. 이미 정한 곳이면 새로 정한 것으로 바꾼다. */
     @Upsert
     suspend fun upsert(merchant: FixedMerchantEntity)
+
+    /** 코드가 [code] 인 분류로 적은 지출의 가게 이름들(기간 없이 모두) */
+    @Query("SELECT DISTINCT t.merchant FROM transactions t WHERE " + EXPENSE_WITH_CATEGORY_CODE)
+    suspend fun merchantsWithCategoryCode(code: String): List<String?>
+
+    @Query("SELECT merchantKey FROM fixed_merchants")
+    suspend fun keys(): List<String>
+
+    @Query("DELETE FROM fixed_merchants WHERE merchantKey IN (:keys)")
+    suspend fun delete(keys: List<String>)
+
+    /**
+     * '고정지출' 분류 지출이 하나도 남지 않은 곳(거래를 지웠거나 다른 분류로 옮겼다)을 목록에서 지운다([staleFixedMerchants]).
+     * 그 뒤에 그곳을 다시 '고정지출' 분류로 적으면 처음 보는 곳처럼 등록할지 묻는다. 기간은 보지 않는다(오래전에만 낸 곳도 남긴다).
+     * @return 지운 곳의 수
+     */
+    @Transaction
+    suspend fun prune(): Int {
+        val stale = staleFixedMerchants(keys(), merchantsWithCategoryCode(FIXED_CATEGORY_CODE))
+        if (stale.isNotEmpty()) delete(stale)
+        return stale.size
+    }
 }
 
 /**

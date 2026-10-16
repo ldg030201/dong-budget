@@ -1,6 +1,8 @@
 package com.dong.budget.ui.fixed
 
 import com.dong.budget.data.db.TransactionListItem
+import com.dong.budget.data.db.fixedHistoryEnd
+import com.dong.budget.data.db.fixedHistoryStart
 import com.dong.budget.testing.day
 import com.dong.budget.testing.tx
 import com.dong.budget.ui.editor.fixedExpensePrefill

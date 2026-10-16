@@ -9,6 +9,8 @@ import com.dong.budget.data.TransactionRepository
 import com.dong.budget.data.db.BudgetTime
 import com.dong.budget.data.db.CategoryScope
 import com.dong.budget.data.db.FIXED_CATEGORY_CODE
+import com.dong.budget.data.db.fixedHistoryEnd
+import com.dong.budget.data.db.fixedHistoryStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -107,8 +109,13 @@ class FixedExpenseViewModel(
                         fixedHistoryEnd(month, today),
                     ),
                     fixedMerchants.observe(),
-                ) { has, rows, registry ->
-                    val split = splitByRegistry(rows, registry, today)
+                    transactions.observeCreatedWithCategoryCode(
+                        FIXED_CATEGORY_CODE,
+                        fixedHistoryStart(month),
+                        fixedHistoryEnd(month, today),
+                    ),
+                ) { has, rows, registry, created ->
+                    val split = splitByRegistry(rows, registry, created, today)
                     FixedExpenseUiState(
                         loaded = true,
                         month = month,
@@ -126,6 +133,11 @@ class FixedExpenseViewModel(
                 started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS),
                 initialValue = FixedExpenseUiState.loading(BudgetTime.toLocalDate(clock.instant())),
             )
+
+    init {
+        // '고정지출' 지출이 하나도 남지 않은 곳을 목록에서 지운다. 목록은 이 탭에서만 보여서 앱을 켤 때가 아니라 탭을 열 때 한다.
+        viewModelScope.launch { fixedMerchants.prune() }
+    }
 
     fun showPreviousMonth() = showMonth(currentMonth().minusMonths(1))
 

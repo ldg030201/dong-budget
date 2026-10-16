@@ -6,6 +6,8 @@ import com.dong.budget.data.db.FixedMerchantState
 import com.dong.budget.data.db.NO_MERCHANT_KEY
 import com.dong.budget.data.db.TransactionListItem
 import com.dong.budget.data.db.TransactionType
+import com.dong.budget.data.db.fixedHistoryEnd
+import com.dong.budget.data.db.fixedHistoryStart
 import com.dong.budget.data.db.fixedMerchantKey
 import com.dong.budget.ui.home.localDate
 import java.time.Instant
@@ -63,22 +65,30 @@ data class FixedRegistrySplit(
  * 묻는 곳 · 등록 안 한 곳은 [today] 에 탭이 이번 달을 볼 때 읽는 기간의 지출로만 본다(지출이 아닌 행은 거른다).
  * 등록 안 한 곳은 정한 때([FixedMerchantEntity.decidedAt]) 뒤에 낸 지출이 있어야 다시 묻는다. 날짜를 앞으로 적어 둔 옛 거래가 정하자마자
  * 다시 묻게 하지 않도록, 그 지출도 정한 뒤에 적은 것이어야 한다([isNewSince]).
+ * @param created [rows] 의 거래 번호 → 처음 적은 때(TransactionRepository.observeCreatedWithCategoryCode). 없는 번호는 낸 때로만 본다.
  */
-fun splitByRegistry(rows: List<TransactionListItem>, registry: Map<String, FixedMerchantEntity>, today: LocalDate): FixedRegistrySplit {
+fun splitByRegistry(
+    rows: List<TransactionListItem>,
+    registry: Map<String, FixedMerchantEntity>,
+    created: Map<Long, Instant>,
+    today: LocalDate,
+): FixedRegistrySplit {
     val thisMonth = YearMonth.from(today)
     val from = fixedHistoryStart(thisMonth).atDay(1)
     val until = fixedHistoryEnd(thisMonth, today).atEndOfMonth()
-    val byKey = rows.groupBy { fixedMerchantKey(it.merchant) }
-    val registered = rows.filter { registry[fixedMerchantKey(it.merchant)]?.state == FixedMerchantState.REGISTERED }
+    // 가게 열쇠는 줄마다 한 번만 만든다(띄어쓰기를 빼고 소문자로 바꾸는 일이라). 등록한 곳의 줄은 받은 순서 그대로 둔다.
+    val keyed = rows.map { fixedMerchantKey(it.merchant) to it }
+    val registered = keyed.filter { (key, _) -> registry[key]?.state == FixedMerchantState.REGISTERED }.map { it.second }
     val unlisted =
-        byKey
-            .filterKeys { registry[it]?.state != FixedMerchantState.REGISTERED }
-            .mapValues { (_, pays) -> pays.filter { it.type == TransactionType.EXPENSE && it.localDate() in from..until } }
-            .filterValues { it.isNotEmpty() }
+        keyed
+            .filter { (key, row) ->
+                registry[key]?.state != FixedMerchantState.REGISTERED && row.type == TransactionType.EXPENSE &&
+                    row.localDate() in from..until
+            }.groupBy({ it.first }, { it.second })
     val (asked, quiet) =
         unlisted.entries.partition { (key, pays) ->
             val decided = registry[key] ?: return@partition true
-            pays.any { isNewSince(it, decided.decidedAt) }
+            pays.any { isNewSince(it, created[it.id], decided.decidedAt) }
         }
     return FixedRegistrySplit(
         registered = registered,
@@ -88,10 +98,11 @@ fun splitByRegistry(rows: List<TransactionListItem>, registry: Map<String, Fixed
 }
 
 /**
- * [row] 가 [at] 뒤에 새로 낸 지출인지. 낸 때가 뒤이고, 적은 때도 뒤여야 한다(적은 때를 모르면 낸 때로만 본다).
+ * [row] 가 [at] 뒤에 새로 낸 지출인지. 낸 때가 뒤이고, 적은 때([createdAt])도 뒤여야 한다(적은 때를 모르면 낸 때로만 본다).
  * '안 함' · 빼기 전에 날짜를 앞으로 적어 둔 거래는 낸 때만 뒤라 새 지출이 아니다. 정한 뒤에 지난 날짜로 적은 거래도 아니다.
  */
-internal fun isNewSince(row: TransactionListItem, at: Instant): Boolean = row.occurredAt > at && (row.createdAt ?: row.occurredAt) > at
+internal fun isNewSince(row: TransactionListItem, createdAt: Instant?, at: Instant): Boolean =
+    row.occurredAt > at && (createdAt ?: row.occurredAt) > at
 
 /** 한 곳의 지출([pays], 비어 있지 않다)을 가장 최근 것으로 보여 줄 줄 */
 private fun candidateOf(key: String, pays: List<TransactionListItem>): FixedCandidate {

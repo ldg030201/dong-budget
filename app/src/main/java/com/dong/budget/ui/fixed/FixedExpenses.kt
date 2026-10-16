@@ -1,10 +1,10 @@
 package com.dong.budget.ui.fixed
 
 import androidx.compose.runtime.Immutable
-import com.dong.budget.data.db.FIXED_HISTORY_MONTHS
 import com.dong.budget.data.db.NO_MERCHANT_KEY
 import com.dong.budget.data.db.TransactionListItem
 import com.dong.budget.data.db.TransactionType
+import com.dong.budget.data.db.fixedHistoryStart
 import com.dong.budget.data.db.fixedMerchantKey
 import com.dong.budget.data.holiday.KoreanHolidays
 import com.dong.budget.ui.home.localDate
@@ -163,7 +163,7 @@ data class FixedExpenseBoard(
     val isEmpty: Boolean get() = due.isEmpty() && paid.isEmpty() && notThisMonth.isEmpty() && stopped.isEmpty()
 
     /** 열쇠가 [key] 인 곳. 판에 없으면 null */
-    fun itemOf(key: String): FixedExpenseItem? = (due + paid + notThisMonth + stopped).firstOrNull { it.key == key }
+    fun itemOf(key: String): FixedExpenseItem? = sequenceOf(due, paid, notThisMonth, stopped).flatten().firstOrNull { it.key == key }
 }
 
 /**
@@ -217,18 +217,6 @@ internal fun buildFixedExpenses(month: YearMonth, today: LocalDate, rows: List<T
             .sortedWith(compareByDescending<FixedExpenseItem> { it.lastPaidOn }.thenBy { it.name }),
     )
 }
-
-/**
- * [month] 를 계산하려면 읽어야 하는 첫 달. 매년 내는 것이 한 달 늦어진 때에도 그 앞 해의 결제까지 보여야 매년인 줄 알 수 있어서,
- * 고른 달 앞으로 [FIXED_HISTORY_MONTHS] 달을 읽는다. 첫 달 몫을 전달 말에 미리 냈을 수도 있어 한 달 더 읽는다.
- */
-fun fixedHistoryStart(month: YearMonth): YearMonth = month.minusMonths(FIXED_HISTORY_MONTHS)
-
-/**
- * [month] 를 [today] 에 계산하려면 읽어야 하는 마지막 달. 오늘이 든 달이다. 말일에 낼 것이 쉬는 날로 다음 달에 밀렸으면
- * 그 결제도 고른 달 몫으로 세고, 날짜를 앞으로 적어 둔 이번 달 거래도 센다. 일정은 오늘이 든 달까지의 기록으로 짐작한다.
- */
-fun fixedHistoryEnd(month: YearMonth, today: LocalDate): YearMonth = maxOf(month, YearMonth.from(today))
 
 /**
  * 한 가게([pays], 오늘이 든 달까지)를 [month] 에서 본 것. [schedule] 은 오늘이 든 달 기준 기록으로 짐작한 일정이다

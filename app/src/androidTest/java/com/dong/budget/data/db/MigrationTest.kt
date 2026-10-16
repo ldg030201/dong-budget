@@ -398,6 +398,8 @@ class MigrationTest {
             insertExpense("f2", thisMonth.minusMonths(1), " 넷 플릭스 ")
             insertExpense("f3", thisMonth.minusMonths(20), "자동차보험")
             insertExpense("f4", thisMonth.minusMonths(2), null)
+            // 날짜를 앞으로 적어 둔 다음 달 것만 있는 곳도 그 달이 오면 탭에 보이므로 등록한다
+            insertExpense("f6", thisMonth.plusMonths(1), "새 보험")
             // 탭이 읽는 기간(27달) 앞 · 다른 분류 · 환불은 탭에 안 보인다
             insertExpense("f5", thisMonth.minusMonths(FIXED_HISTORY_MONTHS + 1), "오래된 구독")
             insertExpense("e1", thisMonth, "스타벅스", categoryCode = "FOOD")
@@ -406,11 +408,32 @@ class MigrationTest {
         }
         val db = helper.runMigrationsAndValidate(TEST_DB, 7, true)
 
-        assertEquals(7, db.count("SELECT COUNT(*) FROM transactions"))
-        assertEquals(setOf("넷플릭스", "자동차보험", NO_MERCHANT_KEY), db.strings("SELECT merchantKey FROM fixed_merchants").toSet())
+        assertEquals(8, db.count("SELECT COUNT(*) FROM transactions"))
+        assertEquals(setOf("넷플릭스", "자동차보험", "새보험", NO_MERCHANT_KEY), db.strings("SELECT merchantKey FROM fixed_merchants").toSet())
         assertEquals(0, db.count("SELECT COUNT(*) FROM fixed_merchants WHERE state != 'REGISTERED'"))
         // 거래의 분류는 그대로다
         assertEquals("고정지출", db.categoryNameOf("f5"))
+    }
+
+    @Test
+    fun `지웠다 다시 만든 고정지출 분류로 적은 곳도 6 에서 7 로 올릴 때 등록한다`() {
+        val thisMonth = YearMonth.now(BudgetTime.ZONE)
+        helper.createDatabase(TEST_DB, 6).apply {
+            seedCategoriesLikeVersion6()
+            // 기본 '고정지출' 을 지우고 같은 이름으로 다시 만들었다. 코드는 DB 를 열 때(onOpen) 돌려받는데, 그건 올린 뒤에 돈다.
+            execSQL("UPDATE categories SET code = NULL, uuid = 'user:fixed' WHERE code = '$FIXED_CATEGORY_CODE'")
+            execSQL(
+                "INSERT INTO transactions (uuid, type, amount, occurredAt, occurredDate, categoryId, merchant, createdAt, updatedAt) " +
+                    "VALUES ('f1', 'EXPENSE', 17000, ?, ?, (SELECT id FROM categories WHERE uuid = 'user:fixed'), '넷플릭스', 0, 0)",
+                arrayOf<Any?>(
+                    thisMonth.atDay(1).atTime(12, 0).atZone(BudgetTime.ZONE).toInstant().toEpochMilli(),
+                    BudgetTime.toDateKey(thisMonth.atDay(1).atTime(12, 0).atZone(BudgetTime.ZONE).toInstant()),
+                ),
+            )
+            close()
+        }
+        val db = helper.runMigrationsAndValidate(TEST_DB, 7, true)
+        assertEquals(listOf("넷플릭스"), db.strings("SELECT merchantKey FROM fixed_merchants"))
     }
 
     @Test
@@ -433,26 +456,6 @@ class MigrationTest {
                 assertEquals("DECLINED", it.getString(0))
                 assertEquals(1000, it.getLong(1))
             }
-        }
-    }
-
-    @Test
-    fun `고정지출 목록 정리는 고정지출 지출이 하나도 남지 않은 곳만 지운다`() {
-        helper.createDatabase(TEST_DB, 7).use { db ->
-            db.seedCategoriesLikeVersion6()
-            // 탭이 읽는 기간 앞에만 낸 곳도 지출이 남아 있으면 둔다
-            db.insertExpense("f1", YearMonth.of(2020, 1), "오래된 구독")
-            db.insertExpense("f2", YearMonth.of(2026, 10), "넷플릭스")
-            // 다른 분류로 옮긴 곳
-            db.insertExpense("e1", YearMonth.of(2026, 10), "헬스장", categoryCode = "FOOD")
-            // 목록은 가게 열쇠(띄어쓰기를 뺀 것)로 적혀 있다
-            listOf("오래된구독", "넷플릭스", "헬스장", "지운곳").forEach { key ->
-                db.execSQL("INSERT INTO fixed_merchants (merchantKey, state, decidedAt) VALUES (?, 'DECLINED', 0)", arrayOf<Any?>(key))
-            }
-
-            assertEquals(2, pruneFixedMerchants(db))
-
-            assertEquals(setOf("오래된구독", "넷플릭스"), db.strings("SELECT merchantKey FROM fixed_merchants").toSet())
         }
     }
 

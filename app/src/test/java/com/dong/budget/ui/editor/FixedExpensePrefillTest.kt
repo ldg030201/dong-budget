@@ -3,6 +3,8 @@ package com.dong.budget.ui.editor
 import com.dong.budget.data.db.BudgetTime
 import com.dong.budget.data.db.FIXED_CATEGORY_CODE
 import com.dong.budget.data.db.TransactionListItem
+import com.dong.budget.data.db.fixedHistoryEnd
+import com.dong.budget.data.db.fixedHistoryStart
 import com.dong.budget.navigation.EditorPrefill
 import com.dong.budget.navigation.PrefillSource
 import com.dong.budget.testing.day
@@ -12,8 +14,6 @@ import com.dong.budget.ui.fixed.FixedStatus
 import com.dong.budget.ui.fixed.KoreanCalendar
 import com.dong.budget.ui.fixed.LAST_DAY
 import com.dong.budget.ui.fixed.buildFixedExpenses
-import com.dong.budget.ui.fixed.fixedHistoryEnd
-import com.dong.budget.ui.fixed.fixedHistoryStart
 import com.dong.budget.ui.fixed.usualDateOf
 import com.dong.budget.ui.home.localDate
 import org.junit.Assert.assertEquals

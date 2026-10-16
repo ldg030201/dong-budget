@@ -175,6 +175,19 @@ class BackupRestoreTest {
     }
 
     @Test
+    fun `고정지출 목록 정리는 고정지출 지출이 하나도 남지 않은 곳만 지운다`() = runBlocking {
+        val decided = Instant.parse("2026-10-01T00:00:00Z")
+        // 오래된 구독 · 넷플릭스는 '고정지출' 지출이 남아 있고, 스타벅스는 다른 분류로만, 지운곳은 지출이 없다
+        val list =
+            listOf("넷플릭스", "오래된구독", "스타벅스", "지운곳").map { FixedMerchantEntity(it, FixedMerchantState.DECLINED, decided) }
+        repository.restore(backupOf(categories, expenseMethods, spends, "2.0.0", Instant.parse("2026-10-16T03:00:00Z"), list))
+
+        assertEquals(2, database.fixedMerchantDao().prune())
+
+        assertEquals(listOf("넷플릭스", "오래된구독"), database.backupDao().fixedMerchants().map { it.merchantKey })
+    }
+
+    @Test
     fun `데이터 초기화는 고정지출 목록도 비운다`() = runBlocking {
         repository.restore(backupOf(categories, expenseMethods, spends, "2.0.0", Instant.now()).copy(fixedMerchants = null))
         database.fixedMerchantDao().upsert(FixedMerchantEntity("유튜브", FixedMerchantState.DECLINED, Instant.now()))

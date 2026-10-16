@@ -365,7 +365,7 @@ class FixedExpenseTextTest {
     @Test
     fun `묻는 줄은 마지막으로 낸 날과 결제수단을 적고 다른 해면 해를 붙인다`() {
         val rows = listOf(tx("2026-10-03", 17_000, categoryId = 4, paymentId = 10, merchant = "넷플릭스", paymentName = "하나카드"))
-        val candidate = splitByRegistry(rows, emptyMap(), today).candidates.single()
+        val candidate = splitByRegistry(rows, emptyMap(), emptyMap(), today).candidates.single()
         assertEquals("마지막 10월 3일 · 하나카드", candidateSubtitle(candidate, today))
         assertEquals("17,000원", candidateAmount(candidate))
         assertEquals(

@@ -19,7 +19,6 @@ private val nextId = AtomicLong(1)
  * @param paymentId 결제수단 id. 이름을 따로 주지 않으면 "결제{id}" 다.
  * @param categorySortOrder 설정의 분류 순서. 따로 주지 않으면 id 순서다.
  * @param id 주지 않으면 만든 순서대로 커진다. 같은 시각이면 나중에 만든 것이 '나중에 적은' 거래다.
- * @param createdAt 적은(처음 저장한) 서울 시각. [at] 과 같은 꼴이다. 주지 않으면 비워 둔다(모른다).
  */
 fun tx(
     at: String,
@@ -32,7 +31,6 @@ fun tx(
     paymentName: String? = paymentId?.let { "결제$it" },
     categorySortOrder: Int? = categoryId?.toInt(),
     id: Long = nextId.getAndIncrement(),
-    createdAt: String? = null,
 ): TransactionListItem {
     val instant = seoulInstant(at)
     return TransactionListItem(
@@ -52,7 +50,6 @@ fun tx(
         paymentMethodIcon = paymentId?.let { "credit_card" },
         paymentMethodColor = paymentId?.let { colorOf(it) },
         categorySortOrder = categorySortOrder,
-        createdAt = createdAt?.let(::seoulInstant),
     )
 }
 
