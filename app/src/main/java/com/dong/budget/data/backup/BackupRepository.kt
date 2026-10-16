@@ -53,7 +53,8 @@ class BackupRepository(private val database: BudgetDatabase) {
             if (fixed == null) {
                 registered = registerShownFixedMerchants(database.openHelper.writableDatabase, BudgetTime.toLocalDate(now), now)
             } else {
-                fixed.forEach { dao.insertFixedMerchant(it.toEntity()) }
+                // 모르는 상태(더 새 앱)의 줄은 건너뛴다. 그 곳은 탭이 등록할지 다시 묻는다.
+                fixed.mapNotNull { it.toEntity() }.forEach { dao.insertFixedMerchant(it) }
             }
         }
         DevLog.info(

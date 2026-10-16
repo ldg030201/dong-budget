@@ -80,10 +80,12 @@ data class Backup(
 /**
  * 고정지출 목록 한 줄.
  * @property merchantKey 고정지출 탭이 가게를 묶는 열쇠(띄어쓰기를 빼고 소문자). 가게 이름 없이 묶인 것은 빈 글이다.
+ * @property state 어떻게 정했는지(FixedMerchantState 이름). enum 이 아니라 글로 둔다. 더 새 앱이 상태를 더해도 백업 전체를 거절하지 않고
+ *   그 줄만 건너뛴다([toEntity]). 판을 올리지 않고 칸을 더하는 방식이라, 모르는 값 하나로 거래까지 못 되살리면 안 된다.
  * @property decidedAt 정한 때(서울 기준 ISO-8601)
  */
 @Serializable
-data class BackupFixedMerchant(val merchantKey: String, val state: FixedMerchantState, val decidedAt: String)
+data class BackupFixedMerchant(val merchantKey: String, val state: String, val decidedAt: String)
 
 @Serializable
 data class BackupCategory(
@@ -314,12 +316,16 @@ fun backupOf(
                 updatedAt = formatBackupTime(t.updatedAt),
             )
         },
-        fixedMerchants = fixedMerchants.map { BackupFixedMerchant(it.merchantKey, it.state, formatBackupTime(it.decidedAt)) },
+        fixedMerchants = fixedMerchants.map { BackupFixedMerchant(it.merchantKey, it.state.name, formatBackupTime(it.decidedAt)) },
     )
 }
 
-/** 검사를 마친 백업의 고정지출 목록 한 줄을 DB 줄로 */
-fun BackupFixedMerchant.toEntity(): FixedMerchantEntity = FixedMerchantEntity(merchantKey, state, checkNotNull(parseBackupTime(decidedAt)))
+/**
+ * 검사를 마친 백업의 고정지출 목록 한 줄을 DB 줄로. 이 앱이 모르는 상태(더 새 앱이 더한 것)면 null 이다.
+ * 그 곳은 정한 적 없는 곳이 되어 탭이 등록할지 다시 묻는다.
+ */
+fun BackupFixedMerchant.toEntity(): FixedMerchantEntity? = FixedMerchantState.entries.firstOrNull { it.name == state }
+    ?.let { FixedMerchantEntity(merchantKey, it, checkNotNull(parseBackupTime(decidedAt))) }
 
 /** 화면이 그릴 수 없는 아이콘·색 이름은 기본 모양으로 바꿔 넣는다(손으로 고친 백업). */
 fun BackupCategory.toEntity(): CategoryEntity = CategoryEntity(

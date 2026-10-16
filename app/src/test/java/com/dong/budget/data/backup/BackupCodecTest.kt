@@ -333,18 +333,25 @@ class BackupCodecTest {
 
     @Test
     fun `고정지출 목록이 겹치거나 때를 읽을 수 없으면 망가진 백업이다`() {
-        val one = BackupFixedMerchant("넷플릭스", FixedMerchantState.REGISTERED, "2026-10-16T10:00:00+09:00")
+        val one = BackupFixedMerchant("넷플릭스", FixedMerchantState.REGISTERED.name, "2026-10-16T10:00:00+09:00")
         assertEquals(
             BackupCodec.BROKEN,
             reason(
                 broken {
-                    it.copy(fixedMerchants = listOf(one, one.copy(state = FixedMerchantState.DECLINED)))
+                    it.copy(fixedMerchants = listOf(one, one.copy(state = FixedMerchantState.DECLINED.name)))
                 },
             ),
         )
         assertEquals(BackupCodec.BROKEN, reason(broken { it.copy(fixedMerchants = listOf(one.copy(decidedAt = "어제"))) }))
-        val text = broken { it.copy(fixedMerchants = listOf(one)) }
-        assertEquals(BackupCodec.BROKEN, reason(text.replace("\"REGISTERED\"", "\"MAYBE\"")))
+    }
+
+    @Test
+    fun `더 새 앱이 더한 고정지출 목록 상태는 백업을 거절하지 않고 그 줄만 건너뛴다`() {
+        val one = BackupFixedMerchant("넷플릭스", FixedMerchantState.REGISTERED.name, "2026-10-16T10:00:00+09:00")
+        val text = BackupCodec.encode(backup().copy(fixedMerchants = listOf(one, one.copy(merchantKey = "헬스장"))), pretty = false)
+        // 판은 그대로인데 모르는 상태가 왔다(판을 올리지 않고 칸을 더하는 방식이라)
+        val read = decodeValid(text.replaceFirst("\"REGISTERED\"", "\"PAUSED\""))
+        assertEquals(listOf(null, "헬스장"), read.fixedMerchants.orEmpty().map { it.toEntity()?.merchantKey })
     }
 
     // ── 앱 설정 ──
