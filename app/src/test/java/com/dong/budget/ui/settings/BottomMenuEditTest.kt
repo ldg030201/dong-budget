@@ -70,4 +70,28 @@ class BottomMenuEditTest {
         assertNull(menu.moveBy(HISTORY, 1))
         assertNull(menu.moveBy(HOME, 1))
     }
+
+    @Test
+    fun `편집기가 저장한 차림이 늦게 돌아와도 되돌아가지 않고, 밖에서 바뀐 차림은 따라간다`() {
+        val saves = MenuSaves()
+        // 처음 그릴 때 받은 차림은 따라간다(같은 차림이라 그대로다)
+        assertEquals(menu, saves.arrived(menu))
+        // 연달아 두 번 끌었다. 첫 번째가 돌아올 때 편집기는 이미 두 번째를 보이고 있다.
+        val first = menu.moveTo(HISTORY, MenuSpot.Shown(0))
+        val second = first.moveTo(SALARY, MenuSpot.Hidden(0))
+        saves.saved(first)
+        saves.saved(second)
+        assertNull(saves.arrived(first))
+        assertNull(saves.arrived(second))
+        // 저장소가 마지막 것만 주어도 앞의 것까지 돌아온 것으로 본다
+        saves.saved(first)
+        saves.saved(second)
+        assertNull(saves.arrived(second))
+        // 백업을 복원해 밖에서 바뀌면 그 차림을 보인다
+        val restored = BottomMenu.of(listOf(CARD_PERFORMANCE))
+        assertEquals(restored, saves.arrived(restored))
+        // 저장한 것이 돌아오기 전에 밖에서 또 바뀌었으면(저장소가 바뀐 차림만 줬다) 바뀐 차림을 보인다
+        saves.saved(first)
+        assertEquals(restored, saves.arrived(restored))
+    }
 }

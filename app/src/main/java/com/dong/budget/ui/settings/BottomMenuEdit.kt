@@ -46,3 +46,32 @@ internal fun BottomMenu.moveBy(item: MenuItem, delta: Int): BottomMenu? {
 private fun List<MenuItem>.inserted(index: Int, item: MenuItem): List<MenuItem> = toMutableList().apply {
     add(index.coerceIn(0, size), item)
 }
+
+/**
+ * 편집기가 저장한 차림과 밖에서 바뀐 차림(백업 복원 등)을 가른다.
+ * 저장한 차림은 저장소를 한 바퀴 돌아 늦게 돌아온다. 그 사이 또 끌었으면 돌아온 옛 차림으로 되돌아가면 안 된다(튄다).
+ * 밖에서 바뀐 차림이면 편집기도 그 차림을 보여야 한다. 옛 차림을 보인 채 끌면 바뀐 차림을 덮어쓴다.
+ */
+internal class MenuSaves {
+    /** 저장했지만 아직 돌아오지 않은 차림. 저장한 차례대로 */
+    private val pending = ArrayDeque<BottomMenu>()
+
+    /** 편집기가 [menu] 를 저장했다 */
+    fun saved(menu: BottomMenu) {
+        pending.addLast(menu)
+    }
+
+    /**
+     * 저장소에서 [menu] 가 왔다. 저장소는 마지막 값만 주기도 해서, 저장한 차림이 돌아오면 그보다 먼저 저장한 것도 돌아온 것으로 본다.
+     * @return 편집기가 따라 보여야 할 차림. 편집기가 저장한 것이 돌아왔으면(편집기가 이미 앞서 있으면) null
+     */
+    fun arrived(menu: BottomMenu): BottomMenu? {
+        val index = pending.indexOf(menu)
+        if (index < 0) {
+            pending.clear()
+            return menu
+        }
+        repeat(index + 1) { pending.removeFirst() }
+        return null
+    }
+}

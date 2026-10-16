@@ -22,6 +22,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -70,10 +71,13 @@ import kotlin.math.roundToInt
  * 끌기는 화면 읽기로 할 수 없어 칸마다 옮기기·넣기·빼기 동작을 따로 준다.
  *
  * @param menu 지금 차림. 이 편집기가 그려져 있는 동안은 여기서 고친 차림이 기준이다(저장이 돌아오기 전에 또 끌어도 튀지 않게).
+ *   밖에서 바뀌면(이 화면에서 백업을 복원하면) 그 차림을 따라간다([MenuSaves]).
  */
 @Composable
 internal fun BottomMenuEditor(menu: BottomMenu, onChange: (BottomMenu) -> Unit, modifier: Modifier = Modifier) {
     var current by remember { mutableStateOf(menu) }
+    val saves = remember { MenuSaves() }
+    LaunchedEffect(menu) { saves.arrived(menu)?.let { current = it } }
     var drag by remember { mutableStateOf<MenuDrag?>(null) }
     // 손가락 자리는 따로 둔다. 움직일 때마다 바뀌어도 든 아이콘의 자리만 다시 잡고(HeldIcon), 칸들은 놓일 자리가 바뀔 때만 다시 그린다.
     var pointer by remember { mutableStateOf(Offset.Zero) }
@@ -85,6 +89,7 @@ internal fun BottomMenuEditor(menu: BottomMenu, onChange: (BottomMenu) -> Unit, 
     fun save(next: BottomMenu) {
         if (next == current) return
         current = next
+        saves.saved(next)
         change(next)
     }
 
