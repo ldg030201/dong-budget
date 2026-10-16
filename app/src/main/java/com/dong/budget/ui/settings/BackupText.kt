@@ -26,7 +26,14 @@ import java.time.temporal.ChronoUnit
  * @property currentTransactions 지금 있는 거래 수. 되살리면 이만큼 지워진다는 것을 알린다.
  * @property autoBackup 되살리기 전에 지금 데이터를 파일로 저장하는지(자동 백업 스위치가 켜져 있고 지울 것이 있을 때)
  */
-data class RestorePreview(val backup: Backup, val exportedAt: Instant, val currentTransactions: Int, val autoBackup: Boolean = false)
+data class RestorePreview(
+    val backup: Backup,
+    val exportedAt: Instant,
+    val currentTransactions: Int,
+    val autoBackup: Boolean = false,
+    /** 이 폰에 앱 잠금·월급 잠금이 하나도 켜져 있지 않은지(보통 새 폰). 잠금은 백업에 없어서 다시 켜라고 알린다. */
+    val noLock: Boolean = false,
+)
 
 /**
  * 백업 묶음 맨 위의 한 줄. "마지막 백업 · 3일 전 · 파일로 저장"
@@ -118,6 +125,8 @@ internal fun restoreMessage(preview: RestorePreview, today: LocalDate): String {
         "분류·결제수단·들어온 곳은 모두 지우고 백업 내용으로 바꿔요. " +
         // 앱 설정은 1.9.0 까지의 백업에는 없어서 있을 때만 적는다. 없으면 지금 설정이 그대로다.
         (if (backup.settings != null) "화면·자동 기능 같은 설정도 백업 때로 바꿔요. " else "") +
+        // 잠금(PIN)은 백업에 담지 않는다. 잠금을 켜 둔 폰은 복원해도 그대로라 꺼진 폰(보통 새 폰)에서만 알린다.
+        (if (preview.noLock) "잠금은 백업에 들어가지 않아요. 쓰던 잠금이 있으면 다시 켜 주세요. " else "") +
         if (preview.autoBackup) AUTO_BACKUP_NOTICE else "되돌릴 수 없어요."
 }
 

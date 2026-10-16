@@ -53,6 +53,8 @@ class SettingsViewModel(
     private val backupExporter: BackupExporter,
     private val salaryRepository: SalaryRepository,
     appThemeMode: StateFlow<ThemeMode> = MutableStateFlow(ThemeMode.SYSTEM),
+    /** 이 폰에 앱 잠금이나 월급 잠금이 켜져 있는지. 복원 묻는 창이 잠금을 다시 켜라고 알릴지 정한다. */
+    private val anyLockOn: () -> Boolean = { false },
 ) : ViewModel() {
     /** 앱이 켜질 때부터 따라가는 테마 값이라 처음 그릴 때부터 저장된 칸에 있다 */
     val themeMode: StateFlow<ThemeMode> = appThemeMode
@@ -171,7 +173,13 @@ class SettingsViewModel(
                 val count = backupRepository.transactionCount()
                 // 지울 것이 없으면(새로 깐 폰에서 처음 복원) 빈 백업 파일을 만들지 않는다
                 val preview =
-                    RestorePreview(read.backup, exportedAt, count, shouldBackupBeforeReplace(settingsRepository, backupExporter, count))
+                    RestorePreview(
+                        read.backup,
+                        exportedAt,
+                        count,
+                        shouldBackupBeforeReplace(settingsRepository, backupExporter, count),
+                        noLock = !anyLockOn(),
+                    )
                 _backup.update { it.copy(restore = preview) }
             }
         }

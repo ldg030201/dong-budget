@@ -153,6 +153,16 @@ class BackupTextTest {
     }
 
     @Test
+    fun `잠금이 꺼진 폰에서만 잠금을 다시 켜라고 알린다`() {
+        val preview = RestorePreview(backup(3), Instant.parse("2026-09-29T05:03:00Z"), currentTransactions = 0, noLock = true)
+        assertTrue(
+            restoreMessage(preview, today).endsWith("잠금은 백업에 들어가지 않아요. 쓰던 잠금이 있으면 다시 켜 주세요. 되돌릴 수 없어요."),
+        )
+        // 잠금을 켜 둔 폰은 복원해도 잠금이 그대로라 알리지 않는다
+        assertFalse(restoreMessage(preview.copy(noLock = false), today).contains("잠금"))
+    }
+
+    @Test
     fun `월급 설정이나 앱 설정을 다 넣지 못하면 못 넣은 것만 알린다`() {
         assertEquals("거래는 되살렸지만 월급 설정을 되살리지 못했어요", restorePartlyFailedMessage(salary = true, settings = false))
         assertEquals("거래는 되살렸지만 화면·자동 기능 설정을 되살리지 못했어요", restorePartlyFailedMessage(salary = false, settings = true))
