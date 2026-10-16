@@ -543,11 +543,12 @@ private fun FixedEmpty(title: String, body: String, action: (@Composable () -> U
 }
 
 // 목록의 고정 줄 key. 달마다 묶음이 숨었다 나타나도 스크롤 기준이 흔들리지 않게 고정한다.
+// 가게 줄의 key('item-' · 'ask-' · 'declined-' 뒤에 가게 열쇠)와 겹치지 않게 그 앞머리로 시작하지 않는다('gap' 이라는 가게가 있어도 된다).
 private const val SUMMARY_KEY = "summary"
 private const val STOPPED_KEY = "stopped"
 private const val DECLINED_KEY = "declined"
 private const val ASK_KEY = "ask"
-private const val ASK_GAP_KEY = "ask-gap"
+private const val ASK_GAP_KEY = "askGap"
 private const val FOOTNOTE_KEY = "footnote"
 
 /** 달을 넘길 때 한 판을 옮기는 거리. 화면 폭의 1/5 만 옮기고 나머지는 흐려짐으로 보여 준다(홈과 같다). */
