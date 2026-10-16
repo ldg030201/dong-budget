@@ -90,9 +90,15 @@ class SettingsRepository internal constructor(private val store: DataStore<Prefe
         DevLog.info(LogTag.SETTINGS, "아래 메뉴 ${menu.items.joinToString(" · ") { it.key }}")
     }
 
-    /** 지금 설정 한 벌. 백업이 담는다. 저장소를 한 번만 읽어 칸끼리 어긋나지 않는다. */
-    suspend fun current(): AppSettings = preferences.first().let {
-        AppSettings(it.themeMode(), it.weekStart(), it.bottomMenu(), it.autoSettings(), it.backupSchedule())
+    /**
+     * 지금 설정 한 벌. 백업이 담는다. 저장소를 한 번만 읽어 칸끼리 어긋나지 않는다.
+     * 설정 파일을 읽지 못하면 null 이다. 화면처럼 기본값으로 채우면 백업이 기본 설정을 담고, 그 백업을 되살릴 때 쓰던 설정을 기본값으로 덮어쓴다.
+     */
+    suspend fun current(): AppSettings? = try {
+        store.data.first().let { AppSettings(it.themeMode(), it.weekStart(), it.bottomMenu(), it.autoSettings(), it.backupSchedule()) }
+    } catch (e: IOException) {
+        DevLog.warn(LogTag.SETTINGS, "설정 파일을 읽지 못해 백업에 설정을 담지 않아요", e)
+        null
     }
 
     /**

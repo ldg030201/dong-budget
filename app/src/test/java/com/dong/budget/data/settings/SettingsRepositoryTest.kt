@@ -14,6 +14,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
@@ -88,11 +89,18 @@ class SettingsRepositoryTest {
     }
 
     @Test
+    fun `설정 파일을 읽지 못하면 기본값이 아니라 없음으로 읽어 백업이 기본 설정을 담지 않는다`() = runBlocking {
+        // 깨진 설정 파일. 화면은 기본값으로 시작하지만 백업에는 기본값을 담으면 안 된다.
+        folder.root.resolve("broken.preferences_pb").writeBytes(byteArrayOf(1, 2, 3, 4, 5, 6, 7))
+        assertNull(repository("broken").current())
+    }
+
+    @Test
     fun `되살릴 설정에 없는 것은 지금 값을 그대로 둔다`() = runBlocking {
         val repository = repository()
         repository.restore(everything(custom))
         repository.restore(SettingsRestore(themeMode = ThemeMode.LIGHT, auto = mapOf(AutoOption.EDITOR_KEYPAD to true), backupOn = true))
-        val after = repository.current()
+        val after = checkNotNull(repository.current())
         assertEquals(ThemeMode.LIGHT, after.themeMode)
         assertTrue(after.auto.chosen(AutoOption.EDITOR_KEYPAD))
         // 나머지는 앞서 되살린 그대로다
@@ -118,7 +126,7 @@ class SettingsRepositoryTest {
         val new = repository("new")
         new.setAuto(AutoOption.STATS_DAY, false)
         new.setBackupSchedule(BackupSchedule(interval = BackupInterval.DAILY))
-        new.restore(backupSettingsOf(old.current()).toRestore())
+        new.restore(backupSettingsOf(checkNotNull(old.current())).toRestore())
         assertEquals(custom, new.current())
     }
 }

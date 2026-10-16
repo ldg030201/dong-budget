@@ -22,10 +22,10 @@ class BackupExporter(
     private val history: BackupHistory,
     private val appVersion: String = BuildConfig.VERSION_NAME,
 ) {
-    /** 거래·분류·결제수단과 월급 설정(정해 둔 때만), 앱 설정을 담은 백업 글 */
+    /** 거래·분류·결제수단과 월급 설정(정해 둔 때만), 앱 설정(읽을 수 있을 때만. 못 읽으면 되살릴 때 그 폰의 설정을 그대로 둔다)을 담은 백업 글 */
     suspend fun encode(pretty: Boolean): String {
         val salary = salaryRepository.settings.first().takeIf { it != SalarySettings() }?.toRecord()
-        val settings = backupSettingsOf(settingsRepository.current())
+        val settings = settingsRepository.current()?.let(::backupSettingsOf)
         val backup = backupRepository.export(appVersion).copy(salary = salary, settings = settings)
         // 거래가 많으면 글로 바꾸는 데 시간이 걸린다. 화면이 멈추지 않게 뒤에서 한다.
         return withContext(Dispatchers.Default) { BackupCodec.encode(backup, pretty) }
