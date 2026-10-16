@@ -18,6 +18,7 @@ import com.dong.budget.data.backup.BackupSchedule
 import com.dong.budget.data.backup.LastBackup
 import com.dong.budget.data.settings.BottomMenu
 import com.dong.budget.data.settings.ThemeMode
+import com.dong.budget.data.settings.WEEK_STARTS
 import com.dong.budget.data.update.UpdateNotice
 import com.dong.budget.ui.components.ActionRow
 import com.dong.budget.ui.components.BudgetTopAppBar
@@ -85,9 +86,9 @@ fun SettingsScreen(
                 // 달력과 통계 요일별 줄이 이 요일부터 시작한다
                 SectionLabel("한 주 시작")
                 SegmentedToggle(
-                    options = WEEK_START_ORDER.map { formatWeekdayFull(it) },
-                    selectedIndex = WEEK_START_ORDER.indexOf(weekStart),
-                    onSelect = { index -> onWeekStartChange(WEEK_START_ORDER[index]) },
+                    options = WEEK_STARTS.map { formatWeekdayFull(it) },
+                    selectedIndex = WEEK_STARTS.indexOf(weekStart),
+                    onSelect = { index -> onWeekStartChange(WEEK_STARTS[index]) },
                 )
 
                 // 따로 들어가지 않고 여기서 아이콘을 끌어 바로 고친다
@@ -119,9 +120,6 @@ fun SettingsScreen(
 
 /** 앱 정보 줄에 알리는 새 버전. Play 배포는 설치하기 전에 새 버전의 이름을 알 수 없어 '새 버전' 만 적는다. */
 private fun newerLabel(notice: UpdateNotice): String = (notice as? UpdateNotice.Available)?.version?.let { "새 버전 $it" } ?: "새 버전"
-
-/** 한 주 시작 칸 순서 */
-private val WEEK_START_ORDER = listOf(DayOfWeek.SUNDAY, DayOfWeek.MONDAY)
 
 /** 테마 칸 순서. 왼쪽 밝게, 가운데 기기 설정, 오른쪽 어둡게 */
 private val THEME_ORDER = listOf(ThemeMode.LIGHT, ThemeMode.SYSTEM, ThemeMode.DARK)

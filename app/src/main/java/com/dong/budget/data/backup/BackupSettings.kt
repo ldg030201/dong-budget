@@ -2,13 +2,7 @@ package com.dong.budget.data.backup
 
 import com.dong.budget.data.settings.AppSettings
 import com.dong.budget.data.settings.AutoOption
-import com.dong.budget.data.settings.BottomMenu
-import com.dong.budget.data.settings.MenuItem
-import com.dong.budget.data.settings.SettingsRestore
-import com.dong.budget.data.settings.ThemeMode
-import com.dong.budget.data.settings.WEEK_STARTS
 import kotlinx.serialization.Serializable
-import java.time.DayOfWeek
 
 // ─────────────────────────────────────────────────────────────────────
 // 백업에 담는 앱 설정(app_settings). 다른 폰에 되살려도 화면과 자동 기능이 그대로 따라가게 한다.
@@ -20,7 +14,7 @@ import java.time.DayOfWeek
 
 /**
  * 백업의 앱 설정. 값은 enum 이 아니라 설정 저장소에 적는 글 그대로 둔다. 더 새 앱이 만든 모르는 값(새 테마, 새 스위치)이 와도
- * 백업을 거절하지 않고 그 값만 건너뛴다([toRestore]). 비어 있는 칸도 되살릴 때 지금 값을 그대로 둔다.
+ * 백업을 거절하지 않고 그 값만 건너뛴다(SettingsRepository.restore). 비어 있는 칸도 되살릴 때 지금 값을 그대로 둔다.
  * @property themeMode 화면 테마(ThemeMode 이름). "SYSTEM" · "LIGHT" · "DARK"
  * @property weekStart 한 주를 시작하는 요일(DayOfWeek 이름). "SUNDAY" · "MONDAY"
  * @property bottomMenu 하단 메뉴 차림. 설정 저장소와 같은 글(BottomMenu.encode, "넣은 칸|뺀 칸")
@@ -50,15 +44,4 @@ fun backupSettingsOf(settings: AppSettings): BackupSettings = BackupSettings(
     bottomMenu = settings.bottomMenu.encode(),
     autoOptions = AutoOption.entries.associate { it.key to settings.auto.chosen(it) },
     autoBackup = BackupAutoBackup(on = settings.backupSchedule.on, interval = settings.backupSchedule.interval.key),
-)
-
-/** 되살릴 설정으로. 이 앱이 모르는 값과 읽을 수 없는 값은 빼서 지금 값을 그대로 두게 한다. */
-fun BackupSettings.toRestore(): SettingsRestore = SettingsRestore(
-    themeMode = ThemeMode.entries.firstOrNull { it.name == themeMode },
-    weekStart = DayOfWeek.entries.firstOrNull { it.name == weekStart }?.takeIf { it in WEEK_STARTS },
-    // 아는 칸이 하나도 없으면 망가진 글로 본다. 그대로 읽으면 가운데 칸이 모두 빠진다.
-    bottomMenu = bottomMenu?.takeIf { text -> text.split(',', '|').any { MenuItem.fromKey(it.trim()) != null } }?.let(BottomMenu::decode),
-    auto = autoOptions.mapNotNull { (key, on) -> AutoOption.entries.firstOrNull { it.key == key }?.let { it to on } }.toMap(),
-    backupOn = autoBackup?.on,
-    backupInterval = BackupInterval.entries.firstOrNull { it.key == autoBackup?.interval },
 )

@@ -11,6 +11,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.dong.budget.data.backup.BackupInterval
 import com.dong.budget.data.backup.BackupSchedule
+import com.dong.budget.data.backup.BackupSettings
 import com.dong.budget.data.devlog.DevLog
 import com.dong.budget.data.devlog.LogTag
 import kotlinx.coroutines.flow.Flow
@@ -102,26 +103,33 @@ class SettingsRepository internal constructor(private val store: DataStore<Prefe
     }
 
     /**
-     * 백업의 설정으로 바꾼다. 한 번에 적어서 중간에 실패하면 아무것도 바뀌지 않는다. [settings] 에 없는 것은 그대로 둔다.
+     * 백업의 설정([settings], 글 그대로)으로 바꾼다. 한 번에 적어서 중간에 실패하면 아무것도 바뀌지 않는다.
+     * 비어 있는 칸, 이 앱이 모르는 값(더 새 앱의 테마 · 스위치 · 주기, 아는 칸이 없는 하단 메뉴), 고를 수 없는 요일은 건너뛰고
+     * 지금 값을 그대로 둔다. 백업이 모르던 스위치(옛 앱에 없던 것)도 그대로다.
      * 자동 백업을 켜도 여기서 바로 백업하지 않는다. 주기가 됐는지는 앱을 열 때만 본다(ScheduledBackup).
      */
-    suspend fun restore(settings: SettingsRestore) {
-        settings.weekStart?.let { require(it in WEEK_STARTS) { "한 주는 일요일이나 월요일에 시작한다." } }
+    suspend fun restore(settings: BackupSettings) {
+        val theme = ThemeMode.fromNameOrNull(settings.themeMode)
+        val weekStart = WEEK_STARTS.firstOrNull { it.name == settings.weekStart }
+        val bottomMenu = BottomMenu.decodeOrNull(settings.bottomMenu)
+        val auto = settings.autoOptions.mapNotNull { (key, on) -> AutoOption.fromKey(key)?.let { it to on } }
+        val backupOn = settings.autoBackup?.on
+        val interval = BackupInterval.fromKeyOrNull(settings.autoBackup?.interval)
         store.edit { preferences ->
-            settings.themeMode?.let { preferences[themeModeKey] = it.name }
-            settings.weekStart?.let { preferences[weekStartKey] = it.name }
-            settings.bottomMenu?.let { preferences[bottomMenuKey] = it.encode() }
-            settings.auto.forEach { (option, on) -> preferences[option.preferenceKey] = on }
-            settings.backupOn?.let { preferences[backupOnKey] = it }
-            settings.backupInterval?.let { preferences[backupIntervalKey] = it.key }
+            theme?.let { preferences[themeModeKey] = it.name }
+            weekStart?.let { preferences[weekStartKey] = it.name }
+            bottomMenu?.let { preferences[bottomMenuKey] = it.encode() }
+            auto.forEach { (option, on) -> preferences[option.preferenceKey] = on }
+            backupOn?.let { preferences[backupOnKey] = it }
+            interval?.let { preferences[backupIntervalKey] = it.key }
         }
         // 설정이 이상하다는 신고를 받으면 복원 때 무엇이 바뀌었는지 보려고 남긴다. 그대로 둔 칸은 '-' 다.
-        val off = settings.auto.filterValues { !it }.keys.joinToString(",") { it.name }.ifEmpty { "없음" }
+        val off = auto.filterNot { it.second }.joinToString(",") { it.first.name }.ifEmpty { "없음" }
         DevLog.info(
             LogTag.SETTINGS,
-            "백업의 설정으로 바꿈 · 테마 ${settings.themeMode ?: "-"} · 한 주 ${settings.weekStart ?: "-"} · " +
-                "아래 메뉴 ${settings.bottomMenu?.items?.joinToString(",") { it.key } ?: "-"} · " +
-                "스위치 ${settings.auto.size}개 중 끔 $off · 자동 백업 ${settings.backupOn ?: "-"} ${settings.backupInterval ?: "-"}",
+            "백업의 설정으로 바꿈 · 테마 ${theme ?: "-"} · 한 주 ${weekStart ?: "-"} · " +
+                "아래 메뉴 ${bottomMenu?.items?.joinToString(",") { it.key } ?: "-"} · " +
+                "스위치 ${auto.size}개 중 끔 $off · 자동 백업 ${backupOn ?: "-"} ${interval ?: "-"}",
         )
     }
 

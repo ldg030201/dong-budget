@@ -9,6 +9,9 @@ enum class ThemeMode {
     ;
 
     companion object {
-        fun fromName(value: String?): ThemeMode = entries.firstOrNull { it.name == value } ?: SYSTEM
+        fun fromName(value: String?): ThemeMode = fromNameOrNull(value) ?: SYSTEM
+
+        /** 이 앱이 아는 테마면 그것, 아니면 null(백업이 더 새 앱의 테마를 담은 때 등) */
+        fun fromNameOrNull(value: String?): ThemeMode? = entries.firstOrNull { it.name == value }
     }
 }

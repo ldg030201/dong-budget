@@ -22,7 +22,10 @@ enum class BackupInterval(val key: String) {
     }
 
     companion object {
-        fun fromKey(key: String?): BackupInterval = entries.firstOrNull { it.key == key } ?: BackupSchedule.DEFAULT.interval
+        fun fromKey(key: String?): BackupInterval = fromKeyOrNull(key) ?: BackupSchedule.DEFAULT.interval
+
+        /** 이 앱이 아는 주기면 그것, 아니면 null */
+        fun fromKeyOrNull(key: String?): BackupInterval? = entries.firstOrNull { it.key == key }
     }
 }
 

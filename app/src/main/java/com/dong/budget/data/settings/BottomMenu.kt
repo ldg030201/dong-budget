@@ -80,6 +80,14 @@ data class BottomMenu(val shown: List<MenuItem>, val hidden: List<MenuItem>) {
             return BottomMenu(cleanShown, cleanHidden)
         }
 
+        /**
+         * 백업에 담긴 글을 읽는다. 아는 칸이 하나도 없으면(망가졌거나 더 새 앱의 칸만 있다) null 이다.
+         * 그대로 [decode] 하면 가운데 칸이 모두 빠진 차림이 되므로, 되살리는 쪽이 지금 차림을 그대로 두게 한다.
+         */
+        fun decodeOrNull(value: String?): BottomMenu? = value
+            ?.takeIf { text -> text.split(SECTION_SEPARATOR).flatMap { it.split(',') }.any { MenuItem.fromKey(it.trim()) != null } }
+            ?.let(::decode)
+
         /** 저장된 글([encode])을 읽는다. 적힌 적 없으면 [DEFAULT]. 모르는 이름은 버리고, 새로 생긴 칸은 뺀 쪽 끝에 둔다. */
         fun decode(value: String?): BottomMenu {
             if (value == null) return DEFAULT

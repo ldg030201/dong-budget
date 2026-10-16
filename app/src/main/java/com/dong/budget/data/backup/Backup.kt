@@ -17,8 +17,14 @@ import com.dong.budget.data.db.TransactionEntity
 import com.dong.budget.data.db.TransactionType
 import com.dong.budget.data.db.etcCodeFor
 import com.dong.budget.data.salary.SalaryRecord
+import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.builtins.nullable
+import kotlinx.serialization.descriptors.SerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonDecoder
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
@@ -59,7 +65,7 @@ const val BACKUP_FORMAT_INCOME_SOURCES = 2
  *   DB 를 6 → 7 로 올릴 때처럼 그날 고정지출 탭에 보였을 곳을 등록한다(BackupRepository.restore).
  *   칸을 더하기만 해서 판은 그대로다. 옛 앱(판 2)은 모르는 칸을 건너뛰고 읽는데, 옛 앱에는 목록이 없어 잃는 것이 없다.
  * @property settings 화면 테마·한 주 시작·하단 메뉴·자동 기능·자동 백업. 내보낼 때는 늘 적는다. 칸이 없으면(1.9.0 까지의 백업)
- *   되살릴 때 지금 설정을 그대로 둔다. 읽을 수 없으면 백업을 거절하지 않고 이 칸만 없는 것으로 읽는다([BackupCodec.decode]).
+ *   되살릴 때 지금 설정을 그대로 둔다. 읽을 수 없으면 백업을 거절하지 않고 이 칸만 없는 것으로 읽는다([LenientBackupSettings]).
  *   이것도 칸을 더하기만 해서 판은 그대로다. 옛 앱(판 2)은 이 칸을 건너뛰고 거래·분류는 그대로 되살린다(설정만 따라가지 않는다).
  *   판을 올리면 옛 앱이 백업 전체를 '더 새 버전' 이라며 거절하므로 올리지 않는다.
  */
@@ -74,8 +80,27 @@ data class Backup(
     val transactions: List<BackupTransaction>,
     val salary: SalaryRecord? = null,
     val fixedMerchants: List<BackupFixedMerchant>? = null,
-    val settings: BackupSettings? = null,
+    @Serializable(with = LenientBackupSettings::class) val settings: BackupSettings? = null,
 )
+
+/**
+ * 읽을 수 없으면 null 로 읽는 앱 설정 칸([Backup.settings]). 앱 설정은 가계부가 아니어서, 손으로 고쳤거나 더 새 앱이 모양을 바꿨어도
+ * 백업 전체를 거절하지 않고 설정만 빼고 되살린다(묻는 창도 설정이 바뀐다고 적지 않는다). 너그러움을 칸에 붙여 두어
+ * 칸 이름이 바뀌어도 따라간다. 칸 안의 값 하나가 낯설면 그 값만 건너뛴다(SettingsRepository.restore).
+ */
+internal object LenientBackupSettings : KSerializer<BackupSettings?> {
+    private val strict = BackupSettings.serializer().nullable
+
+    override val descriptor: SerialDescriptor = strict.descriptor
+
+    override fun serialize(encoder: Encoder, value: BackupSettings?) = strict.serialize(encoder, value)
+
+    override fun deserialize(decoder: Decoder): BackupSettings? {
+        // 칸 하나를 통째로 먼저 읽어 두어서, 읽지 못해도 백업의 나머지 칸은 이어서 읽는다
+        val element = (decoder as JsonDecoder).decodeJsonElement()
+        return runCatching { decoder.json.decodeFromJsonElement(strict, element) }.getOrNull()
+    }
+}
 
 /**
  * 고정지출 목록 한 줄.
@@ -174,19 +199,13 @@ object BackupCodec {
         if (format > BACKUP_FORMAT) return BackupRead.Invalid(TOO_NEW, "판 $format")
         val backup =
             try {
-                json.decodeFromJsonElement<Backup>(JsonObject(root - SETTINGS))
+                json.decodeFromJsonElement<Backup>(root)
             } catch (e: IllegalArgumentException) {
                 // 칸이 빠졌거나 모르는 종류(enum)다. SerializationException 도 여기로 온다.
                 return BackupRead.Invalid(BROKEN, e.message)
             }
-        // 앱 설정은 따로 읽는다. 가계부가 아니어서, 읽을 수 없으면(손으로 고쳤거나 더 새 앱이 모양을 바꿨다) 백업을 거절하지 않고
-        // 설정만 빼고 되살린다. 묻는 창도 설정이 바뀐다고 적지 않는다.
-        val settings = root[SETTINGS]?.let { runCatching { json.decodeFromJsonElement<BackupSettings>(it) }.getOrNull() }
-        return problemOf(backup)?.let { BackupRead.Invalid(BROKEN, it) } ?: BackupRead.Valid(backup.copy(settings = settings))
+        return problemOf(backup)?.let { BackupRead.Invalid(BROKEN, it) } ?: BackupRead.Valid(backup)
     }
-
-    /** 앱 설정 칸의 이름([Backup.settings]) */
-    private const val SETTINGS = "settings"
 
     private const val BOM = "\uFEFF"
 

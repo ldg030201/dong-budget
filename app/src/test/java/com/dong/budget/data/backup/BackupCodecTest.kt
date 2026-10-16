@@ -406,15 +406,8 @@ class BackupCodecTest {
                 autoBackup = BackupAutoBackup(on = true, interval = "hourly"),
             )
         val text = broken { it.copy(settings = future) }.replace("\"settings\":{", "\"settings\":{\"fontScale\":1.2,")
-        val read = decodeValid(text)
-        assertEquals(future, read.settings)
-        val restore = read.settings!!.toRestore()
-        assertNull(restore.themeMode)
-        assertNull(restore.weekStart)
-        assertEquals(listOf(MenuItem.SALARY), restore.bottomMenu?.shown)
-        assertEquals(mapOf(AutoOption.STATS_DAY to false), restore.auto)
-        assertEquals(true, restore.backupOn)
-        assertNull(restore.backupInterval)
+        // 글 그대로 읽는다. 모르는 값을 건너뛰는 것은 되살릴 때다(SettingsRepositoryTest)
+        assertEquals(future, decodeValid(text).settings)
     }
 
     @Test

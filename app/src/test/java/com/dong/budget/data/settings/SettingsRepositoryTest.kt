@@ -1,10 +1,11 @@
 package com.dong.budget.data.settings
 
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
+import com.dong.budget.data.backup.BackupAutoBackup
 import com.dong.budget.data.backup.BackupInterval
 import com.dong.budget.data.backup.BackupSchedule
+import com.dong.budget.data.backup.BackupSettings
 import com.dong.budget.data.backup.backupSettingsOf
-import com.dong.budget.data.backup.toRestore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -49,15 +50,6 @@ class SettingsRepositoryTest {
             backupSchedule = BackupSchedule(on = false, interval = BackupInterval.MONTHLY),
         )
 
-    private fun everything(settings: AppSettings) = SettingsRestore(
-        themeMode = settings.themeMode,
-        weekStart = settings.weekStart,
-        bottomMenu = settings.bottomMenu,
-        auto = AutoOption.entries.associateWith { settings.auto.chosen(it) },
-        backupOn = settings.backupSchedule.on,
-        backupInterval = settings.backupSchedule.interval,
-    )
-
     @Test
     fun `아무것도 정하지 않았으면 처음 설치한 설정이다`() = runBlocking {
         assertEquals(AppSettings(), repository().current())
@@ -81,7 +73,7 @@ class SettingsRepositoryTest {
         // 이 폰에서는 다른 스위치를 꺼 두고 테마도 밝게 골라 뒀다
         repository.setThemeMode(ThemeMode.LIGHT)
         repository.setAuto(AutoOption.UPDATE_CHECK, false)
-        repository.restore(everything(custom))
+        repository.restore(backupSettingsOf(custom))
         assertEquals(custom, repository.current())
         assertTrue(repository.autoSettings.first().chosen(AutoOption.UPDATE_CHECK))
         assertEquals(ThemeMode.DARK, repository.themeMode.first())
@@ -98,8 +90,14 @@ class SettingsRepositoryTest {
     @Test
     fun `되살릴 설정에 없는 것은 지금 값을 그대로 둔다`() = runBlocking {
         val repository = repository()
-        repository.restore(everything(custom))
-        repository.restore(SettingsRestore(themeMode = ThemeMode.LIGHT, auto = mapOf(AutoOption.EDITOR_KEYPAD to true), backupOn = true))
+        repository.restore(backupSettingsOf(custom))
+        repository.restore(
+            BackupSettings(
+                themeMode = "LIGHT",
+                autoOptions = mapOf(AutoOption.EDITOR_KEYPAD.key to true),
+                autoBackup = BackupAutoBackup(on = true),
+            ),
+        )
         val after = checkNotNull(repository.current())
         assertEquals(ThemeMode.LIGHT, after.themeMode)
         assertTrue(after.auto.chosen(AutoOption.EDITOR_KEYPAD))
@@ -111,9 +109,42 @@ class SettingsRepositoryTest {
     }
 
     @Test
+    fun `이 앱이 모르는 값과 고를 수 없는 값은 건너뛰고 지금 값을 둔다`() = runBlocking {
+        val repository = repository()
+        repository.restore(backupSettingsOf(custom))
+        // 더 새 앱이 만든 백업 흉내: 새 테마 · 고를 수 없는 요일 · 아는 칸 하나뿐인 하단 메뉴 · 새 스위치 · 새 주기
+        repository.restore(
+            BackupSettings(
+                themeMode = "SEPIA",
+                weekStart = "WEDNESDAY",
+                bottomMenu = "budget,salary|statistics",
+                autoOptions = mapOf("auto_future_switch" to false, AutoOption.STATS_DAY.key to false),
+                autoBackup = BackupAutoBackup(on = true, interval = "hourly"),
+            ),
+        )
+        val after = checkNotNull(repository.current())
+        assertEquals(custom.themeMode, after.themeMode)
+        assertEquals(custom.weekStart, after.weekStart)
+        assertEquals(listOf(MenuItem.SALARY), after.bottomMenu.shown)
+        assertFalse(after.auto.chosen(AutoOption.STATS_DAY))
+        assertEquals(BackupSchedule(on = true, interval = custom.backupSchedule.interval), after.backupSchedule)
+        // 이름은 저장소와 같은 대문자다. 아는 칸이 하나도 없는 하단 메뉴는 가운데를 비우지 않고 지금 차림을 둔다.
+        listOf("", "|", "budget|wallet", "아무 글").forEach { menu ->
+            repository.restore(BackupSettings(themeMode = "dark", weekStart = "monday", bottomMenu = menu))
+            val now = checkNotNull(repository.current())
+            assertEquals(menu, custom.themeMode, now.themeMode)
+            assertEquals(menu, listOf(MenuItem.SALARY), now.bottomMenu.shown)
+        }
+        // 가운데를 모두 뺀 차림은 그대로 받는다
+        val empty = BottomMenu.of(emptyList())
+        repository.restore(BackupSettings(bottomMenu = empty.encode()))
+        assertEquals(empty, checkNotNull(repository.current()).bottomMenu)
+    }
+
+    @Test
     fun `설정 초기화는 되살린 설정도 처음대로 돌린다`() = runBlocking {
         val repository = repository()
-        repository.restore(everything(custom))
+        repository.restore(backupSettingsOf(custom))
         repository.resetAll()
         assertEquals(AppSettings(), repository.current())
     }
@@ -121,12 +152,12 @@ class SettingsRepositoryTest {
     @Test
     fun `백업에 담은 설정을 다른 폰에 되살리면 같은 설정이 된다`() = runBlocking {
         val old = repository("old")
-        old.restore(everything(custom))
+        old.restore(backupSettingsOf(custom))
         // 새 폰은 스위치 하나를 꺼 두고 1일마다 자동 백업한다
         val new = repository("new")
         new.setAuto(AutoOption.STATS_DAY, false)
         new.setBackupSchedule(BackupSchedule(interval = BackupInterval.DAILY))
-        new.restore(backupSettingsOf(checkNotNull(old.current())).toRestore())
+        new.restore(backupSettingsOf(checkNotNull(old.current())))
         assertEquals(custom, new.current())
     }
 }

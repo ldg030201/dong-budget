@@ -48,6 +48,12 @@ enum class AutoOption(val key: String, val parent: AutoOption? = null) {
 
     /** 통계 일별에서 처음 볼 날을 고른다(이번 달은 오늘, 지나간 달은 가장 많이 쓴 날). 끄면 1일부터 본다. */
     STATS_DAY("auto_stats_day"),
+    ;
+
+    companion object {
+        /** 저장소 열쇠([key])로 찾는다. 모르는 열쇠(더 새 앱의 스위치)면 null */
+        fun fromKey(key: String): AutoOption? = entries.firstOrNull { it.key == key }
+    }
 }
 
 /**
