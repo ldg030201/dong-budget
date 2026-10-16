@@ -4,6 +4,7 @@ import com.dong.budget.BuildConfig
 import com.dong.budget.data.salary.SalaryRepository
 import com.dong.budget.data.salary.SalarySettings
 import com.dong.budget.data.salary.toRecord
+import com.dong.budget.data.settings.SettingsRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -16,14 +17,16 @@ import kotlinx.coroutines.withContext
 class BackupExporter(
     private val backupRepository: BackupRepository,
     private val salaryRepository: SalaryRepository,
+    private val settingsRepository: SettingsRepository,
     private val storage: BackupStorage,
     private val history: BackupHistory,
     private val appVersion: String = BuildConfig.VERSION_NAME,
 ) {
-    /** 거래·분류·결제수단과 월급 설정(정해 둔 때만)을 담은 백업 글 */
+    /** 거래·분류·결제수단과 월급 설정(정해 둔 때만), 앱 설정을 담은 백업 글 */
     suspend fun encode(pretty: Boolean): String {
         val salary = salaryRepository.settings.first().takeIf { it != SalarySettings() }?.toRecord()
-        val backup = backupRepository.export(appVersion).copy(salary = salary)
+        val settings = backupSettingsOf(settingsRepository.current())
+        val backup = backupRepository.export(appVersion).copy(salary = salary, settings = settings)
         // 거래가 많으면 글로 바꾸는 데 시간이 걸린다. 화면이 멈추지 않게 뒤에서 한다.
         return withContext(Dispatchers.Default) { BackupCodec.encode(backup, pretty) }
     }

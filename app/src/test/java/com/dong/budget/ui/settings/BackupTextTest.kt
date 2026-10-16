@@ -8,11 +8,14 @@ import com.dong.budget.data.backup.BackupPaymentMethod
 import com.dong.budget.data.backup.BackupSchedule
 import com.dong.budget.data.backup.BackupTransaction
 import com.dong.budget.data.backup.LastBackup
+import com.dong.budget.data.backup.backupSettingsOf
 import com.dong.budget.data.db.CategoryScope
 import com.dong.budget.data.db.PaymentMethodType
 import com.dong.budget.data.db.TransactionType
 import com.dong.budget.data.salary.SalaryRecord
+import com.dong.budget.data.settings.AppSettings
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.Instant
@@ -126,5 +129,36 @@ class BackupTextTest {
             }
         val preview = RestorePreview(withSource, Instant.parse("2026-09-29T05:03:00Z"), 0)
         assertTrue(restoreMessage(preview, today).contains("결제수단 1개 · 들어온 곳 1개\n"))
+    }
+
+    @Test
+    fun `앱 설정이 담긴 백업이면 설정도 바뀐다고 알린다`() {
+        val withSettings = backup(3).copy(settings = backupSettingsOf(AppSettings()))
+        val preview = RestorePreview(withSettings, Instant.parse("2026-09-29T05:03:00Z"), currentTransactions = 60)
+        assertEquals(
+            "9월 29일 (화) 오후 2:03에 만든 백업이에요.\n거래 3건 · 분류 2개 · 결제수단 1개\n\n" +
+                "지금 있는 거래 60건과 분류·결제수단·들어온 곳은 모두 지우고 백업 내용으로 바꿔요. " +
+                "화면·자동 기능 같은 설정도 백업 때로 바꿔요. 되돌릴 수 없어요.",
+            restoreMessage(preview, today),
+        )
+        // 지우기 전에 자동으로 백업하면 그 안내가 뒤에 붙는다
+        assertTrue(
+            restoreMessage(preview.copy(autoBackup = true), today).endsWith(
+                "화면·자동 기능 같은 설정도 백업 때로 바꿔요. 지우기 전에 지금 데이터를 다운로드 폴더에 백업 파일로 저장해 둬요.",
+            ),
+        )
+        // 설정 칸이 없는 옛 백업은 설정을 건드리지 않으니 적지 않는다
+        val old = RestorePreview(backup(3), Instant.parse("2026-09-29T05:03:00Z"), currentTransactions = 60)
+        assertFalse(restoreMessage(old, today).contains("설정도"))
+    }
+
+    @Test
+    fun `월급 설정이나 앱 설정을 다 넣지 못하면 못 넣은 것만 알린다`() {
+        assertEquals("거래는 되살렸지만 월급 설정을 되살리지 못했어요", restorePartlyFailedMessage(salary = true, settings = false))
+        assertEquals("거래는 되살렸지만 화면·자동 기능 설정을 되살리지 못했어요", restorePartlyFailedMessage(salary = false, settings = true))
+        assertEquals(
+            "거래는 되살렸지만 월급 설정과 화면·자동 기능 설정을 되살리지 못했어요",
+            restorePartlyFailedMessage(salary = true, settings = true),
+        )
     }
 }

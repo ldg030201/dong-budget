@@ -116,10 +116,18 @@ internal fun restoreMessage(preview: RestorePreview, today: LocalDate): String {
         "${if (backup.salary != null) " · 월급 설정" else ""}\n\n" +
         (if (preview.currentTransactions > 0) "지금 있는 거래 ${formatAmount(preview.currentTransactions.toLong())}건과 " else "지금 있는 ") +
         "분류·결제수단·들어온 곳은 모두 지우고 백업 내용으로 바꿔요. " +
+        // 앱 설정은 1.9.0 까지의 백업에는 없어서 있을 때만 적는다. 없으면 지금 설정이 그대로다.
+        (if (backup.settings != null) "화면·자동 기능 같은 설정도 백업 때로 바꿔요. " else "") +
         if (preview.autoBackup) AUTO_BACKUP_NOTICE else "되돌릴 수 없어요."
 }
 
 internal fun restoredMessage(backup: Backup): String = "백업으로 복원했어요 · 거래 ${formatAmount(backup.transactions.size.toLong())}건"
+
+/** 거래는 되살렸는데 DB 밖에 따로 넣는 월급 설정·앱 설정을 다 넣지 못했을 때. 못 넣은 것만 적는다. */
+internal fun restorePartlyFailedMessage(salary: Boolean, settings: Boolean): String {
+    val failed = listOfNotNull("월급 설정".takeIf { salary }, "화면·자동 기능 설정".takeIf { settings })
+    return "거래는 되살렸지만 ${failed.joinToString("과 ")}을 되살리지 못했어요"
+}
 
 /** 데이터 초기화를 묻는 창의 글. [autoBackup] 이면 지우기 전에 자동으로 백업한다고 알리고, 아니면 먼저 백업해 두라고 권한다. */
 internal fun resetDataMessage(transactionCount: Int, autoBackup: Boolean = false): String =
@@ -148,7 +156,6 @@ internal const val RESET_DATA_DONE = "처음 설치한 상태로 돌렸어요"
 internal const val RESET_DATA_FAILED = "데이터를 지우지 못했어요. 지금 데이터는 그대로예요"
 internal const val RESET_SETTINGS_FAILED = "설정을 되돌리지 못했어요"
 internal const val RESET_DATA_PARTLY_FAILED = "거래는 지웠지만 알림 목록이나 월급 설정을 다 지우지 못했어요. 다시 해 주세요"
-internal const val RESTORE_SALARY_FAILED_MESSAGE = "거래는 되살렸지만 월급 설정을 되살리지 못했어요"
 internal const val AUTO_BACKUP_FAILED_RESTORE = "백업 파일을 저장하지 못해 복원하지 않았어요"
 internal const val AUTO_BACKUP_FAILED_RESET = "백업 파일을 저장하지 못해 지우지 않았어요"
 

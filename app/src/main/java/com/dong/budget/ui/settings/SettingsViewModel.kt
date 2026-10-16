@@ -12,6 +12,7 @@ import com.dong.budget.data.backup.BackupRepository
 import com.dong.budget.data.backup.BackupSchedule
 import com.dong.budget.data.backup.BackupStorage
 import com.dong.budget.data.backup.parseBackupTime
+import com.dong.budget.data.backup.toRestore
 import com.dong.budget.data.db.BudgetTime
 import com.dong.budget.data.devlog.DevLog
 import com.dong.budget.data.devlog.LogTag
@@ -125,10 +126,11 @@ class SettingsViewModel(
         val preview = _backup.value.restore ?: return
         _backup.update { it.copy(restore = null) }
         runBackup(RESTORE_FAILED_MESSAGE) {
-            // 되살리는 중에 화면을 떠나 뷰모델이 치워져도 끝까지 한다. 멈추면 거래만 바뀌고 월급 설정은 옛것으로 남는다.
+            // 되살리는 중에 화면을 떠나 뷰모델이 치워져도 끝까지 한다. 멈추면 거래만 바뀌고 월급 설정·앱 설정은 옛것으로 남는다.
             val done =
                 withContext(NonCancellable) {
                     // 지우기 전에 지금 데이터를 파일로 남긴다. 남기지 못하면 되살리지 않는다(지금 데이터는 그대로).
+                    // 그 파일에는 바꾸기 전 앱 설정도 들어 있어서, 그 파일로 되살리면 설정도 돌아간다.
                     backupExporter.replaceWithBackup(preview.autoBackup, AutoBackupReason.RESTORE, AUTO_BACKUP_FAILED_RESTORE) {
                         backupRepository.restore(preview.backup)
                         // 월급 설정은 DB 밖이라 거래를 되살린 뒤에 따로 넣는다. 백업에 없으면(월급을 정하기 전 백업) 지금 설정을 그대로 둔다.
@@ -136,7 +138,17 @@ class SettingsViewModel(
                             runCatching { preview.backup.salary?.let { salaryRepository.save(it.toSettings()) } }
                                 .onFailure { DevLog.warn(LogTag.BACKUP, "월급 설정을 되살리지 못했어요", it) }
                                 .isSuccess
-                        if (salaryRestored) restoredMessage(preview.backup) else RESTORE_SALARY_FAILED_MESSAGE
+                        // 앱 설정도 DB 밖이라 같다. 백업에 없으면(1.9.0 까지의 백업) 지금 설정을 그대로 둔다.
+                        // 자동 백업을 켜는 백업이어도 바로 백업하지 않는다. 주기는 다음에 앱을 열 때 본다.
+                        val settingsRestored =
+                            runCatching { preview.backup.settings?.let { settingsRepository.restore(it.toRestore()) } }
+                                .onFailure { DevLog.warn(LogTag.BACKUP, "앱 설정을 되살리지 못했어요", it) }
+                                .isSuccess
+                        if (salaryRestored && settingsRestored) {
+                            restoredMessage(preview.backup)
+                        } else {
+                            restorePartlyFailedMessage(salary = !salaryRestored, settings = !settingsRestored)
+                        }
                     }
                 }
             _messages.send(done)

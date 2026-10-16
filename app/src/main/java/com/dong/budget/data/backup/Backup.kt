@@ -52,12 +52,16 @@ const val BACKUP_FORMAT = 2
 const val BACKUP_FORMAT_INCOME_SOURCES = 2
 
 /**
- * 거래·분류·결제수단 전부와 고정지출 목록, 월급 설정. 화면 테마·자동 기능과 알림 목록은 담지 않는다.
+ * 거래·분류·결제수단 전부와 고정지출 목록, 월급 설정, 앱 설정. 잠금(PIN)과 알림 목록은 담지 않는다(BackupSettings.kt).
  * @property appVersion 만든 앱 버전. 읽을 때 쓰지는 않고, 문제가 생겼을 때 어느 버전에서 만든 것인지 보려고 남긴다.
  * @property salary 월급 설정. 정한 적 없으면 없다(월급 탭이 생기기 전 백업에도 없다). 없으면 되살릴 때 지금 설정을 그대로 둔다.
  * @property fixedMerchants 고정지출 목록(DB 7). 내보낼 때는 비어 있어도 늘 적는다. 칸이 없으면(목록이 생기기 전 백업) 되살린 뒤
  *   DB 를 6 → 7 로 올릴 때처럼 그날 고정지출 탭에 보였을 곳을 등록한다(BackupRepository.restore).
  *   칸을 더하기만 해서 판은 그대로다. 옛 앱(판 2)은 모르는 칸을 건너뛰고 읽는데, 옛 앱에는 목록이 없어 잃는 것이 없다.
+ * @property settings 화면 테마·한 주 시작·하단 메뉴·자동 기능·자동 백업. 내보낼 때는 늘 적는다. 칸이 없으면(1.9.0 까지의 백업)
+ *   되살릴 때 지금 설정을 그대로 둔다. 읽을 수 없으면 백업을 거절하지 않고 이 칸만 없는 것으로 읽는다([BackupCodec.decode]).
+ *   이것도 칸을 더하기만 해서 판은 그대로다. 옛 앱(판 2)은 이 칸을 건너뛰고 거래·분류는 그대로 되살린다(설정만 따라가지 않는다).
+ *   판을 올리면 옛 앱이 백업 전체를 '더 새 버전' 이라며 거절하므로 올리지 않는다.
  */
 @Serializable
 data class Backup(
@@ -70,6 +74,7 @@ data class Backup(
     val transactions: List<BackupTransaction>,
     val salary: SalaryRecord? = null,
     val fixedMerchants: List<BackupFixedMerchant>? = null,
+    val settings: BackupSettings? = null,
 )
 
 /**
@@ -167,13 +172,19 @@ object BackupCodec {
         if (format > BACKUP_FORMAT) return BackupRead.Invalid(TOO_NEW, "판 $format")
         val backup =
             try {
-                json.decodeFromJsonElement<Backup>(root)
+                json.decodeFromJsonElement<Backup>(JsonObject(root - SETTINGS))
             } catch (e: IllegalArgumentException) {
                 // 칸이 빠졌거나 모르는 종류(enum)다. SerializationException 도 여기로 온다.
                 return BackupRead.Invalid(BROKEN, e.message)
             }
-        return problemOf(backup)?.let { BackupRead.Invalid(BROKEN, it) } ?: BackupRead.Valid(backup)
+        // 앱 설정은 따로 읽는다. 가계부가 아니어서, 읽을 수 없으면(손으로 고쳤거나 더 새 앱이 모양을 바꿨다) 백업을 거절하지 않고
+        // 설정만 빼고 되살린다. 묻는 창도 설정이 바뀐다고 적지 않는다.
+        val settings = root[SETTINGS]?.let { runCatching { json.decodeFromJsonElement<BackupSettings>(it) }.getOrNull() }
+        return problemOf(backup)?.let { BackupRead.Invalid(BROKEN, it) } ?: BackupRead.Valid(backup.copy(settings = settings))
     }
+
+    /** 앱 설정 칸의 이름([Backup.settings]) */
+    private const val SETTINGS = "settings"
 
     private const val BOM = "\uFEFF"
 

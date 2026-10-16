@@ -17,10 +17,17 @@ import com.dong.budget.data.salary.SalaryRecord
 import com.dong.budget.data.salary.SalarySettings
 import com.dong.budget.data.salary.toRecord
 import com.dong.budget.data.salary.toSettings
+import com.dong.budget.data.settings.AppSettings
+import com.dong.budget.data.settings.AutoOption
+import com.dong.budget.data.settings.AutoSettings
+import com.dong.budget.data.settings.BottomMenu
+import com.dong.budget.data.settings.MenuItem
+import com.dong.budget.data.settings.ThemeMode
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.time.DayOfWeek
 import java.time.Instant
 
 class BackupCodecTest {
@@ -338,5 +345,88 @@ class BackupCodecTest {
         assertEquals(BackupCodec.BROKEN, reason(broken { it.copy(fixedMerchants = listOf(one.copy(decidedAt = "어제"))) }))
         val text = broken { it.copy(fixedMerchants = listOf(one)) }
         assertEquals(BackupCodec.BROKEN, reason(text.replace("\"REGISTERED\"", "\"MAYBE\"")))
+    }
+
+    // ── 앱 설정 ──
+
+    private val darkMonday =
+        AppSettings(
+            themeMode = ThemeMode.DARK,
+            weekStart = DayOfWeek.MONDAY,
+            bottomMenu = BottomMenu.of(listOf(MenuItem.HISTORY, MenuItem.SALARY)),
+            auto = AutoSettings(setOf(AutoOption.CAPTURE_DEPOSIT, AutoOption.BACKUP_BEFORE_REPLACE)),
+            backupSchedule = BackupSchedule(on = false, interval = BackupInterval.MONTHLY),
+        )
+
+    @Test
+    fun `앱 설정도 담았다가 그대로 읽는다`() {
+        val withSettings = backup().copy(settings = backupSettingsOf(darkMonday))
+        listOf(true, false).forEach { pretty ->
+            val restored = decodeValid(BackupCodec.encode(withSettings, pretty))
+            assertEquals(withSettings, restored)
+        }
+        // 저장소에 적는 글 그대로 적는다. 이름을 바꾸면 옛 백업의 설정을 못 읽으니 바꾸지 않는다.
+        val text = BackupCodec.encode(withSettings, pretty = false)
+        assertTrue(
+            text,
+            "\"settings\":{\"themeMode\":\"DARK\",\"weekStart\":\"MONDAY\"," +
+                "\"bottomMenu\":\"history,salary|statistics,fixed_expense,card_performance\"," +
+                "\"autoOptions\":{\"auto_capture_prompt\":true,\"auto_capture_deposit\":false," in text,
+        )
+        assertTrue(text, "\"auto_backup_before_replace\":false," in text)
+        assertTrue(text, "\"autoBackup\":{\"on\":false,\"interval\":\"monthly\"}}" in text)
+    }
+
+    @Test
+    fun `앱 설정 칸이 없는 옛 백업은 판을 올리지 않고 설정 없이 읽는다`() {
+        // 1.9.0 이 만든 모양: 판 2, 설정 칸 없음
+        val text = BackupCodec.encode(backup(), pretty = false)
+        assertTrue("settings" !in text)
+        val read = decodeValid(text)
+        assertEquals(BACKUP_FORMAT, read.format)
+        assertNull(read.settings)
+    }
+
+    @Test
+    fun `모르는 설정 값은 백업을 거절하지 않고 그 값만 건너뛴다`() {
+        // 더 새 앱이 만든 백업 흉내: 새 테마·새 스위치·새 주기, 설정 안의 새 칸
+        val future =
+            BackupSettings(
+                themeMode = "SEPIA",
+                weekStart = "WEDNESDAY",
+                bottomMenu = "budget,salary|statistics",
+                autoOptions = mapOf("auto_future_switch" to false, AutoOption.STATS_DAY.key to false),
+                autoBackup = BackupAutoBackup(on = true, interval = "hourly"),
+            )
+        val text = broken { it.copy(settings = future) }.replace("\"settings\":{", "\"settings\":{\"fontScale\":1.2,")
+        val read = decodeValid(text)
+        assertEquals(future, read.settings)
+        val restore = read.settings!!.toRestore()
+        assertNull(restore.themeMode)
+        assertNull(restore.weekStart)
+        assertEquals(listOf(MenuItem.SALARY), restore.bottomMenu?.shown)
+        assertEquals(mapOf(AutoOption.STATS_DAY to false), restore.auto)
+        assertEquals(true, restore.backupOn)
+        assertNull(restore.backupInterval)
+    }
+
+    @Test
+    fun `앱 설정 칸을 읽을 수 없으면 설정만 빼고 읽는다`() {
+        val good = BackupCodec.encode(backup().copy(settings = backupSettingsOf(darkMonday)), pretty = false)
+        val settingsPart = "\"settings\":" + good.substringAfter("\"settings\":")
+        assertTrue(settingsPart.endsWith("}}"))
+        val brokenSettings =
+            listOf(
+                "\"settings\":\"dark\"}",
+                "\"settings\":null}",
+                "\"settings\":{\"autoOptions\":[\"auto_capture_prompt\"]}}",
+                "\"settings\":{\"autoBackup\":{\"on\":\"yes\"}}}",
+                "\"settings\":{\"themeMode\":{\"name\":\"DARK\"}}}",
+            )
+        brokenSettings.forEachIndexed { i, part ->
+            val read = decodeValid(good.replace(settingsPart, part))
+            assertNull("${i}번째", read.settings)
+            assertEquals("${i}번째", backup(), read)
+        }
     }
 }

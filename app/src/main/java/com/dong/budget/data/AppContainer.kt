@@ -100,7 +100,7 @@ class AppContainer(context: Context) {
     val backupHistory by lazy { BackupHistory(context.getSharedPreferences(BackupHistory.PREFS_NAME, Context.MODE_PRIVATE)) }
 
     /** 백업 글을 만들어 클립보드·다운로드 폴더에 둔다. 설정의 백업과 복원·초기화 전 자동 백업, 주기 자동 백업이 같이 쓴다. */
-    val backupExporter by lazy { BackupExporter(backupRepository, salaryRepository, backupStorage, backupHistory) }
+    val backupExporter by lazy { BackupExporter(backupRepository, salaryRepository, settingsRepository, backupStorage, backupHistory) }
 
     /** 정한 주기마다 앱을 열 때 백업 파일을 저장하고, 자동 백업 파일은 최근 몇 개만 남긴다 */
     private val scheduledBackup by lazy {

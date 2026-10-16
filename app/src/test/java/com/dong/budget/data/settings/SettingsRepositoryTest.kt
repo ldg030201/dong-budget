@@ -3,6 +3,8 @@ package com.dong.budget.data.settings
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import com.dong.budget.data.backup.BackupInterval
 import com.dong.budget.data.backup.BackupSchedule
+import com.dong.budget.data.backup.backupSettingsOf
+import com.dong.budget.data.backup.toRestore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -106,5 +108,17 @@ class SettingsRepositoryTest {
         repository.restore(everything(custom))
         repository.resetAll()
         assertEquals(AppSettings(), repository.current())
+    }
+
+    @Test
+    fun `백업에 담은 설정을 다른 폰에 되살리면 같은 설정이 된다`() = runBlocking {
+        val old = repository("old")
+        old.restore(everything(custom))
+        // 새 폰은 스위치 하나를 꺼 두고 1일마다 자동 백업한다
+        val new = repository("new")
+        new.setAuto(AutoOption.STATS_DAY, false)
+        new.setBackupSchedule(BackupSchedule(interval = BackupInterval.DAILY))
+        new.restore(backupSettingsOf(old.current()).toRestore())
+        assertEquals(custom, new.current())
     }
 }
