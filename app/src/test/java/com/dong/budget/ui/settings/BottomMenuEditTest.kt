@@ -70,45 +70,4 @@ class BottomMenuEditTest {
         assertNull(menu.moveBy(HISTORY, 1))
         assertNull(menu.moveBy(HOME, 1))
     }
-
-    @Test
-    fun `편집기가 저장한 차림이 늦게 돌아와도 되돌아가지 않고, 밖에서 바뀐 차림은 따라간다`() {
-        val saves = MenuSaves()
-        // 처음 그릴 때 받은 차림은 따라간다(같은 차림이라 그대로다)
-        assertEquals(menu, saves.arrived(menu))
-        // 연달아 두 번 끌었다. 첫 번째가 돌아올 때 편집기는 이미 두 번째를 보이고 있다.
-        val first = menu.moveTo(HISTORY, MenuSpot.Shown(0))
-        val second = first.moveTo(SALARY, MenuSpot.Hidden(0))
-        saves.saved(first)
-        saves.saved(second)
-        assertNull(saves.arrived(first))
-        assertNull(saves.arrived(second))
-        // 저장소가 마지막 것만 주어도 앞의 것까지 돌아온 것으로 본다
-        saves.saved(first)
-        saves.saved(second)
-        assertNull(saves.arrived(second))
-        // 백업을 복원해 밖에서 바뀌면 그 차림을 보인다
-        val restored = BottomMenu.of(listOf(CARD_PERFORMANCE))
-        assertEquals(restored, saves.arrived(restored))
-        // 저장한 것이 돌아오기 전에 밖에서 또 바뀌었으면(저장소가 바뀐 차림만 줬다) 바뀐 차림을 보인다
-        saves.saved(first)
-        assertEquals(restored, saves.arrived(restored))
-    }
-
-    @Test
-    fun `끝내 안 돌아온 저장은 잊어서 나중에 밖에서 그 차림으로 바뀌어도 따라간다`() {
-        var clock = 0L
-        val saves = MenuSaves(now = { clock })
-        // 끌었다가 원래대로 되돌렸다. 저장소는 마지막 값이 처음과 같아 아무것도 다시 주지 않았다.
-        val moved = menu.moveTo(HISTORY, MenuSpot.Shown(0))
-        saves.saved(moved)
-        saves.saved(menu)
-        // 한참 뒤 백업을 복원해 밖에서 그 끌었던 차림으로 바뀌었다. 제 저장으로 보고 넘기면 편집기가 옛 차림에 머문다.
-        clock += 60_000
-        assertEquals(moved, saves.arrived(moved))
-        // 바로 돌아온 저장은 지금처럼 넘긴다
-        saves.saved(menu)
-        clock += 10
-        assertNull(saves.arrived(menu))
-    }
 }

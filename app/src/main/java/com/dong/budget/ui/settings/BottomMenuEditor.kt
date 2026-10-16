@@ -70,14 +70,14 @@ import kotlin.math.roundToInt
  * 길게 누른 자리의 칸을 찾아 들고, 놓일 자리는 같은 줄 다른 칸들의 가운데와 견주어 정한다([spotIndex]).
  * 끌기는 화면 읽기로 할 수 없어 칸마다 옮기기·넣기·빼기 동작을 따로 준다.
  *
- * @param menu 지금 차림. 이 편집기가 그려져 있는 동안은 여기서 고친 차림이 기준이다(저장이 돌아오기 전에 또 끌어도 튀지 않게).
- *   밖에서 바뀌면(이 화면에서 백업을 복원하면) 그 차림을 따라간다([MenuSaves]).
+ * @param menu 지금 차림. 고친 차림은 앱이 저장소를 돌기 전에 바로 바꿔 주고(AppContainer.bottomMenu) 늦은 메아리도 거르므로,
+ *   여기서 온 값은 늘 따라간다. 밖에서 바뀐 차림(이 화면에서 백업을 복원하면)도 그렇다.
  */
 @Composable
 internal fun BottomMenuEditor(menu: BottomMenu, onChange: (BottomMenu) -> Unit, modifier: Modifier = Modifier) {
+    // 놓는 그 순간부터 고친 차림을 보이려고 들고 있는다(앱이 바꾼 값이 이 화면에 닿기까지 한 프레임 걸린다)
     var current by remember { mutableStateOf(menu) }
-    val saves = remember { MenuSaves() }
-    LaunchedEffect(menu) { saves.arrived(menu)?.let { current = it } }
+    LaunchedEffect(menu) { current = menu }
     var drag by remember { mutableStateOf<MenuDrag?>(null) }
     // 손가락 자리는 따로 둔다. 움직일 때마다 바뀌어도 든 아이콘의 자리만 다시 잡고(HeldIcon), 칸들은 놓일 자리가 바뀔 때만 다시 그린다.
     var pointer by remember { mutableStateOf(Offset.Zero) }
@@ -89,7 +89,6 @@ internal fun BottomMenuEditor(menu: BottomMenu, onChange: (BottomMenu) -> Unit, 
     fun save(next: BottomMenu) {
         if (next == current) return
         current = next
-        saves.saved(next)
         change(next)
     }
 

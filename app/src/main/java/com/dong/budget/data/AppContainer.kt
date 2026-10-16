@@ -21,6 +21,7 @@ import com.dong.budget.data.salary.SalaryRepository
 import com.dong.budget.data.salary.SalaryScheduler
 import com.dong.budget.data.settings.AutoSettings
 import com.dong.budget.data.settings.BottomMenu
+import com.dong.budget.data.settings.OptimisticValue
 import com.dong.budget.data.settings.SettingsRepository
 import com.dong.budget.data.settings.ThemeMode
 import com.dong.budget.data.update.StoreUpdates
@@ -179,15 +180,20 @@ class AppContainer(context: Context) {
         settingsRepository.weekStart.stateIn(appScope, SharingStarted.Eagerly, DayOfWeek.SUNDAY)
     }
 
-    /** 아래 메뉴 차림의 지금 값. 첫 화면의 아래 메뉴가 처음 차림으로 그려졌다가 바뀌지 않게 앱이 켜질 때부터 따라간다. */
-    val bottomMenu: StateFlow<BottomMenu> by lazy {
-        settingsRepository.bottomMenu.stateIn(appScope, SharingStarted.Eagerly, BottomMenu.DEFAULT)
+    /**
+     * 아래 메뉴 차림. 첫 화면의 아래 메뉴가 처음 차림으로 그려졌다가 바뀌지 않게 앱이 켜질 때부터 따라간다.
+     * 편집기에서 바꾼 차림은 저장소를 돌기 전에 바로 보이고, 저장소를 늦게 돌아오는 옛 차림으로 튀지 않는다([OptimisticValue]).
+     * 저장은 설정 화면을 바로 나가도 끊기지 않게 앱 범위에서 한다.
+     */
+    private val bottomMenuValue by lazy {
+        OptimisticValue(appScope, settingsRepository.bottomMenu, BottomMenu.DEFAULT, settingsRepository::setBottomMenu)
     }
 
-    /** 아래 메뉴 차림을 저장한다. 설정 화면을 바로 나가도 끊기지 않게 앱 범위에서 한다. */
-    fun setBottomMenu(menu: BottomMenu) {
-        appScope.launch { settingsRepository.setBottomMenu(menu) }
-    }
+    /** 아래 메뉴 차림의 지금 값 */
+    val bottomMenu: StateFlow<BottomMenu> get() = bottomMenuValue.value
+
+    /** 아래 메뉴 차림을 바꾼다. 바로 보이고, 저장은 뒤에서 한다. */
+    fun setBottomMenu(menu: BottomMenu) = bottomMenuValue.set(menu)
 
     /** 자동 백업 설정의 지금 값. 테마처럼 설정을 열 때 스위치·주기가 기본값에서 저장된 값으로 미끄러지지 않게 미리 따라간다. */
     val backupSchedule: StateFlow<BackupSchedule> by lazy {
