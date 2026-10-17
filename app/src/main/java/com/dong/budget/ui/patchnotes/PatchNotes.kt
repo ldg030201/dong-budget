@@ -95,6 +95,33 @@ private fun newMenu(menu: PatchMenu, vararg changes: Change) = MenuChanges(menu,
 val PATCH_NOTES: List<Release> =
     listOf(
         Release(
+            version = "1.9.1",
+            date = LocalDate.of(2026, 10, 16),
+            menus =
+            listOf(
+                menu(
+                    PatchMenu.EDITOR,
+                    changed("수입은 '내용' 칸 안내가 '어디에 썼나요' 대신 '어떻게 들어왔나요'로 나와요"),
+                ),
+                menu(
+                    PatchMenu.FIXED_EXPENSES,
+                    changed("'고정지출' 분류로 적어도 바로 탭에 들어가지 않아요. 탭 맨 위 '고정지출로 등록할까요?'에서 '등록'을 눌러야 목록에 들어가고, '안 함'이면 넣지 않아요"),
+                    added("목록에 넣은 곳은 줄을 길게 눌러 뺄 수 있어요. 지난 거래는 '고정지출' 분류 그대로 남아요"),
+                    added("뺐거나 '안 함'을 고른 곳은 맨 아래 접힌 '등록 안 한 곳'에서 다시 등록할 수 있어요. 그 뒤 '고정지출' 결제가 새로 생기면 다시 물어요"),
+                    changed("업데이트하면 지금 탭에 보이던 곳은 모두 목록에 들어가 있어서 화면은 그대로예요"),
+                ),
+                menu(
+                    PatchMenu.SETTINGS,
+                    added(
+                        "백업에 앱 설정(화면 테마·한 주 시작 요일·하단 메뉴·자동 기능 스위치·자동 백업 주기)도 담아요. 다른 폰에서 되살리면 설정까지 그대로 옮겨지고, 복원 확인 창에서 알려 줘요. 잠금과 알림 목록은 담지 않아요",
+                    ),
+                    added("백업에 고정지출 목록도 담아요. 목록이 없는 옛 백업을 되살리면 업데이트할 때처럼 그때 보이던 곳을 목록에 넣어요"),
+                    added("잠금이 꺼진 폰에서 복원하면, 잠금은 백업에 들어가지 않으니 쓰던 잠금이 있으면 다시 켜라고 알려요"),
+                    changed("개인정보처리방침에 백업에 담는 앱 설정과 고정지출 목록을 더했어요"),
+                ),
+            ),
+        ),
+        Release(
             version = "1.9.0",
             date = LocalDate.of(2026, 10, 12),
             menus =
