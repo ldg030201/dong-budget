@@ -26,13 +26,14 @@
 - 🔎 **[내역](docs/guide/history.md)** — 모든 거래를 모아 보고 가게·분류·금액으로 찾는다
 - 💰 **[실시간 월급](docs/guide/salary.md)** — 일하는 동안 오늘 번 돈이 초마다 올라간다. PIN·지문으로 잠근다
 - 📊 **[통계](docs/guide/statistics.md)** — 한눈에 · 월별 · 일별 · 분류 · 결제수단
+- 🐷 **[저축](docs/guide/savings.md)** — '저축' 분류로 적은 돈은 쓴 돈에서 빼고 따로 모은다. 내역 · 통계 · 고정저축
 - 🗓️ **[고정지출](docs/guide/fixed-expenses.md)** — 매달 나가는 돈을 이번 달에 냈는지. 넣을 곳은 직접 고르고, 날짜와 금액은 지난 기록으로 짐작한다
 - 💳 **[카드실적](docs/guide/card-performance.md)** — 카드마다 다음 실적 구간까지 얼마 더 쓰면 되는지
 - 🗂️ **[분류 관리](docs/guide/categories.md)** · ⚙️ **[설정](docs/guide/settings.md)** — 아이콘과 색, 아래 메뉴 차림, 백업 · 복원, 앱 잠금
 
 ## 메뉴별 안내
 
-사진을 누르면 메뉴마다 자세한 안내로 간다.
+사진이나 이름을 누르면 메뉴마다 자세한 안내로 간다.
 
 <table>
 <tr>
@@ -71,6 +72,10 @@
 </tr>
 <tr>
 <td align="center" width="33%" valign="top">
+<b><a href="docs/guide/savings.md">저축</a></b><br>
+<sub>모은 돈을 내역 · 통계 · 고정저축으로</sub>
+</td>
+<td align="center" width="33%" valign="top">
 <a href="docs/guide/fixed-expenses.md"><img src="docs/images/fixed.png" width="200" alt="고정지출"></a><br>
 <b><a href="docs/guide/fixed-expenses.md">고정지출</a></b><br>
 <sub>이번 달 냈는지, 놓쳤는지</sub>
@@ -80,13 +85,13 @@
 <b><a href="docs/guide/card-performance.md">카드실적</a></b><br>
 <sub>다음 구간까지 남은 돈</sub>
 </td>
+</tr>
+<tr>
 <td align="center" width="33%" valign="top">
 <a href="docs/guide/categories.md"><img src="docs/images/categories.png" width="200" alt="분류 관리"></a><br>
 <b><a href="docs/guide/categories.md">분류 관리</a></b><br>
 <sub>길게 눌러 순서 바꾸기</sub>
 </td>
-</tr>
-<tr>
 <td align="center" width="33%" valign="top">
 <a href="docs/guide/settings.md"><img src="docs/images/settings-menu.png" width="200" alt="전체 · 설정"></a><br>
 <b><a href="docs/guide/settings.md">전체 · 설정</a></b><br>
@@ -97,7 +102,6 @@
 <b><a href="docs/guide/settings.md#어두운-테마">어두운 테마</a></b><br>
 <sub>밝게 · 기기 설정 · 어둡게</sub>
 </td>
-<td></td>
 </tr>
 </table>
 

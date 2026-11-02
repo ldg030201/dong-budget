@@ -105,4 +105,4 @@
 
 ---
 
-[← 이전: 월급](salary.md) · [목차](../../README.md#메뉴별-안내) · [다음: 고정지출 →](fixed-expenses.md)
+[← 이전: 월급](salary.md) · [목차](../../README.md#메뉴별-안내) · [다음: 저축 →](savings.md)

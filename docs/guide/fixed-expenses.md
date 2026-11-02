@@ -74,4 +74,4 @@
 
 ---
 
-[← 이전: 통계](statistics.md) · [목차](../../README.md#메뉴별-안내) · [다음: 카드실적 →](card-performance.md)
+[← 이전: 저축](savings.md) · [목차](../../README.md#메뉴별-안내) · [다음: 카드실적 →](card-performance.md)
