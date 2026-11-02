@@ -2,6 +2,7 @@ package com.dong.budget.ui.card
 
 import com.dong.budget.data.db.PaymentMethodEntity
 import com.dong.budget.data.db.PaymentMethodType
+import com.dong.budget.data.db.SAVINGS_CATEGORY_CODE
 import com.dong.budget.data.db.TransactionListItem
 import com.dong.budget.data.db.TransactionType.EXPENSE
 import com.dong.budget.data.db.TransactionType.REFUND
@@ -94,6 +95,18 @@ class CardPerformanceStatesTest {
     }
 
     @Test
+    fun `저축 분류로 낸 돈은 카드 실적에 넣지 않는다`() {
+        // 하나카드로 낸 적금. 탭 조회(observeCardSpending)가 저축을 빼고 읽는다(도우미 cardSpending 이 같은 규칙).
+        val withSavings =
+            rows +
+                tx("2026-10-02", 500_000, paymentId = 2, categoryId = 7, merchant = "적금", categoryCode = SAVINGS_CATEGORY_CODE) +
+                tx("2026-10-02", 30_000, paymentId = 1, categoryId = 7, merchant = "청약", categoryCode = SAVINGS_CATEGORY_CODE)
+        val state = buildCardPerformance(methods, withSavings.cardSpending(), today, emptyMap())
+        assertEquals(123_450L, state.tracked.first().progress.spent)
+        assertEquals(50_000L, state.untracked.first { it.card.name == "체크카드" }.spent)
+    }
+
+    @Test
     fun `볼 카드가 하나도 없으면 비어 있다`() {
         val state = buildCardPerformance(methods.filter { !it.isPerformanceTarget() }, rows.cardSpending(), today, emptyMap())
         assertTrue(state.loaded)
@@ -134,6 +147,19 @@ class CardPerformanceStatesTest {
         assertEquals(listOf(day("2026-10-02"), day("2026-10-01")), state.days.map { it.date })
         // 같은 날은 늦은 시각이 먼저다
         assertEquals(listOf(30_000L, 100_000L), state.days.first().items.map { it.amount })
+    }
+
+    @Test
+    fun `상세는 저축 분류로 낸 돈을 쓴 돈에도 목록에도 넣지 않는다`() {
+        val withSavings =
+            hanaRows +
+                tx("2026-10-02T12:00", 500_000, paymentId = 2, categoryId = 7, merchant = "적금", categoryCode = SAVINGS_CATEGORY_CODE) +
+                tx("2026-09-12", 500_000, paymentId = 2, categoryId = 7, merchant = "적금", categoryCode = SAVINGS_CATEGORY_CODE)
+        val state = buildCardDetail(hana, YearMonth.of(2026, 10), today, withSavings, firstUse = null)
+        assertEquals(123_450L, state.progress.spent)
+        assertEquals(523_000L, state.history.single { it.period.month == YearMonth.of(2026, 9) }.progress.spent)
+        assertEquals(3, state.count)
+        assertTrue(state.days.flatMap { it.items }.none { it.merchant == "적금" })
     }
 
     @Test

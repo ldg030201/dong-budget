@@ -3,14 +3,16 @@ package com.dong.budget.ui.card
 import com.dong.budget.data.db.CardSpendRow
 import com.dong.budget.data.db.TransactionListItem
 import com.dong.budget.data.db.TransactionType
+import com.dong.budget.data.db.isSavings
 import com.dong.budget.ui.stats.calc.TREND_MONTHS
 import kotlinx.coroutines.flow.StateFlow
 import java.lang.reflect.Proxy
 
-/** 탭 조회(observeCardSpending)처럼 결제수단으로 쓴 지출·환불만 골라 쓴 돈을 세는 칸으로 */
+/** 탭 조회(observeCardSpending)처럼 결제수단으로 쓴 지출·환불만(저축은 빼고) 골라 쓴 돈을 세는 칸으로 */
 internal fun List<TransactionListItem>.cardSpending(): List<CardSpendRow> = mapNotNull { item ->
     val method = item.paymentMethodId ?: return@mapNotNull null
     if (item.type != TransactionType.EXPENSE && item.type != TransactionType.REFUND) return@mapNotNull null
+    if (item.isSavings) return@mapNotNull null
     CardSpendRow(method, item.type, item.amount, item.occurredAt)
 }
 

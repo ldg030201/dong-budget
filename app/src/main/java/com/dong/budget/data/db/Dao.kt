@@ -74,6 +74,17 @@ private const val LIST_ITEM_COLUMNS =
                c.code AS categoryCode
     """
 
+/**
+ * 거래(별칭 없이 transactions)가 '저축' 분류로 적은 것이 아닌지. 카드실적이 쓴 돈에서 저축을 뺄 때 쓴다([isSavings] 와 같은 규칙,
+ * 지출 · 환불만 읽는 조회에 붙인다). 분류를 비운 거래도 남게 NULL 을 따로 본다(NOT IN 만 쓰면 categoryId 가 NULL 인 거래가 통째로 빠진다).
+ * 분류 표를 보게 되어, 이 조건을 붙인 조회는 분류를 고쳐도 다시 내보낸다.
+ */
+private const val NOT_SAVINGS =
+    "(categoryId IS NULL OR categoryId NOT IN (SELECT id FROM categories WHERE code = '" + SAVINGS_CATEGORY_CODE + "'))"
+
+/** [LIST_ITEM_FROM] 으로 읽는 거래(분류는 c)가 '저축' 분류로 적은 것이 아닌지([NOT_SAVINGS] 와 같은 규칙). 분류가 없으면 c.code 가 NULL 이라 남는다. */
+private const val LIST_ITEM_NOT_SAVINGS = "c.code IS NOT '" + SAVINGS_CATEGORY_CODE + "'"
+
 /** [LIST_ITEM_COLUMNS] 를 읽는 표와 이음 */
 private const val LIST_ITEM_FROM =
     """
@@ -145,12 +156,13 @@ interface TransactionDao {
     )
     fun observeExpensesWithCategoryCode(code: String, start: Instant, end: Instant): Flow<List<FixedExpenseRow>>
 
-    /** 기간 안에 결제수단 [paymentMethodId] 로 쓴 지출과 환불을 최신순으로. 카드실적 상세가 쓴다(쓴 돈 = 지출 − 환불). */
+    /** 기간 안에 결제수단 [paymentMethodId] 로 쓴 지출과 환불을 최신순으로(저축은 뺀다). 카드실적 상세가 쓴다(쓴 돈 = 지출 − 환불). */
     @Query(
         LIST_ITEM_SELECT +
             """
         WHERE t.paymentMethodId = :paymentMethodId AND t.type IN ('EXPENSE', 'REFUND')
-          AND t.occurredAt >= :start AND t.occurredAt < :end
+          AND t.occurredAt >= :start AND t.occurredAt < :end AND """ + LIST_ITEM_NOT_SAVINGS +
+            """
         ORDER BY t.occurredAt DESC, t.id DESC
         """,
     )
@@ -177,11 +189,15 @@ interface TransactionDao {
     )
     fun observeWithMerchantSince(start: Instant): Flow<List<TransactionListItem>>
 
-    /** [end] 앞의 지출을 최신순으로 [limit] 건. 월급 탭의 최근 내역이 쓴다. 날짜를 앞으로 적어 둔 거래는 [end] 로 뺀다. */
+    /**
+     * [end] 앞의 지출을 최신순으로 [limit] 건. 월급 탭의 최근 내역이 쓴다. 날짜를 앞으로 적어 둔 거래는 [end] 로 뺀다.
+     * 저축은 쓴 돈이 아니라 뺀다. 건수를 잘라 읽어서 앱이 거르면 줄이 모자라므로 여기서 거른다.
+     */
     @Query(
         LIST_ITEM_SELECT +
             """
-        WHERE t.type = 'EXPENSE' AND t.occurredAt < :end
+        WHERE t.type = 'EXPENSE' AND t.occurredAt < :end AND """ + LIST_ITEM_NOT_SAVINGS +
+            """
         ORDER BY t.occurredAt DESC, t.id DESC
         LIMIT :limit
         """,
@@ -210,35 +226,40 @@ interface TransactionDao {
     fun observeFirstOccurredAt(): Flow<Instant?>
 
     /**
-     * 결제수단마다 지출·환불을 처음 쓴 시각. 카드실적의 쓴 돈과 같은 거래만 센다(이체·수입은 뺀다).
+     * 결제수단마다 지출·환불을 처음 쓴 시각. 카드실적의 쓴 돈과 같은 거래만 센다(이체·수입·저축은 뺀다).
      * 한 번도 안 쓴 결제수단과 결제수단이 없는 거래는 들어 있지 않다. 날짜를 앞으로 적어 둔 거래도 센다.
      */
     @Query(
         """
         SELECT paymentMethodId, MIN(occurredAt) AS firstAt FROM transactions
-        WHERE paymentMethodId IS NOT NULL AND type IN ('EXPENSE', 'REFUND')
+        WHERE paymentMethodId IS NOT NULL AND type IN ('EXPENSE', 'REFUND') AND """ + NOT_SAVINGS +
+            """
         GROUP BY paymentMethodId
         """,
     )
     fun observeFirstUseByPaymentMethod(): Flow<List<PaymentMethodFirstUse>>
 
     /**
-     * 기간 안에 결제수단으로 쓴 지출과 환불. 카드실적 탭이 카드마다 쓴 돈을 센다.
-     * 목록 조회와 달리 분류·결제수단을 붙이지 않고 필요한 칸만 읽어, 분류·결제수단을 고쳐도 다시 읽지 않는다.
+     * 기간 안에 결제수단으로 쓴 지출과 환불(저축은 뺀다). 카드실적 탭이 카드마다 쓴 돈을 센다.
+     * 목록 조회와 달리 분류·결제수단 이름을 붙이지 않고 필요한 칸만 읽어, 결제수단을 고쳐도 다시 읽지 않는다.
+     * 저축을 가르려고 분류 표는 봐서([NOT_SAVINGS]) 분류를 고치면 다시 읽는다.
      */
     @Query(
         """
         SELECT paymentMethodId, type, amount, occurredAt FROM transactions
         WHERE paymentMethodId IS NOT NULL AND type IN ('EXPENSE', 'REFUND') AND occurredAt >= :start AND occurredAt < :end
-        """,
+          AND """ + NOT_SAVINGS,
     )
     fun observeCardSpending(start: Instant, end: Instant): Flow<List<CardSpendRow>>
 
     /**
-     * 결제수단 [paymentMethodId] 하나를 지출·환불에 처음 쓴 시각. 한 번도 안 썼으면 null. 카드실적 상세가 쓴다.
+     * 결제수단 [paymentMethodId] 하나를 지출·환불에 처음 쓴 시각(저축은 뺀다). 한 번도 안 썼으면 null. 카드실적 상세가 쓴다.
      * 모든 결제수단을 묶어 세는 위 조회와 달리 (결제수단, 시각) 인덱스로 그 카드 기록만 본다.
      */
-    @Query("SELECT MIN(occurredAt) FROM transactions WHERE paymentMethodId = :paymentMethodId AND type IN ('EXPENSE', 'REFUND')")
+    @Query(
+        "SELECT MIN(occurredAt) FROM transactions WHERE paymentMethodId = :paymentMethodId AND type IN ('EXPENSE', 'REFUND') AND " +
+            NOT_SAVINGS,
+    )
     fun observeFirstUseOf(paymentMethodId: Long): Flow<Instant?>
 
     /** 알림에서 읽은 결제가 이미 등록됐는지 */

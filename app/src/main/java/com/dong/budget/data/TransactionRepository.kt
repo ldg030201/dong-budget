@@ -47,7 +47,7 @@ class TransactionRepository(private val transactionDao: TransactionDao) {
         .distinctUntilChanged()
 
     /**
-     * 결제수단마다 지출·환불을 처음 쓴 날(서울 기준). 카드실적이 그 카드로 기록하기 전 기간을 '기록 없음' 으로 둔다.
+     * 결제수단마다 지출·환불(저축은 빼고)을 처음 쓴 날(서울 기준). 카드실적이 그 카드로 기록하기 전 기간을 '기록 없음' 으로 둔다.
      * 한 번도 안 쓴 결제수단은 들어 있지 않다.
      */
     fun observeFirstUseDates(): Flow<Map<Long, LocalDate>> = transactionDao.observeFirstUseByPaymentMethod()
@@ -55,7 +55,7 @@ class TransactionRepository(private val transactionDao: TransactionDao) {
         // 거래를 쓸 때마다 Room 이 다시 내보내지만 첫 사용일은 거의 그대로다. 같은 값이면 카드실적을 다시 계산하지 않게 거른다.
         .distinctUntilChanged()
 
-    /** [first] 달 1일부터 [last] 달 말일까지 결제수단으로 쓴 지출·환불(쓴 돈을 세는 칸만). 카드실적 탭이 쓴다. */
+    /** [first] 달 1일부터 [last] 달 말일까지 결제수단으로 쓴 지출·환불(쓴 돈을 세는 칸만, 저축은 빼고). 카드실적 탭이 쓴다. */
     fun observeCardSpending(first: YearMonth, last: YearMonth): Flow<List<CardSpendRow>> =
         transactionDao.observeCardSpending(BudgetTime.monthRange(first).first, BudgetTime.monthRange(last).second)
 
@@ -74,7 +74,7 @@ class TransactionRepository(private val transactionDao: TransactionDao) {
             // Room 은 거래 표에 쓰기만 해도 다시 내보낸다. 고정지출과 상관없는 거래를 적었으면 판을 다시 계산하지 않게 거른다.
             .distinctUntilChanged()
 
-    /** [from] 날(서울 0시)부터 [until] 날 0시 전까지 결제수단 [paymentMethodId] 로 쓴 지출·환불. 카드실적 상세가 쓴다. */
+    /** [from] 날(서울 0시)부터 [until] 날 0시 전까지 결제수단 [paymentMethodId] 로 쓴 지출·환불(저축은 빼고). 카드실적 상세가 쓴다. */
     fun observeByPaymentMethod(paymentMethodId: Long, from: LocalDate, until: LocalDate): Flow<List<TransactionListItem>> =
         transactionDao.observeByPaymentMethod(paymentMethodId, from.startInstant(), until.startInstant())
 
@@ -112,7 +112,7 @@ class TransactionRepository(private val transactionDao: TransactionDao) {
         date.plusDays(1).atStartOfDay(BudgetTime.ZONE).toInstant(),
     )
 
-    /** [today] 까지(앞으로의 날짜로 적은 거래는 빼고) 최근 지출 [limit] 건. 월급 탭의 최근 내역이 쓴다. */
+    /** [today] 까지(앞으로의 날짜로 적은 거래는 빼고) 최근 지출 [limit] 건(저축은 빼고). 월급 탭의 최근 내역이 쓴다. */
     fun observeRecentExpenses(today: LocalDate, limit: Int): Flow<List<TransactionListItem>> =
         transactionDao.observeRecentExpenses(today.plusDays(1).atStartOfDay(BudgetTime.ZONE).toInstant(), limit)
 
