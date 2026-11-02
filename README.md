@@ -33,7 +33,7 @@
 
 ## 메뉴별 안내
 
-사진이나 이름을 누르면 메뉴마다 자세한 안내로 간다.
+사진을 누르면 메뉴마다 자세한 안내로 간다.
 
 <table>
 <tr>
@@ -72,6 +72,7 @@
 </tr>
 <tr>
 <td align="center" width="33%" valign="top">
+<a href="docs/guide/savings.md"><img src="docs/images/savings.png" width="200" alt="저축"></a><br>
 <b><a href="docs/guide/savings.md">저축</a></b><br>
 <sub>모은 돈을 내역 · 통계 · 고정저축으로</sub>
 </td>

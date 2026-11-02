@@ -3,6 +3,23 @@
 적금·청약처럼 모아 두는 돈을 **'저축' 분류**로 적으면, 그 돈은 쓴 돈에서 빠지고 여기에 모인다.
 **전체 → 저축**을 누르면 아래에 둥근 메뉴가 떠오른다. **내역 · 통계 · 고정저축**으로 나눠 보고, 맨 왼쪽 **←** 로 나온다.
 
+<table>
+<tr>
+<td align="center" width="33%">
+<img src="../images/savings.png" width="220" alt="저축 내역"><br>
+<sub><b>그해 모은 돈과 달마다 넣은 저축</b></sub>
+</td>
+<td align="center" width="33%">
+<img src="../images/savings-stats.png" width="220" alt="저축 통계"><br>
+<sub><b>이번 달 모은 돈 · 최근 6개월 · 상품별</b></sub>
+</td>
+<td align="center" width="33%">
+<img src="../images/savings-fixed.png" width="220" alt="고정저축"><br>
+<sub><b>등록할까요? · 아직 안 냈어요 · 냈어요</b></sub>
+</td>
+</tr>
+</table>
+
 처음에는 아래 메뉴에 없다. 자주 쓰면 **설정 → 하단 메뉴**에서 아래 메뉴에 넣는다([하단 메뉴](settings.md#하단-메뉴)).
 
 ## 저축은 쓴 돈이 아니다
