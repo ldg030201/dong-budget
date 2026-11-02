@@ -74,8 +74,8 @@ data class CardPerformanceUiState(
 /**
  * 탭의 상태를 만든다.
  * @param methods 결제수단 전부(결제수단 순서, 들어온 곳은 없다). 현금·계좌이체는 여기서 뺀다([isPerformanceTarget]).
- * @param rows 결제수단으로 쓴 지출·환불([tabReadRange] 범위)
- * @param firstUse 결제수단마다 지출·환불을 처음 쓴 날. 한 번도 안 쓴 결제수단은 없다.
+ * @param rows 결제수단으로 쓴 지출·환불(저축은 빼고, [tabReadRange] 범위)
+ * @param firstUse 결제수단마다 지출·환불(저축은 빼고)을 처음 쓴 날. 한 번도 안 쓴 결제수단은 없다.
  */
 fun buildCardPerformance(
     methods: List<PaymentMethodEntity>,
@@ -177,8 +177,8 @@ data class CardPerformanceDetailUiState(
 /**
  * 상세의 상태를 만든다.
  * @param month 보고 싶은 기간의 이름 달. 이번 기간보다 뒤면 이번 기간으로 맞춘다(앞으로의 기간은 못 본다).
- * @param rows 이 카드의 지출·환불([historyPeriods] 의 첫 기간 시작부터 마지막 기간 끝까지)
- * @param firstUse 이 카드를 지출·환불에 처음 쓴 날. 한 번도 안 썼으면 null
+ * @param rows 이 카드의 지출·환불(저축은 빼고, [historyPeriods] 의 첫 기간 시작부터 마지막 기간 끝까지)
+ * @param firstUse 이 카드를 지출·환불(저축은 빼고)에 처음 쓴 날. 한 번도 안 썼으면 null
  */
 fun buildCardDetail(
     method: PaymentMethodEntity,

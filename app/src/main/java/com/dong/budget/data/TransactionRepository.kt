@@ -59,7 +59,7 @@ class TransactionRepository(private val transactionDao: TransactionDao) {
     fun observeCardSpending(first: YearMonth, last: YearMonth): Flow<List<CardSpendRow>> =
         transactionDao.observeCardSpending(BudgetTime.monthRange(first).first, BudgetTime.monthRange(last).second)
 
-    /** 결제수단 [paymentMethodId] 를 지출·환불에 처음 쓴 날(서울 기준). 한 번도 안 썼으면 null. 카드실적 상세가 쓴다. */
+    /** 결제수단 [paymentMethodId] 를 지출·환불(저축은 빼고)에 처음 쓴 날(서울 기준). 한 번도 안 썼으면 null. 카드실적 상세가 쓴다. */
     fun observeFirstUseDate(paymentMethodId: Long): Flow<LocalDate?> = transactionDao.observeFirstUseOf(paymentMethodId)
         .map { it?.let(BudgetTime::toLocalDate) }
         // 거래를 쓸 때마다 Room 이 다시 내보내지만 첫 사용일은 거의 그대로다. 같은 값이면 다시 계산하지 않게 거른다.
