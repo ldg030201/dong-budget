@@ -75,8 +75,8 @@ private const val LIST_ITEM_COLUMNS =
     """
 
 /**
- * 거래(별칭 없이 transactions)가 '저축' 분류로 적은 것이 아닌지. 카드실적이 쓴 돈에서 저축을 뺄 때 쓴다([isSavings] 와 같은 규칙,
- * 지출 · 환불만 읽는 조회에 붙인다). 분류를 비운 거래도 남게 NULL 을 따로 본다(NOT IN 만 쓰면 categoryId 가 NULL 인 거래가 통째로 빠진다).
+ * 거래(별칭 없이 transactions)가 '저축' 분류로 적은 것이 아닌지. 카드실적의 쓴 돈과 통계의 기록 시작에서 저축을 뺄 때 쓴다
+ * ([isSavings] 와 같은 규칙이라 지출 · 환불에만 건다). 분류를 비운 거래도 남게 NULL 을 따로 본다(NOT IN 만 쓰면 categoryId 가 NULL 인 거래가 통째로 빠진다).
  * 분류 표를 보게 되어, 이 조건을 붙인 조회는 분류를 고쳐도 다시 내보낸다.
  */
 private const val NOT_SAVINGS =
@@ -221,8 +221,14 @@ interface TransactionDao {
     )
     suspend fun lastCategoryIdForMerchant(merchant: String, type: TransactionType): Long?
 
-    /** 통계의 기록 시작 시각. 이체는 통계에서 빼므로 여기서도 뺀다. 거래가 없으면 null */
-    @Query("SELECT MIN(occurredAt) FROM transactions WHERE type != 'TRANSFER'")
+    /**
+     * 통계의 기록 시작 시각. 이체와 저축(지출 · 환불만, [NOT_SAVINGS])은 통계에서 빼므로 여기서도 뺀다. 그런 거래가 없으면 null.
+     * 저축을 넣으면 적금만 먼저 적어 둔 달이 1일부터 기록한 달이 되어, 지난달 견주기 · 평균이 기록 전 날을 0원으로 센다.
+     */
+    @Query(
+        "SELECT MIN(occurredAt) FROM transactions WHERE type != 'TRANSFER' AND (type NOT IN ('EXPENSE', 'REFUND') OR " +
+            NOT_SAVINGS + ")",
+    )
     fun observeFirstOccurredAt(): Flow<Instant?>
 
     /**

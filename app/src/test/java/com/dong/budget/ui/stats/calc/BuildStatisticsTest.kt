@@ -187,10 +187,29 @@ class BuildStatisticsTest {
             tx("2026-08-05", 300_000, categoryId = 7, categoryCode = SAVINGS_CATEGORY_CODE),
             tx("2026-09-03", 10_000, categoryId = 1),
         )
-        val state = buildStatistics(september, day("2026-09-27"), rows, day("2026-08-05"))
+        // 기록 시작일 조회도 저축을 빼서 9월 3일이다
+        val state = buildStatistics(september, day("2026-09-27"), rows, day("2026-09-03"))
         assertNull(state.monthly.comparison)
         val byMonth = rows.groupBy { YearMonth.from(it.localDate()) }
         assertNull(compareSpending(september, day("2026-09-27"), byMonth[september].orEmpty(), byMonth[YearMonth.of(2026, 8)].orEmpty()))
+    }
+
+    @Test
+    fun `저축은 기록 시작일을 당기지 않는다`() {
+        // 8월 1일에 적금만 적고 쓴 돈은 8월 20일부터 적었다. 기록 시작일(조회도 저축을 뺀다)은 8월 20일이라
+        // 8월을 1일부터 기록한 달로 보지 않는다. 그래야 9월 증감이 기록 전 날을 0원으로 견주지 않고 8월이 평균을 낮추지 않는다.
+        val rows = listOf(
+            tx("2026-08-01", 300_000, categoryId = 7, categoryCode = SAVINGS_CATEGORY_CODE),
+            tx("2026-08-20", 50_000, categoryId = 1),
+            tx("2026-09-03", 150_000, categoryId = 1),
+        )
+        val state = buildStatistics(september, day("2026-09-25"), rows, day("2026-08-20"))
+        assertTrue(state.hasAnyRecord)
+        assertTrue(state.expenseByCategory.entries.all { it.change == null })
+        assertNull(state.monthly.trendAverage)
+        // 저축만 적었으면 아직 기록이 없는 것과 같다
+        val onlySavings = buildStatistics(september, day("2026-09-25"), rows.take(1), firstRecord = null)
+        assertFalse(onlySavings.hasAnyRecord)
     }
 
     @Test

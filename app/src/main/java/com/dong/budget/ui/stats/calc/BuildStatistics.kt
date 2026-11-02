@@ -23,7 +23,7 @@ import java.time.YearMonth
  *
  * @param rows [month] 가 들어 있는 조회 창(StatsViewModel 이 읽는 여러 달)의 거래 전부. 이체와 저축도 섞여 온다.
  *   창은 [min(M−5, 그해 1월), M] 이라 최근 6개월, 요일별 3달, 올해 모아 보기를 모두 덮는다.
- * @param firstRecord 기록 시작일. 거래가 없으면 null
+ * @param firstRecord 기록 시작일(이체 · 저축 말고 첫 거래 날). 그런 거래가 없으면 null
  */
 fun buildStatistics(month: YearMonth, today: LocalDate, rows: List<TransactionListItem>, firstRecord: LocalDate?): StatsUiState {
     val records = rows.withoutSavings()

@@ -15,7 +15,7 @@ import org.junit.runner.RunWith
 import java.time.Instant
 
 /**
- * 카드실적 · 월급 탭 조회가 '저축' 분류로 적은 돈을 빼는지 실제 SQLite 로 본다(단위 테스트로는 SQL 을 돌릴 수 없다).
+ * 카드실적 · 월급 탭 · 통계 기록 시작 조회가 '저축' 분류로 적은 돈을 빼는지 실제 SQLite 로 본다(단위 테스트로는 SQL 을 돌릴 수 없다).
  * 분류를 비운 거래는 그대로 남아야 한다(NOT IN 만 쓰면 categoryId 가 NULL 인 거래가 통째로 빠진다).
  * 기기에서 돈다. 메모리 DB 를 써서 기기에 있는 실제 가계부(dong-budget.db)는 건드리지 않는다.
  */
@@ -97,6 +97,23 @@ class SavingsQueriesTest {
         database.transactionDao().insert(deposit.copy(paymentMethodId = other.id))
         assertNull(database.transactionDao().observeFirstUseOf(other.id).first())
         assertTrue(database.transactionDao().observeFirstUseByPaymentMethod().first().none { it.paymentMethodId == other.id })
+    }
+
+    @Test
+    fun `통계 기록 시작은 저축을 빼고 센다`() = runBlocking {
+        val dao = database.transactionDao()
+        assertEquals(Instant.parse("2026-10-02T03:00:00Z"), dao.observeFirstOccurredAt().first())
+        // 이체는 여전히 빼고, 수입은 분류가 없어도 센다
+        dao.insert(tx("이체", TransactionType.TRANSFER, 1_000, "2026-08-01T03:00:00Z", null))
+        dao.insert(tx("용돈", TransactionType.INCOME, 20_000, "2026-08-20T03:00:00Z", null))
+        assertEquals(Instant.parse("2026-08-20T03:00:00Z"), dao.observeFirstOccurredAt().first())
+    }
+
+    @Test
+    fun `저축뿐이면 통계 기록 시작이 없다`() = runBlocking {
+        database.backupDao().deleteTransactions()
+        rows.filter { it.categoryId == savings.id }.forEach { database.transactionDao().insert(it) }
+        assertNull(database.transactionDao().observeFirstOccurredAt().first())
     }
 
     @Test

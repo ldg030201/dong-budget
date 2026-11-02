@@ -38,7 +38,7 @@ import java.time.YearMonth
  *
  * @param id 분류나 결제수단의 id. null 이면 '분류 없음' / '결제수단 없음'
  * @param rows [month] 까지 최근 6개월의 거래 전부. 이체와 저축도 섞여 온다. 저축은 탭처럼 입구에서 거른다(저축 분류의 상세는 비어 있다).
- * @param firstRecord 기록 시작일. 거래가 없으면 null
+ * @param firstRecord 기록 시작일(이체 · 저축 말고 첫 거래 날). 그런 거래가 없으면 null
  * @param entity 이름·아이콘·색([detailEntity])
  */
 fun buildDetail(

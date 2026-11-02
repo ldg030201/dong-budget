@@ -40,7 +40,7 @@ class TransactionRepository(private val transactionDao: TransactionDao) {
     fun observeMonths(first: YearMonth, last: YearMonth): Flow<List<TransactionListItem>> =
         transactionDao.observeBetween(BudgetTime.monthRange(first).first, BudgetTime.monthRange(last).second)
 
-    /** 통계의 기록 시작일(서울 기준). 이체 말고 거래가 하나도 없으면 null */
+    /** 통계의 기록 시작일(서울 기준). 이체 · 저축 말고 거래가 하나도 없으면 null */
     fun observeFirstRecordDate(): Flow<LocalDate?> = transactionDao.observeFirstOccurredAt()
         .map { it?.let(BudgetTime::toLocalDate) }
         // 거래를 쓸 때마다 Room 이 다시 내보내지만 시작일은 거의 그대로다. 같은 값이면 통계를 다시 계산하지 않게 거른다.
