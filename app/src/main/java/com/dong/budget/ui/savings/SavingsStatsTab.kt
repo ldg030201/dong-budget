@@ -3,24 +3,15 @@ package com.dong.budget.ui.savings
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.key
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.semantics.clearAndSetSemantics
-import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.style.TextOverflow
-import com.dong.budget.ui.components.CategoryBadge
 import com.dong.budget.ui.components.HintText
 import com.dong.budget.ui.components.MonthStepper
 import com.dong.budget.ui.components.ThisMonthButton
@@ -34,11 +25,11 @@ import com.dong.budget.ui.stats.StatsSection
 import com.dong.budget.ui.stats.calc.TREND_MONTHS
 import com.dong.budget.ui.stats.chart.TrendBar
 import com.dong.budget.ui.stats.chart.TrendBars
-import com.dong.budget.ui.stats.chart.entityColor
 import com.dong.budget.ui.stats.chart.formatAxisWon
 import com.dong.budget.ui.stats.tab.breakdown.BreakdownDonut
 import com.dong.budget.ui.stats.tab.breakdown.MerchantsSection
-import com.dong.budget.ui.stats.tab.breakdown.ShareBar
+import com.dong.budget.ui.stats.tab.breakdown.RankRow
+import com.dong.budget.ui.stats.tab.breakdown.SmallLine
 import com.dong.budget.ui.theme.BudgetTheme
 import java.time.LocalDate
 import java.time.YearMonth
@@ -196,55 +187,27 @@ private fun PaymentSection(breakdown: Breakdown, monthLabel: String) {
 }
 
 /**
- * 결제수단 줄 하나. 지출 통계의 순위 줄(BreakdownRow)과 같은 모양이고, 누를 수 없고 지난달 대비가 없다.
+ * 결제수단 줄 하나. 지출 통계의 순위 줄과 같은 모양(RankRow)이고, 누를 수 없고 지난달 대비가 없다.
  * ```
  * (뱃지)  토스뱅크                     300,000원
  *         42% · 3건
  *         ████████████░░░░                          ← 비율만큼, 결제수단 색, 트랙 없음
  * ```
- * 꺼낸 돈이 더 많은 줄은 금액이 "-50,000원" 이고 비율 막대 대신 "꺼낸 돈이 더 많아요" 다. 화면 읽기는 한 줄을 한 문장으로 읽는다.
+ * 금액은 부호 없이 본문색이다. 꺼낸 돈이 더 많은 줄은 금액이 "-50,000원" 이고 비율 막대 대신 "꺼낸 돈이 더 많아요" 다.
+ * 화면 읽기는 한 줄을 한 문장으로 읽는다([paymentDescription]).
  */
 @Composable
 private fun PaymentRow(entry: BreakdownEntry) {
-    val description = paymentDescription(entry)
-    Row(
-        modifier =
-        Modifier
-            .fillMaxWidth()
-            .clearAndSetSemantics { contentDescription = description }
-            .padding(horizontal = BudgetTheme.spacing.screenHorizontal, vertical = BudgetTheme.spacing.listItemVertical),
-        // 줄 수가 달라도 뱃지가 이름 줄에 맞춰 선다
-        verticalAlignment = Alignment.Top,
+    RankRow(
+        entry = entry,
+        amount = savedAmount(entry.amount),
+        amountColor = BudgetTheme.colors.textPrimary,
+        description = paymentDescription(entry),
+        onClick = null,
     ) {
-        CategoryBadge(icon = entry.icon, color = entry.color)
-        Spacer(Modifier.width(BudgetTheme.spacing.itemGap))
-        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(BudgetTheme.spacing.tightGap)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = entry.name,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = BudgetTheme.colors.textPrimary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
-                )
-                Text(
-                    text = savedAmount(entry.amount),
-                    style = BudgetTheme.amount.medium,
-                    color = BudgetTheme.colors.textPrimary,
-                    modifier = Modifier.padding(start = BudgetTheme.spacing.inlineGap),
-                )
-            }
-            SmallLine(paymentSummary(entry))
-            paymentNote(entry)?.let { SmallLine(it) }
-            entry.share?.let { share -> ShareBar(share = share, color = entityColor(entry.color)) }
-        }
+        SmallLine(paymentSummary(entry))
+        paymentNote(entry)?.let { SmallLine(it) }
     }
-}
-
-@Composable
-private fun SmallLine(text: String) {
-    Text(text = text, style = MaterialTheme.typography.bodySmall, color = BudgetTheme.colors.textSecondary)
 }
 
 private const val TREND_TITLE = "최근 ${TREND_MONTHS}개월"

@@ -54,7 +54,36 @@ import com.dong.budget.ui.theme.pressScaleClickable
  */
 @Composable
 fun BreakdownRow(entry: BreakdownEntry, dimension: StatsDimension, onClick: (() -> Unit)?, modifier: Modifier = Modifier) {
-    val description = entryDescription(entry, dimension)
+    val income = dimension == StatsDimension.INCOME_CATEGORY
+    RankRow(
+        entry = entry,
+        amount = formatDirected(entry.amount, income),
+        amountColor = directedColor(entry.amount, income),
+        description = entryDescription(entry, dimension),
+        onClick = onClick,
+        modifier = modifier,
+    ) {
+        SmallLine(entrySummary(entry, dimension))
+        entry.change?.let { SmallLine(changeText(it), maxLines = CHANGE_MAX_LINES) }
+        groupNote(entry.key, dimension)?.let { SmallLine(it) }
+    }
+}
+
+/**
+ * 순위 줄의 모양. 뱃지, 이름과 금액, 그 아래 작은 줄들([lines], [SmallLine] 으로 쌓는다), 비율 막대(비율이 없으면 없다).
+ * [BreakdownRow] 와 저축 통계의 결제수단 줄이 같이 써서 간격 · 뱃지 · 막대가 서로 어긋나지 않는다. 금액과 글은 부르는 쪽이 정한다.
+ * 화면 읽기는 한 줄을 [description] 한 문장으로 읽는다. [onClick] 이 null 이면 누를 수 없다.
+ */
+@Composable
+internal fun RankRow(
+    entry: BreakdownEntry,
+    amount: String,
+    amountColor: Color,
+    description: String,
+    onClick: (() -> Unit)?,
+    modifier: Modifier = Modifier,
+    lines: @Composable () -> Unit,
+) {
     Row(
         modifier =
         modifier
@@ -84,24 +113,22 @@ fun BreakdownRow(entry: BreakdownEntry, dimension: StatsDimension, onClick: (() 
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
                 )
-                val income = dimension == StatsDimension.INCOME_CATEGORY
                 Text(
-                    text = formatDirected(entry.amount, income),
+                    text = amount,
                     style = BudgetTheme.amount.medium,
-                    color = directedColor(entry.amount, income),
+                    color = amountColor,
                     modifier = Modifier.padding(start = BudgetTheme.spacing.inlineGap),
                 )
             }
-            SmallLine(entrySummary(entry, dimension))
-            entry.change?.let { SmallLine(changeText(it), maxLines = CHANGE_MAX_LINES) }
-            groupNote(entry.key, dimension)?.let { SmallLine(it) }
+            lines()
             entry.share?.let { share -> ShareBar(share = share, color = entityColor(entry.color)) }
         }
     }
 }
 
+/** 순위 줄 이름 아래 작은 줄 하나. 보조 글자색이고 [maxLines] 를 넘으면 말줄임한다. */
 @Composable
-private fun SmallLine(text: String, maxLines: Int = Int.MAX_VALUE) {
+internal fun SmallLine(text: String, maxLines: Int = Int.MAX_VALUE) {
     Text(
         text = text,
         style = MaterialTheme.typography.bodySmall,
@@ -111,9 +138,9 @@ private fun SmallLine(text: String, maxLines: Int = Int.MAX_VALUE) {
     )
 }
 
-/** 비율 막대. 폭이 곧 비율이고 트랙은 깔지 않는다. 값은 둘째 줄 글자가 전한다. 저축 통계의 결제수단별 줄도 쓴다. */
+/** 비율 막대. 폭이 곧 비율이고 트랙은 깔지 않는다. 값은 둘째 줄 글자가 전한다. */
 @Composable
-internal fun ShareBar(share: Double, color: Color) {
+private fun ShareBar(share: Double, color: Color) {
     // 처음에는 0 에서 자라고, 달을 넘기면 지금 길이에서 새 비율로 늘거나 준다
     val fraction by rememberGrowingFraction(share.toFloat().coerceIn(0f, 1f))
     Spacer(
