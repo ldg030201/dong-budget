@@ -1,10 +1,14 @@
 package com.dong.budget.ui.fixed
 
+import com.dong.budget.data.db.FixedMerchantEntity
+import com.dong.budget.data.db.FixedMerchantState
 import com.dong.budget.data.db.TransactionListItem
 import com.dong.budget.testing.day
+import com.dong.budget.testing.seoulInstant
 import com.dong.budget.testing.tx
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.LocalDate
 import java.time.YearMonth
@@ -380,6 +384,41 @@ class FixedExpenseTextTest {
         assertEquals("'넷플릭스' 고정지출 목록에서 뺄까요?", removeTitle("넷플릭스"))
         assertEquals("넷플릭스 고정지출로 등록", askRegisterLabel("넷플릭스"))
         assertEquals("넷플릭스 등록 안 함", askDeclineLabel("넷플릭스"))
+    }
+
+    @Test
+    fun `해지 문구는 가게 이름 뒤에 조사를 붙이지 않고 버튼은 가게 이름을 붙여 읽는다`() {
+        assertEquals("'넷플릭스' 해지했나요?", endTitle("넷플릭스"))
+        assertEquals("넷플릭스 해지", endLabel("넷플릭스"))
+        assertEquals("넷플릭스 해지 되돌리기", restoreLabel("넷플릭스"))
+        assertEquals("고정지출 목록에서 빼거나 해지하기", REMOVE_OR_END_ACTION_LABEL)
+    }
+
+    @Test
+    fun `해지한 줄은 해지 전에 마지막으로 낸 날과 그때 낸 돈을 적는다`() {
+        // 9월 3일까지 내고 9월 20일에 해지했다. 10월 1일에 낸 것은 다시 물었을 때 '안 함' 을 눌렀다.
+        val rows =
+            listOf("2026-08-03", "2026-09-03").map {
+                tx(it, 17_000, categoryId = 4, paymentId = 10, merchant = "넷플릭스", paymentName = "하나카드")
+            } + tx("2026-10-01", 19_000, categoryId = 4, paymentId = 11, merchant = "넷플릭스", paymentName = "국민카드")
+        val ended =
+            FixedMerchantEntity(
+                "넷플릭스",
+                FixedMerchantState.ENDED,
+                seoulInstant("2026-10-02"),
+                endedAt = seoulInstant("2026-09-20"),
+            )
+
+        val place = splitByRegistry(rows, mapOf("넷플릭스" to ended), emptyMap(), today).endedPlaces.single()
+
+        assertEquals("마지막 9월 3일 · 하나카드", candidateSubtitle(place, today))
+        assertEquals("17,000원", candidateAmount(place))
+    }
+
+    @Test
+    fun `목록 맨 아래 안내는 해지하면 어디까지 보이는지도 알린다`() {
+        assertTrue(FOOTNOTE, "해지" in FOOTNOTE)
+        assertTrue(FOOTNOTE, "마지막으로 낸 달까지만" in FOOTNOTE)
     }
 
     @Test

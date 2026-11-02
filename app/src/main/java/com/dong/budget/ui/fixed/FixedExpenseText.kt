@@ -239,7 +239,7 @@ internal fun dueLabel(board: FixedExpenseBoard, month: YearMonth, today: LocalDa
 internal fun countSentence(board: FixedExpenseBoard, month: YearMonth, today: LocalDate): String {
     val total = board.dueCount
     return when {
-        // 목록에 넣은 곳이 없는데 묻는 곳 · 등록 안 한 곳만 있을 때. '낼 고정지출이 없어요' 로 적으면 고정지출이 정말 없는 것처럼 읽힌다.
+        // 목록에 넣은 곳이 없는데 묻는 곳 · 등록 안 한 곳 · 해지한 곳만 있을 때. '낼 고정지출이 없어요' 로 적으면 고정지출이 정말 없는 것처럼 읽힌다.
         board.isEmpty -> noRegisteredSentence(month, today)
 
         total == 0 -> if (month == YearMonth.from(today)) "이번 달에 낼 고정지출이 없어요" else "${monthLabel(month, today)}엔 낼 고정지출이 없었어요"
@@ -284,12 +284,12 @@ internal fun emptyTitle(month: YearMonth, today: LocalDate): String = if (month 
 internal const val EMPTY_BODY = "월세·구독료처럼 매달 나가는 돈을 '고정지출' 분류로 등록하면, 여기서 목록에 넣을지 물어보고 이번 달에 냈는지 보여 줘요."
 
 /**
- * 목록 맨 아래 안내. 어떻게 묶고 짐작하는지(가게 이름을 바꿔 적으면 따로 보이는 까닭)와 목록에서 빼는 법을 알려 둔다.
- * 빼기는 줄을 길게 눌러야 해서 눈에 안 띈다.
+ * 목록 맨 아래 안내. 어떻게 묶고 짐작하는지(가게 이름을 바꿔 적으면 따로 보이는 까닭)와 목록에서 빼는 법 · 해지하면 어디까지 보이는지를
+ * 알려 둔다. 빼기는 줄을 길게 눌러야 해서 눈에 안 띄고, '해지' 버튼은 안 냈거나 한동안 안 낸 줄에만 있다.
  */
 internal const val FOOTNOTE =
     "'고정지출' 분류로 등록한 지출 가운데 목록에 넣은 곳만 가게 이름으로 묶었어요. 언제 얼마를 내는지는 지난 기록으로 짐작해요. " +
-        "줄을 길게 누르면 목록에서 뺄 수 있어요."
+        "줄을 길게 누르면 목록에서 빼거나 해지할 수 있고, 해지한 곳은 마지막으로 낸 달까지만 보여요."
 
 // ── 고정지출 목록(등록할지 묻기 · 빼기) ─────────────────────────────────
 // '고정지출' 분류와 탭의 목록은 따로다. 분류로 적은 곳 가운데 목록에 등록한 곳만 판에 보이고, 처음 보는 곳은 등록할지 묻는다.
@@ -310,11 +310,11 @@ internal fun askRegisterLabel(name: String): String = "$name 고정지출로 등
 /** '안 함' 버튼(화면 읽기): "넷플릭스 등록 안 함" */
 internal fun askDeclineLabel(name: String): String = "$name 등록 안 함"
 
-/** 묻는 줄 · 등록 안 한 줄의 부제. 가장 최근에 낸 날과 결제수단: "마지막 10월 3일 · 하나카드" */
+/** 묻는 줄 · 등록 안 한 줄 · 해지한 줄의 부제. 가장 최근에(해지한 줄은 해지 전에) 낸 날과 결제수단: "마지막 10월 3일 · 하나카드" */
 internal fun candidateSubtitle(candidate: FixedCandidate, today: LocalDate): String =
     listOfNotNull("마지막 ${dateText(candidate.lastPaidOn, YearMonth.from(today))}", candidate.latest.paymentMethodName).joinToString(" · ")
 
-/** 묻는 줄 · 등록 안 한 줄 오른쪽 금액. 가장 최근에 낸 돈 */
+/** 묻는 줄 · 등록 안 한 줄 · 해지한 줄 오른쪽 금액. 부제의 그때 낸 돈 */
 internal fun candidateAmount(candidate: FixedCandidate): String = "${formatAmount(candidate.latest.amount)}원"
 
 /** 접어 두는 등록 안 한 곳 묶음의 제목. '안 함' 을 눌렀거나 목록에서 뺀 곳이다. */
@@ -323,8 +323,11 @@ internal const val DECLINED_TITLE = "등록 안 한 곳"
 /** 등록 안 한 줄의 상태(화면 읽기) */
 internal const val DECLINED_STATE = "등록 안 함"
 
-/** 판의 줄을 길게 누르면 하는 일(화면 읽기도 이 이름으로 알린다) */
+/** 해지한 곳의 판 줄을 길게 누르면 하는 일(화면 읽기도 이 이름으로 알린다) */
 internal const val REMOVE_ACTION_LABEL = "고정지출 목록에서 빼기"
+
+/** 그 밖의 판 줄을 길게 누르면 하는 일(화면 읽기). 확인 창에서 빼기와 해지 가운데 고른다. */
+internal const val REMOVE_OR_END_ACTION_LABEL = "고정지출 목록에서 빼거나 해지하기"
 
 /** 빼기 확인 창 제목. 사용자가 적은 가게 이름 뒤에 조사를 붙이지 않게 따옴표로 묶는다: "'넷플릭스' 고정지출 목록에서 뺄까요?" */
 internal fun removeTitle(name: String): String = "'$name' 고정지출 목록에서 뺄까요?"
@@ -334,8 +337,35 @@ internal const val REMOVE_MESSAGE = "지난 거래는 '고정지출' 분류 그�
 
 internal const val REMOVE_CONFIRM = "빼기"
 
+// ── 해지 ──────────────────────────────────────────────────────────────
+// 해지한 곳은 해지 전에 낸 마지막 몫의 달까지는 판에 그대로 보이고, 그다음 달부터는 접어 둔 '해지한 곳' 에만 있다.
+
+/** 판 줄의 '해지' 버튼. 해지 확인 창의 확인, 빼기 확인 창의 보조 동작도 같은 말이다. */
+internal const val END_TEXT = "해지"
+
+/** '해지' 버튼(화면 읽기). 줄마다 같은 버튼이라 가게 이름을 붙인다: "넷플릭스 해지" */
+internal fun endLabel(name: String): String = "$name $END_TEXT"
+
+/** 해지 확인 창 제목. 사용자가 적은 가게 이름 뒤에 조사를 붙이지 않게 따옴표로 묶는다: "'넷플릭스' 해지했나요?" */
+internal fun endTitle(name: String): String = "'$name' 해지했나요?"
+
+/** 해지 확인 창 글. 언제까지 보이는지와 다시 묻는 때를 알린다. */
+internal const val END_MESSAGE = "마지막으로 낸 달까지는 그대로 보이고, 다음 달부터 목록에서 안 보여요. 다시 내면 등록할지 물어볼게요."
+
+/** 접어 두는 해지한 곳 묶음의 제목. 달과 상관없이 같다. */
+internal const val ENDED_TITLE = "해지한 곳"
+
+/** 해지한 줄의 상태(화면 읽기) */
+internal const val ENDED_STATE = "해지함"
+
+/** 해지한 줄의 '되돌리기'. 다시 등록한 곳이 된다. */
+internal const val RESTORE_TEXT = "되돌리기"
+
+/** '되돌리기' 버튼(화면 읽기). 줄마다 같은 버튼이라 가게 이름을 붙인다: "넷플릭스 해지 되돌리기" */
+internal fun restoreLabel(name: String): String = "$name 해지 $RESTORE_TEXT"
+
 /**
- * 목록에 등록한 곳이 고른 달까지 하나도 없는데 물을 곳이나 등록 안 한 곳만 있을 때 요약 자리의 문장.
+ * 목록에 등록한 곳이 고른 달까지 하나도 없는데 물을 곳이나 등록 안 한 곳 · 해지한 곳만 있을 때 요약 자리의 문장.
  * "아직 목록에 넣은 고정지출이 없어요", 지난 달이면 "9월까지는 목록에 넣은 고정지출이 없어요"
  */
 internal fun noRegisteredSentence(month: YearMonth, today: LocalDate): String = if (month == YearMonth.from(today)) {

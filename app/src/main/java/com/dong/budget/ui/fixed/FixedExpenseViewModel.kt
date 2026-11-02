@@ -10,6 +10,7 @@ import com.dong.budget.data.db.BudgetTime
 import com.dong.budget.data.db.CategoryScope
 import com.dong.budget.data.db.FIXED_CATEGORY_CODE
 import com.dong.budget.data.db.FixedMerchantEntity
+import com.dong.budget.data.db.FixedMerchantState
 import com.dong.budget.data.db.fixedHistoryEnd
 import com.dong.budget.data.db.fixedHistoryStart
 import kotlinx.coroutines.Dispatchers
@@ -17,6 +18,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -41,6 +43,8 @@ import java.time.YearMonth
  * @property board 고정지출 목록에 등록한 곳과, 끝 달([FixedEndedPlace.endMonth])까지의 해지한 곳만 센 판
  * @property candidates '고정지출' 분류로 적었는데 목록에 등록할지 물을 곳([splitByRegistry]). 고른 달과 상관없이 같다.
  * @property declined 등록 안 한 곳. 접어 두고 다시 등록할 수 있게 한다.
+ * @property ended 해지한 곳(다시 묻는 곳은 빼고). 접어 두고 되돌릴 수 있게 한다. 고른 달과 상관없이 같다.
+ * @property endedKeys [board] 에 보이는 해지한 곳(끝 달까지)의 열쇠. 그 줄에는 다시 해지하라고 하지 않는다.
  */
 @Immutable
 data class FixedExpenseUiState(
@@ -51,11 +55,13 @@ data class FixedExpenseUiState(
     val board: FixedExpenseBoard,
     val candidates: List<FixedCandidate> = emptyList(),
     val declined: List<FixedCandidate> = emptyList(),
+    val ended: List<FixedCandidate> = emptyList(),
+    val endedKeys: Set<String> = emptySet(),
 ) {
     val isThisMonth: Boolean get() = month == YearMonth.from(today)
 
-    /** 보여 줄 것이 하나도 없는지(등록한 곳 · 물을 곳 · 등록 안 한 곳 모두 없다) */
-    val isEmpty: Boolean get() = board.isEmpty && candidates.isEmpty() && declined.isEmpty()
+    /** 보여 줄 것이 하나도 없는지(등록한 곳 · 물을 곳 · 등록 안 한 곳 · 해지한 곳 모두 없다) */
+    val isEmpty: Boolean get() = board.isEmpty && candidates.isEmpty() && declined.isEmpty() && ended.isEmpty()
 
     companion object {
         /** 첫 계산 전 자리 값 */
@@ -108,8 +114,8 @@ class FixedExpenseViewModel(
      */
     private val pruned = viewModelScope.async { fixedMerchants.prune() }
 
-    /** 고정지출 목록. [hasCategory] 처럼 고른 달과 상관없어 나눠 쓴다. */
-    private val registry: Flow<Map<String, FixedMerchantEntity>> =
+    /** 고정지출 목록. [hasCategory] 처럼 고른 달과 상관없어 나눠 쓴다. '안 함' 은 마지막으로 읽은 목록으로 해지한 곳인지 본다. */
+    private val registry: SharedFlow<Map<String, FixedMerchantEntity>> =
         flow {
             pruned.await()
             emitAll(fixedMerchants.observe())
@@ -143,6 +149,8 @@ class FixedExpenseViewModel(
                         board = buildFixedExpenses(month, today, split.boardRows(month)),
                         candidates = split.candidates,
                         declined = split.declined,
+                        ended = split.endedPlaces,
+                        endedKeys = split.endedKeysIn(month),
                     )
                 }
                     // 계산만 기본 풀에서 한다. 조회는 Room 이 자기 스레드에서 한다.
@@ -163,14 +171,37 @@ class FixedExpenseViewModel(
         pickedMonth.value = null
     }
 
-    /** '등록' 을 누른 곳([key])을 고정지출 목록에 넣는다. 묻던 줄이 사라지고 판에 나타난다. */
+    /** '등록' 을 누른 곳([key])을 고정지출 목록에 넣는다. 묻던 줄이 사라지고 판에 나타난다. 해지한 곳에 다시 물은 것이면 해지가 풀린다. */
     fun register(key: String) {
         viewModelScope.launch { fixedMerchants.register(key, clock.instant()) }
     }
 
-    /** '안 함' 을 누르거나 탭에서 뺀 곳([key]). 지난 거래의 분류는 그대로이고, 지금 뒤에 새로 낸 '고정지출' 지출이 생기면 다시 묻는다. */
+    /**
+     * 묻는 줄에서 '안 함' 을 누른 곳([key]). 지난 거래의 분류는 그대로이고, 지금 뒤에 새로 낸 '고정지출' 지출이 생기면 다시 묻는다.
+     * 해지한 곳에 다시 물은 것이면 해지한 채로 둔다(해지 전 결제는 끝 달까지 판에 그대로다). 등록 안 한 곳으로 두면 해지한 때가 지워져
+     * 지난 달 판에서도 통째로 빠진다. 해지한 곳인지는 판을 그린 목록으로 본다(그사이 해지가 풀렸으면 저장소가 등록 안 한 곳으로 둔다).
+     */
     fun decline(key: String) {
+        val ended = registry.replayCache.firstOrNull()?.get(key)?.state == FixedMerchantState.ENDED
+        viewModelScope.launch {
+            val at = clock.instant()
+            if (ended) fixedMerchants.keepEnded(key, at) else fixedMerchants.decline(key, at)
+        }
+    }
+
+    /** 판의 줄을 길게 눌러 뺀 곳([key]). 해지한 곳이어도 등록 안 한 곳이 되어 어느 달 판에도 안 보인다. 다시 내면 묻는다. */
+    fun remove(key: String) {
         viewModelScope.launch { fixedMerchants.decline(key, clock.instant()) }
+    }
+
+    /** '해지' 를 누른 곳([key]). 해지 전에 낸 마지막 몫의 달까지는 판에 그대로 보이고, 그다음 달부터는 '해지한 곳' 에만 있다. */
+    fun end(key: String) {
+        viewModelScope.launch { fixedMerchants.end(key, clock.instant()) }
+    }
+
+    /** '해지한 곳' 에서 '되돌리기' 를 누른 곳([key]). 다시 등록한 곳이 되어(해지한 때를 지운다) 해지한 뒤에 낸 것까지 판에 센다. */
+    fun restore(key: String) {
+        viewModelScope.launch { fixedMerchants.register(key, clock.instant()) }
     }
 
     private fun currentMonth(): YearMonth = pickedMonth.value ?: YearMonth.now(clock)

@@ -226,7 +226,7 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
     val menuPage: @Composable (MenuItem) -> Unit = { item ->
         when (item) {
             // '등록하기' 는 지난번 값으로 채운 등록창을, 줄은 그 가게의 가장 최근 거래 상세를 연다.
-            // '고정지출' 분류를 지웠으면 다시 만들러 분류 관리를 연다. '등록' · '안 함' · 빼기는 고정지출 목록을 고친다.
+            // '고정지출' 분류를 지웠으면 다시 만들러 분류 관리를 연다. '등록' · '안 함' · 빼기 · 해지 · 되돌리기는 고정지출 목록을 고친다.
             MenuItem.FIXED_EXPENSE -> {
                 val fixedViewModel: FixedExpenseViewModel = viewModel(factory = fixedExpenseViewModelFactory(container))
                 val fixedState by fixedViewModel.uiState.collectAsStateWithLifecycle()
@@ -241,6 +241,9 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
                     onOpenCategories = { if (settled()) navigator.go(CategoryManageKey) },
                     onRegisterMerchant = fixedViewModel::register,
                     onDeclineMerchant = fixedViewModel::decline,
+                    onRemoveMerchant = fixedViewModel::remove,
+                    onEndMerchant = fixedViewModel::end,
+                    onRestoreMerchant = fixedViewModel::restore,
                 )
             }
 
