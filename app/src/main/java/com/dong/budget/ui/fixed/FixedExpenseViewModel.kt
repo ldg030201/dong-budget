@@ -40,7 +40,7 @@ import java.time.YearMonth
  * @property loaded 첫 계산이 끝났는지. 끝나기 전에는 탭 머리만 그린다(빈 상태 안내가 잠깐 비치지 않게).
  * @property month 보고 있는 달. 이번 달보다 뒤로는 가지 않는다.
  * @property hasCategory '고정지출'(코드 FIXED) 분류가 있는지. 분류 관리에서 지웠고 같은 이름(띄어쓰기 무시)의 분류도 없으면 false
- * @property board 고정지출 목록에 등록한 곳과, 끝 달([FixedEndedPlace.endMonth])까지의 해지한 곳만 센 판
+ * @property board 고정지출 목록에 등록한 곳과, 끝 달([FixedEndedPlace.endMonth])까지의 해지한 곳만 센 판. 해지한 곳의 덜 낸 차례는 기다리지 않는다.
  * @property candidates '고정지출' 분류로 적었는데 목록에 등록할지 물을 곳([splitByRegistry]). 고른 달과 상관없이 같다.
  * @property declined 등록 안 한 곳. 접어 두고 다시 등록할 수 있게 한다.
  * @property ended 해지한 곳(다시 묻는 곳은 빼고). 접어 두고 되돌릴 수 있게 한다. 고른 달과 상관없이 같다.
@@ -77,7 +77,8 @@ data class FixedExpenseUiState(
 
 /**
  * 고정지출 탭. [fixedHistoryStart] 부터 [fixedHistoryEnd](오늘이 든 달)까지의 '고정지출' 분류 지출을 읽어, 고정지출 목록에 등록한 곳의 것만
- * 순수 함수([buildFixedExpenses])로 나눈다. 해지한 곳은 끝 달까지 해지 전 결제만 넣는다. 목록에 없는 곳은 등록할지 묻는다([splitByRegistry]).
+ * 순수 함수([buildFixedExpenses])로 나눈다. 해지한 곳은 끝 달까지 해지 전 결제만 넣고 남은 차례는 안 나간 것으로 본다([FixedRegistrySplit.board]).
+ * 목록에 없는 곳은 등록할지 묻는다([splitByRegistry]).
  * 지난 달을 볼 때도 이번 달까지 읽어, 일정은 오늘이 든 달 기준 기록으로 짐작하고(같은 날 본 모든 달 화면이 같은 일정) 다음 달에 밀려 낸
  * 고른 달 몫도 센다.
  * 등록창에서 저장하거나 거래를 고치면 조회가 다시 내보내서 '아직 안 냈어요' 가 바로 '냈어요' 로 옮겨 간다. 목록을 바꿔도 그렇다.
@@ -146,7 +147,7 @@ class FixedExpenseViewModel(
                         month = month,
                         today = today,
                         hasCategory = has,
-                        board = buildFixedExpenses(month, today, split.boardRows(month)),
+                        board = split.board(month, today),
                         candidates = split.candidates,
                         declined = split.declined,
                         ended = split.endedPlaces,

@@ -195,8 +195,7 @@ class FixedRegistryTest {
 
     private val september = YearMonth.of(2026, 9)
 
-    private fun board(split: FixedRegistrySplit, month: YearMonth, today: LocalDate = this.today) =
-        buildFixedExpenses(month, today, split.boardRows(month))
+    private fun board(split: FixedRegistrySplit, month: YearMonth, today: LocalDate = this.today) = split.board(month, today)
 
     private fun keysOn(board: FixedExpenseBoard) = (board.due + board.paid + board.notThisMonth + board.stopped).map { it.key }
 
@@ -330,6 +329,50 @@ class FixedRegistryTest {
         assertTrue(split.boardRows(october).isEmpty())
         // 해지한 곳 묶음에는 두어 되돌릴 수 있게 한다. 기간 안에 해지 전 결제가 없어 그 기간의 가장 최근 결제로 보여 준다.
         assertEquals(after.id, split.endedPlaces.single().latest.id)
+    }
+
+    @Test
+    fun `한 달에 두 번 내다 한 번만 내고 해지하면 그 달은 남은 차례를 기다리지 않고 낸 것만으로 냈어요다`() {
+        // 5일 · 20일에 30,000원씩 내던 폰을 10월 5일 것만 내고 10월 6일에 해지했다. 전에는 10월 23일까지 남은 차례를 낼 돈에 넣고
+        // 21일부터 '2번 중 1번 냈고, 남은 건 평소보다 1일 지났어요'(경고)로 알렸다.
+        val rows = (5..10).flatMap { month -> listOf(5, 20).map { "2026-%02d-%02d".format(month, it) } }
+            .filterNot { it == "2026-10-20" }
+            .map { pay(it, "폰", 30_000) }
+        val registry = mapOf(ended("폰", "2026-10-06"))
+
+        for (date in listOf("2026-10-06", "2026-10-20", "2026-10-21", "2026-10-23", "2026-10-24")) {
+            val today = day(date)
+            val split = splitByRegistry(rows, registry, created, today)
+            assertEquals(october, split.ended.single().endMonth)
+
+            val board = board(split, october, today)
+            val item = board.paid.single()
+            assertTrue(board.due.isEmpty())
+            assertEquals(0L, board.dueTotal)
+            assertEquals(30_000L, board.paidTotal)
+            assertEquals(30_000L, item.amount)
+            assertEquals(1, item.paidCount)
+            assertEquals(2, item.requiredCount)
+            assertEquals(listOf(20), item.droppedDays)
+            assertEquals("모두 냈어요", countSentence(board, october, today))
+            assertEquals(RowNote("2번 중 1번만 냈어요", NoteTone.PLAIN), rowNote(item, october, today))
+        }
+        // 9월은 두 번 다 냈다
+        assertEquals(2, board(split(rows, registry), september).paid.single().paidCount)
+    }
+
+    @Test
+    fun `등록한 곳은 한 번만 낸 달의 남은 차례를 그대로 기다린다`() {
+        // 해지하지 않았으면 남은 차례가 늦는 것일 수 있어 사흘은 '아직 덜 냈어요' 로 둔다(해지한 곳만 바로 냈어요다)
+        val rows = (5..10).flatMap { month -> listOf(5, 20).map { "2026-%02d-%02d".format(month, it) } }
+            .filterNot { it == "2026-10-20" }
+            .map { pay(it, "폰", 30_000) }
+        val today = day("2026-10-21")
+
+        val board = board(splitByRegistry(rows, mapOf(registered("폰")), created, today), october, today)
+
+        assertEquals(30_000L, board.due.single().amount)
+        assertEquals(RowNote("2번 중 1번 냈고, 남은 건 평소보다 1일 지났어요", NoteTone.WARNING), rowNote(board.due.single(), october, today))
     }
 
     @Test

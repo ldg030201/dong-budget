@@ -19,7 +19,7 @@ import java.time.YearMonth
 // - 정한 적 없는 곳과, 등록 안 한(안 함 · 탭에서 뺌) 뒤에 새로 낸 곳: '고정지출로 등록할까요?' 로 묻는다(뺐다가 다시 구독한 것 등).
 // - 그 밖의 등록 안 한 곳: 접어 둔 '등록 안 한 곳' 에 두어 다시 등록할 수 있게 한다.
 // - 해지한 곳: 해지 전에 낸 결제만 끝 달(해지 전 마지막 결제의 몫 달)까지 계산에 넘기고, 접어 둔 '해지한 곳' 에 두어 되돌릴 수 있게 한다.
-//   해지한 뒤에 새로 내면 다시 등록할지 묻는다.
+//   계산은 덜 낸 차례를 기다리지 않는다([FixedRegistrySplit.board]). 해지한 뒤에 새로 내면 다시 등록할지 묻는다.
 // 묻는 곳 · 등록 안 한 곳 · 해지한 곳과 끝 달은 고른 달과 상관없이 탭이 이번 달을 볼 때 읽는 기간([fixedHistoryStart] ~ 이번 달)의
 // 지출로만 본다. 그래서 지난 달을 넘겨 봐도 같고, DB 를 올릴 때 등록한 곳(같은 기간에 지출이 있는 곳)과도 맞는다.
 // ─────────────────────────────────────────────────────────────────────
@@ -75,6 +75,13 @@ data class FixedRegistrySplit(
 
     /** [month] 판에 보이는 해지한 곳의 열쇠 */
     fun endedKeysIn(month: YearMonth): Set<String> = ended.filter { it.showsIn(month) }.mapTo(HashSet()) { it.key }
+
+    /**
+     * [month] 판([boardRows] 를 [today] 에 계산한 것). 해지한 곳은 남은 차례를 더 내지 않으니 덜 낸 차례를 기다리지 않는다
+     * (한 달에 두 번 내다 한 번만 내고 해지한 달은 '2번 중 1번만 냈어요' 인 냈어요이고, 남은 차례는 낼 돈에 들지 않는다).
+     */
+    fun board(month: YearMonth, today: LocalDate): FixedExpenseBoard =
+        buildFixedExpenses(month, today, boardRows(month), endedKeysIn(month))
 }
 
 /**

@@ -23,7 +23,7 @@ import java.time.YearMonth
 //    밀린 몫을 늦게 함께 낸 것, 같은 날 새로 생긴 회선, 이미 낸 앞 달 대신 이번 달을 일찍 낸 것이 모두 같은 셈으로 정해진다.
 // 3. 고른 달: 그 달 몫으로 짝지은 결제가 그 달 건수만큼이면 냈어요, 덜이면 일부만 낸 '아직 안 냈어요', 없으면 마지막으로 낸 달과의 간격으로 본다.
 //    덜 낸 차례는 오늘에 따라 기다릴 날([DROP_GRACE_DAYS], 같은 날 함께 나가던 회선은 평소 벌어짐)이 지나면 안 나간 것(해지했거나 건너뜀)으로 보아,
-//    나머지를 다 냈으면 '2번 중 1번만 냈어요' 인 냈어요, 다른 차례가 남았으면 그 차례를 기다린다.
+//    나머지를 다 냈으면 '2번 중 1번만 냈어요' 인 냈어요, 다른 차례가 남았으면 그 차례를 기다린다. 목록에서 해지한 곳은 기다리지 않는다.
 // ─────────────────────────────────────────────────────────────────────
 
 /** 고른 달에서 한 가게가 어떤 상태인지 */
@@ -70,6 +70,7 @@ enum class FixedStatus {
  * @property requiredCount 고른 달에 내야 하는 횟수(한 달에 두 차례 내거나 한 차례에 두 건씩 내면 2). 나머지가 안 나가 냈어요여도 그대로다.
  * @property droppedDays 고른 달에 안 나간 것으로 보는 차례의 평소 날(해지했거나 건너뜀, 이른 차례부터). 덜 낸 차례가 같은 날 함께 나가던
  *   것이면 그 차례의 평소 벌어짐이 지난 뒤, 그 차례에 결제가 없으면 낼 날 뒤 [DROP_GRACE_DAYS] 일이 지난 뒤다(오늘에 따라 본다).
+ *   목록에서 해지한 곳은 그 달에 낸 것이 있으면 덜 낸 차례 모두다(해지했으니 기다리지 않는다).
  *   냈어요의 "2번 중 1번만 냈어요" 와 하나도 안 낸 달의 "3일 차례는 안 나갔어요" 에 쓴다. 하나도 안 냈는데 모든 차례가 안 나갔으면
  *   그 달을 안 낸 것이라 비었다. 그 밖에도 비었다.
  * @property paidAmount 고른 달에 낸 돈(그 달 몫과 그 달에 따로 낸 것). 아무것도 안 냈으면 0
@@ -181,12 +182,25 @@ data class FixedExpenseBoard(
  * @param rows '고정지출' 분류의 지출. [fixedHistoryStart] 부터 [fixedHistoryEnd] 말일까지 읽은 것이다.
  *   지출이 아닌 행과 오늘이 든 달 뒤의 행은 거른다. 일정은 오늘이 든 달 기준 [fixedHistoryStart] 부터의 행으로만 짐작해서
  *   지난 달 화면이 더 오래된 결제를 읽어도 같은 날 본 이번 달 화면과 같은 일정을 쓴다.
+ * @param ended 목록에서 해지한 곳의 열쇠([FixedRegistrySplit.endedKeysIn]). [rows] 에는 그 곳의 해지 전 결제만 있고 남은 차례는 더 내지 않으니,
+ *   고른 달에 낸 것이 있으면 덜 낸 차례를 기다리지 않고 안 나간 것으로 본다. 해지한 달을 일부만 냈으면 낼 날이 지나도
+ *   '2번 중 1번 냈고, 남은 건 평소보다 N일 지났어요' 로 알리지 않고 바로 '2번 중 1번만 냈어요' 인 냈어요다.
  */
-fun buildFixedExpenses(month: YearMonth, today: LocalDate, rows: List<TransactionListItem>): FixedExpenseBoard =
-    buildFixedExpenses(month, today, rows, DueDates())
+fun buildFixedExpenses(
+    month: YearMonth,
+    today: LocalDate,
+    rows: List<TransactionListItem>,
+    ended: Set<String> = emptySet(),
+): FixedExpenseBoard = buildFixedExpenses(month, today, rows, DueDates(), ended)
 
 /** [buildFixedExpenses] 를 낼 날 표 [dues] 하나로. 낼 날은 가게와 상관없는 (달, 날)의 값이라 모든 가게의 짐작 · 짝짓기 · 정렬이 함께 쓴다. */
-internal fun buildFixedExpenses(month: YearMonth, today: LocalDate, rows: List<TransactionListItem>, dues: DueDates): FixedExpenseBoard {
+internal fun buildFixedExpenses(
+    month: YearMonth,
+    today: LocalDate,
+    rows: List<TransactionListItem>,
+    dues: DueDates,
+    ended: Set<String> = emptySet(),
+): FixedExpenseBoard {
     val base = maxOf(month, YearMonth.from(today))
     val knownUntil = base.atEndOfMonth()
     val estimationFrom = fixedHistoryStart(base).atDay(1)
@@ -199,7 +213,7 @@ internal fun buildFixedExpenses(month: YearMonth, today: LocalDate, rows: List<T
             .groupBy { fixedMerchantKey(it.row.merchant) }
             .mapNotNull { (key, pays) ->
                 val estimation = pays.filter { !it.date.isBefore(estimationFrom) }.ifEmpty { pays }
-                fixedItem(key, pays, estimateSchedule(estimation, base, dues), month, today, dues)
+                fixedItem(key, pays, estimateSchedule(estimation, base, dues), month, today, dues, ended = key in ended)
             }
     return FixedExpenseBoard(
         due =
@@ -221,6 +235,7 @@ internal fun buildFixedExpenses(month: YearMonth, today: LocalDate, rows: List<T
 /**
  * 한 가게([pays], 오늘이 든 달까지)를 [month] 에서 본 것. [schedule] 은 오늘이 든 달 기준 기록으로 짐작한 일정이다
  * (그 기간에 결제가 없는 옛 가게는 읽은 기록 모두로). 고른 달까지 낸 몫이 없으면(첫 결제 전 달) null
+ * @param ended 목록에서 해지한 곳인지. 그러면 고른 달에 낸 것이 있을 때 덜 낸 차례를 모두 안 나간 것으로 본다.
  */
 private fun fixedItem(
     key: String,
@@ -229,6 +244,7 @@ private fun fixedItem(
     month: YearMonth,
     today: LocalDate,
     dues: DueDates,
+    ended: Boolean,
 ): FixedExpenseItem? {
     // 자주 내는 가게는 차례 없이 낸 달 몫이고 한 번만 내도 그 달을 냈다
     val frequent = schedule.timesPerMonth != null
@@ -256,7 +272,9 @@ private fun fixedItem(
     val cadence = schedule.cadence
     val gap = month.index() - last.index()
     // 덜 낸 차례를 아직 낼 것과 안 나간 것으로 가른다. 앞 차례 달까지 비었으면(놓친 차례) 그 달을 통째로 안 낸 것으로 본다.
+    // 해지한 곳은 남은 차례를 더 내지 않으니 그 달에 낸 것이 있으면 기다리지 않는다(해지한 달이 사흘 동안 '지났어요' 로 남지 않게).
     val state = slotState(month, today, split, days, shares, slotOf, counts, dues, weighs = here.isNotEmpty() || gap == cadence)
+        .let { if (ended && here.isNotEmpty()) it.allDropped() else it }
     // 덜 낸 차례가 모두 안 나갔으면(해지했거나 건너뜀) 낸 것만으로 냈어요다
     val status =
         when {
@@ -365,7 +383,10 @@ private fun settledMatching(
  * [openDue] 는 첫 [open] 차례를 낼 날이다. 함께 나가던 건 가운데 일부만 나간 차례면 평소 벌어짐이 끝나는 날([slotState])이라 그날까지는
  * 지났다고 하지 않는다(그 뒤엔 안 나간 것이다). 아니면 그 차례 낼 날이고, 아직 낼 차례가 없으면 null 이다.
  */
-private class SlotState(val open: List<Int>, val dropped: List<Int>, val openDue: LocalDate?)
+private class SlotState(val open: List<Int>, val dropped: List<Int>, val openDue: LocalDate?) {
+    /** 아직 낼 차례도 모두 안 나간 것으로 본 것(해지한 곳) */
+    fun allDropped(): SlotState = SlotState(open = emptyList(), dropped = (dropped + open).sorted(), openDue = null)
+}
 
 /**
  * [month] 의 덜 낸 차례(차례마다 건수 [split] 보다 그 달 몫으로 짝지은 결제가 적은 것)를 [today] 에 아직 낼 것과 안 나간 것으로 가른다.
