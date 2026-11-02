@@ -10,9 +10,11 @@ import com.dong.budget.testing.seoulInstant
 import com.dong.budget.testing.tx
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.Instant
+import java.time.LocalDate
 import java.time.YearMonth
 
 class FixedRegistryTest {
@@ -43,6 +45,10 @@ class FixedRegistryTest {
         key to FixedMerchantEntity(key, FixedMerchantState.REGISTERED, seoulInstant(at))
 
     private fun declined(key: String, at: String) = key to FixedMerchantEntity(key, FixedMerchantState.DECLINED, seoulInstant(at))
+
+    /** [at] 에 해지한 곳. 다시 물은 것에 '안 함' 을 눌렀으면 정한 때([decidedAt])만 뒤다. */
+    private fun ended(key: String, at: String, decidedAt: String = at) =
+        key to FixedMerchantEntity(key, FixedMerchantState.ENDED, seoulInstant(decidedAt), endedAt = seoulInstant(at))
 
     private fun keysOf(items: List<FixedCandidate>) = items.map { it.key }
 
@@ -183,5 +189,178 @@ class FixedRegistryTest {
         // 지난 달 화면이 읽은 오래된 결제도 일정 짐작에 쓰인다
         val rows = listOf(pay("2024-03-10", "자동차보험", 680_000), pay("2025-03-10", "자동차보험", 680_000))
         assertEquals(rows, split(rows, mapOf(registered("자동차보험"))).registered)
+    }
+
+    // ── 해지한 곳 ──
+
+    private val september = YearMonth.of(2026, 9)
+
+    private fun board(split: FixedRegistrySplit, month: YearMonth, today: LocalDate = this.today) =
+        buildFixedExpenses(month, today, split.boardRows(month))
+
+    private fun keysOn(board: FixedExpenseBoard) = (board.due + board.paid + board.notThisMonth + board.stopped).map { it.key }
+
+    @Test
+    fun `해지한 곳은 마지막으로 낸 몫의 달까지만 판에 넘기고 해지한 곳 묶음에 둔다`() {
+        // 9월 5일까지 내고 9월 20일에 해지했다. 등록한 채였으면 10월 판에 '평소보다 11일 지났어요' 로 남았다.
+        val rows = monthly("넷플릭스", 5, 17_000, 5..9)
+
+        val split = split(rows, mapOf(ended("넷플릭스", "2026-09-20")))
+
+        assertTrue(split.candidates.isEmpty())
+        assertTrue(split.declined.isEmpty())
+        assertTrue(split.registered.isEmpty())
+        val place = split.ended.single()
+        assertEquals(september, place.endMonth)
+        assertFalse(place.asking)
+        assertEquals(listOf("넷플릭스"), keysOf(split.endedPlaces))
+        assertEquals(day("2026-09-05"), split.endedPlaces.single().lastPaidOn)
+        // 끝 달인 9월까지는 그대로 냈어요이고, 10월부터는 판에 없다
+        assertEquals(listOf("넷플릭스"), board(split, september).paid.map { it.key })
+        assertEquals(listOf("넷플릭스"), keysOn(board(split, YearMonth.of(2026, 6))))
+        assertTrue(board(split, october).isEmpty)
+        assertEquals(setOf("넷플릭스"), split.endedKeysIn(september))
+        assertTrue(split.endedKeysIn(october).isEmpty())
+    }
+
+    @Test
+    fun `해지한 뒤에 지난 날짜로 적은 결제는 해지 전 결제이고 해지한 뒤에 낸 결제는 아니다`() {
+        // 9월 20일에 해지한 뒤, 빠뜨렸던 9월 5일 몫을 10월 1일에 적었다. 10월 10일에 낸 것은 다시 물었을 때 '안 함' 을 눌렀다.
+        val late = pay("2026-09-05", "넷플릭스", createdAt = "2026-10-01T09:00")
+        val after = pay("2026-10-10T09:00", "넷플릭스", createdAt = "2026-10-10T09:00")
+        val rows = monthly("넷플릭스", 5, 17_000, 5..8) + late + after
+
+        val place = split(rows, mapOf(ended("넷플릭스", "2026-09-20", decidedAt = "2026-10-11"))).ended.single()
+
+        assertTrue(late in place.rows)
+        assertFalse(after in place.rows)
+        assertEquals(september, place.endMonth)
+        assertEquals(late.id, place.place.latest.id)
+    }
+
+    @Test
+    fun `해지한 뒤에 새로 내면 다시 묻고 묻는 동안에는 해지한 곳 묶음에 두지 않는다`() {
+        // 9월 20일에 해지했다가 10월 15일에 다시 구독했다
+        val again = pay("2026-10-15T09:00", "넷플릭스", createdAt = "2026-10-15T09:01")
+        val rows = monthly("넷플릭스", 5, 17_000, 5..9) + again
+
+        val split = split(rows, mapOf(ended("넷플릭스", "2026-09-20")))
+
+        // 묻는 줄은 새 결제로 보여 준다
+        assertEquals(again.id, split.candidates.single().latest.id)
+        assertTrue(split.endedPlaces.isEmpty())
+        assertTrue(split.ended.single().asking)
+        // 묻는 동안에도 해지 전 결제는 끝 달까지 판에 그대로이고, 새 결제는 판에 넘기지 않는다
+        assertEquals(listOf("넷플릭스"), board(split, september).paid.map { it.key })
+        assertFalse(again in split.boardRows(september))
+        assertTrue(split.boardRows(october).isEmpty())
+    }
+
+    @Test
+    fun `해지한 곳에 다시 물은 것에 안 함을 누르면 그 결제로는 다시 묻지 않고 그 뒤에 새로 내야 묻는다`() {
+        val again = pay("2026-10-15T09:00", "넷플릭스", createdAt = "2026-10-15T09:01")
+        val rows = monthly("넷플릭스", 5, 17_000, 5..9) + again
+        // 10월 15일 저녁에 '안 함' 을 눌렀다. 해지한 때는 그대로다.
+        val registry = mapOf(ended("넷플릭스", "2026-09-20", decidedAt = "2026-10-15T20:00"))
+
+        val kept = split(rows, registry)
+
+        assertTrue(kept.candidates.isEmpty())
+        assertEquals(listOf("넷플릭스"), keysOf(kept.endedPlaces))
+        // 해지한 곳 줄은 해지 전 마지막 결제로 보여 주고, 끝 달도 그대로다
+        assertEquals(day("2026-09-05"), kept.endedPlaces.single().lastPaidOn)
+        assertEquals(september, kept.ended.single().endMonth)
+        assertTrue(kept.boardRows(october).isEmpty())
+
+        val later = pay("2026-10-16T08:00", "넷플릭스", createdAt = "2026-10-16T08:00")
+        val asked = split(rows + later, registry)
+        assertEquals(later.id, asked.candidates.single().latest.id)
+        assertTrue(asked.endedPlaces.isEmpty())
+    }
+
+    @Test
+    fun `끝 달은 고른 달과 상관없이 같다`() {
+        // 2023년 1월부터 매달 5일에 내다 2026년 9월에 해지했다. 지난 달 화면은 이번 달 화면보다 옛 결제까지 읽는다.
+        val all =
+            generateSequence(YearMonth.of(2023, 1)) { it.plusMonths(1) }
+                .takeWhile { it <= september }
+                .map { pay(it.atDay(5).toString(), "넷플릭스") }
+                .toList()
+        val thisMonthView = all.filter { it.occurredAt >= seoulInstant("2024-07-01") }
+        val registry = mapOf(ended("넷플릭스", "2026-09-20"))
+
+        val now = split(thisMonthView, registry).ended.single()
+        val old = split(all, registry).ended.single()
+
+        assertEquals(september, now.endMonth)
+        assertEquals(now.endMonth, old.endMonth)
+        // 판에 넘기는 해지 전 결제는 받은 기간 전부다(지난 달 판도 등록한 곳처럼 옛 결제로 계산한다)
+        assertEquals(all, old.rows)
+        assertEquals(listOf("넷플릭스"), keysOn(board(split(all, registry), YearMonth.of(2024, 1))))
+    }
+
+    @Test
+    fun `매년 내는 것의 다음 몫을 미리 내고 해지하면 그 몫의 달까지 판에 보인다`() {
+        // 매년 3월에 내는 자동차보험을 2월 22일에 미리 갱신하고 2월 23일에 해지했다
+        val rows = listOf("2024-03-15", "2025-03-14", "2026-02-22").map { pay(it, "자동차보험", 800_000) }
+        val registry = mapOf(ended("자동차보험", "2026-02-23T09:00"))
+        val march = YearMonth.of(2026, 3)
+
+        val february = splitByRegistry(rows, registry, created, day("2026-02-23"))
+        val laterInMarch = splitByRegistry(rows, registry, created, day("2026-03-20"))
+
+        assertEquals(march, february.ended.single().endMonth)
+        assertEquals(march, laterInMarch.ended.single().endMonth)
+        assertTrue(february.ended.single().showsIn(YearMonth.of(2026, 2)))
+        assertEquals(FixedStatus.PAID, board(laterInMarch, march, day("2026-03-20")).paid.single().status)
+        assertTrue(board(laterInMarch, YearMonth.of(2026, 4), day("2026-04-20")).isEmpty)
+    }
+
+    @Test
+    fun `해지 전 결제가 날짜를 앞으로 적어 둔 것뿐이면 끝 달이 없어 어느 달 판에도 안 보인다`() {
+        // 10월 1일에 11월 5일 몫을 미리 적어 두고 10월 10일에 해지했다. 10월 12일에 낸 것은 다시 물었을 때 '안 함' 을 눌렀다.
+        val ahead = pay("2026-11-05", "헬스장", 55_000, createdAt = "2026-10-01T09:00")
+        val after = pay("2026-10-12T09:00", "헬스장", 55_000, createdAt = "2026-10-12T09:00")
+
+        val split = split(listOf(ahead, after), mapOf(ended("헬스장", "2026-10-10", decidedAt = "2026-10-13")))
+
+        val place = split.ended.single()
+        assertNull(place.endMonth)
+        assertFalse(place.showsIn(october))
+        assertTrue(split.boardRows(october).isEmpty())
+        // 해지한 곳 묶음에는 두어 되돌릴 수 있게 한다. 기간 안에 해지 전 결제가 없어 그 기간의 가장 최근 결제로 보여 준다.
+        assertEquals(after.id, split.endedPlaces.single().latest.id)
+    }
+
+    @Test
+    fun `해지한 곳 묶음은 가장 최근에 낸 곳부터이고 가게끼리 끝 달이 따로다`() {
+        val rows = monthly("넷플릭스", 5, 17_000, 5..9) + monthly("헬스장", 10, 55_000, 5..7)
+        val registry = mapOf(ended("헬스장", "2026-08-01"), ended("넷플릭스", "2026-09-20"))
+
+        val split = split(rows, registry)
+
+        assertEquals(listOf("넷플릭스", "헬스장"), keysOf(split.endedPlaces))
+        assertEquals(mapOf("넷플릭스" to september, "헬스장" to YearMonth.of(2026, 7)), split.ended.associate { it.key to it.endMonth })
+        assertEquals(september, split(monthly("넷플릭스", 5, 17_000, 5..9), registry).ended.single().endMonth)
+        assertEquals(listOf("넷플릭스"), keysOn(board(split, YearMonth.of(2026, 8))))
+    }
+
+    @Test
+    fun `해지한 때가 빠진 해지한 곳은 정한 때에 해지한 것으로 본다`() {
+        val rows = monthly("넷플릭스", 5, 17_000, 5..9) + pay("2026-10-05", "넷플릭스", createdAt = "2026-10-05T09:00")
+        val registry = mapOf("넷플릭스" to FixedMerchantEntity("넷플릭스", FixedMerchantState.ENDED, seoulInstant("2026-09-20")))
+
+        val split = split(rows, registry)
+
+        assertEquals(listOf("넷플릭스"), keysOf(split.candidates))
+        assertEquals(september, split.ended.single().endMonth)
+    }
+
+    @Test
+    fun `해지한 곳도 이번 달 기준 기간에 지출이 없으면 묻지도 두지도 않는다`() {
+        val split = split(listOf(pay("2024-06-10", "오래된 구독")), mapOf(ended("오래된 구독", "2024-07-01")))
+        assertTrue(split.ended.isEmpty())
+        assertTrue(split.candidates.isEmpty())
+        assertTrue(split.boardRows(YearMonth.of(2024, 6)).isEmpty())
     }
 }
