@@ -25,12 +25,13 @@ class DefaultCategoryCodesTest {
         )
 
     @Test
-    fun `코드 없이 다시 만든 고정지출·급여에 DB 를 열 때 코드를 돌려준다`() {
+    fun `코드 없이 다시 만든 고정지출·급여·저축에 DB 를 열 때 코드를 돌려준다`() {
         helper.createDatabase(TEST_DB, 3).use { db ->
             db.insertCategory("u:etc", "EXPENSE", "기타", ETC_EXPENSE_CODE)
             db.insertCategory("u:fixed2", "EXPENSE", "고정 지출", null)
             db.insertCategory("u:fixed3", "EXPENSE", "고정지출", null)
             db.insertCategory("u:salary", "INCOME", "급여", null)
+            db.insertCategory("u:savings", "EXPENSE", "저축", null)
             db.insertCategory("u:other", "INCOME", "고정지출", null)
 
             reclaimDefaultCodes(db)
@@ -39,6 +40,7 @@ class DefaultCategoryCodesTest {
             assertEquals(FIXED_CATEGORY_CODE, db.codeOf("u:fixed2"))
             assertNull(db.codeOf("u:fixed3"))
             assertEquals(SALARY_CATEGORY_CODE, db.codeOf("u:salary"))
+            assertEquals(SAVINGS_CATEGORY_CODE, db.codeOf("u:savings"))
             // 수입 '고정지출' 은 다른 종류라 그대로다
             assertNull(db.codeOf("u:other"))
 

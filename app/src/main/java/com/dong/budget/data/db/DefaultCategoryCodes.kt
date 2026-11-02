@@ -5,15 +5,18 @@ import com.dong.budget.data.devlog.DevLog
 import com.dong.budget.data.devlog.LogTag
 
 // ─────────────────────────────────────────────────────────────────────
-// 기능이 코드로 찾는 기본 분류('고정지출'·'급여')를 지운 뒤 같은 이름으로 다시 만들었을 때 코드를 돌려주는 규칙.
+// 기능이 코드로 찾는 기본 분류('고정지출'·'급여'·'저축')를 지운 뒤 같은 이름으로 다시 만들었을 때 코드를 돌려주는 규칙.
 // 고정지출 탭과 월급 등록은 이름이 아니라 코드로 분류를 찾는다. 다시 만든 분류에 코드가 없으면 '분류가 없어요' 로 보인다.
+// '저축' 도 코드로 가려 쓴 돈에서 뺀다(isSavings). 다시 만든 '저축' 에 코드가 없으면 그 분류로 적은 돈이 쓴 돈으로 세진다.
 // - 새로 만들 때: CategoryRepository.add 가 붙인다(defaultCodeFor).
-// - 이미 코드 없이 만들어 둔 것(0.1.3 ~ 1.6.1 에서 지우고 다시 만든 것, 그런 백업을 되살린 것):
+// - 이미 코드 없이 만들어 둔 것(0.1.3 ~ 1.6.1 에서 지우고 다시 만든 '고정지출'·'급여', 1.8.0 ~ 1.9.1 에서 다시 만든 '저축',
+//   그런 백업을 되살린 것):
 //   DB 를 열 때 · 백업을 되살린 뒤 · 분류를 지운 뒤에 [reclaimedCodes] 로 골라 돌려준다.
 // ─────────────────────────────────────────────────────────────────────
 
 /** 지운 뒤 다시 만들면 코드를 돌려줄 기본 분류. 기능이 코드로 찾는 것만 둔다. */
-internal val RECLAIMABLE_DEFAULTS = DEFAULT_CATEGORIES.filter { it.code == FIXED_CATEGORY_CODE || it.code == SALARY_CATEGORY_CODE }
+internal val RECLAIMABLE_DEFAULTS =
+    DEFAULT_CATEGORIES.filter { it.code in setOf(FIXED_CATEGORY_CODE, SALARY_CATEGORY_CODE, SAVINGS_CATEGORY_CODE) }
 
 /** 분류 이름을 견줄 때 쓰는 꼴. 앞뒤 · 가운데 띄어쓰기를 모두 뺀다('고정 지출' 도 '고정지출' 이다). */
 internal fun String.withoutSpaces(): String = filterNot { it.isWhitespace() }

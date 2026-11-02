@@ -27,7 +27,7 @@ class CategoryRepository(private val dao: CategoryDao) {
                 uuid = UUID.randomUUID().toString(),
                 scope = scope,
                 name = name,
-                // 지운 '고정지출'·'급여' 를 같은 이름으로 다시 만들면 고정지출 탭·월급 등록이 다시 알아보게 코드를 돌려준다
+                // 지운 '고정지출'·'급여'·'저축' 을 같은 이름으로 다시 만들면 고정지출 탭·월급 등록·저축 셈이 다시 알아보게 코드를 돌려준다
                 code = defaultCodeFor(scope, name) { dao.findByCode(scope, it) != null },
                 icon = CategoryStyle.iconOrFallback(icon),
                 color = CategoryStyle.colorOrFallback(color),
@@ -51,7 +51,7 @@ class CategoryRepository(private val dao: CategoryDao) {
 
     /**
      * 분류를 지운다. 그 분류로 적힌 거래는 같은 종류의 '기타' 로 옮긴다.
-     * '기타' 자체는 지울 수 없다. '고정지출'·'급여' 를 지웠는데 띄어쓰기만 다른 같은 이름의 분류가 있으면 그 분류가 코드를 잇는다.
+     * '기타' 자체는 지울 수 없다. '고정지출'·'급여'·'저축' 을 지웠는데 띄어쓰기만 다른 같은 이름의 분류가 있으면 그 분류가 코드를 잇는다.
      */
     suspend fun delete(id: Long): Boolean {
         val category = dao.findById(id) ?: return false
@@ -62,7 +62,7 @@ class CategoryRepository(private val dao: CategoryDao) {
 }
 
 /**
- * 새로 만드는 분류에 붙일 기본 분류 코드. 기능이 코드로 찾는 기본 분류('고정지출'·'급여')를 지운 뒤 같은 종류에 같은 이름으로
+ * 새로 만드는 분류에 붙일 기본 분류 코드. 기능이 코드로 찾는 기본 분류('고정지출'·'급여'·'저축')를 지운 뒤 같은 종류에 같은 이름으로
  * 다시 만들면 그 코드를 돌려준다. 이름은 앞뒤·가운데 띄어쓰기를 무시하고 견준다('고정 지출' 도 같다).
  * 그 코드를 가진 분류가 아직 있으면([isTaken]) 붙이지 않는다(코드는 종류마다 하나다). 그 밖에는 null(사용자가 만든 분류)이다.
  */

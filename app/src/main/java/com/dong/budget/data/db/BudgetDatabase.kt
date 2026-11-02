@@ -123,7 +123,7 @@ internal fun insertDefaultPaymentMethod(db: SupportSQLiteDatabase, m: DefaultPay
 
 /**
  * 첫 설치 때 기본 분류와 결제수단·들어온 곳을 넣는다(onCreate, 옛 DB 를 올리는 경우에는 불리지 않는다).
- * DB 를 열 때마다 지운 뒤 코드 없이 다시 만든 '고정지출'·'급여' 에 코드를 돌려준다(onOpen, 마이그레이션 뒤에 불린다).
+ * DB 를 열 때마다 지운 뒤 코드 없이 다시 만든 '고정지출'·'급여'·'저축' 에 코드를 돌려준다(onOpen, 마이그레이션 뒤에 불린다).
  *
  * 주의: 둘 다 SupportSQLiteDatabase 버전이다. Room 은 onCreate/onOpen(SQLiteConnection) 을 부르고, 그 기본 구현은 연결이
  * SupportSQLiteConnection 일 때만 이 버전으로 넘긴다. 지금은 드라이버를 따로 지정하지 않아서(호환 모드) 넘어오지만,

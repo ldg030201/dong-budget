@@ -310,7 +310,7 @@ interface CategoryDao {
     /**
      * 거래를 먼저 옮기고 분류를 지운다. 둘 중 하나만 되는 일이 없도록 한 트랜잭션으로 묶는다.
      * 옮기기 전에 지우면 외래키 설정 때문에 거래의 분류가 빈 값이 된다.
-     * 지운 것이 '고정지출'·'급여' 였고 띄어쓰기만 다른 같은 이름의 분류가 남아 있으면 그 분류가 코드를 잇는다(DB 를 다시 열 때와 같게).
+     * 지운 것이 '고정지출'·'급여'·'저축' 이었고 띄어쓰기만 다른 같은 이름의 분류가 남아 있으면 그 분류가 코드를 잇는다(DB 를 다시 열 때와 같게).
      */
     @Transaction
     suspend fun deleteMovingTransactions(id: Long, fallbackId: Long, now: Instant): Boolean {
@@ -327,7 +327,7 @@ interface CategoryDao {
     suspend fun setCodeIfMissing(id: Long, code: String)
 
     /**
-     * 지운 뒤 코드 없이 다시 만든 기본 분류('고정지출'·'급여')에 코드를 돌려준다([reclaimedCodes]).
+     * 지운 뒤 코드 없이 다시 만든 기본 분류('고정지출'·'급여'·'저축')에 코드를 돌려준다([reclaimedCodes]).
      * 백업을 되살린 뒤 · 분류를 지운 뒤에 부른다. DB 를 열 때는 같은 일을 reclaimDefaultCodes(db) 가 한다.
      */
     @Transaction

@@ -6,6 +6,7 @@ import com.dong.budget.data.db.CategoryScope.EXPENSE
 import com.dong.budget.data.db.CategoryScope.INCOME
 import com.dong.budget.data.db.FIXED_CATEGORY_CODE
 import com.dong.budget.data.db.SALARY_CATEGORY_CODE
+import com.dong.budget.data.db.SAVINGS_CATEGORY_CODE
 import com.dong.budget.data.db.reclaimedCodes
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -27,9 +28,19 @@ class DefaultCategoryCodeTest {
     }
 
     @Test
+    fun `지운 저축 분류를 같은 이름으로 다시 만들면 저축 코드를 붙인다`() {
+        // 저축은 코드로 가려 쓴 돈에서 뺀다. 코드가 없으면 그 분류로 적은 돈이 쓴 돈으로 세진다.
+        assertEquals(SAVINGS_CATEGORY_CODE, defaultCodeFor(CategoryScope.EXPENSE, "저축", none))
+        assertEquals(SAVINGS_CATEGORY_CODE, defaultCodeFor(CategoryScope.EXPENSE, " 저 축 ", none))
+        assertNull(defaultCodeFor(CategoryScope.INCOME, "저축", none))
+        assertNull(defaultCodeFor(CategoryScope.EXPENSE, "적금", none))
+    }
+
+    @Test
     fun `그 코드를 가진 분류가 아직 있으면 붙이지 않는다`() {
         assertNull(defaultCodeFor(CategoryScope.EXPENSE, "고정지출") { it == FIXED_CATEGORY_CODE })
         assertNull(defaultCodeFor(CategoryScope.INCOME, "급여") { it == SALARY_CATEGORY_CODE })
+        assertNull(defaultCodeFor(CategoryScope.EXPENSE, "저축") { it == SAVINGS_CATEGORY_CODE })
     }
 
     @Test
@@ -49,9 +60,14 @@ class DefaultCategoryCodeTest {
     private val others = listOf(row(1, EXPENSE, "식비", "FOOD"), row(2, EXPENSE, "기타", "ETC_EXPENSE"), row(3, INCOME, "기타", "ETC_INCOME"))
 
     @Test
-    fun `코드 없이 다시 만든 고정지출·급여 분류에 코드를 돌려준다`() {
-        val rows = others + row(10, EXPENSE, "고정지출") + row(11, INCOME, "급여")
-        assertEquals(mapOf(10L to FIXED_CATEGORY_CODE, 11L to SALARY_CATEGORY_CODE), reclaimedCodes(rows))
+    fun `코드 없이 다시 만든 고정지출·급여·저축 분류에 코드를 돌려준다`() {
+        val rows = others + row(10, EXPENSE, "고정지출") + row(11, INCOME, "급여") + row(14, EXPENSE, "저축")
+        assertEquals(mapOf(10L to FIXED_CATEGORY_CODE, 11L to SALARY_CATEGORY_CODE, 14L to SAVINGS_CATEGORY_CODE), reclaimedCodes(rows))
+        // 저축 코드를 가진 분류(이름을 바꿨어도)가 있으면 같은 이름 분류는 그대로다
+        assertEquals(
+            emptyMap<Long, String>(),
+            reclaimedCodes(others + row(6, EXPENSE, "모으기", SAVINGS_CATEGORY_CODE) + row(14, EXPENSE, "저축")),
+        )
     }
 
     @Test
