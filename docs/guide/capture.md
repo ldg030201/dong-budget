@@ -21,7 +21,7 @@
 </td>
 <td align="center" width="33%">
 <img src="../images/inbox.png" width="220" alt="알림 목록"><br>
-<sub><b>홈의 종을 누르면 지난 7일 결제 알림</b></sub>
+<sub><b>홈의 종을 누르면 지난 7일 결제·입금 알림</b></sub>
 </td>
 </tr>
 </table>
