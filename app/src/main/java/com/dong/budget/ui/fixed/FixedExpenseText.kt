@@ -232,12 +232,16 @@ internal const val PAID_LABEL = "낸 돈"
 internal fun dueLabel(board: FixedExpenseBoard, month: YearMonth, today: LocalDate): String =
     if (isStillOpen(board, month, today)) "낼 돈" else "안 낸 돈"
 
-/** 요약 문장. "6개 중 4개 냈어요", "4개 모두 냈어요", "이번 달에 낼 고정지출이 없어요" */
-internal fun FixedTexts.countSentence(board: FixedExpenseBoard, month: YearMonth, today: LocalDate): String {
+/**
+ * 요약 문장. "6개 중 4개 냈어요", "4개 모두 냈어요", "이번 달에 낼 고정지출이 없어요"
+ * @param hasEnded 해지한 곳이 있는지([FixedExpenseUiState.hasEnded]). 있으면 판이 비어도 목록에 넣은 적은 있다.
+ */
+internal fun FixedTexts.countSentence(board: FixedExpenseBoard, month: YearMonth, today: LocalDate, hasEnded: Boolean = false): String {
     val total = board.dueCount
     return when {
-        // 목록에 넣은 곳이 없는데 묻는 곳 · 등록 안 한 곳 · 해지한 곳만 있을 때. '낼 고정지출이 없어요' 로 적으면 고정지출이 정말 없는 것처럼 읽힌다.
-        board.isEmpty -> noRegisteredSentence(month, today)
+        // 목록에 넣은 곳이 없는데 묻는 곳 · 등록 안 한 곳만 있을 때. '낼 고정지출이 없어요' 로 적으면 고정지출이 정말 없는 것처럼 읽힌다.
+        // 해지한 곳이 있으면 목록에 넣은 적은 있고 끝 달 뒤라 판에 없을 뿐이라(끝 달까지의 판에는 있다) 그 달에 낼 것이 없다고 적는다.
+        board.isEmpty && !hasEnded -> noRegisteredSentence(month, today)
 
         total == 0 -> nothingDueSentence(month, today)
 
@@ -249,9 +253,9 @@ internal fun FixedTexts.countSentence(board: FixedExpenseBoard, month: YearMonth
     }
 }
 
-/** 요약 판을 한 번에 읽는 문장. "이번 달 고정지출. 6개 중 4개 냈어요. 낸 돈 85,000원, 낼 돈 1,317,000원" */
-internal fun FixedTexts.summarySpoken(board: FixedExpenseBoard, month: YearMonth, today: LocalDate): String {
-    val parts = mutableListOf(summaryTitle(month, today), countSentence(board, month, today))
+/** 요약 판을 한 번에 읽는 문장. "이번 달 고정지출. 6개 중 4개 냈어요. 낸 돈 85,000원, 낼 돈 1,317,000원". [hasEnded] 는 [countSentence] 와 같다. */
+internal fun FixedTexts.summarySpoken(board: FixedExpenseBoard, month: YearMonth, today: LocalDate, hasEnded: Boolean = false): String {
+    val parts = mutableListOf(summaryTitle(month, today), countSentence(board, month, today, hasEnded))
     if (board.dueCount > 0) {
         parts += "$PAID_LABEL ${formatAmount(board.paidTotal)}원, ${dueLabel(board, month, today)} ${formatAmount(board.dueTotal)}원"
     }
@@ -338,12 +342,15 @@ internal sealed interface FixedTexts {
     /** 요약 판 제목. "이번 달 고정지출", "9월 고정지출" */
     fun summaryTitle(month: YearMonth, today: LocalDate): String
 
-    /** 등록한 곳은 있는데 고른 달에 낼 것이 하나도 없을 때의 요약 문장. "이번 달에 낼 고정지출이 없어요", "9월엔 낼 고정지출이 없었어요" */
+    /**
+     * 등록한 곳은 있는데 고른 달에 낼 것이 하나도 없을 때의 요약 문장. 해지한 곳만 있어 판이 빈 달(끝 달 뒤)도 이것이다.
+     * "이번 달에 낼 고정지출이 없어요", "9월엔 낼 고정지출이 없었어요"
+     */
     fun nothingDueSentence(month: YearMonth, today: LocalDate): String
 
     /**
-     * 목록에 등록한 곳이 고른 달까지 하나도 없는데 물을 곳이나 등록 안 한 곳 · 해지한 곳만 있을 때 요약 자리의 문장.
-     * "아직 목록에 넣은 고정지출이 없어요", 지난 달이면 "9월까지는 목록에 넣은 고정지출이 없어요"
+     * 목록에 등록한 곳이 고른 달까지 하나도 없는데 물을 곳이나 등록 안 한 곳만 있을 때 요약 자리의 문장. 해지한 곳이 있으면
+     * 목록에 넣은 적은 있어 쓰지 않는다([countSentence]). "아직 목록에 넣은 고정지출이 없어요", 지난 달이면 "9월까지는 목록에 넣은 고정지출이 없어요"
      */
     fun noRegisteredSentence(month: YearMonth, today: LocalDate): String
 

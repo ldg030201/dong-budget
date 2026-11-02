@@ -388,7 +388,7 @@ private fun itemKey(item: FixedExpenseItem): String = "item-${item.key}"
 private fun SummaryBlock(state: FixedExpenseUiState) {
     val board = state.board
     val texts = state.texts
-    val spoken = texts.summarySpoken(board, state.month, state.today)
+    val spoken = texts.summarySpoken(board, state.month, state.today, state.hasEnded)
     Column(
         modifier =
         Modifier
@@ -406,7 +406,7 @@ private fun SummaryBlock(state: FixedExpenseUiState) {
         )
         Spacer(Modifier.height(BudgetTheme.spacing.tightGap))
         Text(
-            text = texts.countSentence(board, state.month, state.today),
+            text = texts.countSentence(board, state.month, state.today, state.hasEnded),
             style = MaterialTheme.typography.titleMedium,
             color = BudgetTheme.colors.textPrimary,
         )

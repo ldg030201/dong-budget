@@ -165,6 +165,34 @@ class FixedExpenseViewModelTest {
     }
 
     @Test
+    fun `해지한 곳만 남아 판이 빈 달은 해지한 곳이 있다고 알려 요약이 낼 것이 없다고 적는다`() {
+        // 7월 5일까지 매달 내다 그만둔 넷플릭스를 9월 20일에 해지했다(끝 달 7월). 8월부터 판은 비지만 목록에 넣은 적은 있다.
+        categories.value = listOf(category(4, "고정지출", FIXED_CATEGORY_CODE))
+        expenses.value =
+            mapOf(
+                FIXED_CATEGORY_CODE to
+                    listOf("2026-05-05", "2026-06-05", "2026-07-05").map {
+                        FixedExpenseRow(tx(it, 17_000, categoryId = 4, merchant = "넷플릭스"), now)
+                    },
+            )
+        val model = open(FixedMerchantEntity("넷플릭스", FixedMerchantState.ENDED, endedAt, endedAt = endedAt))
+
+        val october = model.uiState.value
+        assertTrue(october.board.isEmpty)
+        assertTrue(october.hasEnded)
+        assertEquals("이번 달에 낼 고정지출이 없어요", october.texts.countSentence(october.board, october.month, october.today, october.hasEnded))
+
+        model.showPreviousMonth()
+
+        val september = model.uiState.await { it.month.monthValue == 9 }
+        assertTrue(september.board.isEmpty)
+        assertEquals(
+            "9월엔 낼 고정지출이 없었어요",
+            september.texts.countSentence(september.board, september.month, september.today, september.hasEnded),
+        )
+    }
+
+    @Test
     fun `고정저축 화면 모델은 저축 분류 지출을 고정저축 목록으로만 나누고 등록도 고정저축 목록에 한다`() {
         categories.value = listOf(category(4, "고정지출", FIXED_CATEGORY_CODE), category(7, "저축", SAVINGS_CATEGORY_CODE))
         expenses.value =

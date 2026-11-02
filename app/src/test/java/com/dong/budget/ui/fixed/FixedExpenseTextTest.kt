@@ -435,6 +435,32 @@ class FixedExpenseTextTest {
         assertEquals("9월까지는 목록에 넣은 고정지출이 없어요", expense.noRegisteredSentence(YearMonth.of(2026, 9), today))
     }
 
+    @Test
+    fun `해지한 곳만 있어 판이 빈 달은 목록에 넣은 것이 없다고 하지 않고 낼 것이 없다고 적는다`() {
+        // 7월 5일까지 매달 내다 그만둔 넷플릭스를 해지했다. 끝 달인 7월까지의 판에는 냈어요로 있고 '해지한 곳' 에도 있다.
+        val september = YearMonth.of(2026, 9)
+        val endedAt = seoulInstant("2026-10-10")
+        val split =
+            splitByRegistry(
+                paid("2026-05-05", "2026-06-05", "2026-07-05"),
+                mapOf("넷플릭스" to FixedMerchantEntity("넷플릭스", FixedMerchantState.ENDED, endedAt, endedAt = endedAt)),
+                emptyMap(),
+                today,
+            )
+        assertEquals(YearMonth.of(2026, 7), split.ended.single().endMonth)
+        assertEquals(listOf("넷플릭스"), split.board(YearMonth.of(2026, 7), today).paid.map { it.key })
+
+        listOf(september, october).forEach { assertTrue(split.board(it, today).isEmpty) }
+        assertEquals("9월엔 낼 고정지출이 없었어요", expense.countSentence(split.board(september, today), september, today, hasEnded = true))
+        assertEquals(
+            "이번 달 고정지출. 이번 달에 낼 고정지출이 없어요",
+            expense.summarySpoken(split.board(october, today), october, today, hasEnded = true),
+        )
+        assertEquals("이번 달에 낼 고정저축이 없어요", savings.countSentence(FixedExpenseBoard(), october, today, hasEnded = true))
+        // 해지한 곳이 없으면 그대로 목록에 넣은 것이 없다고 적는다
+        assertEquals("9월까지는 목록에 넣은 고정지출이 없어요", expense.countSentence(FixedExpenseBoard(), september, today))
+    }
+
     // ── 고정저축 ──
 
     /** [texts] 가 적는 문장 전부. 이번 달 · 지난 달로 한 번씩, 가게 이름은 "적금" */

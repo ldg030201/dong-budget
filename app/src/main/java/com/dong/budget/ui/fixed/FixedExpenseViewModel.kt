@@ -48,6 +48,8 @@ import java.time.YearMonth
  * @property declined 등록 안 한 곳. 접어 두고 다시 등록할 수 있게 한다.
  * @property ended 해지한 곳(다시 묻는 곳은 빼고). 접어 두고 되돌릴 수 있게 한다. 고른 달과 상관없이 같다.
  * @property endedKeys [board] 에 보이는 해지한 곳(끝 달까지)의 열쇠. 그 줄에는 다시 해지하라고 하지 않는다.
+ * @property hasEnded 해지한 곳이 있는지(다시 묻는 곳 포함, 고른 달과 상관없이 같다). 있으면 판이 비어도(끝 달 뒤) 목록에 넣은 적은 있어서
+ *   요약에 '목록에 넣은 고정지출이 없어요' 가 아니라 '낼 고정지출이 없어요' 로 적는다([countSentence]).
  */
 @Immutable
 data class FixedExpenseUiState(
@@ -61,6 +63,7 @@ data class FixedExpenseUiState(
     val declined: List<FixedCandidate> = emptyList(),
     val ended: List<FixedCandidate> = emptyList(),
     val endedKeys: Set<String> = emptySet(),
+    val hasEnded: Boolean = false,
 ) {
     val isThisMonth: Boolean get() = month == YearMonth.from(today)
 
@@ -108,6 +111,7 @@ data class FixedExpenseUiState(
                 declined = split.declined,
                 ended = split.endedPlaces,
                 endedKeys = split.endedKeysIn(month),
+                hasEnded = split.ended.isNotEmpty(),
             )
     }
 }
