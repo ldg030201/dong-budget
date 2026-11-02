@@ -15,7 +15,8 @@ import org.junit.runner.RunWith
 import java.time.Instant
 
 /**
- * 카드실적 · 월급 탭 · 통계 기록 시작 조회가 '저축' 분류로 적은 돈을 빼는지 실제 SQLite 로 본다(단위 테스트로는 SQL 을 돌릴 수 없다).
+ * 카드실적 · 월급 탭 · 통계 기록 시작 조회가 '저축' 분류로 적은 돈을 빼는지, 저축 화면 조회가 저축만 읽는지 실제 SQLite 로 본다
+ * (단위 테스트로는 SQL 을 돌릴 수 없다).
  * 분류를 비운 거래는 그대로 남아야 한다(NOT IN 만 쓰면 categoryId 가 NULL 인 거래가 통째로 빠진다).
  * 기기에서 돈다. 메모리 DB 를 써서 기기에 있는 실제 가계부(dong-budget.db)는 건드리지 않는다.
  */
@@ -138,5 +139,16 @@ class SavingsQueriesTest {
         assertEquals("FOOD", all.getValue("점심").categoryCode)
         assertNull(all.getValue("분류 없음").categoryCode)
         assertEquals(listOf("적금", "적금 해지", "청약"), all.values.filter { it.isSavings }.mapNotNull { it.merchant }.sorted())
+    }
+
+    @Test
+    fun `저축 화면은 저축 분류의 지출과 꺼낸 돈만 기간 없이 최신순으로 읽는다`() = runBlocking {
+        val dao = database.transactionDao()
+        // 오래전에 낸 것과 앞으로의 날짜로 미리 적은 것도 읽는다
+        dao.insert(tx("옛 적금", TransactionType.EXPENSE, 10_000, "2025-01-05T03:00:00Z", savings))
+        dao.insert(tx("미리 적은 적금", TransactionType.EXPENSE, 20_000, "2027-01-05T03:00:00Z", savings))
+        val items = dao.observeWithCategoryCode(SAVINGS_CATEGORY_CODE).first()
+        assertEquals(listOf("미리 적은 적금", "청약", "적금 해지", "적금", "옛 적금"), items.map { it.merchant })
+        assertTrue(items.all { it.isSavings })
     }
 }
