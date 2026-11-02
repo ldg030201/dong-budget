@@ -8,6 +8,8 @@ import com.dong.budget.testing.day
 import com.dong.budget.testing.seoulInstant
 import com.dong.budget.testing.tx
 import com.dong.budget.ui.savings.EMPTY_TITLE
+import com.dong.budget.ui.savings.NO_CATEGORY_BODY
+import com.dong.budget.ui.savings.NO_CATEGORY_TITLE
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
@@ -535,7 +537,8 @@ class FixedExpenseTextTest {
 
     @Test
     fun `고정저축 분류 없음은 저축 화면의 다른 탭과 같은 말이다`() {
-        assertEquals("저축 분류가 없어요", savings.noCategoryTitle)
-        assertEquals("분류 관리에서 '저축' 분류를 다시 만들면, 그 분류로 적은 돈을 여기서 볼 수 있어요.", savings.noCategoryBody)
+        // 내역 · 통계 탭의 글을 고치면 이 탭도 따라 고쳐야 한다
+        assertEquals(NO_CATEGORY_TITLE, savings.noCategoryTitle)
+        assertEquals(NO_CATEGORY_BODY, savings.noCategoryBody)
     }
 }
