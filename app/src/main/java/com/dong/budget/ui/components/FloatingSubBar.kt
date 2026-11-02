@@ -2,9 +2,15 @@ package com.dong.budget.ui.components
 
 import androidx.annotation.DrawableRes
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.FastOutLinearInEasing
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -49,13 +55,14 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.sp
+import androidx.navigation3.ui.LocalNavAnimatedContentScope
 import com.dong.budget.ui.theme.BudgetTheme
 import com.dong.budget.ui.theme.Motion
 import com.dong.budget.ui.theme.pressScaleClickable
 
 /**
  * 화면 아래에 떠 있는 둥근 메뉴(알약). 맨 왼쪽에 뒤로, 그 오른쪽에 하위 메뉴 칸들이 선다.
- * 통계처럼 한 서브플로우 안을 몇 갈래로 나눠 볼 때 쓴다. 셸의 아래 메뉴와 달리 화면과 함께 들어오고 나간다.
+ * 통계·저축처럼 한 서브플로우 안을 몇 갈래로 나눠 볼 때 쓴다. 셸의 아래 메뉴와 달리 화면과 함께 들어오고 나간다([floatingBarMotion]).
  *
  * 고른 칸은 옅은 브랜드색 채움, 굵은 글자, 화면 읽기의 '선택됨' 셋으로 알린다. 색만으로 구분하지 않는다.
  * 채움은 칸 사이를 미끄러져 옮겨 가서 어디서 어디로 바뀌었는지 보인다.
@@ -248,3 +255,28 @@ fun FloatingSubBarScrim(modifier: Modifier = Modifier) {
  * 여기까지 줄어드는 건 화면 확대로 폭이 320dp 쯤 된 기기뿐이다. 그런 기기는 dp 하나가 실제로 커서 10sp 도 보통 화면의 11sp 쯤으로 보인다.
  */
 private val MIN_TAB_LABEL_SIZE = 10.sp
+
+/**
+ * 떠 있는 메뉴가 화면 전환을 따라 아래에서 떠오르고 가라앉게 한다. 통계·저축 화면이 [FloatingSubBar] 에 건다.
+ * 화면 전환(NavDisplay)에 묶여 있어서 되돌아가는 연출과 예측 뒤로(손가락을 따라 내려감)가 저절로 맞는다.
+ * 그래서 NavDisplay 엔트리 안에서만 그릴 수 있다.
+ */
+@Composable
+fun Modifier.floatingBarMotion(): Modifier {
+    val navScope = LocalNavAnimatedContentScope.current
+    return with(navScope) {
+        this@floatingBarMotion.animateEnterExit(
+            enter =
+            slideInVertically(tween(BAR_RISE_MS, easing = FastOutSlowInEasing)) { height -> height } +
+                fadeIn(tween(BAR_FADE_IN_MS)),
+            // 뒤로 갈 때는 흐려지지 않고 끝까지 내려간다. 화면은 메뉴가 거의 내려간 뒤에 흐려진다(DongBudgetApp 의 subflowTransitions).
+            exit = slideOutVertically(tween(BAR_SINK_MS, easing = FastOutLinearInEasing)) { height -> height },
+        )
+    }
+}
+
+// 떠오를 때는 화면이 나타나는 것(200ms)보다 조금 늦게 자리 잡아 아래에서 올라오는 게 보이게 한다.
+// 가라앉을 때는 화면이 흐려지기 시작하기(DongBudgetApp 의 SUBFLOW_EXIT_DELAY_MS) 전부터 내려가서, 내려가는 게 보인다.
+private const val BAR_RISE_MS = 260
+private const val BAR_FADE_IN_MS = 200
+private const val BAR_SINK_MS = 240

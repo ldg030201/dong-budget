@@ -436,7 +436,7 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
                             )
                         }
 
-                        entry<StatisticsKey>(metadata = statsTransitions()) { key ->
+                        entry<StatisticsKey>(metadata = subflowTransitions()) { key ->
                             val viewModel: StatsViewModel = viewModel(factory = statsViewModelFactory(container, key))
                             val state by viewModel.uiState.collectAsStateWithLifecycle()
                             // 하위 탭은 여기서 들고 있다. 회전하거나 상세에 다녀와도 그대로고, 통계를 나갔다 오면 첫 칸 '통계' 부터 다시 시작한다.
@@ -794,25 +794,25 @@ private fun modalTransitions(): Map<String, Any> = NavDisplay.transitionSpec {
     }
 
 /**
- * 통계는 셸을 그대로 둔 채 그 위에서 빠르게 나타나고 사라진다. 두 화면이 함께 흐려지는 순간을 만들지 않는다.
+ * 통계·저축(아래 떠 있는 메뉴가 있는 서브플로우)은 셸을 그대로 둔 채 그 위에서 빠르게 나타나고 사라진다. 두 화면이 함께 흐려지는 순간을 만들지 않는다.
  *
- * 들어갈 때도 나갈 때도 이 설정이 쓰인다. NavDisplay 는 두 화면 중 위에 쌓인 쪽(통계)의 설정을 고른다.
- * 아래 떠 있는 메뉴는 StatsScreen 이 이 전환에 맞춰 따로 떠오르고 가라앉게 한다.
+ * 들어갈 때도 나갈 때도 이 설정이 쓰인다. NavDisplay 는 두 화면 중 위에 쌓인 쪽(통계·저축)의 설정을 고른다.
+ * 아래 떠 있는 메뉴는 그 화면이 이 전환에 맞춰 따로 떠오르고 가라앉게 한다(floatingBarMotion).
  */
-private fun statsTransitions(): Map<String, Any> = NavDisplay.transitionSpec {
-    fadeIn(tween(STATS_FADE_MS)) togetherWith ExitTransition.KeepUntilTransitionsFinished
+private fun subflowTransitions(): Map<String, Any> = NavDisplay.transitionSpec {
+    fadeIn(tween(SUBFLOW_FADE_MS)) togetherWith ExitTransition.KeepUntilTransitionsFinished
 } +
     NavDisplay.popTransitionSpec {
-        EnterTransition.None togetherWith fadeOut(tween(STATS_FADE_MS, delayMillis = STATS_EXIT_DELAY_MS))
+        EnterTransition.None togetherWith fadeOut(tween(SUBFLOW_FADE_MS, delayMillis = SUBFLOW_EXIT_DELAY_MS))
     } +
     NavDisplay.predictivePopTransitionSpec { _: Int ->
-        EnterTransition.None togetherWith fadeOut(tween(STATS_FADE_MS, delayMillis = STATS_EXIT_DELAY_MS))
+        EnterTransition.None togetherWith fadeOut(tween(SUBFLOW_FADE_MS, delayMillis = SUBFLOW_EXIT_DELAY_MS))
     }
 
-private const val STATS_FADE_MS = 200
+private const val SUBFLOW_FADE_MS = 200
 
-// 나갈 때는 떠 있는 메뉴가 먼저 내려가고(BAR_SINK_MS) 그 뒤에 화면이 흐려진다. 같이 흐려지면 내려가는 게 안 보인다.
-private const val STATS_EXIT_DELAY_MS = 140
+// 나갈 때는 떠 있는 메뉴가 먼저 내려가고(FloatingSubBar 의 BAR_SINK_MS) 그 뒤에 화면이 흐려진다. 같이 흐려지면 내려가는 게 안 보인다.
+private const val SUBFLOW_EXIT_DELAY_MS = 140
 
 /**
  * 이 화면이 전환을 마치고 자리 잡았는지(RESUMED). NavDisplay 는 전환 동안(약 0.3초) 거의 투명하거나 밀려 나가는 화면에도 터치를 넘겨서,

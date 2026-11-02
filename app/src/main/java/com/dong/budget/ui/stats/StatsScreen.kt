@@ -2,13 +2,8 @@ package com.dong.budget.ui.stats
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.EnterExitState
-import androidx.compose.animation.core.FastOutLinearInEasing
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,7 +22,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.paneTitle
 import androidx.compose.ui.semantics.semantics
-import androidx.navigation3.ui.LocalNavAnimatedContentScope
 import com.dong.budget.navigation.StatsDetailKey
 import com.dong.budget.ui.components.FloatingSubBar
 import com.dong.budget.ui.components.FloatingSubBarScrim
@@ -36,6 +30,7 @@ import com.dong.budget.ui.components.STATS_ENTRY_SHARED_KEY
 import com.dong.budget.ui.components.SubBarTab
 import com.dong.budget.ui.components.ThisMonthButton
 import com.dong.budget.ui.components.floatingBarClearance
+import com.dong.budget.ui.components.floatingBarMotion
 import com.dong.budget.ui.stats.tab.BreakdownKind
 import com.dong.budget.ui.stats.tab.BreakdownTab
 import com.dong.budget.ui.stats.tab.DailyRequest
@@ -54,7 +49,7 @@ import java.time.YearMonth
  * 다섯 탭이 달 하나를 같이 쓴다. 탭을 바꿔도 달은 그대로고, 달을 바꿔도 탭마다 보던 스크롤 위치는 그대로다.
  * 탭 이동은 뒤로 기록에 쌓지 않는다. 뒤로(메뉴의 ←, 시스템 뒤로)는 늘 통계를 나가 들어오기 전 화면으로 간다.
  *
- * 화면은 셸 위에서 빠르게 나타나고 사라지고(DongBudgetApp 의 statsTransitions), 떠 있는 메뉴는 따로 아래에서 떠오르고 가라앉는다.
+ * 화면은 셸 위에서 빠르게 나타나고 사라지고(DongBudgetApp 의 subflowTransitions), 떠 있는 메뉴는 따로 아래에서 떠오르고 가라앉는다([floatingBarMotion]).
  * 위에 등록창이나 상세가 쌓일 때도 메뉴가 가라앉았다가 돌아오면 다시 떠오른다. 그래서 NavDisplay 안에서만 그릴 수 있다.
  *
  * 상단 인셋은 이 화면이 직접 처리하고, 아래 인셋은 떠 있는 메뉴와 탭 목록의 아래 여백([floatingBarClearance])이 처리한다.
@@ -219,27 +214,3 @@ private fun TabContent(
             BreakdownTab(state = state, kind = BreakdownKind.PAYMENT, contentPadding = contentPadding, onOpenDetail = onOpenDetail)
     }
 }
-
-/**
- * 떠 있는 메뉴가 화면 전환을 따라 아래에서 떠오르고 가라앉게 한다.
- * 화면 전환(NavDisplay)에 묶여 있어서 되돌아가는 연출과 예측 뒤로(손가락을 따라 내려감)가 저절로 맞는다.
- */
-@Composable
-private fun Modifier.floatingBarMotion(): Modifier {
-    val navScope = LocalNavAnimatedContentScope.current
-    return with(navScope) {
-        this@floatingBarMotion.animateEnterExit(
-            enter =
-            slideInVertically(tween(BAR_RISE_MS, easing = FastOutSlowInEasing)) { height -> height } +
-                fadeIn(tween(BAR_FADE_IN_MS)),
-            // 뒤로 갈 때는 흐려지지 않고 끝까지 내려간다. 화면은 메뉴가 거의 내려간 뒤에 흐려진다(statsTransitions).
-            exit = slideOutVertically(tween(BAR_SINK_MS, easing = FastOutLinearInEasing)) { height -> height },
-        )
-    }
-}
-
-// 떠오를 때는 화면이 나타나는 것(200ms)보다 조금 늦게 자리 잡아 아래에서 올라오는 게 보이게 한다.
-// 가라앉을 때는 화면이 흐려지기 시작하기(STATS_EXIT_DELAY_MS) 전부터 내려가서, 내려가는 게 보인다.
-private const val BAR_RISE_MS = 260
-private const val BAR_FADE_IN_MS = 200
-internal const val BAR_SINK_MS = 240
