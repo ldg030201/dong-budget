@@ -241,6 +241,7 @@ private fun DayCell(
         if (totals != null) {
             // 들어온 돈은 초록 +, 쓴 돈은 빨강 - 로 한눈에 구분한다.
             // 환불이 그날 쓴 돈보다 많으면(지출 합계가 음수) 돈이 돌아온 날이라 들어온 돈처럼 + 로 적힌다.
+            // 저축은 쓴 돈이 아니라 칸에 적지 않는다(화면 읽기만 알려 준다, describeDay).
             if (totals.income > 0) DayAmount(formatSignedTotal(totals.income, unit = ""), totalColor(totals.income))
             if (totals.expense != 0L) DayAmount(formatSignedTotal(-totals.expense, unit = ""), totalColor(-totals.expense))
         }
@@ -263,6 +264,10 @@ private fun DayAmount(text: String, color: Color) {
     )
 }
 
+/**
+ * 칸을 화면 읽기가 읽을 말. "9월 25일 금요일, 오늘, 수입 3,000원, 지출 12,000원".
+ * 저축은 칸에 숫자로 보이지 않지만(쓴 돈이 아니라서) 그날 있었는지 알 수 있게 "저축 300,000원" 을 덧붙인다(꺼낸 돈이 더 많으면 -).
+ */
 private fun describeDay(date: LocalDate, totals: Totals?, isToday: Boolean): String = buildList {
     add(formatDateSpoken(date))
     if (isToday) add("오늘")
@@ -270,6 +275,7 @@ private fun describeDay(date: LocalDate, totals: Totals?, isToday: Boolean): Str
         if (totals.income > 0) add("수입 ${formatAmount(totals.income)}원")
         if (totals.expense > 0) add("지출 ${formatAmount(totals.expense)}원")
         if (totals.expense < 0) add("환불 ${formatAmount(-totals.expense)}원")
+        if (totals.savings != 0L) add("저축 ${formatAmount(totals.savings)}원")
     }
 }.joinToString(", ")
 
