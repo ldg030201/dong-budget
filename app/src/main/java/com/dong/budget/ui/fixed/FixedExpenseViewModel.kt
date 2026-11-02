@@ -39,7 +39,7 @@ import java.time.YearMonth
 
 /**
  * 고정지출(고정저축) 탭의 상태.
- * @property kind 어느 탭인지(고정지출 · 고정저축). 그 분류([FixedKind.categoryCode], '고정지출' · '저축') 지출만 센다.
+ * @property kind 어느 탭인지(고정지출 · 고정저축). 그 분류([FixedKind.categoryCode], '고정지출' · '저축') 지출만 세고, 화면 글도 종류를 따른다([texts]).
  * @property loaded 첫 계산이 끝났는지. 끝나기 전에는 탭 머리만 그린다(빈 상태 안내가 잠깐 비치지 않게).
  * @property month 보고 있는 달. 이번 달보다 뒤로는 가지 않는다.
  * @property hasCategory 그 분류(코드 FIXED · SAVINGS)가 있는지. 분류 관리에서 지웠고 같은 이름(띄어쓰기 무시)의 분류도 없으면 false
@@ -63,6 +63,9 @@ data class FixedExpenseUiState(
     val endedKeys: Set<String> = emptySet(),
 ) {
     val isThisMonth: Boolean get() = month == YearMonth.from(today)
+
+    /** 이 탭의 문장 묶음. 탭 이름 · 분류 이름이 든 문장이 종류마다 다르다. */
+    internal val texts: FixedTexts get() = kind.texts
 
     /** 보여 줄 것이 하나도 없는지(등록한 곳 · 물을 곳 · 등록 안 한 곳 · 해지한 곳 모두 없다) */
     val isEmpty: Boolean get() = board.isEmpty && candidates.isEmpty() && declined.isEmpty() && ended.isEmpty()

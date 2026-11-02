@@ -1,16 +1,16 @@
 package com.dong.budget.ui.fixed
 
+import com.dong.budget.data.db.FixedKind
 import com.dong.budget.ui.format.formatAmount
 import com.dong.budget.ui.format.monthLabel
 import java.time.LocalDate
 import java.time.YearMonth
 
 // ─────────────────────────────────────────────────────────────────────
-// 고정지출 탭의 글자. 영어·기호(D-3 등) 없이 해요체로 적는다.
+// 고정지출 · 고정저축 탭의 글자. 영어·기호(D-3 등) 없이 해요체로 적는다.
 // 화면 읽기 문장은 금액을 줄이지 않고 1원까지 읽는다. 사용자가 적은 가게 이름 뒤에는 조사를 붙이지 않는다.
+// 두 탭이 다르게 적는 문장(탭 이름 · 분류 이름이 든 것)은 [FixedTexts] 에 종류마다 두고, 나머지는 두 탭이 같이 쓴다.
 // ─────────────────────────────────────────────────────────────────────
-
-internal const val FIXED_TAB_TITLE = "고정지출"
 
 /** 몇 달마다 내는지. "매달", "2달마다", "매년" */
 internal fun cadenceText(cadence: Int): String = when {
@@ -223,9 +223,6 @@ internal const val COLLAPSED_STATE = "접힘"
 
 // ── 요약 ──────────────────────────────────────────────────────────────
 
-/** 요약 판 제목. "이번 달 고정지출", "9월 고정지출" */
-internal fun summaryTitle(month: YearMonth, today: LocalDate): String = "${monthLabel(month, today)} 고정지출"
-
 internal const val PAID_LABEL = "낸 돈"
 
 /**
@@ -236,13 +233,13 @@ internal fun dueLabel(board: FixedExpenseBoard, month: YearMonth, today: LocalDa
     if (isStillOpen(board, month, today)) "낼 돈" else "안 낸 돈"
 
 /** 요약 문장. "6개 중 4개 냈어요", "4개 모두 냈어요", "이번 달에 낼 고정지출이 없어요" */
-internal fun countSentence(board: FixedExpenseBoard, month: YearMonth, today: LocalDate): String {
+internal fun FixedTexts.countSentence(board: FixedExpenseBoard, month: YearMonth, today: LocalDate): String {
     val total = board.dueCount
     return when {
         // 목록에 넣은 곳이 없는데 묻는 곳 · 등록 안 한 곳 · 해지한 곳만 있을 때. '낼 고정지출이 없어요' 로 적으면 고정지출이 정말 없는 것처럼 읽힌다.
         board.isEmpty -> noRegisteredSentence(month, today)
 
-        total == 0 -> if (month == YearMonth.from(today)) "이번 달에 낼 고정지출이 없어요" else "${monthLabel(month, today)}엔 낼 고정지출이 없었어요"
+        total == 0 -> nothingDueSentence(month, today)
 
         board.due.isNotEmpty() -> "${total}개 중 ${board.paid.size}개 냈어요"
 
@@ -253,7 +250,7 @@ internal fun countSentence(board: FixedExpenseBoard, month: YearMonth, today: Lo
 }
 
 /** 요약 판을 한 번에 읽는 문장. "이번 달 고정지출. 6개 중 4개 냈어요. 낸 돈 85,000원, 낼 돈 1,317,000원" */
-internal fun summarySpoken(board: FixedExpenseBoard, month: YearMonth, today: LocalDate): String {
+internal fun FixedTexts.summarySpoken(board: FixedExpenseBoard, month: YearMonth, today: LocalDate): String {
     val parts = mutableListOf(summaryTitle(month, today), countSentence(board, month, today))
     if (board.dueCount > 0) {
         parts += "$PAID_LABEL ${formatAmount(board.paidTotal)}원, ${dueLabel(board, month, today)} ${formatAmount(board.dueTotal)}원"
@@ -262,50 +259,17 @@ internal fun summarySpoken(board: FixedExpenseBoard, month: YearMonth, today: Lo
 }
 
 // ── 빈 상태 · 안내 ────────────────────────────────────────────────────
-
-internal const val NO_CATEGORY_TITLE = "고정지출 분류가 없어요"
-
-/**
- * 분류를 지웠을 때. 같은 이름으로 다시 만들면 저장소가 기본 분류로 알아본다(지울 때 '기타' 로 옮겨 간 지출은 돌아오지 않는다).
- * 코드 없이 같은 이름(띄어쓰기 무시)으로 만들어 둔 분류는 DB 를 열 때 · 백업을 되살린 뒤 · 분류를 지운 뒤에 알아보므로,
- * 이 안내는 그런 분류가 정말 없을 때만 뜬다(분류 관리에서 만들면 '이미 있는 이름이에요' 로 막히지 않는다).
- */
-internal const val NO_CATEGORY_BODY = "분류 관리에서 '고정지출' 분류를 다시 만들면, 그 분류로 등록한 지출을 여기서 볼 수 있어요."
+// 분류를 지웠을 때 · 비었을 때의 제목과 글, 목록 맨 아래 안내는 [FixedTexts] 에 있다.
 
 internal const val OPEN_CATEGORIES_TEXT = "분류 관리 열기"
 
-/** 고른 달까지 고정지출이 하나도 없을 때. 지난 달이면 그 달까지는 없었다는 뜻이다. */
-internal fun emptyTitle(month: YearMonth, today: LocalDate): String = if (month == YearMonth.from(today)) {
-    "고정지출로 등록한 지출이 없어요"
-} else {
-    "${monthLabel(month, today)}까지는 고정지출로 등록한 지출이 없어요"
-}
-
-internal const val EMPTY_BODY = "월세·구독료처럼 매달 나가는 돈을 '고정지출' 분류로 등록하면, 여기서 목록에 넣을지 물어보고 이번 달에 냈는지 보여 줘요."
-
-/**
- * 목록 맨 아래 안내. 어떻게 묶고 짐작하는지(가게 이름을 바꿔 적으면 따로 보이는 까닭)와 목록에서 빼는 법 · 해지하면 어디까지 보이는지를
- * 알려 둔다. 빼기는 줄을 길게 눌러야 해서 눈에 안 띄고, '해지' 버튼은 안 냈거나 한동안 안 낸 줄에만 있다.
- */
-internal const val FOOTNOTE =
-    "'고정지출' 분류로 등록한 지출 가운데 목록에 넣은 곳만 가게 이름으로 묶었어요. 언제 얼마를 내는지는 지난 기록으로 짐작해요. " +
-        "줄을 길게 누르면 목록에서 빼거나 해지할 수 있고, 해지한 곳은 마지막으로 낸 달까지만 보여요."
-
 // ── 고정지출 목록(등록할지 묻기 · 빼기) ─────────────────────────────────
-// '고정지출' 분류와 탭의 목록은 따로다. 분류로 적은 곳 가운데 목록에 등록한 곳만 판에 보이고, 처음 보는 곳은 등록할지 묻는다.
-
-/** 묻는 묶음의 제목 */
-internal const val ASK_TITLE = "고정지출로 등록할까요?"
-
-/** 묻는 묶음 제목 아래 안내. 분류와 목록이 따로라는 것을 알린다. */
-internal const val ASK_HINT = "'고정지출' 분류로 적은 곳이에요. 등록하면 매달 냈는지 여기서 볼 수 있어요."
+// '고정지출' 분류와 탭의 목록은 따로다(고정저축도 '저축' 분류와 목록이 따로다). 분류로 적은 곳 가운데 목록에 등록한 곳만 판에 보이고,
+// 처음 보는 곳은 등록할지 묻는다. 묻는 묶음 제목 · 안내와 빼기 문장은 [FixedTexts] 에 있다.
 
 internal const val ASK_REGISTER_TEXT = "등록"
 
 internal const val ASK_DECLINE_TEXT = "안 함"
-
-/** '등록' 버튼(화면 읽기). 줄마다 같은 버튼이라 가게 이름을 붙인다: "넷플릭스 고정지출로 등록" */
-internal fun askRegisterLabel(name: String): String = "$name 고정지출로 등록"
 
 /** '안 함' 버튼(화면 읽기): "넷플릭스 등록 안 함" */
 internal fun askDeclineLabel(name: String): String = "$name 등록 안 함"
@@ -322,18 +286,6 @@ internal const val DECLINED_TITLE = "등록 안 한 곳"
 
 /** 등록 안 한 줄의 상태(화면 읽기) */
 internal const val DECLINED_STATE = "등록 안 함"
-
-/** 해지한 곳의 판 줄을 길게 누르면 하는 일(화면 읽기도 이 이름으로 알린다) */
-internal const val REMOVE_ACTION_LABEL = "고정지출 목록에서 빼기"
-
-/** 그 밖의 판 줄을 길게 누르면 하는 일(화면 읽기). 확인 창에서 빼기와 해지 가운데 고른다. */
-internal const val REMOVE_OR_END_ACTION_LABEL = "고정지출 목록에서 빼거나 해지하기"
-
-/** 빼기 확인 창 제목. 사용자가 적은 가게 이름 뒤에 조사를 붙이지 않게 따옴표로 묶는다: "'넷플릭스' 고정지출 목록에서 뺄까요?" */
-internal fun removeTitle(name: String): String = "'$name' 고정지출 목록에서 뺄까요?"
-
-/** 빼기 확인 창 글. 분류는 그대로라는 것과 다시 묻는 때를 알린다. */
-internal const val REMOVE_MESSAGE = "지난 거래는 '고정지출' 분류 그대로 남아요. 나중에 '고정지출' 분류로 새로 내면 등록할지 다시 물어볼게요."
 
 internal const val REMOVE_CONFIRM = "빼기"
 
@@ -364,14 +316,172 @@ internal const val RESTORE_TEXT = "되돌리기"
 /** '되돌리기' 버튼(화면 읽기). 줄마다 같은 버튼이라 가게 이름을 붙인다: "넷플릭스 해지 되돌리기" */
 internal fun restoreLabel(name: String): String = "$name 해지 $RESTORE_TEXT"
 
+// ── 종류마다 다른 문장 ──────────────────────────────────────────────
+
+/** [kind] 탭의 문장 묶음 */
+internal val FixedKind.texts: FixedTexts
+    get() =
+        when (this) {
+            FixedKind.EXPENSE -> FixedTexts.Expense
+            FixedKind.SAVINGS -> FixedTexts.Savings
+        }
+
 /**
- * 목록에 등록한 곳이 고른 달까지 하나도 없는데 물을 곳이나 등록 안 한 곳 · 해지한 곳만 있을 때 요약 자리의 문장.
- * "아직 목록에 넣은 고정지출이 없어요", 지난 달이면 "9월까지는 목록에 넣은 고정지출이 없어요"
+ * 고정지출 · 고정저축 탭이 서로 다르게 적는 문장. 종류마다 하나다([FixedKind.texts]).
+ * '고정지출로' · '고정저축으로' 처럼 받침에 따라 조사가 달라 이름만 끼우지 않고 문장째 둔다. 고정저축이 보는 분류는 '저축' 이다.
+ * 상태 말('냈어요' · '아직 안 냈어요' · '낸 돈' · '해지')은 두 탭이 같이 쓴다. 적금 · 청약도 '냈다' · '해지했다' 고 한다.
  */
-internal fun noRegisteredSentence(month: YearMonth, today: LocalDate): String = if (month == YearMonth.from(today)) {
-    "아직 목록에 넣은 고정지출이 없어요"
-} else {
-    "${monthLabel(month, today)}까지는 목록에 넣은 고정지출이 없어요"
+internal sealed interface FixedTexts {
+    /** 탭 머리 이름. "고정지출" */
+    val tabTitle: String
+
+    /** 요약 판 제목. "이번 달 고정지출", "9월 고정지출" */
+    fun summaryTitle(month: YearMonth, today: LocalDate): String
+
+    /** 등록한 곳은 있는데 고른 달에 낼 것이 하나도 없을 때의 요약 문장. "이번 달에 낼 고정지출이 없어요", "9월엔 낼 고정지출이 없었어요" */
+    fun nothingDueSentence(month: YearMonth, today: LocalDate): String
+
+    /**
+     * 목록에 등록한 곳이 고른 달까지 하나도 없는데 물을 곳이나 등록 안 한 곳 · 해지한 곳만 있을 때 요약 자리의 문장.
+     * "아직 목록에 넣은 고정지출이 없어요", 지난 달이면 "9월까지는 목록에 넣은 고정지출이 없어요"
+     */
+    fun noRegisteredSentence(month: YearMonth, today: LocalDate): String
+
+    /** 분류를 지웠을 때의 제목. "고정지출 분류가 없어요" */
+    val noCategoryTitle: String
+
+    /**
+     * 분류를 지웠을 때. 같은 이름으로 다시 만들면 저장소가 기본 분류로 알아본다(지울 때 '기타' 로 옮겨 간 지출은 돌아오지 않는다).
+     * 코드 없이 같은 이름(띄어쓰기 무시)으로 만들어 둔 분류는 DB 를 열 때 · 백업을 되살린 뒤 · 분류를 지운 뒤에 알아보므로,
+     * 이 안내는 그런 분류가 정말 없을 때만 뜬다(분류 관리에서 만들면 '이미 있는 이름이에요' 로 막히지 않는다).
+     */
+    val noCategoryBody: String
+
+    /** 고른 달까지 그 분류 지출이 하나도 없을 때. 지난 달이면 그 달까지는 없었다는 뜻이다. */
+    fun emptyTitle(month: YearMonth, today: LocalDate): String
+
+    /** 빈 화면 글. 어느 분류로 적으면 여기서 무엇을 해 주는지 알린다. */
+    val emptyBody: String
+
+    /**
+     * 목록 맨 아래 안내. 어떻게 묶고 짐작하는지(가게 이름을 바꿔 적으면 따로 보이는 까닭)와 목록에서 빼는 법 · 해지하면 어디까지 보이는지를
+     * 알려 둔다. 빼기는 줄을 길게 눌러야 해서 눈에 안 띄고, '해지' 버튼은 안 냈거나 한동안 안 낸 줄에만 있다.
+     */
+    val footnote: String
+
+    /** 묻는 묶음의 제목. "고정지출로 등록할까요?" */
+    val askTitle: String
+
+    /** 묻는 묶음 제목 아래 안내. 분류와 목록이 따로라는 것을 알린다. */
+    val askHint: String
+
+    /** '등록' 버튼(화면 읽기). 줄마다 같은 버튼이라 가게 이름을 붙인다: "넷플릭스 고정지출로 등록" */
+    fun askRegisterLabel(name: String): String
+
+    /** 해지한 곳의 판 줄을 길게 누르면 하는 일(화면 읽기도 이 이름으로 알린다). "고정지출 목록에서 빼기" */
+    val removeActionLabel: String
+
+    /** 그 밖의 판 줄을 길게 누르면 하는 일(화면 읽기). 확인 창에서 빼기와 해지 가운데 고른다. "고정지출 목록에서 빼거나 해지하기" */
+    val removeOrEndActionLabel: String
+
+    /** 빼기 확인 창 제목. 사용자가 적은 가게 이름 뒤에 조사를 붙이지 않게 따옴표로 묶는다: "'넷플릭스' 고정지출 목록에서 뺄까요?" */
+    fun removeTitle(name: String): String
+
+    /** 빼기 확인 창 글. 분류는 그대로라는 것과 다시 묻는 때를 알린다. */
+    val removeMessage: String
+
+    /** 고정지출 탭. '고정지출' 분류 지출을 본다. */
+    data object Expense : FixedTexts {
+        override val tabTitle = "고정지출"
+
+        override fun summaryTitle(month: YearMonth, today: LocalDate) = "${monthLabel(month, today)} 고정지출"
+
+        override fun nothingDueSentence(month: YearMonth, today: LocalDate) =
+            if (month == YearMonth.from(today)) "이번 달에 낼 고정지출이 없어요" else "${monthLabel(month, today)}엔 낼 고정지출이 없었어요"
+
+        override fun noRegisteredSentence(month: YearMonth, today: LocalDate) = if (month == YearMonth.from(today)) {
+            "아직 목록에 넣은 고정지출이 없어요"
+        } else {
+            "${monthLabel(month, today)}까지는 목록에 넣은 고정지출이 없어요"
+        }
+
+        override val noCategoryTitle = "고정지출 분류가 없어요"
+
+        override val noCategoryBody = "분류 관리에서 '고정지출' 분류를 다시 만들면, 그 분류로 등록한 지출을 여기서 볼 수 있어요."
+
+        override fun emptyTitle(month: YearMonth, today: LocalDate) = if (month == YearMonth.from(today)) {
+            "고정지출로 등록한 지출이 없어요"
+        } else {
+            "${monthLabel(month, today)}까지는 고정지출로 등록한 지출이 없어요"
+        }
+
+        override val emptyBody = "월세·구독료처럼 매달 나가는 돈을 '고정지출' 분류로 등록하면, 여기서 목록에 넣을지 물어보고 이번 달에 냈는지 보여 줘요."
+
+        override val footnote =
+            "'고정지출' 분류로 등록한 지출 가운데 목록에 넣은 곳만 가게 이름으로 묶었어요. 언제 얼마를 내는지는 지난 기록으로 짐작해요. " +
+                "줄을 길게 누르면 목록에서 빼거나 해지할 수 있고, 해지한 곳은 마지막으로 낸 달까지만 보여요."
+
+        override val askTitle = "고정지출로 등록할까요?"
+
+        override val askHint = "'고정지출' 분류로 적은 곳이에요. 등록하면 매달 냈는지 여기서 볼 수 있어요."
+
+        override fun askRegisterLabel(name: String) = "$name 고정지출로 등록"
+
+        override val removeActionLabel = "고정지출 목록에서 빼기"
+
+        override val removeOrEndActionLabel = "고정지출 목록에서 빼거나 해지하기"
+
+        override fun removeTitle(name: String) = "'$name' 고정지출 목록에서 뺄까요?"
+
+        override val removeMessage = "지난 거래는 '고정지출' 분류 그대로 남아요. 나중에 '고정지출' 분류로 새로 내면 등록할지 다시 물어볼게요."
+    }
+
+    /**
+     * 고정저축 탭. '저축' 분류 지출을 본다. 저축 화면 안의 칸이라 탭 머리는 그리지 않지만 이름은 요약 · 화면 읽기에 쓴다.
+     * 가게 칸에 적는 것은 적금 · 청약 같은 상품 이름이라(저축 통계의 '상품별') 안내도 상품 이름이라고 적는다.
+     */
+    data object Savings : FixedTexts {
+        override val tabTitle = "고정저축"
+
+        override fun summaryTitle(month: YearMonth, today: LocalDate) = "${monthLabel(month, today)} 고정저축"
+
+        override fun nothingDueSentence(month: YearMonth, today: LocalDate) =
+            if (month == YearMonth.from(today)) "이번 달에 낼 고정저축이 없어요" else "${monthLabel(month, today)}엔 낼 고정저축이 없었어요"
+
+        override fun noRegisteredSentence(month: YearMonth, today: LocalDate) = if (month == YearMonth.from(today)) {
+            "아직 목록에 넣은 고정저축이 없어요"
+        } else {
+            "${monthLabel(month, today)}까지는 목록에 넣은 고정저축이 없어요"
+        }
+
+        override val noCategoryTitle = "저축 분류가 없어요"
+
+        override val noCategoryBody = "분류 관리에서 '저축' 분류를 다시 만들면, 그 분류로 적은 저축을 여기서 볼 수 있어요."
+
+        // 저축 화면의 내역 · 통계 탭 빈 화면('아직 저축이 없어요')과 같은 말로 맞춘다
+        override fun emptyTitle(month: YearMonth, today: LocalDate) =
+            if (month == YearMonth.from(today)) "아직 저축이 없어요" else "${monthLabel(month, today)}까지는 저축이 없어요"
+
+        override val emptyBody = "적금·청약처럼 매달 넣는 돈을 '저축' 분류로 적으면, 여기서 목록에 넣을지 물어보고 이번 달에 냈는지 보여 줘요."
+
+        override val footnote =
+            "'저축' 분류로 적은 돈 가운데 목록에 넣은 곳만 상품 이름으로 묶었어요. 언제 얼마를 내는지는 지난 기록으로 짐작해요. " +
+                "줄을 길게 누르면 목록에서 빼거나 해지할 수 있고, 해지한 곳은 마지막으로 낸 달까지만 보여요."
+
+        override val askTitle = "고정저축으로 등록할까요?"
+
+        override val askHint = "'저축' 분류로 적은 곳이에요. 등록하면 매달 냈는지 여기서 볼 수 있어요."
+
+        override fun askRegisterLabel(name: String) = "$name 고정저축으로 등록"
+
+        override val removeActionLabel = "고정저축 목록에서 빼기"
+
+        override val removeOrEndActionLabel = "고정저축 목록에서 빼거나 해지하기"
+
+        override fun removeTitle(name: String) = "'$name' 고정저축 목록에서 뺄까요?"
+
+        override val removeMessage = "지난 거래는 '저축' 분류 그대로 남아요. 나중에 '저축' 분류로 새로 내면 등록할지 다시 물어볼게요."
+    }
 }
 
 // ── 날짜 ──────────────────────────────────────────────────────────────

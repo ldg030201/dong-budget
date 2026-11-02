@@ -1,5 +1,6 @@
 package com.dong.budget.ui.fixed
 
+import com.dong.budget.data.db.FixedKind
 import com.dong.budget.data.db.FixedMerchantEntity
 import com.dong.budget.data.db.FixedMerchantState
 import com.dong.budget.data.db.TransactionListItem
@@ -7,6 +8,7 @@ import com.dong.budget.testing.day
 import com.dong.budget.testing.seoulInstant
 import com.dong.budget.testing.tx
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -16,6 +18,8 @@ import java.time.YearMonth
 class FixedExpenseTextTest {
     private val october = YearMonth.of(2026, 10)
     private val today = day("2026-10-12")
+    private val expense = FixedTexts.Expense
+    private val savings = FixedTexts.Savings
 
     private fun item(rows: List<TransactionListItem>, month: YearMonth = october, today: LocalDate = this.today): FixedExpenseItem {
         val board = buildFixedExpenses(month, today, rows)
@@ -206,13 +210,13 @@ class FixedExpenseTextTest {
     @Test
     fun `요약 문장은 낼 차례였던 것 중 몇 개를 냈는지 센다`() {
         val partial = FixedExpenseBoard(due = listOf(item(paid("2026-09-25"))), paid = listOf(item(paid("2026-10-03"))))
-        assertEquals("2개 중 1개 냈어요", countSentence(partial, october, today))
+        assertEquals("2개 중 1개 냈어요", expense.countSentence(partial, october, today))
         val all = FixedExpenseBoard(paid = listOf(item(paid("2026-10-03")), item(paid("2026-10-03")).copy(key = "다른")))
-        assertEquals("2개 모두 냈어요", countSentence(all, october, today))
-        assertEquals("모두 냈어요", countSentence(FixedExpenseBoard(paid = listOf(item(paid("2026-10-03")))), october, today))
+        assertEquals("2개 모두 냈어요", expense.countSentence(all, october, today))
+        assertEquals("모두 냈어요", expense.countSentence(FixedExpenseBoard(paid = listOf(item(paid("2026-10-03")))), october, today))
         val none = FixedExpenseBoard(notThisMonth = listOf(item(paid("2026-07-31", "2026-09-30"))))
-        assertEquals("이번 달에 낼 고정지출이 없어요", countSentence(none, october, today))
-        assertEquals("9월엔 낼 고정지출이 없었어요", countSentence(none, YearMonth.of(2026, 9), today))
+        assertEquals("이번 달에 낼 고정지출이 없어요", expense.countSentence(none, october, today))
+        assertEquals("9월엔 낼 고정지출이 없었어요", expense.countSentence(none, YearMonth.of(2026, 9), today))
     }
 
     @Test
@@ -222,26 +226,26 @@ class FixedExpenseTextTest {
                 due = listOf(item(paid("2026-09-25", amount = 1_317_000))),
                 paid = listOf(item(paid("2026-10-03", amount = 85_000))),
             )
-        assertEquals("이번 달 고정지출. 2개 중 1개 냈어요. 낸 돈 85,000원, 낼 돈 1,317,000원", summarySpoken(board, october, today))
+        assertEquals("이번 달 고정지출. 2개 중 1개 냈어요. 낸 돈 85,000원, 낼 돈 1,317,000원", expense.summarySpoken(board, october, today))
         assertEquals(
             "9월 고정지출. 2개 중 1개 냈어요. 낸 돈 85,000원, 안 낸 돈 1,317,000원",
-            summarySpoken(board, YearMonth.of(2026, 9), today),
+            expense.summarySpoken(board, YearMonth.of(2026, 9), today),
         )
         // 판이 비어 있으면(목록에 넣은 곳 없이 묻는 곳만 있다) 목록에 넣은 곳이 없다고 읽는다
-        assertEquals("이번 달 고정지출. 아직 목록에 넣은 고정지출이 없어요", summarySpoken(FixedExpenseBoard(), october, today))
+        assertEquals("이번 달 고정지출. 아직 목록에 넣은 고정지출이 없어요", expense.summarySpoken(FixedExpenseBoard(), october, today))
     }
 
     @Test
     fun `고정지출 분류를 지웠으면 분류 관리에서 다시 만들면 된다고 알린다`() {
-        assertEquals("고정지출 분류가 없어요", NO_CATEGORY_TITLE)
-        assertEquals("분류 관리에서 '고정지출' 분류를 다시 만들면, 그 분류로 등록한 지출을 여기서 볼 수 있어요.", NO_CATEGORY_BODY)
+        assertEquals("고정지출 분류가 없어요", expense.noCategoryTitle)
+        assertEquals("분류 관리에서 '고정지출' 분류를 다시 만들면, 그 분류로 등록한 지출을 여기서 볼 수 있어요.", expense.noCategoryBody)
         assertEquals("분류 관리 열기", OPEN_CATEGORIES_TEXT)
     }
 
     @Test
     fun `빈 화면 제목은 지난 달이면 그 달까지는 없었다고 적는다`() {
-        assertEquals("고정지출로 등록한 지출이 없어요", emptyTitle(october, today))
-        assertEquals("8월까지는 고정지출로 등록한 지출이 없어요", emptyTitle(YearMonth.of(2026, 8), today))
+        assertEquals("고정지출로 등록한 지출이 없어요", expense.emptyTitle(october, today))
+        assertEquals("8월까지는 고정지출로 등록한 지출이 없어요", expense.emptyTitle(YearMonth.of(2026, 8), today))
     }
 
     /** [from] ~ [to] 달마다 [day] 일(쉬는 날이면 다음 영업일)에 [merchant] 에 [amount] 를 낸 기록 */
@@ -267,7 +271,7 @@ class FixedExpenseTextTest {
         assertEquals(RowNote("11월 2일에 낼 차례예요", NoteTone.PLAIN), rowNote(item, october, november1))
         assertEquals("아직 안 냈어요", rowStatus(item, october, november1))
         assertEquals("아직 안 냈어요", statusTitle(FixedStatus.DUE, october, november1, isStillOpen(board, october, november1)))
-        assertEquals("10월 고정지출. 1개 중 0개 냈어요. 낸 돈 0원, 낼 돈 150,000원", summarySpoken(board, october, november1))
+        assertEquals("10월 고정지출. 1개 중 0개 냈어요. 낸 돈 0원, 낼 돈 150,000원", expense.summarySpoken(board, october, november1))
         // 낼 날이면 오늘이라고, 지나면 끝난 달에 맞게 적는다
         val november2 = day("2026-11-02")
         assertEquals(RowNote("오늘 낼 차례예요", NoteTone.TODAY), rowNote(item, october, november2))
@@ -276,7 +280,7 @@ class FixedExpenseTextTest {
         assertNull(rowNote(after.due.single(), october, november3))
         assertEquals("안 냈어요", rowStatus(after.due.single(), october, november3))
         assertEquals("안 냈어요", statusTitle(FixedStatus.DUE, october, november3, isStillOpen(after, october, november3)))
-        assertEquals("10월 고정지출. 1개 중 0개 냈어요. 낸 돈 0원, 안 낸 돈 150,000원", summarySpoken(after, october, november3))
+        assertEquals("10월 고정지출. 1개 중 0개 냈어요. 낸 돈 0원, 안 낸 돈 150,000원", expense.summarySpoken(after, october, november3))
     }
 
     @Test
@@ -316,7 +320,7 @@ class FixedExpenseTextTest {
             rowNote(item(rows, october, october30), october, october30),
         )
         val board = buildFixedExpenses(october, october30, rows)
-        assertEquals("이번 달 고정지출. 1개 중 0개 냈어요. 낸 돈 50,000원, 낼 돈 30,000원", summarySpoken(board, october, october30))
+        assertEquals("이번 달 고정지출. 1개 중 0개 냈어요. 낸 돈 50,000원, 낼 돈 30,000원", expense.summarySpoken(board, october, october30))
         // 28일 것의 낼 날 뒤 사흘이 지나면 안 나간 것(해지했거나 건너뜀)으로 보아 낸 것만으로 냈어요다
         val november10 = day("2026-11-10")
         val dropped = item(rows, october, november10)
@@ -381,8 +385,8 @@ class FixedExpenseTextTest {
 
     @Test
     fun `목록에서 빼기와 묻기 문구는 가게 이름 뒤에 조사를 붙이지 않는다`() {
-        assertEquals("'넷플릭스' 고정지출 목록에서 뺄까요?", removeTitle("넷플릭스"))
-        assertEquals("넷플릭스 고정지출로 등록", askRegisterLabel("넷플릭스"))
+        assertEquals("'넷플릭스' 고정지출 목록에서 뺄까요?", expense.removeTitle("넷플릭스"))
+        assertEquals("넷플릭스 고정지출로 등록", expense.askRegisterLabel("넷플릭스"))
         assertEquals("넷플릭스 등록 안 함", askDeclineLabel("넷플릭스"))
     }
 
@@ -391,7 +395,7 @@ class FixedExpenseTextTest {
         assertEquals("'넷플릭스' 해지했나요?", endTitle("넷플릭스"))
         assertEquals("넷플릭스 해지", endLabel("넷플릭스"))
         assertEquals("넷플릭스 해지 되돌리기", restoreLabel("넷플릭스"))
-        assertEquals("고정지출 목록에서 빼거나 해지하기", REMOVE_OR_END_ACTION_LABEL)
+        assertEquals("고정지출 목록에서 빼거나 해지하기", expense.removeOrEndActionLabel)
     }
 
     @Test
@@ -417,13 +421,87 @@ class FixedExpenseTextTest {
 
     @Test
     fun `목록 맨 아래 안내는 해지하면 어디까지 보이는지도 알린다`() {
-        assertTrue(FOOTNOTE, "해지" in FOOTNOTE)
-        assertTrue(FOOTNOTE, "마지막으로 낸 달까지만" in FOOTNOTE)
+        listOf(expense, savings).forEach { texts ->
+            assertTrue(texts.footnote, "해지" in texts.footnote)
+            assertTrue(texts.footnote, "마지막으로 낸 달까지만" in texts.footnote)
+        }
     }
 
     @Test
     fun `목록에 넣은 곳이 없으면 요약 자리에 그렇다고만 적는다`() {
-        assertEquals("아직 목록에 넣은 고정지출이 없어요", noRegisteredSentence(october, today))
-        assertEquals("9월까지는 목록에 넣은 고정지출이 없어요", noRegisteredSentence(YearMonth.of(2026, 9), today))
+        assertEquals("아직 목록에 넣은 고정지출이 없어요", expense.noRegisteredSentence(october, today))
+        assertEquals("9월까지는 목록에 넣은 고정지출이 없어요", expense.noRegisteredSentence(YearMonth.of(2026, 9), today))
+    }
+
+    // ── 고정저축 ──
+
+    /** [texts] 가 적는 문장 전부. 이번 달 · 지난 달로 한 번씩, 가게 이름은 "적금" */
+    private fun sentences(texts: FixedTexts): List<String> = listOf(october, YearMonth.of(2026, 9)).flatMap { month ->
+        listOf(
+            texts.summaryTitle(month, today),
+            texts.nothingDueSentence(month, today),
+            texts.noRegisteredSentence(month, today),
+            texts.emptyTitle(month, today),
+        )
+    } + listOf(
+        texts.tabTitle,
+        texts.noCategoryTitle,
+        texts.noCategoryBody,
+        texts.emptyBody,
+        texts.footnote,
+        texts.askTitle,
+        texts.askHint,
+        texts.askRegisterLabel("적금"),
+        texts.removeActionLabel,
+        texts.removeOrEndActionLabel,
+        texts.removeTitle("적금"),
+        texts.removeMessage,
+    )
+
+    @Test
+    fun `종류마다 그 탭의 문장 묶음을 쓴다`() {
+        assertEquals(FixedTexts.Expense, FixedKind.EXPENSE.texts)
+        assertEquals(FixedTexts.Savings, FixedKind.SAVINGS.texts)
+    }
+
+    @Test
+    fun `고정저축 문장에는 지출이 새지 않고 고정지출 문장에는 저축이 없다`() {
+        sentences(savings).forEach { assertFalse(it, "지출" in it) }
+        sentences(expense).forEach { assertFalse(it, "저축" in it) }
+    }
+
+    @Test
+    fun `고정저축은 받침에 맞게 고정저축으로라고 묻고 분류는 저축이라고 적는다`() {
+        assertEquals("고정저축으로 등록할까요?", savings.askTitle)
+        assertEquals("'저축' 분류로 적은 곳이에요. 등록하면 매달 냈는지 여기서 볼 수 있어요.", savings.askHint)
+        assertEquals("적금 고정저축으로 등록", savings.askRegisterLabel("적금"))
+        assertEquals("'적금' 고정저축 목록에서 뺄까요?", savings.removeTitle("적금"))
+        assertEquals("지난 거래는 '저축' 분류 그대로 남아요. 나중에 '저축' 분류로 새로 내면 등록할지 다시 물어볼게요.", savings.removeMessage)
+        assertEquals("고정저축 목록에서 빼기", savings.removeActionLabel)
+        assertEquals("고정저축 목록에서 빼거나 해지하기", savings.removeOrEndActionLabel)
+    }
+
+    @Test
+    fun `고정저축 요약은 고정저축으로 읽고 상태 말은 고정지출과 같다`() {
+        val board =
+            FixedExpenseBoard(
+                due = listOf(item(paid("2026-09-25", amount = 500_000))),
+                paid = listOf(item(paid("2026-10-03", amount = 300_000))),
+            )
+        assertEquals("이번 달 고정저축. 2개 중 1개 냈어요. 낸 돈 300,000원, 낼 돈 500,000원", savings.summarySpoken(board, october, today))
+        val none = FixedExpenseBoard(notThisMonth = listOf(item(paid("2026-07-31", "2026-09-30"))))
+        assertEquals("이번 달에 낼 고정저축이 없어요", savings.countSentence(none, october, today))
+        assertEquals("9월엔 낼 고정저축이 없었어요", savings.countSentence(none, YearMonth.of(2026, 9), today))
+        assertEquals("이번 달 고정저축. 아직 목록에 넣은 고정저축이 없어요", savings.summarySpoken(FixedExpenseBoard(), october, today))
+        assertEquals("9월까지는 목록에 넣은 고정저축이 없어요", savings.noRegisteredSentence(YearMonth.of(2026, 9), today))
+    }
+
+    @Test
+    fun `고정저축 빈 화면과 분류 없음은 저축 화면의 다른 탭과 같은 말이다`() {
+        assertEquals("아직 저축이 없어요", savings.emptyTitle(october, today))
+        assertEquals("8월까지는 저축이 없어요", savings.emptyTitle(YearMonth.of(2026, 8), today))
+        assertEquals("저축 분류가 없어요", savings.noCategoryTitle)
+        assertEquals("분류 관리에서 '저축' 분류를 다시 만들면, 그 분류로 적은 저축을 여기서 볼 수 있어요.", savings.noCategoryBody)
+        assertTrue(savings.emptyBody, "'저축' 분류로 적으면" in savings.emptyBody)
     }
 }

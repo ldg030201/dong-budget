@@ -371,7 +371,7 @@ class FixedRegistryTest {
             assertEquals(1, item.paidCount)
             assertEquals(2, item.requiredCount)
             assertEquals(listOf(20), item.droppedDays)
-            assertEquals("모두 냈어요", countSentence(board, october, today))
+            assertEquals("모두 냈어요", FixedTexts.Expense.countSentence(board, october, today))
             assertEquals(RowNote("2번 중 1번만 냈어요", NoteTone.PLAIN), rowNote(item, october, today))
         }
         // 9월은 두 번 다 냈다
