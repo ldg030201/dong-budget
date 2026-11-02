@@ -74,6 +74,14 @@ class TransactionRepository(private val transactionDao: TransactionDao) {
             // Room 은 거래 표에 쓰기만 해도 다시 내보낸다. 고정지출과 상관없는 거래를 적었으면 판을 다시 계산하지 않게 거른다.
             .distinctUntilChanged()
 
+    /**
+     * 코드가 [code] 인 분류('저축' SAVINGS)의 지출과 환불 전부, 최근 것부터(앞으로의 날짜로 적은 거래가 맨 앞). 저축 화면이 쓴다.
+     * 그 분류를 지웠으면 빈 목록이다.
+     */
+    fun observeWithCategoryCode(code: String): Flow<List<TransactionListItem>> = transactionDao.observeWithCategoryCode(code)
+        // Room 은 거래 표에 쓰기만 해도 다시 내보낸다. 저축과 상관없는 거래를 적었으면 다시 계산하지 않게 거른다.
+        .distinctUntilChanged()
+
     /** [from] 날(서울 0시)부터 [until] 날 0시 전까지 결제수단 [paymentMethodId] 로 쓴 지출·환불(저축은 빼고). 카드실적 상세가 쓴다. */
     fun observeByPaymentMethod(paymentMethodId: Long, from: LocalDate, until: LocalDate): Flow<List<TransactionListItem>> =
         transactionDao.observeByPaymentMethod(paymentMethodId, from.startInstant(), until.startInstant())

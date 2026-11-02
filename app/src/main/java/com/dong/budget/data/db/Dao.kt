@@ -160,6 +160,20 @@ interface TransactionDao {
     )
     fun observeExpensesWithCategoryCode(code: String, start: Instant, end: Instant): Flow<List<FixedExpenseRow>>
 
+    /**
+     * 코드가 [code] 인 분류(기본 분류)의 지출과 환불을 기간 없이 모두 최신순으로. 저축 화면이 '저축' 분류 거래를 한 번에 읽는다
+     * (환불은 모아 둔 돈을 꺼낸 것이다). 분류는 번호 목록으로 걸러 categoryId 인덱스로 그 분류 거래만 읽는다.
+     * 그 분류를 지웠으면 거래가 '기타' 로 옮겨 가서 아무것도 안 나온다. 날짜를 앞으로 적어 둔 거래도 들어온다.
+     */
+    @Query(
+        LIST_ITEM_SELECT +
+            """
+        WHERE t.categoryId IN (SELECT id FROM categories WHERE code = :code) AND t.type IN ('EXPENSE', 'REFUND')
+        ORDER BY t.occurredAt DESC, t.id DESC
+        """,
+    )
+    fun observeWithCategoryCode(code: String): Flow<List<TransactionListItem>>
+
     /** 기간 안에 결제수단 [paymentMethodId] 로 쓴 지출과 환불을 최신순으로(저축은 뺀다). 카드실적 상세가 쓴다(쓴 돈 = 지출 − 환불). */
     @Query(
         LIST_ITEM_SELECT +
