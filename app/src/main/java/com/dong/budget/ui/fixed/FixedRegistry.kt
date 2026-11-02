@@ -42,8 +42,9 @@ data class FixedCandidate(val key: String, val name: String, val latest: Transac
  *   (해지한 뒤에 낸 것에 '안 함' 을 눌러 둔 것뿐이면) 그 기간의 가장 최근 결제다.
  * @property rows 해지 전 결제(해지한 뒤에 낸 · 적은 것이 아닌 것, [isNewSince]). 받은 기간 전부라 지난 달 판도 등록한 곳처럼 옛 결제까지 센다.
  * @property endMonth 끝 달. 이 달까지는 판에 그대로 보이고 그다음 달부터는 안 보인다. 해지 전 결제로 오늘 본 마지막 몫의 달이고,
- *   다음 차례 몫을 미리 냈으면 그 몫의 달이다([endMonthOf]). 이번 달 기준 기간에 해지 전 결제가 없거나 몫이 없으면(날짜를 앞으로 적어 둔
- *   것뿐) null 이라 어느 달 판에도 안 보인다.
+ *   다음 차례 몫을 미리 냈으면 그 몫의 달이다([endMonthOf]). 이번 달 기준 기간에 해지 전 결제가 없거나(날짜를 앞으로 적어 둔 다음 달 이후
+ *   것뿐) 몫이 모두 이번 달 뒤면 null 이라 오늘은 어느 달 판에도 안 보인다. 오늘에 따라 보는 것이라, 그 날짜가 든 달이 오면 그 결제가
+ *   기간에 들어와 그 몫의 달이 끝 달이 된다(해지 전에 적어 둔 결제라 해지한 뒤 날짜여도 판에 센다).
  * @property asking 해지한 뒤에 새로 내서 다시 등록할지 묻는 중인지. 묻는 동안에는 '해지한 곳' 묶음에 두지 않는다(판에는 끝 달까지 그대로다).
  */
 @Immutable
@@ -176,7 +177,7 @@ private fun endedPlacesOf(ended: List<EndedRows>, today: LocalDate): List<FixedE
  * 해지한 곳들의 끝 달. [rows] 는 해지한 곳들의 해지 전 결제 가운데 이번 달 기준 기간의 것이다. 오늘이 든 달로 고정지출을 계산해
  * 가게마다 마지막 몫의 달을 끝 달로 본다. 다음 차례 몫을 미리 냈으면(2월에 3월 몫을 냄, [FixedExpenseItem.prepaidMonth]) 그 달이다.
  * 고른 달로 계산하면 마지막 몫이 그 달까지로 잘리고, 고른 달마다 읽는 기간이 달라 끝 달이 달라져서 오늘이 든 달 · 이번 달 기준 기간으로만 센다.
- * 가게끼리 계산이 따로라 한 번에 넣는다. 몫이 없는 곳(날짜를 앞으로 적어 둔 것뿐)은 들어 있지 않다.
+ * 가게끼리 계산이 따로라 한 번에 넣는다. 몫이 모두 이번 달 뒤인 곳(다음 달 몫을 미리 낸 것뿐)은 들어 있지 않다.
  */
 private fun endMonthOf(rows: List<TransactionListItem>, today: LocalDate): Map<String, YearMonth> {
     if (rows.isEmpty()) return emptyMap()

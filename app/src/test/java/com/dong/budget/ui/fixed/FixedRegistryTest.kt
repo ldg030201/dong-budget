@@ -316,12 +316,13 @@ class FixedRegistryTest {
     }
 
     @Test
-    fun `해지 전 결제가 날짜를 앞으로 적어 둔 것뿐이면 끝 달이 없어 어느 달 판에도 안 보인다`() {
+    fun `해지 전 결제가 날짜를 앞으로 적어 둔 것뿐이면 그 날짜가 든 달이 오기 전까지는 끝 달이 없어 판에 안 보인다`() {
         // 10월 1일에 11월 5일 몫을 미리 적어 두고 10월 10일에 해지했다. 10월 12일에 낸 것은 다시 물었을 때 '안 함' 을 눌렀다.
         val ahead = pay("2026-11-05", "헬스장", 55_000, createdAt = "2026-10-01T09:00")
         val after = pay("2026-10-12T09:00", "헬스장", 55_000, createdAt = "2026-10-12T09:00")
+        val registry = mapOf(ended("헬스장", "2026-10-10", decidedAt = "2026-10-13"))
 
-        val split = split(listOf(ahead, after), mapOf(ended("헬스장", "2026-10-10", decidedAt = "2026-10-13")))
+        val split = split(listOf(ahead, after), registry)
 
         val place = split.ended.single()
         assertNull(place.endMonth)
@@ -329,6 +330,22 @@ class FixedRegistryTest {
         assertTrue(split.boardRows(october).isEmpty())
         // 해지한 곳 묶음에는 두어 되돌릴 수 있게 한다. 기간 안에 해지 전 결제가 없어 그 기간의 가장 최근 결제로 보여 준다.
         assertEquals(after.id, split.endedPlaces.single().latest.id)
+
+        // 11월이 되면 미리 적어 둔 결제가 이번 달 기준 기간에 들어와 해지 전 결제로 세고, 그 몫의 달인 11월까지 판에 보인다(그날이 오기 전이어도)
+        val november = YearMonth.of(2026, 11)
+        for (date in listOf("2026-11-01", "2026-11-06")) {
+            val inNovember = splitByRegistry(listOf(ahead, after), registry, created, day(date))
+            assertEquals(november, inNovember.ended.single().endMonth)
+            assertEquals(ahead.id, inNovember.endedPlaces.single().latest.id)
+            assertEquals(FixedStatus.PAID, board(inNovember, november, day(date)).itemOf("헬스장")?.status)
+        }
+        assertTrue(
+            board(
+                splitByRegistry(listOf(ahead, after), registry, created, day("2026-12-10")),
+                YearMonth.of(2026, 12),
+                day("2026-12-10"),
+            ).isEmpty,
+        )
     }
 
     @Test
