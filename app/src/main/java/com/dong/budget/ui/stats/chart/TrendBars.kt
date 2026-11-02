@@ -12,8 +12,15 @@ import java.time.YearMonth
  * @param amount 막대 높이이자 위에 적을 금액. 지출은 순지출이라 환불받은 돈이 더 많으면 음수다(막대는 0 높이, 글자는 "+1만").
  * @param recorded false 면 기록(카드 사용)을 시작하기 전이라 막대와 금액 없이 달 이름만 둔다.
  * @param description 화면 읽기가 이 칸에서 읽을 문장
+ * @param valueLabel 막대 위에 적을 줄인 금액. 보통 [trendValueLabel] 이고, 음수의 부호가 다른 쪽(저축은 꺼낸 돈이 더 많으면 "-")만 따로 준다.
  */
-data class TrendBar(val month: YearMonth, val amount: Long, val recorded: Boolean, val description: String)
+data class TrendBar(
+    val month: YearMonth,
+    val amount: Long,
+    val recorded: Boolean,
+    val description: String,
+    val valueLabel: String = trendValueLabel(amount),
+)
 
 /**
  * 최근 몇 달 한 계열 막대. 통계 상세(분류·결제수단)와 카드 실적 상세가 함께 쓴다.
@@ -33,7 +40,7 @@ internal fun trendSlots(bars: List<TrendBar>, highlight: Color, context: Color):
         values = if (bar.recorded) listOf(bar.amount) else emptyList(),
         label = AxisLabel("${bar.month.monthValue}월", if (selected) AxisLabelStyle.STRONG else AxisLabelStyle.NORMAL),
         description = bar.description,
-        valueLabel = if (bar.recorded) trendValueLabel(bar.amount) else null,
+        valueLabel = if (bar.recorded) bar.valueLabel else null,
         colors = listOf(if (selected) highlight else context),
     )
 }

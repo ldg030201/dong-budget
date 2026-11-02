@@ -29,9 +29,11 @@ import com.dong.budget.ui.theme.BudgetTheme
  * 누를 수 없다(가게 상세는 없다). 좌우 여백은 두지 않으니 StatsSection 안에 둔다.
  *
  * 순위 칸은 뱃지(size.badge)와 같은 폭이라, 위 순위 목록의 뱃지와 세로로 줄이 맞는다.
+ *
+ * @param savings 저축 통계의 상품별 줄인지. 모은 돈은 쓴 돈이 아니라 거래 줄처럼 부호 없이 본문색으로 적는다.
  */
 @Composable
-fun MerchantRow(rank: Int, merchant: MerchantStat, modifier: Modifier = Modifier) {
+fun MerchantRow(rank: Int, merchant: MerchantStat, modifier: Modifier = Modifier, savings: Boolean = false) {
     val description = merchantDescription(rank, merchant)
     Row(
         modifier =
@@ -66,20 +68,28 @@ fun MerchantRow(rank: Int, merchant: MerchantStat, modifier: Modifier = Modifier
             )
         }
         Text(
-            text = formatNetExpense(merchant.amount),
+            text = if (savings) "${formatAmount(merchant.amount)}원" else formatNetExpense(merchant.amount),
             style = BudgetTheme.amount.medium,
-            color = netExpenseColor(merchant.amount),
+            color = if (savings) BudgetTheme.colors.textPrimary else netExpenseColor(merchant.amount),
             modifier = Modifier.padding(start = BudgetTheme.spacing.inlineGap),
         )
     }
 }
 
-/** 많이 쓴 곳 섹션. 분류 탭과 상세가 같이 쓴다. 앞 섹션과는 sectionGap 만큼 띄운다. */
+/**
+ * 많이 쓴 곳 섹션. 분류 탭과 상세가 같이 쓴다. 앞 섹션과는 sectionGap 만큼 띄운다.
+ * 저축 통계는 제목을 '상품별' 로 바꾸고 [savings] 를 켜서 상품마다 모은 돈으로 쓴다.
+ */
 @Composable
-internal fun MerchantsSection(merchants: List<MerchantStat>, modifier: Modifier = Modifier) {
-    StatsSection(modifier = modifier.padding(top = BudgetTheme.spacing.sectionGap), title = "많이 쓴 곳") {
+internal fun MerchantsSection(
+    merchants: List<MerchantStat>,
+    modifier: Modifier = Modifier,
+    title: String = "많이 쓴 곳",
+    savings: Boolean = false,
+) {
+    StatsSection(modifier = modifier.padding(top = BudgetTheme.spacing.sectionGap), title = title) {
         Column {
-            merchants.forEachIndexed { index, merchant -> MerchantRow(rank = index + 1, merchant = merchant) }
+            merchants.forEachIndexed { index, merchant -> MerchantRow(rank = index + 1, merchant = merchant, savings = savings) }
         }
     }
 }

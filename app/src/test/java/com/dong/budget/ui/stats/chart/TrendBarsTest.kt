@@ -52,6 +52,16 @@ class TrendBarsTest {
         assertEquals(AxisLabel("7월", AxisLabelStyle.STRONG), slots[2].label)
     }
 
+    @Test
+    fun `막대 위 글자를 따로 주면 그대로 적고, 기록 전 칸에는 적지 않는다`() {
+        // 저축은 꺼낸 돈이 더 많은 달을 "-" 로 적는다(지출의 "+" 와 반대)
+        val withdrawn = TrendBar(YearMonth.of(2026, 7), amount = -10_000, recorded = true, description = "", valueLabel = "-1만")
+        val before = withdrawn.copy(month = YearMonth.of(2026, 6), recorded = false)
+        val slots = trendSlots(listOf(before, withdrawn), highlight, context)
+        assertNull(slots[0].valueLabel)
+        assertEquals("-1만", slots[1].valueLabel)
+    }
+
     private fun bar(point: DetailMonth) =
         TrendBar(month = point.month, amount = point.amount, recorded = !point.beforeFirstRecord, description = trendSlotDescription(point))
 }

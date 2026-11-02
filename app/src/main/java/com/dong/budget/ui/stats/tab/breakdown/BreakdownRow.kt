@@ -111,9 +111,9 @@ private fun SmallLine(text: String, maxLines: Int = Int.MAX_VALUE) {
     )
 }
 
-/** 비율 막대. 폭이 곧 비율이고 트랙은 깔지 않는다. 값은 둘째 줄 글자가 전한다. */
+/** 비율 막대. 폭이 곧 비율이고 트랙은 깔지 않는다. 값은 둘째 줄 글자가 전한다. 저축 통계의 결제수단별 줄도 쓴다. */
 @Composable
-private fun ShareBar(share: Double, color: Color) {
+internal fun ShareBar(share: Double, color: Color) {
     // 처음에는 0 에서 자라고, 달을 넘기면 지금 길이에서 새 비율로 늘거나 준다
     val fraction by rememberGrowingFraction(share.toFloat().coerceIn(0f, 1f))
     Spacer(
