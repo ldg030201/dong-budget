@@ -6,6 +6,7 @@ import com.dong.budget.data.db.CategoryStyle
 import com.dong.budget.data.db.DEFAULT_CATEGORIES
 import com.dong.budget.data.db.DEFAULT_INCOME_SOURCES
 import com.dong.budget.data.db.DEFAULT_PAYMENT_METHODS
+import com.dong.budget.data.db.FixedKind
 import com.dong.budget.data.db.FixedMerchantEntity
 import com.dong.budget.data.db.FixedMerchantState
 import com.dong.budget.data.db.PaymentMethodEntity
@@ -310,7 +311,7 @@ class BackupCodecTest {
         listOf(true, false).forEach { pretty ->
             val restored = decodeValid(BackupCodec.encode(exported, pretty))
             assertEquals(exported, restored)
-            assertEquals(fixed, restored.fixedMerchants?.map { it.toEntity() })
+            assertEquals(fixed, restored.fixedMerchants?.map { it.toEntity(FixedKind.EXPENSE) })
         }
     }
 
@@ -351,7 +352,84 @@ class BackupCodecTest {
         val text = BackupCodec.encode(backup().copy(fixedMerchants = listOf(one, one.copy(merchantKey = "헬스장"))), pretty = false)
         // 판은 그대로인데 모르는 상태가 왔다(판을 올리지 않고 칸을 더하는 방식이라)
         val read = decodeValid(text.replaceFirst("\"REGISTERED\"", "\"PAUSED\""))
-        assertEquals(listOf(null, "헬스장"), read.fixedMerchants.orEmpty().map { it.toEntity()?.merchantKey })
+        assertEquals(listOf(null, "헬스장"), read.fixedMerchants.orEmpty().map { it.toEntity(FixedKind.EXPENSE)?.merchantKey })
+    }
+
+    // ── 고정저축 목록 · 해지한 곳 ──
+
+    @Test
+    fun `고정저축 목록은 따로 담았다가 그 종류로 되살리고 해지한 때도 그대로다`() {
+        val decided = Instant.parse("2026-10-16T01:00:00Z")
+        val ended = Instant.parse("2026-10-20T03:00:00.456Z")
+        val expense =
+            listOf(
+                FixedMerchantEntity("넷플릭스", FixedMerchantState.ENDED, ended, FixedKind.EXPENSE, endedAt = ended),
+                FixedMerchantEntity("헬스장", FixedMerchantState.REGISTERED, decided),
+            )
+        // 같은 가게(넷플릭스)를 고정저축에도 정해 두었다. 해지한 뒤 다시 물은 것에 '안 함' 을 눌러 정한 때가 해지한 때보다 늦다.
+        val savings =
+            listOf(
+                FixedMerchantEntity("넷플릭스", FixedMerchantState.DECLINED, decided, FixedKind.SAVINGS),
+                FixedMerchantEntity("적금", FixedMerchantState.ENDED, ended.plusSeconds(3_600), FixedKind.SAVINGS, endedAt = ended),
+            )
+        val exported =
+            backupOf(categories, paymentMethods, listOf(lunch), "2.0.0", Instant.parse("2026-10-21T05:00:00Z"), savings + expense)
+        // 고정지출 칸에는 고정지출만 담는다(옛 앱이 고정저축을 고정지출로 넣지 않게)
+        assertEquals(listOf("넷플릭스", "헬스장"), exported.fixedMerchants?.map { it.merchantKey })
+        assertEquals(listOf("넷플릭스", "적금"), exported.fixedSavings?.map { it.merchantKey })
+        assertEquals("2026-10-20T12:00:00.456+09:00", exported.fixedMerchants?.first()?.endedAt)
+
+        listOf(true, false).forEach { pretty ->
+            val restored = decodeValid(BackupCodec.encode(exported, pretty))
+            assertEquals(exported, restored)
+            assertEquals(expense, restored.fixedMerchants?.map { it.toEntity(FixedKind.EXPENSE) })
+            assertEquals(savings, restored.fixedSavings?.map { it.toEntity(FixedKind.SAVINGS) })
+        }
+    }
+
+    @Test
+    fun `해지 안 한 줄은 해지한 때를 적지 않아 그 칸이 생기기 전과 같은 글이다`() {
+        val fixed = listOf(FixedMerchantEntity("넷플릭스", FixedMerchantState.REGISTERED, Instant.parse("2026-10-16T01:00:00Z")))
+        val text = BackupCodec.encode(backupOf(categories, paymentMethods, listOf(lunch), "2.0.0", Instant.now(), fixed), pretty = false)
+        val line = "{\"merchantKey\":\"넷플릭스\",\"state\":\"REGISTERED\",\"decidedAt\":\"2026-10-16T10:00:00+09:00\"}"
+        assertTrue(text, "\"fixedMerchants\":[$line]" in text)
+        assertTrue(text, "endedAt" !in text)
+    }
+
+    @Test
+    fun `고정저축 목록이 비어도 빈 목록으로 적고 칸이 없는 옛 백업은 비워 둔다`() {
+        val text = BackupCodec.encode(backup(), pretty = false)
+        assertTrue("\"fixedSavings\":[]" in text)
+        assertEquals(emptyList<BackupFixedMerchant>(), decodeValid(text).fixedSavings)
+
+        // 1.9.1 이 만든 모양: 판 2, 고정지출 목록은 있고 고정저축 칸은 없다
+        val old = decodeValid(text.replace(",\"fixedSavings\":[]", ""))
+        assertEquals(BACKUP_FORMAT, old.format)
+        assertEquals(emptyList<BackupFixedMerchant>(), old.fixedMerchants)
+        assertNull(old.fixedSavings)
+    }
+
+    @Test
+    fun `같은 가게가 두 목록에 다 있어도 되지만 한 목록 안에서 겹치거나 때를 읽을 수 없으면 망가진 백업이다`() {
+        val one = BackupFixedMerchant("넷플릭스", FixedMerchantState.REGISTERED.name, "2026-10-16T10:00:00+09:00")
+        decodeValid(broken { it.copy(fixedMerchants = listOf(one), fixedSavings = listOf(one)) })
+
+        assertEquals(BackupCodec.BROKEN, reason(broken { it.copy(fixedSavings = listOf(one, one.copy(state = "DECLINED"))) }))
+        assertEquals(BackupCodec.BROKEN, reason(broken { it.copy(fixedSavings = listOf(one.copy(decidedAt = "어제"))) }))
+        val badEnd = one.copy(state = FixedMerchantState.ENDED.name, endedAt = "지난주")
+        assertEquals(BackupCodec.BROKEN, reason(broken { it.copy(fixedMerchants = listOf(badEnd)) }))
+        assertEquals(BackupCodec.BROKEN, reason(broken { it.copy(fixedSavings = listOf(badEnd)) }))
+    }
+
+    @Test
+    fun `해지한 때는 해지한 곳에만 두고 빠졌으면 정한 때에 해지한 것으로 본다`() {
+        // 손으로 고친 백업 흉내
+        val decided = "2026-10-16T10:00:00+09:00"
+        val endedWithout = BackupFixedMerchant("넷플릭스", FixedMerchantState.ENDED.name, decided)
+        assertEquals(Instant.parse("2026-10-16T01:00:00Z"), endedWithout.toEntity(FixedKind.EXPENSE)?.endedAt)
+        val registeredWith = BackupFixedMerchant("헬스장", FixedMerchantState.REGISTERED.name, decided, endedAt = decided)
+        assertNull(registeredWith.toEntity(FixedKind.SAVINGS)?.endedAt)
+        assertEquals(FixedKind.SAVINGS, registeredWith.toEntity(FixedKind.SAVINGS)?.kind)
     }
 
     // ── 앱 설정 ──

@@ -5,6 +5,7 @@ import com.dong.budget.data.db.ALL_DEFAULT_PAYMENT_METHODS
 import com.dong.budget.data.db.BudgetDatabase
 import com.dong.budget.data.db.BudgetTime
 import com.dong.budget.data.db.DEFAULT_CATEGORIES
+import com.dong.budget.data.db.FixedKind
 import com.dong.budget.data.db.registerShownFixedMerchants
 import com.dong.budget.data.db.settleIncomeSources
 import com.dong.budget.data.db.toEntity
@@ -13,7 +14,7 @@ import com.dong.budget.data.devlog.LogTag
 import java.time.Instant
 
 /**
- * 거래·분류·결제수단과 고정지출 목록을 통째로 다룬다. 백업으로 내보내고, 백업으로 바꿔 넣고, 처음 설치한 상태로 되돌린다.
+ * 거래·분류·결제수단과 고정지출 · 고정저축 목록을 통째로 다룬다. 백업으로 내보내고, 백업으로 바꿔 넣고, 처음 설치한 상태로 되돌린다.
  * 바꿔 넣기와 되돌리기는 한 트랜잭션이라 중간에 실패하면 아무것도 바뀌지 않는다.
  */
 class BackupRepository(private val database: BudgetDatabase) {
@@ -27,7 +28,7 @@ class BackupRepository(private val database: BudgetDatabase) {
     suspend fun transactionCount(): Int = dao.transactionCount()
 
     /**
-     * 지금 거래·분류·결제수단과 고정지출 목록을 모두 지우고 [backup] 으로 채운다. [backup] 은 [BackupCodec.decode] 의 검사를 마친 것이어야 한다.
+     * 지금 거래·분류·결제수단과 고정지출 · 고정저축 목록을 모두 지우고 [backup] 으로 채운다. [backup] 은 [BackupCodec.decode] 의 검사를 마친 것이어야 한다.
      * @param now 되살리는 때. 목록이 없는 옛 백업이면 이날 고정지출 탭에 보였을 곳을 이때 등록한 것으로 둔다.
      */
     suspend fun restore(backup: Backup, now: Instant = Instant.now()) {
@@ -54,18 +55,23 @@ class BackupRepository(private val database: BudgetDatabase) {
                 registered = registerShownFixedMerchants(database.openHelper.writableDatabase, BudgetTime.toLocalDate(now), now)
             } else {
                 // 모르는 상태(더 새 앱)의 줄은 건너뛴다. 그 곳은 탭이 등록할지 다시 묻는다.
-                fixed.mapNotNull { it.toEntity() }.forEach { dao.insertFixedMerchant(it) }
+                fixed.mapNotNull { it.toEntity(FixedKind.EXPENSE) }.forEach { dao.insertFixedMerchant(it) }
             }
+            // 고정저축 목록은 고정지출 목록 뒤에 넣는다. 보이던 곳 등록은 DB 7 에서도 돌게 종류를 가리지 않고 정해 둔 열쇠를 읽어서,
+            // 먼저 넣으면 같은 가게의 고정저축 줄이 고정지출 등록을 막는다. 칸이 없으면(고정저축이 생기기 전 백업) 비워 둔다.
+            // 고정저축은 처음부터 탭이 묻고 등록해서 미리 등록할 곳이 없다.
+            backup.fixedSavings?.mapNotNull { it.toEntity(FixedKind.SAVINGS) }?.forEach { dao.insertFixedMerchant(it) }
         }
         DevLog.info(
             LogTag.BACKUP,
             "복원 · ${backup.exportedAt}(${backup.appVersion})에 만든 백업 · 거래 ${backup.transactions.size}건 · " +
                 "분류 ${backup.categories.size}개 · 결제수단·들어온 곳 ${backup.paymentMethods.size}개 · " +
-                "고정지출 목록 ${backup.fixedMerchants?.let { "${it.size}곳" } ?: "없음(보이던 ${registered}곳 등록)"} · 판 ${backup.format}",
+                "고정지출 목록 ${backup.fixedMerchants?.let { "${it.size}곳" } ?: "없음(보이던 ${registered}곳 등록)"} · " +
+                "고정저축 목록 ${backup.fixedSavings?.let { "${it.size}곳" } ?: "없음"} · 판 ${backup.format}",
         )
     }
 
-    /** 거래·분류·결제수단과 고정지출 목록을 모두 지우고 기본 분류·결제수단·들어온 곳을 다시 넣는다. 새로 설치한 것과 같다. */
+    /** 거래·분류·결제수단과 고정지출 · 고정저축 목록을 모두 지우고 기본 분류·결제수단·들어온 곳을 다시 넣는다. 새로 설치한 것과 같다. */
     suspend fun resetToDefaults() {
         database.withTransaction {
             dao.deleteAll()

@@ -50,6 +50,7 @@ fun fixedHistoryEnd(month: YearMonth, today: LocalDate): YearMonth = maxOf(month
  *
  * 6 → 7 에서는 DB 7 표(종류 · 해지한 때 칸이 없다)에서 돈다(6 에서 8 로 한 번에 올려도 7 → 8 은 그 뒤다). 그래서 넣는 칸과
  * 정해 둔 열쇠 읽기([FIXED_MERCHANT_KEYS_SQL])에 종류를 쓰지 않는다. DB 8 에서는 넣은 줄이 SQL 기본값으로 고정지출이 된다.
+ * 열쇠 읽기가 종류를 가리지 않으므로, 복원은 고정저축 줄을 이 함수 뒤에 넣는다(먼저 넣으면 같은 가게의 고정지출 등록을 막는다).
  * @return 새로 등록한 곳의 수
  */
 internal fun registerShownFixedMerchants(db: SupportSQLiteDatabase, today: LocalDate, now: Instant): Int {

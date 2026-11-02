@@ -29,7 +29,7 @@ import java.time.Instant
 
 /**
  * 백업을 되살린 뒤 들어온 곳 정리(settleIncomeSources)와 고정지출 목록 등록(registerShownFixedMerchants)이 복원 거래 안에서
- * 실제 SQLite 로 DB 5 → 6 · 6 → 7 과 같게 도는지 본다. 고정 목록 정리가 종류(고정지출 · 고정저축)마다 따로 도는지,
+ * 실제 SQLite 로 DB 5 → 6 · 6 → 7 과 같게 도는지 본다. 고정지출 · 고정저축 목록이 종류마다 따로 되살아나고 정리되는지,
  * 데이터 초기화가 두 목록을 다 비우는지도 본다.
  * 기기에서 돈다. 메모리 DB 를 써서 기기에 있는 실제 가계부(dong-budget.db)는 건드리지 않는다.
  */
@@ -149,13 +149,19 @@ class BackupRestoreTest {
             spend("e1", "스타벅스", "2026-10-05T03:00:00Z", category = food.id),
         )
 
+    /** '저축' 분류로 적은 곳. 고정저축 탭이 묻고 등록한다. */
+    private val saving = spend("s1", "적금", "2026-10-25T03:00:00Z", category = savings.id)
+
     @Test
     fun `고정지출 목록이 없는 옛 백업을 되살리면 그날 탭에 보였을 곳을 등록한다`() = runBlocking {
         val now = Instant.parse("2026-10-16T03:00:00Z")
-        val old = backupOf(categories, expenseMethods, spends, appVersion = "1.9.0", exportedAt = now).copy(fixedMerchants = null)
+        val old =
+            backupOf(categories, expenseMethods, spends + saving, appVersion = "1.9.0", exportedAt = now)
+                .copy(fixedMerchants = null, fixedSavings = null)
 
         repository.restore(old, now)
 
+        // '저축' 분류로 적은 적금은 등록하지 않는다(고정저축 목록은 비어서 시작한다)
         assertEquals(
             listOf(
                 FixedMerchantEntity("넷플릭스", FixedMerchantState.REGISTERED, now),
@@ -179,6 +185,47 @@ class BackupRestoreTest {
     }
 
     @Test
+    fun `새 백업은 고정저축 목록도 그 종류로 되살리고 해지한 때도 그대로다`() = runBlocking {
+        val decided = Instant.parse("2026-10-01T00:00:00Z")
+        val ended = Instant.parse("2026-10-10T00:00:00Z")
+        // 같은 가게(넷플릭스)를 고정지출에서는 해지했고 고정저축에는 등록해 두었다
+        val list =
+            listOf(
+                FixedMerchantEntity("넷플릭스", FixedMerchantState.ENDED, ended, FixedKind.EXPENSE, endedAt = ended),
+                FixedMerchantEntity("넷플릭스", FixedMerchantState.REGISTERED, decided, FixedKind.SAVINGS),
+                FixedMerchantEntity("적금", FixedMerchantState.ENDED, ended.plusSeconds(60), FixedKind.SAVINGS, endedAt = ended),
+            )
+        val backup = backupOf(categories, expenseMethods, spends + saving, "2.0.0", Instant.parse("2026-10-16T03:00:00Z"), list)
+
+        repository.restore(backup)
+
+        assertEquals(list, database.backupDao().fixedMerchants())
+        // 다시 내보내면 같은 목록이다
+        val again = repository.export("2.0.0")
+        assertEquals(backup.fixedMerchants, again.fixedMerchants)
+        assertEquals(backup.fixedSavings, again.fixedSavings)
+    }
+
+    @Test
+    fun `고정지출 목록이 없는 백업에 고정저축 목록이 있어도 보이던 곳은 고정지출로 등록한다`() = runBlocking {
+        // 손으로 고친 백업 흉내. 고정저축 줄을 먼저 넣으면 같은 가게(넷플릭스)가 이미 정한 곳으로 읽혀 고정지출 등록이 빠진다.
+        val now = Instant.parse("2026-10-16T03:00:00Z")
+        val savingsOnly = listOf(FixedMerchantEntity("넷플릭스", FixedMerchantState.DECLINED, now, FixedKind.SAVINGS))
+        val old = backupOf(categories, expenseMethods, spends + saving, "2.0.0", now, savingsOnly).copy(fixedMerchants = null)
+
+        repository.restore(old, now)
+
+        assertEquals(
+            listOf(
+                FixedMerchantEntity("넷플릭스", FixedMerchantState.REGISTERED, now),
+                FixedMerchantEntity("헬스장", FixedMerchantState.REGISTERED, now),
+                FixedMerchantEntity("넷플릭스", FixedMerchantState.DECLINED, now, FixedKind.SAVINGS),
+            ),
+            database.backupDao().fixedMerchants(),
+        )
+    }
+
+    @Test
     fun `고정지출 목록 정리는 고정지출 지출이 하나도 남지 않은 곳만 지운다`() = runBlocking {
         val decided = Instant.parse("2026-10-01T00:00:00Z")
         // 오래된 구독 · 넷플릭스는 '고정지출' 지출이 남아 있고, 스타벅스는 다른 분류로만, 지운곳은 지출이 없다
@@ -195,7 +242,6 @@ class BackupRestoreTest {
     fun `고정 목록 정리는 그 종류 목록만 지우고 다른 종류의 같은 가게는 그대로 둔다`() = runBlocking {
         val decided = Instant.parse("2026-10-01T00:00:00Z")
         // 넷플릭스는 '고정지출' 지출만, 적금은 '저축' 지출만 있다. 두 곳 모두 두 목록에 다 정해 두었다.
-        val saving = spend("s1", "적금", "2026-10-25T03:00:00Z", category = savings.id)
         repository.restore(backupOf(categories, expenseMethods, spends + saving, "2.0.0", Instant.parse("2026-10-16T03:00:00Z")))
         val dao = database.fixedMerchantDao()
         listOf("넷플릭스", "적금").forEach { key ->
