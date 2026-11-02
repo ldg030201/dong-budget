@@ -336,7 +336,7 @@ internal val FixedKind.texts: FixedTexts
  * 상태 말('냈어요' · '아직 안 냈어요' · '낸 돈' · '해지')은 두 탭이 같이 쓴다. 적금 · 청약도 '냈다' · '해지했다' 고 한다.
  */
 internal sealed interface FixedTexts {
-    /** 탭 머리 이름. "고정지출" */
+    /** 탭 머리 이름. "고정지출". 머리를 그릴 때만 쓴다(FixedExpenseScreen 의 showHeader). */
     val tabTitle: String
 
     /** 요약 판 제목. "이번 달 고정지출", "9월 고정지출" */
@@ -444,7 +444,8 @@ internal sealed interface FixedTexts {
     }
 
     /**
-     * 고정저축 탭. '저축' 분류 지출을 본다. 저축 화면 안의 칸이라 탭 머리는 그리지 않지만 이름은 요약 · 화면 읽기에 쓴다.
+     * 고정저축 탭. '저축' 분류 지출을 본다. 저축 화면 안의 칸이라 탭 머리를 그리지 않아 [tabTitle] 은 화면에 쓰이지 않는다.
+     * 칸 이름과 칸을 바꿀 때 화면 읽기가 알리는 이름은 저축 화면의 칸(SavingsTab.FIXED)이, 요약 제목은 [summaryTitle] 이 따로 적는다.
      * 가게 칸에 적는 것은 적금 · 청약 같은 상품 이름이라(저축 통계의 '상품별') 안내도 상품 이름이라고 적는다.
      */
     data object Savings : FixedTexts {
