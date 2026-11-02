@@ -68,7 +68,7 @@ internal fun SavingsStatsTab(
         LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = contentPadding) {
             if (stats.monthIsEmpty) {
                 animatedItem(key = EMPTY_KEY) {
-                    StatsEmpty(title = emptyMonthTitle(state.month, state.today), body = EMPTY_MONTH_BODY)
+                    StatsEmpty(title = emptyMonthTitle(state.month, state.today), body = EMPTY_PERIOD_BODY)
                 }
                 return@LazyColumn
             }

@@ -55,7 +55,34 @@ fun MonthStepper(
 }
 
 /**
- * 기간 고르기 줄의 틀. ‹ 제목 › 와 오른쪽 끝 자리([trailing]). 달 고르기([MonthStepper])가 쓴다.
+ * 화면 맨 위의 해 고르기. ‹ 2026년 › 와 오른쪽 끝 자리([trailing]). 달 고르기([MonthStepper])와 같은 모양 · 같은 움직임이다.
+ * 저축 내역이 쓰고, 오른쪽에 '올해' 버튼([ThisMonthButton])을 둔다.
+ * @param nextEnabled false 면 › 를 흐리게 막는다(앞날을 보지 않는 저축 내역의 올해). 화면 읽기는 '사용 중지됨' 으로 읽는다.
+ */
+@Composable
+fun YearStepper(
+    year: Int,
+    onPreviousYear: () -> Unit,
+    onNextYear: () -> Unit,
+    modifier: Modifier = Modifier,
+    nextEnabled: Boolean = true,
+    trailing: @Composable () -> Unit = {},
+) {
+    PeriodStepper(
+        period = year,
+        title = { "${it}년" },
+        previousDescription = "이전 해",
+        nextDescription = "다음 해",
+        onPrevious = onPreviousYear,
+        onNext = onNextYear,
+        modifier = modifier,
+        nextEnabled = nextEnabled,
+        trailing = trailing,
+    )
+}
+
+/**
+ * 기간 고르기 줄의 틀. ‹ 제목 › 와 오른쪽 끝 자리([trailing]). 달 고르기([MonthStepper]) · 해 고르기([YearStepper])가 같이 쓴다.
  * 기간을 넘기면 제목이 넘긴 방향으로 밀려 바뀌어서 기간은 앞뒤를 견줄 수 있어야 한다.
  * @param title 기간을 제목 글로. 화면 읽기가 기간마다 건너뛸 수 있게 제목으로 둔다.
  * @param previousDescription ‹ 의 화면 읽기 이름("이전 달")
@@ -112,8 +139,8 @@ private fun <T : Comparable<T>> PeriodStepper(
 
 /**
  * 지난 달(기간)을 보고 있을 때 달 줄 오른쪽 끝에 나타나는 '이번 달' 버튼. 살짝 커지며 나타나고 줄며 사라진다.
- * 통계·고정지출·카드 실적 상세가 함께 쓴다.
- * @param text 버튼 글. 카드 실적처럼 시작일이 1일이 아닌 기간이면 '이번 기간'.
+ * 통계·고정지출·카드 실적 상세가 함께 쓰고, 저축 내역은 해 줄([YearStepper]) 오른쪽에 '올해' 로 쓴다.
+ * @param text 버튼 글. 카드 실적처럼 시작일이 1일이 아닌 기간이면 '이번 기간', 해를 넘기는 저축 내역은 '올해'.
  */
 @Composable
 fun ThisMonthButton(visible: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier, text: String = "이번 달") {

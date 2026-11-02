@@ -29,6 +29,12 @@ class SavingsTextTest {
     }
 
     @Test
+    fun `내역 머리 라벨과 빈 해 안내는 고른 해 이름이다`() {
+        assertEquals("2026년 모은 돈", yearTitle(2026))
+        assertEquals("2025년에는 모은 돈이 없어요", emptyYearTitle(2025))
+    }
+
+    @Test
     fun `지난달 대비는 더 · 덜 모았다고 말한다`() {
         assertEquals("지난달 이맘때보다 5만원 더 모았어요", comparisonSentence(SavingsComparison(50_000, ComparisonScope.SAME_DAY)))
         assertEquals("지난달보다 3만원 덜 모았어요", comparisonSentence(SavingsComparison(-30_000, ComparisonScope.WHOLE_MONTH)))
@@ -82,7 +88,9 @@ class SavingsTextTest {
                 paymentSummary(entry(GroupKey.Id(2), "현금", -50_000, share = null, count = 1)),
                 withdrawnHint(1),
                 emptyMonthTitle(YearMonth.of(2026, 9), today),
-                EMPTY_MONTH_BODY,
+                yearTitle(2026),
+                emptyYearTitle(2025),
+                EMPTY_PERIOD_BODY,
                 WITHDRAWN_OVER_TEXT,
             )
         sentences.forEach { sentence ->

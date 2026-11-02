@@ -23,9 +23,10 @@ import java.time.YearMonth
 /**
  * 저축 화면 전체.
  * @param month 통계 탭에서 고른 달
+ * @param year 내역 탭에서 고른 해
  * @param rows '저축' 분류 거래(지출 · 환불) 전부. 다른 거래가 섞여 와도 저축([isSavings])만 센다.
  */
-fun buildSavings(month: YearMonth, today: LocalDate, hasCategory: Boolean, rows: List<TransactionListItem>): SavingsUiState {
+fun buildSavings(month: YearMonth, year: Int, today: LocalDate, hasCategory: Boolean, rows: List<TransactionListItem>): SavingsUiState {
     val savings = rows.filter { it.isSavings }
     val byMonth = savings.groupBy { YearMonth.from(it.localDate()) }
     return SavingsUiState(
@@ -33,21 +34,27 @@ fun buildSavings(month: YearMonth, today: LocalDate, hasCategory: Boolean, rows:
         month = month,
         today = today,
         hasCategory = hasCategory,
-        history = savingsHistory(savings, byMonth, today),
+        hasAny = savings.isNotEmpty(),
+        history = savingsHistory(year, today, savings),
         stats = savingsStats(month, today, byMonth),
     )
 }
 
-/** 내역 탭. [byMonth] 는 [rows] 를 달로 묶은 것이다. */
-internal fun savingsHistory(
-    rows: List<TransactionListItem>,
-    byMonth: Map<YearMonth, List<TransactionListItem>>,
-    today: LocalDate,
-): SavingsHistory = SavingsHistory(
-    total = rows.totals().savings,
-    thisMonth = byMonth[YearMonth.from(today)].orEmpty().totals().savings,
-    months = historyMonths(rows),
-)
+/**
+ * 내역 탭(고른 해). [rows] 는 저축 거래 전부이고 그해 것만 골라 센다.
+ * 해를 넘겨 앞으로 적어 둔 저축(12월에 적은 다음 해 1월 것)은 그해에 든다. 올해보다 뒤로는 넘기지 않으니 그해가 와야 보인다.
+ */
+internal fun savingsHistory(year: Int, today: LocalDate, rows: List<TransactionListItem>): SavingsHistory {
+    val inYear = rows.filter { it.localDate().year == year }
+    val months = historyMonths(inYear)
+    return SavingsHistory(
+        year = year,
+        total = inYear.totals().savings,
+        // 달 머리의 합과 같은 값이다. 이번 달에 저축이 없으면 0
+        thisMonth = if (year == today.year) months.find { it.month == YearMonth.from(today) }?.totals?.savings ?: 0 else null,
+        months = months,
+    )
+}
 
 /** 통계 탭. [byMonth] 는 저축 거래를 달로 묶은 것이다(달마다 처음부터 다시 거르지 않게). */
 internal fun savingsStats(month: YearMonth, today: LocalDate, byMonth: Map<YearMonth, List<TransactionListItem>>): SavingsStats {

@@ -461,6 +461,9 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
                                 onPreviousMonth = viewModel::showPreviousMonth,
                                 onNextMonth = viewModel::showNextMonth,
                                 onThisMonth = viewModel::showThisMonth,
+                                onPreviousYear = viewModel::showPreviousYear,
+                                onNextYear = viewModel::showNextYear,
+                                onThisYear = viewModel::showThisYear,
                                 onOpenTransaction = { id -> if (settled()) navigator.go(TransactionDetailKey(id)) },
                                 // '저축' 분류를 지웠으면 다시 만들러 분류 관리를 연다
                                 onOpenCategories = { if (settled()) navigator.go(CategoryManageKey) },

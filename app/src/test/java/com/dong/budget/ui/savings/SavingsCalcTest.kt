@@ -42,24 +42,82 @@ class SavingsCalcTest {
         categoryCode = SAVINGS_CATEGORY_CODE,
     )
 
-    private fun build(month: YearMonth, vararg rows: TransactionListItem) =
-        buildSavings(month, today, hasCategory = true, rows = rows.toList())
+    private fun build(month: YearMonth, vararg rows: TransactionListItem, year: Int = today.year) =
+        buildSavings(month, year, today, hasCategory = true, rows = rows.toList())
 
     @Test
-    fun `내역은 저축만 달마다 묶고 지금까지 · 이번 달 모은 돈을 센다`() {
+    fun `내역은 고른 해의 저축만 달마다 묶고 그해 · 이번 달 모은 돈을 센다`() {
         val oct = saved("2026-10-05", 300_000)
         val withdrawn = saved("2026-10-10", 50_000, type = REFUND)
         val sep = saved("2026-09-25", 300_000)
+        val january = saved("2026-01-25", 100_000)
+        // 지난해 것은 올해 모은 돈에도 목록에도 들지 않는다
+        val lastYear = saved("2025-12-25", 700_000)
         // 다른 분류의 지출은 저축 조회에 오지 않지만, 섞여 와도 세지 않는다
         val lunch = tx("2026-10-06", 9_000, categoryId = 1)
-        val history = build(october, oct, withdrawn, sep, lunch).history
+        val state = build(october, oct, withdrawn, sep, january, lastYear, lunch)
+        val history = state.history
 
-        assertEquals(550_000L, history.total)
+        assertEquals(2026, history.year)
+        assertTrue(state.isThisYear)
+        // 꺼낸 돈(저축 분류의 환불)은 뺀다: 300,000 - 50,000 + 300,000 + 100,000
+        assertEquals(650_000L, history.total)
         assertEquals(250_000L, history.thisMonth)
-        assertEquals(listOf(october, september), history.months.map { it.month })
+        assertEquals(listOf(october, september, YearMonth.of(2026, 1)), history.months.map { it.month })
         assertEquals(listOf(withdrawn, oct), history.months.first().days.flatMap { it.items })
         // 달 머리 합은 지출이 아니라 저축 칸에 든다(totalsText 가 '저축 250,000원' 으로 적는다)
         assertEquals(Totals(savings = 250_000), history.months.first().totals)
+    }
+
+    @Test
+    fun `지난해를 보면 그해 것만 세고 이번 달 모은 돈은 두지 않는다`() {
+        val dec = saved("2025-12-25", 300_000)
+        val withdrawn = saved("2025-06-10", 50_000, type = REFUND)
+        val state = build(october, dec, withdrawn, saved("2026-10-05", 300_000), saved("2024-12-25", 900_000), year = 2025)
+        val history = state.history
+
+        assertEquals(2025, history.year)
+        assertFalse(state.isThisYear)
+        assertEquals(250_000L, history.total)
+        assertNull(history.thisMonth)
+        assertEquals(listOf(YearMonth.of(2025, 12), YearMonth.of(2025, 6)), history.months.map { it.month })
+        // 통계 탭은 고른 해와 상관없이 고른 달 그대로다
+        assertEquals(300_000L, state.stats.total)
+    }
+
+    @Test
+    fun `올해 이번 달에 저축이 없으면 이번 달 모은 돈은 0 이다`() {
+        val history = build(october, saved("2026-09-25", 300_000)).history
+        assertEquals(300_000L, history.total)
+        assertEquals(0L, history.thisMonth)
+    }
+
+    @Test
+    fun `저축이 없는 해는 비었지만 다른 해에 저축이 있으면 저축이 있는 것이다`() {
+        val state = build(october, saved("2026-10-05", 300_000), year = 2024)
+        assertTrue(state.hasAny)
+        assertTrue(state.history.yearIsEmpty)
+        assertEquals(0L, state.history.total)
+        assertNull(state.history.thisMonth)
+    }
+
+    @Test
+    fun `해를 넘겨 앞으로 적어 둔 저축은 적은 날짜의 해에 든다`() {
+        // 올해 12월 것은 아직 오지 않았어도 올해에 든다(내역 목록처럼). 다음 해 1월 것은 다음 해에 든다.
+        val december = saved("2026-12-25", 300_000)
+        val nextJanuary = saved("2027-01-05", 500_000)
+        val rows = arrayOf(saved("2026-10-05", 300_000), december, nextJanuary)
+
+        val thisYear = build(october, *rows).history
+        assertEquals(600_000L, thisYear.total)
+        assertEquals(300_000L, thisYear.thisMonth)
+        assertEquals(listOf(YearMonth.of(2026, 12), october), thisYear.months.map { it.month })
+
+        // 다음 해로는 화면에서 넘기지 않지만, 계산은 그해 것만 센다
+        val nextYear = build(october, *rows, year = 2027).history
+        assertEquals(500_000L, nextYear.total)
+        assertNull(nextYear.thisMonth)
+        assertEquals(listOf(nextJanuary), nextYear.months.flatMap { month -> month.days.flatMap { it.items } })
     }
 
     @Test
@@ -68,6 +126,7 @@ class SavingsCalcTest {
         assertTrue(state.loaded)
         assertFalse(state.hasAny)
         assertTrue(state.stats.monthIsEmpty)
+        assertTrue(state.history.yearIsEmpty)
         assertEquals(0L, state.history.total)
     }
 
@@ -188,6 +247,6 @@ class SavingsCalcTest {
 
     @Test
     fun `분류가 없다는 것은 그대로 넘긴다`() {
-        assertFalse(buildSavings(october, today, hasCategory = false, rows = emptyList()).hasCategory)
+        assertFalse(buildSavings(october, today.year, today, hasCategory = false, rows = emptyList()).hasCategory)
     }
 }

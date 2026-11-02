@@ -35,7 +35,8 @@ enum class SavingsTab(val label: String, @DrawableRes val icon: Int, val paneTit
  * @property loaded 첫 계산이 끝났는지. 끝나기 전에는 아래 떠 있는 메뉴만 그린다(빈 상태 안내가 잠깐 비치지 않게).
  * @property month 통계 탭에서 고른 달. 이번 달보다 뒤로는 가지 않는다.
  * @property hasCategory '저축'(코드 SAVINGS) 분류가 있는지. 분류 관리에서 지웠고 같은 이름(띄어쓰기 무시)의 분류도 없으면 false
- * @property history 내역 탭. 고른 달과 상관없이 같다.
+ * @property hasAny 저축 거래가 하나라도 있는지(모든 해 통틀어). 없으면 내역 · 통계 모두 '아직 저축이 없어요' 하나만 둔다.
+ * @property history 내역 탭. 고른 해의 것이다.
  * @property stats 통계 탭. 고른 달의 것이다.
  */
 @Immutable
@@ -44,13 +45,14 @@ data class SavingsUiState(
     val month: YearMonth,
     val today: LocalDate,
     val hasCategory: Boolean,
+    val hasAny: Boolean,
     val history: SavingsHistory,
     val stats: SavingsStats,
 ) {
     val isThisMonth: Boolean get() = month == YearMonth.from(today)
 
-    /** 저축 거래가 하나라도 있는지(모든 달 통틀어) */
-    val hasAny: Boolean get() = history.months.isNotEmpty()
+    /** 내역 탭에서 올해를 보는지. 올해면 다음 해로 넘기지 않고, 머리에 이번 달 모은 돈을 함께 적는다. */
+    val isThisYear: Boolean get() = history.year == today.year
 
     companion object {
         /** 첫 계산 전 자리 값 */
@@ -59,22 +61,28 @@ data class SavingsUiState(
             month = YearMonth.from(today),
             today = today,
             hasCategory = true,
-            history = SavingsHistory.EMPTY,
+            hasAny = false,
+            history = SavingsHistory.empty(today.year),
             stats = SavingsStats.EMPTY,
         )
     }
 }
 
 /**
- * 내역 탭. 머리에 모은 돈 둘을 적고, 그 아래 저축 거래를 달마다 늘어놓는다(내역 화면과 같은 목록).
- * @property total 지금까지 모은 돈. 아래 목록을 모두 더한 것이라 날짜를 앞으로 적어 둔 저축도 들어 있다.
- * @property thisMonth 이번 달(오늘이 든 달) 모은 돈
- * @property months 달마다 묶은 저축 거래(최근 달부터). 달 머리에 그 달 모은 돈을 적는다(totalsText).
+ * 내역 탭(고른 해). 머리에 그해 모은 돈을 적고, 그 아래 그해 저축 거래를 달마다 늘어놓는다(내역 화면과 같은 목록).
+ * @property year 고른 해. 올해보다 뒤로는 가지 않는다.
+ * @property total 그해 모은 돈. 아래 목록을 모두 더한 것이라 날짜를 앞으로 적어 둔 그해 저축도 들어 있다.
+ * @property thisMonth 이번 달(오늘이 든 달) 모은 돈. 올해를 볼 때만 두고, 지난해를 보면 null
+ * @property months 그해 저축 거래를 달마다 묶은 것(최근 달부터). 달 머리에 그 달 모은 돈을 적는다(totalsText).
  */
 @Immutable
-data class SavingsHistory(val total: Long, val thisMonth: Long, val months: List<HistoryMonth>) {
+data class SavingsHistory(val year: Int, val total: Long, val thisMonth: Long?, val months: List<HistoryMonth>) {
+    /** 그해에 저축이 없는지. 다른 해에는 있을 수 있다(없으면 [SavingsUiState.hasAny] 가 false). */
+    val yearIsEmpty: Boolean get() = months.isEmpty()
+
     companion object {
-        val EMPTY = SavingsHistory(0, 0, emptyList())
+        /** 저축이 없는 해 */
+        fun empty(year: Int): SavingsHistory = SavingsHistory(year = year, total = 0, thisMonth = null, months = emptyList())
     }
 }
 

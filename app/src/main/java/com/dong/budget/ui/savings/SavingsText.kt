@@ -22,8 +22,17 @@ fun savedAmount(amount: Long): String = "${formatAmount(amount)}원"
 
 // ── 내역 ─────────────────────────────────────────────────────────────
 
-internal const val TOTAL_LABEL = "지금까지 모은 돈"
+/** 내역 머리 라벨. 해 줄에서 고른 해다. "2026년 모은 돈" */
+fun yearTitle(year: Int): String = "${year}년 모은 돈"
+
+/** 내역 머리 아래 이번 달 모은 돈(올해를 볼 때만). "이번 달 300,000원" */
 internal const val THIS_MONTH_LABEL = "이번 달"
+
+/** 지난해를 보고 있을 때 해 줄 오른쪽에 나오는 버튼 */
+internal const val THIS_YEAR_TEXT = "올해"
+
+/** 저축이 없는 해. "2025년에는 모은 돈이 없어요" */
+fun emptyYearTitle(year: Int): String = "${year}년에는 모은 돈이 없어요"
 
 // ── 통계 ─────────────────────────────────────────────────────────────
 
@@ -105,7 +114,8 @@ fun withdrawnHint(count: Int): String = "꺼낸 돈이 더 많은 결제수단 $
 /** 저축이 없는 달. "9월에는 모은 돈이 없어요" */
 fun emptyMonthTitle(month: YearMonth, today: LocalDate): String = "${monthLabel(month, today)}에는 모은 돈이 없어요"
 
-internal const val EMPTY_MONTH_BODY = "'저축' 분류로 적으면 여기서 모아 볼 수 있어요"
+/** 저축이 없는 달(통계) · 해(내역) 안내 아래 글 */
+internal const val EMPTY_PERIOD_BODY = "'저축' 분류로 적으면 여기서 모아 볼 수 있어요"
 
 private const val WITHDRAWN_MORE_TEXT = "꺼낸 돈이 더 많아요"
 

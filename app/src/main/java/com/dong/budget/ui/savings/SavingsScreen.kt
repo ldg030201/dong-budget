@@ -32,10 +32,10 @@ import com.dong.budget.ui.theme.Motion
 /**
  * 저축. 아래 메뉴(또는 전체)의 '저축' 으로 들어온다. '저축' 분류로 적은 돈은 쓴 돈에서 빠지고 여기에 모인다.
  * 아래 떠 있는 메뉴(뒤로 · 내역 · 통계 · 고정저축) 위에 고른 탭을 보여 준다.
- * - 내역: 지금까지 · 이번 달 모은 돈과 저축 거래를 달마다(내역 화면과 같은 목록)
+ * - 내역: 고른 해 모은 돈(올해면 이번 달 모은 돈도)과 그해 저축 거래를 달마다(내역 화면과 같은 목록)
  * - 통계: 고른 달 모은 돈, 지난달 대비, 최근 6개월, 올해 · 그 달까지 모은 돈, 상품별, 결제수단별
  * - 고정저축: [fixedContent] 가 그린다(고정지출 화면을 고정저축 종류로, DongBudgetApp). 저축 거래나 '저축' 분류가 없어도 그 탭은 제 화면을 그린다.
- * 달 줄은 화면 공통이 아니라 탭마다 둔다. 내역에는 달 줄이 없고, 통계와 고정저축은 저마다 달 줄이 있다.
+ * 기간 줄은 화면 공통이 아니라 탭마다 둔다. 내역은 해 줄, 통계와 고정저축은 저마다 달 줄이 있다.
  *
  * 통계와 같은 틀이다. 탭 이동은 뒤로 기록에 쌓지 않고, 뒤로(메뉴의 ←, 시스템 뒤로)는 늘 저축을 나간다. 탭마다 스크롤 위치를 따로 보관한다.
  * 화면은 셸 위에서 빠르게 나타나고 사라지고(DongBudgetApp 의 subflowTransitions), 떠 있는 메뉴는 따로 아래에서 떠오르고 가라앉는다
@@ -46,6 +46,7 @@ import com.dong.budget.ui.theme.Motion
  *
  * @param selectedTab 지금 탭. 바깥(DongBudgetApp)이 들고 있어야 화면 전환 중에 눌린 탭을 거를 수 있다.
  * @param onThisMonth 통계 탭에서 지난 달을 보고 있을 때 달 줄 오른쪽에 나오는 '이번 달'
+ * @param onThisYear 내역 탭에서 지난해를 보고 있을 때 해 줄 오른쪽에 나오는 '올해'
  * @param onOpenTransaction 거래 줄을 누르면 그 거래의 상세
  * @param onOpenCategories '저축' 분류를 지웠을 때 다시 만들러 분류 관리를 연다
  * @param fixedContent 고정저축 탭의 내용. 받은 여백(아래 떠 있는 메뉴에 가리지 않을 만큼)을 목록에 둔다. 상단 인셋은 이 화면이 이미 뺐다.
@@ -58,6 +59,9 @@ fun SavingsScreen(
     onPreviousMonth: () -> Unit,
     onNextMonth: () -> Unit,
     onThisMonth: () -> Unit,
+    onPreviousYear: () -> Unit,
+    onNextYear: () -> Unit,
+    onThisYear: () -> Unit,
     onOpenTransaction: (Long) -> Unit,
     onOpenCategories: () -> Unit,
     onBack: () -> Unit,
@@ -113,9 +117,11 @@ fun SavingsScreen(
                                     when (shown.tab) {
                                         SavingsTab.HISTORY ->
                                             SavingsHistoryTab(
-                                                history = state.history,
-                                                today = state.today,
+                                                state = state,
                                                 contentPadding = contentPadding,
+                                                onPreviousYear = onPreviousYear,
+                                                onNextYear = onNextYear,
+                                                onThisYear = onThisYear,
                                                 onOpenTransaction = onOpenTransaction,
                                             )
 
