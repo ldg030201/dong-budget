@@ -1,5 +1,6 @@
 package com.dong.budget.ui.stats.calc
 
+import com.dong.budget.data.db.SAVINGS_CATEGORY_CODE
 import com.dong.budget.data.db.TransactionType.EXPENSE
 import com.dong.budget.data.db.TransactionType.INCOME
 import com.dong.budget.data.db.TransactionType.REFUND
@@ -36,6 +37,33 @@ class BreakdownTest {
         assertEquals(listOf(2, 1), result.entries.map { it.count })
         // 한 번에 평균은 환불로 줄기 전 금액이다
         assertEquals(10_000L, result.entries.first().averageTicket)
+    }
+
+    @Test
+    fun `지출 쪽은 저축을 넣지 않고 저축 쪽은 저축만 모은 돈으로 잰다`() {
+        val rows =
+            listOf(
+                tx("2026-09-01", 10_000, categoryId = 1, paymentId = 1),
+                tx("2026-09-02", 300_000, categoryId = 7, paymentId = 1, merchant = "적금", categoryCode = SAVINGS_CATEGORY_CODE),
+                tx("2026-09-03", 200_000, categoryId = 7, paymentId = 2, merchant = "청약", categoryCode = SAVINGS_CATEGORY_CODE),
+                tx("2026-09-04", 100_000, categoryId = 7, paymentId = 2, merchant = "적금", categoryCode = SAVINGS_CATEGORY_CODE),
+                tx("2026-09-05", 50_000, REFUND, categoryId = 7, paymentId = 2, merchant = "청약", categoryCode = SAVINGS_CATEGORY_CODE),
+            )
+        val expense = breakdown(rows, Measure.EXPENSE, Grouping.PAYMENT_METHOD, window = null)
+        assertEquals(10_000L, expense.total)
+        assertEquals(listOf(GroupKey.Id(1)), expense.entries.map { it.key })
+        assertEquals(listOf(1), expense.entries.map { it.count })
+
+        val savings = breakdown(rows, Measure.SAVINGS, Grouping.PAYMENT_METHOD, window = null)
+        // 꺼낸 돈(저축 환불)은 모은 돈에서 뺀다
+        assertEquals(550_000L, savings.total)
+        assertEquals(listOf(GroupKey.Id(1), GroupKey.Id(2)), savings.entries.map { it.key })
+        assertEquals(listOf(300_000L, 250_000L), savings.entries.map { it.amount })
+        assertEquals(listOf(1, 3), savings.entries.map { it.count })
+        // 한 번에 평균은 지출처럼 꺼내기 전 금액이다
+        assertEquals(listOf(300_000L, 150_000L), savings.entries.map { it.averageTicket })
+        assertEquals(550_000L, Measure.SAVINGS.amountOf(rows))
+        assertEquals(10_000L, Measure.EXPENSE.amountOf(rows))
     }
 
     @Test

@@ -19,21 +19,23 @@ import java.time.YearMonth
  * 통계 화면 전체를 계산하는 입구.
  *
  * 숫자는 홈과 한 몸이다. 달 합계는 Totals, 하루 금액은 dailyTotals, 지난달 비교는 compareSpending 을 그대로 쓴다.
+ * 저축은 입구에서 거른다([withoutSavings]). 금액은 Totals 가 이미 빼지만, 건수 · 목록 · 쓴 날 · 빈 달 판정에서도 빠져야 해서다.
  *
- * @param rows [month] 가 들어 있는 조회 창(StatsViewModel 이 읽는 여러 달)의 거래 전부. 이체도 섞여 온다.
+ * @param rows [month] 가 들어 있는 조회 창(StatsViewModel 이 읽는 여러 달)의 거래 전부. 이체와 저축도 섞여 온다.
  *   창은 [min(M−5, 그해 1월), M] 이라 최근 6개월, 요일별 3달, 올해 모아 보기를 모두 덮는다.
  * @param firstRecord 기록 시작일. 거래가 없으면 null
  */
 fun buildStatistics(month: YearMonth, today: LocalDate, rows: List<TransactionListItem>, firstRecord: LocalDate?): StatsUiState {
-    val first = effectiveFirstRecord(rows, firstRecord)
-    val byMonth = rows.groupBy { YearMonth.from(it.localDate()) }
+    val records = rows.withoutSavings()
+    val first = effectiveFirstRecord(records, firstRecord)
+    val byMonth = records.groupBy { YearMonth.from(it.localDate()) }
     val current = byMonth[month].orEmpty()
     // 홈과 같은 비교 창이되, 지난달을 1일부터 기록하지 않았으면 분류별 증감을 내지 않는다
     val window = breakdownWindow(month, today, current, byMonth[month.minusMonths(1)].orEmpty(), first)
     val period = periodOf(month, today)
     val expenseByCategory = breakdown(current, Measure.EXPENSE, Grouping.CATEGORY, window)
     val monthIsEmpty = current.none { it.isRecord }
-    val daily = dailyStats(month, today, period, current, rows, first, expenseByCategory)
+    val daily = dailyStats(month, today, period, current, records, first, expenseByCategory)
 
     return StatsUiState(
         loaded = true,

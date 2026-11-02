@@ -19,12 +19,13 @@ import com.dong.budget.ui.stats.calc.isRecord
 import com.dong.budget.ui.stats.calc.measure
 import com.dong.budget.ui.stats.calc.topMerchants
 import com.dong.budget.ui.stats.calc.trendMonths
+import com.dong.budget.ui.stats.calc.withoutSavings
 import java.time.LocalDate
 import java.time.YearMonth
 
 // ─────────────────────────────────────────────────────────────────────
 // 통계 상세 계산. 분류·결제수단 탭과 같은 함수(breakdown, entryChange, topMerchants)를 쓴다.
-// 거르는 규칙도 탭과 같다: 지출 쪽은 지출·환불, 수입 쪽은 수입만 넣고 이체는 어디에도 없다.
+// 거르는 규칙도 탭과 같다: 지출 쪽은 지출·환불, 수입 쪽은 수입만 넣고 이체와 저축은 어디에도 없다.
 // ─────────────────────────────────────────────────────────────────────
 
 /**
@@ -36,7 +37,7 @@ import java.time.YearMonth
  * - 교차 비중은 이 항목의 거래만 다른 기준으로 나눈 것이다. 증감은 붙이지 않는다(비중만 본다).
  *
  * @param id 분류나 결제수단의 id. null 이면 '분류 없음' / '결제수단 없음'
- * @param rows [month] 까지 최근 6개월의 거래 전부. 이체도 섞여 온다.
+ * @param rows [month] 까지 최근 6개월의 거래 전부. 이체와 저축도 섞여 온다. 저축은 탭처럼 입구에서 거른다(저축 분류의 상세는 비어 있다).
  * @param firstRecord 기록 시작일. 거래가 없으면 null
  * @param entity 이름·아이콘·색([detailEntity])
  */
@@ -53,9 +54,10 @@ fun buildDetail(
     val grouping = dimension.grouping
     val key = groupKeyOf(id)
     val inGroup = inGroup(key, measure, grouping)
-    val byMonth = rows.groupBy { YearMonth.from(it.localDate()) }
+    val records = rows.withoutSavings()
+    val byMonth = records.groupBy { YearMonth.from(it.localDate()) }
     val current = byMonth[month].orEmpty()
-    val first = effectiveFirstRecord(rows, firstRecord)
+    val first = effectiveFirstRecord(records, firstRecord)
     // 탭(buildStatistics)과 같은 비교가 되도록 그 달 거래 전부를 넘긴다. 지난달을 1일부터 기록하지 않았으면 증감을 내지 않는다.
     val window = breakdownWindow(month, today, current, byMonth[month.minusMonths(1)].orEmpty(), first)
     val mine = current.filter(inGroup)
@@ -73,7 +75,7 @@ fun buildDetail(
         change = entryChange(key, window, measure, grouping),
         trend = detailTrend(month, byMonth, inGroup, measure, first),
         cross = dimension.crossDimension?.let { breakdown(mine, Measure.EXPENSE, it.grouping, window = null) },
-        merchants = if (measure == Measure.EXPENSE) topMerchants(mine, DETAIL_MERCHANTS) else emptyList(),
+        merchants = if (measure != Measure.INCOME) topMerchants(mine, DETAIL_MERCHANTS, measure) else emptyList(),
         days = groupByDay(mine),
         count = mine.size,
     )

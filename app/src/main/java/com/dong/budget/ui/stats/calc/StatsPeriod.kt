@@ -2,6 +2,7 @@ package com.dong.budget.ui.stats.calc
 
 import com.dong.budget.data.db.TransactionListItem
 import com.dong.budget.data.db.TransactionType
+import com.dong.budget.data.db.isSavings
 import com.dong.budget.ui.home.Totals
 import com.dong.budget.ui.stats.Period
 import java.time.LocalDate
@@ -14,6 +15,12 @@ import kotlin.math.abs
 
 /** 통계에 넣는 거래인지. 이체는 내 돈이 자리만 옮긴 것이라 금액·건수·목록·빈 달 판정 어디에도 넣지 않는다. */
 internal val TransactionListItem.isRecord: Boolean get() = type != TransactionType.TRANSFER
+
+/**
+ * 저축([isSavings])을 뺀 거래. 저축은 쓴 돈이 아니라 모아 둔 돈이라 통계의 금액 · 건수 · 목록 · 빈 달 판정 어디에도 넣지 않는다.
+ * 통계 탭(buildStatistics)과 상세(buildDetail)의 입구가 거른다. 그래서 저축뿐인 달은 빈 달이다(이체뿐인 달처럼).
+ */
+internal fun List<TransactionListItem>.withoutSavings(): List<TransactionListItem> = filterNot { it.isSavings }
 
 /** 고른 달이 오늘에 견줘 지나간 달인지, 이번 달인지, 아직 오지 않은 달인지 */
 fun periodOf(month: YearMonth, today: LocalDate): Period {

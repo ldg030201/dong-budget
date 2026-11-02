@@ -1,5 +1,6 @@
 package com.dong.budget.ui.stats.calc
 
+import com.dong.budget.data.db.SAVINGS_CATEGORY_CODE
 import com.dong.budget.data.db.TransactionType.INCOME
 import com.dong.budget.data.db.TransactionType.REFUND
 import com.dong.budget.data.db.TransactionType.TRANSFER
@@ -59,6 +60,21 @@ class MerchantsTest {
             ),
         )
         assertTrue(result.isEmpty())
+    }
+
+    @Test
+    fun `많이 쓴 곳은 저축을 빼고 저축으로 재면 상품마다 모은 돈이다`() {
+        val rows =
+            listOf(
+                tx("2026-09-01", 5_000, merchant = "스타벅스"),
+                tx("2026-09-02", 300_000, merchant = "적금", categoryCode = SAVINGS_CATEGORY_CODE),
+                tx("2026-09-03", 300_000, merchant = "적금", categoryCode = SAVINGS_CATEGORY_CODE),
+                tx("2026-09-04", 100_000, merchant = "청약", categoryCode = SAVINGS_CATEGORY_CODE),
+                tx("2026-09-05", 100_000, REFUND, merchant = "청약", categoryCode = SAVINGS_CATEGORY_CODE),
+            )
+        assertEquals(listOf(MerchantStat("스타벅스", 5_000, 1, 5_000)), topMerchants(rows))
+        // 다 꺼낸 상품(모은 돈 0)은 빠진다
+        assertEquals(listOf(MerchantStat("적금", 600_000, 2, 300_000)), topMerchants(rows, measure = Measure.SAVINGS))
     }
 
     @Test

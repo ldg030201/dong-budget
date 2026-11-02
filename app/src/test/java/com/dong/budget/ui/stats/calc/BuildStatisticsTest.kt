@@ -1,5 +1,6 @@
 package com.dong.budget.ui.stats.calc
 
+import com.dong.budget.data.db.SAVINGS_CATEGORY_CODE
 import com.dong.budget.data.db.TransactionType.INCOME
 import com.dong.budget.data.db.TransactionType.TRANSFER
 import com.dong.budget.testing.day
@@ -46,6 +47,42 @@ class BuildStatisticsTest {
         assertTrue(state.expenseByCategory.entries.isEmpty())
         assertTrue(state.expenseByPayment.entries.isEmpty())
         assertTrue(state.daily.days.all { it.items.isEmpty() })
+    }
+
+    @Test
+    fun `저축뿐인 달은 빈 달이고 저축은 금액에도 목록에도 없다`() {
+        val rows = listOf(
+            tx("2026-08-10", 10_000, categoryId = 1),
+            tx("2026-09-05", 300_000, categoryId = 7, paymentId = 1, merchant = "적금", categoryCode = SAVINGS_CATEGORY_CODE),
+        )
+        val state = buildStatistics(september, day("2026-09-27"), rows, day("2026-08-10"))
+        assertTrue(state.monthIsEmpty)
+        assertEquals(Totals(), state.monthly.totals)
+        assertTrue(state.monthly.largest.isEmpty())
+        assertTrue(state.monthly.insights.isEmpty())
+        assertTrue(state.merchants.isEmpty())
+        assertTrue(state.expenseByCategory.entries.isEmpty())
+        assertTrue(state.expenseByPayment.entries.isEmpty())
+        assertTrue(state.daily.days.all { it.items.isEmpty() })
+        // 저축만 한 날도 돈 안 쓴 날이다
+        assertEquals(0, state.daily.spentDays)
+        assertEquals(27, state.daily.noSpendDays)
+    }
+
+    @Test
+    fun `저축이 섞인 달은 저축을 빼고 센다`() {
+        val rows = listOf(
+            tx("2026-09-03", 10_000, categoryId = 1, paymentId = 1, merchant = "마트"),
+            tx("2026-09-05", 300_000, categoryId = 7, paymentId = 1, merchant = "적금", categoryCode = SAVINGS_CATEGORY_CODE),
+        )
+        val state = buildStatistics(september, day("2026-09-27"), rows, day("2026-09-03"))
+        assertFalse(state.monthIsEmpty)
+        assertEquals(Totals(expense = 10_000), state.monthly.totals)
+        assertEquals(listOf(10_000L), state.monthly.largest.map { it.amount })
+        assertEquals(listOf("마트"), state.merchants.map { it.name })
+        assertEquals(listOf(1), state.expenseByPayment.entries.map { it.count })
+        assertEquals(1, state.daily.spentDays)
+        assertTrue(state.daily.days[4].items.isEmpty())
     }
 
     @Test
@@ -141,6 +178,19 @@ class BuildStatisticsTest {
         // 누적과 속도는 지난달 기록(이체 말고)이 없어서 지난달 쪽이 없다
         assertNull(state.monthly.flow!!.previous)
         assertNull(state.monthly.pace)
+    }
+
+    @Test
+    fun `지난달이 저축뿐이면 이체와 달리 지난달과 견주지 않는다`() {
+        // 저축은 통계 입구에서 걸러져 지난달이 빈 달이다. 홈(comparisonWindow)도 저축뿐인 지난달은 비교하지 않아 같은 답이다.
+        val rows = listOf(
+            tx("2026-08-05", 300_000, categoryId = 7, categoryCode = SAVINGS_CATEGORY_CODE),
+            tx("2026-09-03", 10_000, categoryId = 1),
+        )
+        val state = buildStatistics(september, day("2026-09-27"), rows, day("2026-08-05"))
+        assertNull(state.monthly.comparison)
+        val byMonth = rows.groupBy { YearMonth.from(it.localDate()) }
+        assertNull(compareSpending(september, day("2026-09-27"), byMonth[september].orEmpty(), byMonth[YearMonth.of(2026, 8)].orEmpty()))
     }
 
     @Test

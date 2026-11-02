@@ -2,6 +2,7 @@ package com.dong.budget.ui.stats.calc
 
 import com.dong.budget.data.db.TransactionListItem
 import com.dong.budget.data.db.TransactionType
+import com.dong.budget.data.db.isSavings
 import com.dong.budget.navigation.StatsDimension
 import com.dong.budget.ui.home.ComparisonScope
 import com.dong.budget.ui.home.ComparisonWindow
@@ -14,25 +15,35 @@ import com.dong.budget.ui.stats.StatSeries
 
 // ─────────────────────────────────────────────────────────────────────
 // 분류·결제수단별로 나누기. 분류 탭, 결제수단 탭, 일별 쌓은 막대, 상세가 같이 쓴다.
-// 금액은 홈 합계(Totals)로 잰다. 그래서 모든 항목을 더하면 그 달 지출(수입)과 같다.
+// 금액은 홈 합계(Totals)로 잰다. 그래서 모든 항목을 더하면 그 달 지출(수입 · 저축)과 같다.
 // ─────────────────────────────────────────────────────────────────────
 
 /** 무엇을 잴지 */
 enum class Measure {
-    /** 지출과 환불을 넣고 순지출(지출 − 환불)로 잰다. 환불이 더 많으면 음수다. */
+    /** 지출과 환불을 넣고 순지출(지출 − 환불)로 잰다. 환불이 더 많으면 음수다. 저축([isSavings])은 쓴 돈이 아니라 넣지 않는다. */
     EXPENSE,
 
     /** 수입만 넣는다. */
     INCOME,
+
+    /** 저축(저축 분류의 지출과 환불)만 넣고 모은 돈(저축 − 꺼낸 돈)으로 잰다. 꺼낸 돈이 더 많으면 음수다. */
+    SAVINGS,
     ;
 
     fun includes(item: TransactionListItem): Boolean = when (this) {
-        EXPENSE -> item.type == TransactionType.EXPENSE || item.type == TransactionType.REFUND
+        EXPENSE -> (item.type == TransactionType.EXPENSE || item.type == TransactionType.REFUND) && !item.isSavings
         INCOME -> item.type == TransactionType.INCOME
+        SAVINGS -> item.isSavings
     }
 
     /** [rows] 에서 이 쪽 금액. 들어오지 않는 행은 Totals 가 알아서 뺀다. */
-    fun amountOf(rows: Iterable<TransactionListItem>): Long = rows.totals().let { if (this == EXPENSE) it.expense else it.income }
+    fun amountOf(rows: Iterable<TransactionListItem>): Long = rows.totals().let {
+        when (this) {
+            EXPENSE -> it.expense
+            INCOME -> it.income
+            SAVINGS -> it.savings
+        }
+    }
 }
 
 /**
@@ -110,13 +121,13 @@ private fun entryOf(
         amount = amount,
         count = items.size,
         share = if (amount > 0) amount.toDouble() / positiveTotal else null,
-        averageTicket = if (measure == Measure.EXPENSE) averageTicket(items) else null,
+        averageTicket = if (measure != Measure.INCOME) averageTicket(items) else null,
         change = change,
         sortOrder = if (grouping == Grouping.CATEGORY) sample.categorySortOrder else null,
     )
 }
 
-/** 한 번에 평균 = 지출 합 ÷ 지출 건수. 환불로 줄기 전 금액으로 잰다(한 번 결제할 때의 크기). 지출이 없으면 null */
+/** 한 번에 평균 = 지출 합 ÷ 지출 건수. 환불로 줄기 전 금액으로 잰다(한 번 결제할 때의 크기). 지출이 없으면 null. 저축도 같은 규칙이다. */
 internal fun averageTicket(items: List<TransactionListItem>): Long? {
     val expenses = items.filter { it.type == TransactionType.EXPENSE }
     if (expenses.isEmpty()) return null

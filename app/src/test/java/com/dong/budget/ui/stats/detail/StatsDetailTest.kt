@@ -4,6 +4,7 @@ import com.dong.budget.data.db.CategoryEntity
 import com.dong.budget.data.db.CategoryScope
 import com.dong.budget.data.db.PaymentMethodEntity
 import com.dong.budget.data.db.PaymentMethodType
+import com.dong.budget.data.db.SAVINGS_CATEGORY_CODE
 import com.dong.budget.data.db.TransactionListItem
 import com.dong.budget.data.db.TransactionType.EXPENSE
 import com.dong.budget.data.db.TransactionType.INCOME
@@ -146,6 +147,29 @@ class StatsDetailTest {
         assertEquals(3, state.count)
         assertEquals(listOf(GroupKey.Id(2), GroupKey.Id(1)), state.cross!!.entries.map { it.key })
         assertEquals(listOf(25_000L, 15_000L), state.cross!!.entries.map { it.amount })
+    }
+
+    @Test
+    fun `결제수단 상세에는 저축이 들지 않고 저축 분류 상세는 비어 있다`() {
+        // 결제수단 10 으로 낸 저축. 금액 · 건수 · 쓴 날 · 교차 비중 어디에도 없어야 한다.
+        val withSavings =
+            rows +
+                tx("2026-09-08T10:00", 300_000, categoryId = 7, paymentId = 10, merchant = "적금", categoryCode = SAVINGS_CATEGORY_CODE) +
+                tx("2026-08-08T10:00", 300_000, categoryId = 7, paymentId = 10, merchant = "적금", categoryCode = SAVINGS_CATEGORY_CODE)
+        val byPayment = detail(StatsDimension.PAYMENT_METHOD, 10, rows = withSavings)
+        assertEquals(40_000L, byPayment.amount)
+        assertEquals(3, byPayment.count)
+        assertEquals(listOf(GroupKey.Id(2), GroupKey.Id(1)), byPayment.cross!!.entries.map { it.key })
+        assertTrue(byPayment.days.flatMap { it.items }.none { it.categoryId == 7L })
+        assertEquals(15_000L, byPayment.trend.first { it.month == YearMonth.of(2026, 8) }.amount)
+
+        // 탭에 저축 줄이 없어 보통은 못 들어오지만, 되살아난 화면 기록으로 들어와도 아무것도 없다
+        val savings = detail(StatsDimension.EXPENSE_CATEGORY, 7, rows = withSavings)
+        assertEquals(0L, savings.amount)
+        assertEquals(0, savings.count)
+        assertNull(savings.entry)
+        assertNull(savings.change)
+        assertTrue(savings.merchants.isEmpty())
     }
 
     @Test
