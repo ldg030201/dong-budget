@@ -8,7 +8,7 @@ import com.dong.budget.data.FixedMerchantRepository
 import com.dong.budget.data.TransactionRepository
 import com.dong.budget.data.db.BudgetTime
 import com.dong.budget.data.db.CategoryScope
-import com.dong.budget.data.db.FIXED_CATEGORY_CODE
+import com.dong.budget.data.db.FixedKind
 import com.dong.budget.data.db.FixedMerchantEntity
 import com.dong.budget.data.db.FixedMerchantState
 import com.dong.budget.data.db.fixedHistoryEnd
@@ -38,18 +38,20 @@ import java.time.LocalDate
 import java.time.YearMonth
 
 /**
- * 고정지출 탭의 상태.
+ * 고정지출(고정저축) 탭의 상태.
+ * @property kind 어느 탭인지(고정지출 · 고정저축). 그 분류([FixedKind.categoryCode], '고정지출' · '저축') 지출만 센다.
  * @property loaded 첫 계산이 끝났는지. 끝나기 전에는 탭 머리만 그린다(빈 상태 안내가 잠깐 비치지 않게).
  * @property month 보고 있는 달. 이번 달보다 뒤로는 가지 않는다.
- * @property hasCategory '고정지출'(코드 FIXED) 분류가 있는지. 분류 관리에서 지웠고 같은 이름(띄어쓰기 무시)의 분류도 없으면 false
- * @property board 고정지출 목록에 등록한 곳과, 끝 달([FixedEndedPlace.endMonth])까지의 해지한 곳만 센 판. 해지한 곳의 덜 낸 차례는 기다리지 않는다.
- * @property candidates '고정지출' 분류로 적었는데 목록에 등록할지 물을 곳([splitByRegistry]). 고른 달과 상관없이 같다.
+ * @property hasCategory 그 분류(코드 FIXED · SAVINGS)가 있는지. 분류 관리에서 지웠고 같은 이름(띄어쓰기 무시)의 분류도 없으면 false
+ * @property board 목록에 등록한 곳과, 끝 달([FixedEndedPlace.endMonth])까지의 해지한 곳만 센 판. 해지한 곳의 덜 낸 차례는 기다리지 않는다.
+ * @property candidates 그 분류로 적었는데 목록에 등록할지 물을 곳([splitByRegistry]). 고른 달과 상관없이 같다.
  * @property declined 등록 안 한 곳. 접어 두고 다시 등록할 수 있게 한다.
  * @property ended 해지한 곳(다시 묻는 곳은 빼고). 접어 두고 되돌릴 수 있게 한다. 고른 달과 상관없이 같다.
  * @property endedKeys [board] 에 보이는 해지한 곳(끝 달까지)의 열쇠. 그 줄에는 다시 해지하라고 하지 않는다.
  */
 @Immutable
 data class FixedExpenseUiState(
+    val kind: FixedKind,
     val loaded: Boolean,
     val month: YearMonth,
     val today: LocalDate,
@@ -67,7 +69,8 @@ data class FixedExpenseUiState(
 
     companion object {
         /** 첫 계산 전 자리 값 */
-        fun loading(today: LocalDate): FixedExpenseUiState = FixedExpenseUiState(
+        fun loading(kind: FixedKind, today: LocalDate): FixedExpenseUiState = FixedExpenseUiState(
+            kind = kind,
             loaded = false,
             month = YearMonth.from(today),
             today = today,
@@ -81,6 +84,7 @@ data class FixedExpenseUiState(
  * 고정지출 탭. [fixedHistoryStart] 부터 [fixedHistoryEnd](오늘이 든 달)까지의 '고정지출' 분류 지출을 읽어, 고정지출 목록에 등록한 곳의 것만
  * 순수 함수([buildFixedExpenses])로 나눈다. 해지한 곳은 끝 달까지 해지 전 결제만 넣고 남은 차례는 안 나간 것으로 본다([FixedRegistrySplit.board]).
  * 목록에 없는 곳은 등록할지 묻는다([splitByRegistry]).
+ * 고정저축 탭도 이 화면 모델이다. 목록 저장소의 종류([FixedMerchantRepository.kind])를 따라 '저축' 분류 지출을 고정저축 목록으로 똑같이 나눈다.
  * 지난 달을 볼 때도 이번 달까지 읽어, 일정은 오늘이 든 달 기준 기록으로 짐작하고(같은 날 본 모든 달 화면이 같은 일정) 다음 달에 밀려 낸
  * 고른 달 몫도 센다.
  * 등록창에서 저장하거나 거래를 고치면 조회가 다시 내보내서 '아직 안 냈어요' 가 바로 '냈어요' 로 옮겨 간다. 목록을 바꿔도 그렇다.
@@ -103,24 +107,27 @@ class FixedExpenseViewModel(
      */
     private val pickedMonth = MutableStateFlow<YearMonth?>(null)
 
+    /** 어느 탭인지. 목록 저장소의 종류를 따라가서, 읽는 분류 · 목록 · 정리가 서로 어긋나지 않는다. */
+    private val kind: FixedKind = fixedMerchants.kind
+
     /**
-     * '고정지출' 분류가 있는지. 이름·순서를 바꿔도 다시 계산하지 않게 있고 없음만 따라간다.
+     * 그 분류('고정지출' · '저축')가 있는지. 이름·순서를 바꿔도 다시 계산하지 않게 있고 없음만 따라간다.
      * 고른 달과 상관없어서, 달을 넘겨도 다시 읽지 않게 화면 모델이 살아 있는 동안 나눠 쓴다.
      */
     private val hasCategory: Flow<Boolean> =
         categories
             .observe(CategoryScope.EXPENSE)
-            .map { list -> list.any { it.code == FIXED_CATEGORY_CODE } }
+            .map { list -> list.any { it.code == kind.categoryCode } }
             .distinctUntilChanged()
             .shareIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), replay = 1)
 
     /**
-     * '고정지출' 지출이 하나도 남지 않은 곳을 목록에서 지운다. 목록은 이 탭에서만 보여서 앱을 켤 때가 아니라 탭을 열 때 한 번 한다.
+     * 그 분류 지출이 하나도 남지 않은 곳을 목록에서 지운다(제 종류 목록만). 목록은 이 탭에서만 보여서 앱을 켤 때가 아니라 탭을 열 때 한 번 한다.
      * 목록은 정리가 끝난 뒤에 읽는다. 첫 판이 정리된 목록을 보고, 정리 때문에 판을 한 번 더 계산하지 않는다.
      */
     private val pruned = viewModelScope.async { fixedMerchants.prune() }
 
-    /** 고정지출 목록. [hasCategory] 처럼 고른 달과 상관없어 나눠 쓴다. '안 함' 은 마지막으로 읽은 목록으로 해지한 곳인지 본다. */
+    /** 고정지출(고정저축) 목록. [hasCategory] 처럼 고른 달과 상관없어 나눠 쓴다. '안 함' 은 마지막으로 읽은 목록으로 해지한 곳인지 본다. */
     private val registry: SharedFlow<Map<String, FixedMerchantEntity>> =
         flow {
             pruned.await()
@@ -138,7 +145,7 @@ class FixedExpenseViewModel(
                 combine(
                     hasCategory,
                     transactions.observeExpensesWithCategoryCode(
-                        FIXED_CATEGORY_CODE,
+                        kind.categoryCode,
                         fixedHistoryStart(month),
                         fixedHistoryEnd(month, today),
                     ),
@@ -148,6 +155,7 @@ class FixedExpenseViewModel(
                     val created = fixedRows.associate { it.item.id to it.createdAt }
                     val split = splitByRegistry(rows, registry, created, today)
                     FixedExpenseUiState(
+                        kind = kind,
                         loaded = true,
                         month = month,
                         today = today,
@@ -164,7 +172,7 @@ class FixedExpenseViewModel(
             }.stateIn(
                 scope = viewModelScope,
                 started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS),
-                initialValue = FixedExpenseUiState.loading(BudgetTime.toLocalDate(clock.instant())),
+                initialValue = FixedExpenseUiState.loading(kind, BudgetTime.toLocalDate(clock.instant())),
             )
 
     fun showPreviousMonth() = showMonth(currentMonth().minusMonths(1))
@@ -177,13 +185,13 @@ class FixedExpenseViewModel(
         pickedMonth.value = null
     }
 
-    /** '등록' 을 누른 곳([key])을 고정지출 목록에 넣는다. 묻던 줄이 사라지고 판에 나타난다. 해지한 곳에 다시 물은 것이면 해지가 풀린다. */
+    /** '등록' 을 누른 곳([key])을 목록에 넣는다. 묻던 줄이 사라지고 판에 나타난다. 해지한 곳에 다시 물은 것이면 해지가 풀린다. */
     fun register(key: String) {
         viewModelScope.launch { fixedMerchants.register(key, clock.instant()) }
     }
 
     /**
-     * 묻는 줄에서 '안 함' 을 누른 곳([key]). 지난 거래의 분류는 그대로이고, 지금 뒤에 새로 낸 '고정지출' 지출이 생기면 다시 묻는다.
+     * 묻는 줄에서 '안 함' 을 누른 곳([key]). 지난 거래의 분류는 그대로이고, 지금 뒤에 새로 낸 그 분류 지출이 생기면 다시 묻는다.
      * 해지한 곳에 다시 물은 것이면 해지한 채로 둔다(해지 전 결제는 끝 달까지 판에 그대로다). 등록 안 한 곳으로 두면 해지한 때가 지워져
      * 지난 달 판에서도 통째로 빠진다. 해지한 곳인지는 판을 그린 목록으로 본다(그사이 해지가 풀렸으면 저장소가 등록 안 한 곳으로 둔다).
      */

@@ -54,6 +54,7 @@ import com.dong.budget.BuildConfig
 import com.dong.budget.data.AppContainer
 import com.dong.budget.data.capture.CaptureStore
 import com.dong.budget.data.capture.PaymentCapture
+import com.dong.budget.data.db.FixedKind
 import com.dong.budget.data.db.SALARY_CATEGORY_CODE
 import com.dong.budget.data.devlog.DevLog
 import com.dong.budget.data.lock.PinLock
@@ -232,7 +233,9 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
             // '등록하기' 는 지난번 값으로 채운 등록창을, 줄은 그 가게의 가장 최근 거래 상세를 연다.
             // '고정지출' 분류를 지웠으면 다시 만들러 분류 관리를 연다. '등록' · '안 함' · 빼기 · 해지 · 되돌리기는 고정지출 목록을 고친다.
             MenuItem.FIXED_EXPENSE -> {
-                val fixedViewModel: FixedExpenseViewModel = viewModel(factory = fixedExpenseViewModelFactory(container))
+                // 고정저축 탭과 같은 클래스라 한 ViewModelStore 에 같이 있어도 부딪히지 않게 종류로 열쇠를 박는다
+                val fixedViewModel: FixedExpenseViewModel =
+                    viewModel(key = "fixed:${FixedKind.EXPENSE}", factory = fixedExpenseViewModelFactory(container, FixedKind.EXPENSE))
                 val fixedState by fixedViewModel.uiState.collectAsStateWithLifecycle()
                 val settled = rememberSettled()
                 FixedExpenseScreen(
@@ -995,10 +998,19 @@ private fun salaryViewModelFactory(container: AppContainer) = viewModelFactory {
     initializer { SalaryViewModel(container.salaryRepository, container.transactionRepository) }
 }
 
-// ── 고정지출 탭 화면 모델 ──
-// 고정지출 탭의 화면 모델 공장을 여기에 둔다(카드실적 것은 파일 맨 끝).
-private fun fixedExpenseViewModelFactory(container: AppContainer) = viewModelFactory {
-    initializer { FixedExpenseViewModel(container.transactionRepository, container.categoryRepository, container.fixedMerchantRepository) }
+// ── 고정지출 · 고정저축 탭 화면 모델 ──
+// 고정지출 · 고정저축 탭의 화면 모델 공장을 여기에 둔다(카드실적 것은 파일 맨 끝).
+
+/** [kind] 탭(고정지출 · 고정저축)의 화면 모델 공장. 목록 저장소는 종류마다 따로고, 화면 모델은 그 저장소의 종류를 따라 분류를 읽는다. */
+private fun fixedExpenseViewModelFactory(container: AppContainer, kind: FixedKind) = viewModelFactory {
+    initializer {
+        val registry =
+            when (kind) {
+                FixedKind.EXPENSE -> container.fixedMerchantRepository
+                FixedKind.SAVINGS -> container.fixedSavingsRepository
+            }
+        FixedExpenseViewModel(container.transactionRepository, container.categoryRepository, registry)
+    }
 }
 
 private fun historyViewModelFactory(container: AppContainer) = viewModelFactory {

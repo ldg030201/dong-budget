@@ -6,13 +6,17 @@ import com.dong.budget.data.TransactionRepository
 import com.dong.budget.data.db.BudgetTime
 import com.dong.budget.data.db.CategoryDao
 import com.dong.budget.data.db.CategoryEntity
+import com.dong.budget.data.db.CategoryScope
+import com.dong.budget.data.db.FIXED_CATEGORY_CODE
 import com.dong.budget.data.db.FixedExpenseRow
 import com.dong.budget.data.db.FixedKind
 import com.dong.budget.data.db.FixedMerchantDao
 import com.dong.budget.data.db.FixedMerchantEntity
 import com.dong.budget.data.db.FixedMerchantState
+import com.dong.budget.data.db.SAVINGS_CATEGORY_CODE
 import com.dong.budget.data.db.TransactionDao
 import com.dong.budget.testing.seoulInstant
+import com.dong.budget.testing.tx
 import com.dong.budget.ui.card.await
 import com.dong.budget.ui.card.fakeDao
 import kotlinx.coroutines.CoroutineScope
@@ -20,12 +24,13 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.Clock
 import java.time.Instant
@@ -34,6 +39,7 @@ import java.time.Instant
  * 고정지출 화면 모델이 줄에서 누른 것을 목록의 어느 동작으로 보내는지 가짜 DAO 로 본다. 기기 없이 돌도록 화면 모델을 기본 풀
  * 범위([scope])에서 돌린다(Main 디스패처가 없다). 목록 표는 [table] 하나로, upsert · keepEnded 가 바꾸고 observeAll 이 따라간다(Room 처럼).
  * '안 함' 은 판을 그린 목록으로 해지한 곳인지 보므로, 판을 한 번 그린 뒤에 누른다.
+ * 거래와 분류는 [expenses] · [categories] 로, 조회는 분류 코드로 그 분류 지출만 돌려준다(Room 처럼).
  */
 class FixedExpenseViewModelTest {
     // 10월 16일 낮(서울)
@@ -41,6 +47,8 @@ class FixedExpenseViewModelTest {
     private val now = clock.instant()
     private val endedAt = seoulInstant("2026-09-20")
     private val table = MutableStateFlow<List<FixedMerchantEntity>>(emptyList())
+    private val expenses = MutableStateFlow<Map<String, List<FixedExpenseRow>>>(emptyMap())
+    private val categories = MutableStateFlow<List<CategoryEntity>>(emptyList())
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     private val merchants =
@@ -70,21 +78,21 @@ class FixedExpenseViewModelTest {
             }
         }
 
-    private fun open(vararg rows: FixedMerchantEntity): FixedExpenseViewModel {
+    private fun open(vararg rows: FixedMerchantEntity, kind: FixedKind = FixedKind.EXPENSE): FixedExpenseViewModel {
         table.value = rows.toList()
         val model =
             FixedExpenseViewModel(
                 TransactionRepository(
-                    fakeDao(TransactionDao::class.java) { name, _ ->
-                        if (name == "observeExpensesWithCategoryCode") flowOf(emptyList<FixedExpenseRow>()) else null
+                    fakeDao(TransactionDao::class.java) { name, args ->
+                        if (name == "observeExpensesWithCategoryCode") expenses.map { it[args[0]].orEmpty() } else null
                     },
                 ),
                 CategoryRepository(
                     fakeDao(CategoryDao::class.java) { name, _ ->
-                        if (name == "observeByScope") flowOf(emptyList<CategoryEntity>()) else null
+                        if (name == "observeByScope") categories else null
                     },
                 ),
-                FixedMerchantRepository(merchants, FixedKind.EXPENSE),
+                FixedMerchantRepository(merchants, kind),
                 clock,
                 scope,
             )
@@ -94,7 +102,11 @@ class FixedExpenseViewModelTest {
         return model
     }
 
-    private fun rowOf(key: String): FixedMerchantEntity? = table.value.singleOrNull { it.merchantKey == key }
+    private fun rowOf(key: String, kind: FixedKind = FixedKind.EXPENSE): FixedMerchantEntity? =
+        table.value.singleOrNull { it.kind == kind && it.merchantKey == key }
+
+    private fun category(id: Long, name: String, code: String) =
+        CategoryEntity(id = id, uuid = code, scope = CategoryScope.EXPENSE, name = name, code = code)
 
     @After
     fun clear() = scope.cancel()
@@ -150,5 +162,42 @@ class FixedExpenseViewModelTest {
 
         table.await { rowOf("넷플릭스")?.decidedAt == now }
         assertEquals(FixedMerchantEntity("넷플릭스", FixedMerchantState.ENDED, now, endedAt = now), rowOf("넷플릭스"))
+    }
+
+    @Test
+    fun `고정저축 화면 모델은 저축 분류 지출을 고정저축 목록으로만 나누고 등록도 고정저축 목록에 한다`() {
+        categories.value = listOf(category(4, "고정지출", FIXED_CATEGORY_CODE), category(7, "저축", SAVINGS_CATEGORY_CODE))
+        expenses.value =
+            mapOf(
+                FIXED_CATEGORY_CODE to listOf(FixedExpenseRow(tx("2026-10-03", 17_000, categoryId = 4, merchant = "넷플릭스"), now)),
+                SAVINGS_CATEGORY_CODE to listOf(FixedExpenseRow(tx("2026-10-05", 300_000, categoryId = 7, merchant = "적금"), now)),
+            )
+        // 같은 곳을 고정지출 목록에 등록해 두었어도 고정저축 목록과는 따로다
+        val model =
+            open(
+                FixedMerchantEntity("적금", FixedMerchantState.REGISTERED, seoulInstant("2026-09-01")),
+                FixedMerchantEntity("넷플릭스", FixedMerchantState.REGISTERED, seoulInstant("2026-09-01")),
+                kind = FixedKind.SAVINGS,
+            )
+
+        val state = model.uiState.value
+        assertEquals(FixedKind.SAVINGS, state.kind)
+        assertTrue(state.hasCategory)
+        assertEquals(listOf("적금"), state.candidates.map { it.key })
+        assertTrue(state.board.isEmpty)
+
+        model.register("적금")
+
+        table.await { rowOf("적금", FixedKind.SAVINGS) != null }
+        assertEquals(FixedMerchantEntity("적금", FixedMerchantState.REGISTERED, now, FixedKind.SAVINGS), rowOf("적금", FixedKind.SAVINGS))
+        assertEquals(FixedMerchantEntity("적금", FixedMerchantState.REGISTERED, seoulInstant("2026-09-01")), rowOf("적금"))
+        model.uiState.await { it.board.itemOf("적금") != null }
+    }
+
+    @Test
+    fun `고정저축 화면 모델은 고정지출 분류만 있으면 저축 분류가 없다고 본다`() {
+        categories.value = listOf(category(4, "고정지출", FIXED_CATEGORY_CODE))
+
+        assertFalse(open(kind = FixedKind.SAVINGS).uiState.value.hasCategory)
     }
 }

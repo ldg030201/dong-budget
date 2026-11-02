@@ -15,8 +15,10 @@ import java.time.Instant
  * 고정 목록 저장소. [kind] 탭(고정지출 · 고정저축)에 어느 곳을 보일지(등록 · 등록 안 함 · 해지) 정해 둔다.
  * 분류와 따로다. 분류는 거래마다 그대로 두고, 탭은 등록한 곳의 그 분류([FixedKind.categoryCode]) 지출만 센다.
  * 두 종류가 한 표를 쓰고, 저장소는 제 종류의 줄만 읽고 바꾼다.
+ *
+ * @property kind 어느 목록인지. 탭의 화면 모델이 이것을 따라 그 분류 지출을 읽는다(목록과 분류가 어긋나지 않게).
  */
-class FixedMerchantRepository(private val dao: FixedMerchantDao, private val kind: FixedKind) {
+class FixedMerchantRepository(private val dao: FixedMerchantDao, val kind: FixedKind) {
     /** 가게 열쇠(fixedMerchantKey)마다 정해 둔 것. 정한 적 없는 곳은 들어 있지 않다. */
     fun observe(): Flow<Map<String, FixedMerchantEntity>> = dao.observeAll(kind).map { list -> list.associateBy { it.merchantKey } }
 
