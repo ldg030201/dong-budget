@@ -99,6 +99,15 @@ const val GAME_CATEGORY_CODE = "GAME"
 const val SAVINGS_CATEGORY_CODE = "SAVINGS"
 
 /**
+ * '저축' 분류(코드 [SAVINGS_CATEGORY_CODE])로 적은 돈인지. 지출 분류지만 써서 없어진 돈이 아니라 모아 둔 돈이라,
+ * 홈 합계 · 통계 · 카드실적 · 월급 탭 어디서도 쓴 돈으로 세지 않는다(합계는 Totals.savings 에 따로 모은다).
+ * 지출은 모은 돈(+), 환불(백업으로만 들어온다)은 꺼낸 돈(−)이다. 분류 이름을 바꿔도 코드가 그대로라 저축이고,
+ * 사용자가 따로 만든 '적금' 같은 분류는 저축이 아니다.
+ */
+val TransactionListItem.isSavings: Boolean
+    get() = categoryCode == SAVINGS_CATEGORY_CODE && (type == TransactionType.EXPENSE || type == TransactionType.REFUND)
+
+/**
  * 기본 분류.
  *
  * 새로 설치할 때(SeedCallback)와 옛 DB 를 올릴 때(Migration1To2) 모두 이 목록을 쓴다.

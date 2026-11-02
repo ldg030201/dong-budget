@@ -3,6 +3,7 @@ package com.dong.budget.ui.home
 import com.dong.budget.data.db.BudgetTime
 import com.dong.budget.data.db.TransactionListItem
 import com.dong.budget.data.db.TransactionType
+import com.dong.budget.data.db.isSavings
 import com.dong.budget.ui.format.formatCompactWon
 import java.time.DayOfWeek
 import java.time.LocalDate
@@ -18,17 +19,26 @@ import java.time.YearMonth
  *
  * 이체는 내 돈이 자리만 옮긴 것이라 어디에도 넣지 않는다.
  * 환불은 쓴 돈을 되돌려 받은 것이라 지출에서 뺀다. 그래서 지출이 음수가 될 수도 있다.
+ * '저축' 분류로 적은 돈([isSavings])은 쓴 돈이 아니라 모아 둔 돈이라 지출에 넣지 않고 [savings] 에 따로 모은다.
+ * 홈 합계 · 날짜별 합계 · 지난달 비교 · 통계 금액이 모두 이 합을 써서, 저축은 어디서도 쓴 돈으로 세지 않는다.
+ *
+ * @property savings 저축 합(저축 지출 − 저축 환불). 지출과 같은 부호 규칙이라 꺼낸 돈이 더 많으면 음수다.
  */
-data class Totals(val expense: Long = 0, val income: Long = 0) {
-    operator fun plus(item: TransactionListItem): Totals = Totals(
-        expense = expense + netExpenseOf(item.type, item.amount),
-        income = if (item.type == TransactionType.INCOME) income + item.amount else income,
-    )
+data class Totals(val expense: Long = 0, val income: Long = 0, val savings: Long = 0) {
+    operator fun plus(item: TransactionListItem): Totals {
+        val net = netExpenseOf(item.type, item.amount)
+        val saved = item.isSavings
+        return Totals(
+            expense = if (saved) expense else expense + net,
+            income = if (item.type == TransactionType.INCOME) income + item.amount else income,
+            savings = if (saved) savings + net else savings,
+        )
+    }
 }
 
 /**
  * 지출 합(지출 − 환불)에 더할 금액. 지출은 +, 환불은 − 이고 수입·이체는 넣지 않는다(0).
- * 합계([Totals])와 카드실적의 쓴 돈이 같이 쓴다.
+ * 합계([Totals])와 카드실적의 쓴 돈이 같이 쓴다. 저축인지는 보지 않는다(합계는 [Totals] 가, 카드실적은 조회가 저축을 가른다).
  */
 fun netExpenseOf(type: TransactionType, amount: Long): Long = when (type) {
     TransactionType.EXPENSE -> amount
@@ -108,8 +118,9 @@ data class ComparisonWindow(val scope: ComparisonScope, val current: List<Transa
  * 월초에는 늘 크게 덜 쓴 것으로 나와서 쓸모가 없다.
  * 지난달이 이번 달보다 짧으면(예: 3월 31일 ↔ 2월) 지난달 마지막 날까지로 맞춘다.
  *
- * @return 비교할 수 없으면 null. 아직 오지 않은 달이거나, 지난달 기록이 하나도 없을 때다.
+ * @return 비교할 수 없으면 null. 아직 오지 않은 달이거나, 지난달 기록이 하나도 없을 때다(저축뿐이어도 없는 것으로 본다).
  *   지난달이 비어 있는데 비교하면 이번 달 지출 전체가 '더 쓴 돈' 으로 나와 오해를 부른다.
+ *   통계는 저축을 거른 거래로 같은 범위를 정하므로, 저축뿐인 지난달을 여기서도 빈 달로 봐야 홈과 통계의 비교가 같다.
  */
 fun comparisonWindow(
     month: YearMonth,
@@ -118,7 +129,7 @@ fun comparisonWindow(
     previous: List<TransactionListItem>,
 ): ComparisonWindow? {
     val thisMonth = YearMonth.from(today)
-    if (month.isAfter(thisMonth) || previous.isEmpty()) return null
+    if (month.isAfter(thisMonth) || previous.all { it.isSavings }) return null
     if (month.isBefore(thisMonth)) return ComparisonWindow(ComparisonScope.WHOLE_MONTH, current, previous)
 
     val cutoff = minOf(today.dayOfMonth, month.minusMonths(1).lengthOfMonth())

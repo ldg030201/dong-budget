@@ -32,6 +32,8 @@ data class TransactionListItem(
     val paymentMethodColor: String? = null,
     /** 설정의 분류 목록 순서. 날마다 쓴 돈이 이 순서로 쌓는다. 비웠거나 지웠으면 null */
     val categorySortOrder: Int? = null,
+    /** 기본 분류의 코드([isSavings] 가 '저축' 을 가린다). 사용자가 만든 분류 · 비웠거나 지웠으면 null */
+    val categoryCode: String? = null,
 )
 
 /**
@@ -68,7 +70,8 @@ private const val LIST_ITEM_COLUMNS =
                t.categoryId, t.paymentMethodId,
                p.icon AS paymentMethodIcon,
                p.color AS paymentMethodColor,
-               c.sortOrder AS categorySortOrder
+               c.sortOrder AS categorySortOrder,
+               c.code AS categoryCode
     """
 
 /** [LIST_ITEM_COLUMNS] 를 읽는 표와 이음 */

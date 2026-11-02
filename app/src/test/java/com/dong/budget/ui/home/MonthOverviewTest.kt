@@ -1,10 +1,15 @@
 package com.dong.budget.ui.home
 
 import com.dong.budget.data.db.BudgetTime
+import com.dong.budget.data.db.FIXED_CATEGORY_CODE
+import com.dong.budget.data.db.SAVINGS_CATEGORY_CODE
 import com.dong.budget.data.db.TransactionListItem
 import com.dong.budget.data.db.TransactionType
+import com.dong.budget.data.db.isSavings
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.DayOfWeek
 import java.time.LocalDate
@@ -14,7 +19,12 @@ import java.time.YearMonth
 class MonthOverviewTest {
     private var nextId = 1L
 
-    private fun tx(at: String, amount: Long, type: TransactionType = TransactionType.EXPENSE): TransactionListItem {
+    private fun tx(
+        at: String,
+        amount: Long,
+        type: TransactionType = TransactionType.EXPENSE,
+        categoryCode: String? = null,
+    ): TransactionListItem {
         val instant = LocalDateTime.parse(at).atZone(BudgetTime.ZONE).toInstant()
         return TransactionListItem(
             id = nextId++,
@@ -28,6 +38,7 @@ class MonthOverviewTest {
             categoryIcon = null,
             categoryColor = null,
             paymentMethodName = null,
+            categoryCode = categoryCode,
         )
     }
 
@@ -41,6 +52,31 @@ class MonthOverviewTest {
                 tx("2026-09-02T09:30", 70_000, TransactionType.TRANSFER),
             ).totals()
         assertEquals(Totals(expense = 7_000, income = 50_000), totals)
+    }
+
+    @Test
+    fun `저축 분류로 적은 돈은 지출에 넣지 않고 저축에 따로 모은다`() {
+        val totals =
+            listOf(
+                tx("2026-09-01T10:00", 10_000),
+                tx("2026-09-01T11:00", 300_000, categoryCode = SAVINGS_CATEGORY_CODE),
+                // 저축 환불(백업으로만 들어온다)은 꺼낸 돈이라 저축에서 뺀다
+                tx("2026-09-02T09:00", 50_000, TransactionType.REFUND, categoryCode = SAVINGS_CATEGORY_CODE),
+                // 다른 기본 분류 코드는 그대로 지출이다
+                tx("2026-09-03T09:00", 20_000, categoryCode = FIXED_CATEGORY_CODE),
+            ).totals()
+        assertEquals(Totals(expense = 30_000, savings = 250_000), totals)
+    }
+
+    @Test
+    fun `저축 분류 코드라도 수입과 이체는 저축이 아니다`() {
+        // 저축 코드는 지출 분류에만 있지만, 종류가 지출·환불이 아니면 저축으로 세지 않는다
+        val income = tx("2026-09-01T10:00", 10_000, TransactionType.INCOME, categoryCode = SAVINGS_CATEGORY_CODE)
+        val transfer = tx("2026-09-01T11:00", 20_000, TransactionType.TRANSFER, categoryCode = SAVINGS_CATEGORY_CODE)
+        assertFalse(income.isSavings)
+        assertFalse(transfer.isSavings)
+        assertTrue(tx("2026-09-01T12:00", 1_000, categoryCode = SAVINGS_CATEGORY_CODE).isSavings)
+        assertEquals(Totals(income = 10_000), listOf(income, transfer).totals())
     }
 
     @Test
@@ -80,6 +116,21 @@ class MonthOverviewTest {
         assertEquals(Totals(expense = 1_000, income = 5_000), days[LocalDate.of(2026, 9, 20)])
         assertEquals(Totals(expense = 2_000), days[LocalDate.of(2026, 9, 21)])
         assertNull(days[LocalDate.of(2026, 9, 22)])
+    }
+
+    @Test
+    fun `날짜별 합계도 저축을 지출에서 뺀다`() {
+        val days =
+            dailyTotals(
+                listOf(
+                    tx("2026-09-20T08:00", 1_000),
+                    tx("2026-09-20T09:00", 100_000, categoryCode = SAVINGS_CATEGORY_CODE),
+                    tx("2026-09-21T09:00", 50_000, categoryCode = SAVINGS_CATEGORY_CODE),
+                ),
+            )
+        assertEquals(Totals(expense = 1_000, savings = 100_000), days[LocalDate.of(2026, 9, 20)])
+        // 저축만 있는 날은 쓴 돈이 0 이다
+        assertEquals(Totals(savings = 50_000), days[LocalDate.of(2026, 9, 21)])
     }
 
     @Test
@@ -191,6 +242,20 @@ class MonthOverviewTest {
         assertNull(compareSpending(YearMonth.of(2026, 9), today, listOf(tx("2026-09-10T12:00", 1_000)), emptyList()))
         assertNull(
             compareSpending(YearMonth.of(2026, 10), today, emptyList(), listOf(tx("2026-09-10T12:00", 1_000))),
+        )
+    }
+
+    @Test
+    fun `지난달이 저축뿐이면 비교하지 않고 이번 달 저축은 비교에 넣지 않는다`() {
+        val today = LocalDate.of(2026, 9, 25)
+        val current = listOf(tx("2026-09-10T12:00", 10_000), tx("2026-09-11T12:00", 500_000, categoryCode = SAVINGS_CATEGORY_CODE))
+        val onlySavings = listOf(tx("2026-08-10T12:00", 500_000, categoryCode = SAVINGS_CATEGORY_CODE))
+        assertNull(compareSpending(YearMonth.of(2026, 9), today, current, onlySavings))
+        // 지난달에 저축 말고도 기록이 있으면 비교하고, 두 달의 저축은 빼고 견준다
+        val previous = onlySavings + tx("2026-08-12T12:00", 30_000)
+        assertEquals(
+            SpendingComparison(10_000 - 30_000, ComparisonScope.SAME_DAY),
+            compareSpending(YearMonth.of(2026, 9), today, current, previous),
         )
     }
 

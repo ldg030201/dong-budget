@@ -18,6 +18,7 @@ private val nextId = AtomicLong(1)
  * @param categoryId 분류 id. 이름을 따로 주지 않으면 "분류{id}", 색은 id 로 돌려 고른다.
  * @param paymentId 결제수단 id. 이름을 따로 주지 않으면 "결제{id}" 다.
  * @param categorySortOrder 설정의 분류 순서. 따로 주지 않으면 id 순서다.
+ * @param categoryCode 기본 분류의 코드. 저축(SAVINGS_CATEGORY_CODE)으로 적은 거래를 만들 때 준다.
  * @param id 주지 않으면 만든 순서대로 커진다. 같은 시각이면 나중에 만든 것이 '나중에 적은' 거래다.
  */
 fun tx(
@@ -30,6 +31,7 @@ fun tx(
     categoryName: String? = categoryId?.let { "분류$it" },
     paymentName: String? = paymentId?.let { "결제$it" },
     categorySortOrder: Int? = categoryId?.toInt(),
+    categoryCode: String? = null,
     id: Long = nextId.getAndIncrement(),
 ): TransactionListItem {
     val instant = seoulInstant(at)
@@ -50,6 +52,7 @@ fun tx(
         paymentMethodIcon = paymentId?.let { "credit_card" },
         paymentMethodColor = paymentId?.let { colorOf(it) },
         categorySortOrder = categorySortOrder,
+        categoryCode = categoryCode,
     )
 }
 
