@@ -66,7 +66,7 @@ class TransactionRepository(private val transactionDao: TransactionDao) {
         .distinctUntilChanged()
 
     /**
-     * [first] 달 1일부터 [last] 달 말일까지, 코드가 [code] 인 분류(고정지출 'FIXED')의 지출. 고정지출 탭이 쓴다.
+     * [first] 달 1일부터 [last] 달 말일까지, 코드가 [code] 인 분류(고정지출 'FIXED' · 저축 'SAVINGS')의 지출. 고정지출 · 고정저축 탭이 쓴다.
      * 그 분류를 지웠으면 빈 목록이다.
      */
     fun observeExpensesWithCategoryCode(code: String, first: YearMonth, last: YearMonth): Flow<List<FixedExpenseRow>> =

@@ -43,7 +43,7 @@ data class TransactionListItem(
 data class FixedExpenseRow(@Embedded val item: TransactionListItem, val createdAt: Instant)
 
 /**
- * 분류 코드가 :code 인 분류(기본 분류)의 지출(거래는 t). 고정지출 탭의 조회와 고정지출 목록 등록 · 정리가 같은 거래를 보게 한 곳에 둔다.
+ * 분류 코드가 :code 인 분류(기본 분류)의 지출(거래는 t). 고정지출 · 고정저축 탭의 조회와 목록 등록 · 정리가 같은 거래를 보게 한 곳에 둔다.
  * 분류는 번호 목록으로 걸러 categoryId 인덱스로 그 분류 거래만 읽는다(코드로 이어 붙여 거르면 기간 안의 모든 거래를 읽었다).
  * Room 이 아닌 곳(SupportSQLiteDatabase)에서 쓸 때는 :code 가 첫째 자리다.
  */
@@ -151,7 +151,7 @@ interface TransactionDao {
     fun observeBetween(start: Instant, end: Instant): Flow<List<TransactionListItem>>
 
     /**
-     * 기간 안에 코드가 [code] 인 분류(기본 분류)의 지출을 최신순으로, 처음 적은 때와 함께. 고정지출 탭이 쓴다([EXPENSE_WITH_CATEGORY_CODE]).
+     * 기간 안에 코드가 [code] 인 분류(기본 분류)의 지출을 최신순으로, 처음 적은 때와 함께. 고정지출 · 고정저축 탭이 쓴다([EXPENSE_WITH_CATEGORY_CODE]).
      * 그 분류를 지웠으면 거래가 '기타' 로 옮겨 가서 아무것도 안 나온다. 날짜를 앞으로 적어 둔 거래도 [end] 앞이면 들어온다.
      */
     @Query(
