@@ -7,8 +7,10 @@ import com.dong.budget.data.db.TransactionListItem
 import com.dong.budget.testing.day
 import com.dong.budget.testing.seoulInstant
 import com.dong.budget.testing.tx
+import com.dong.budget.ui.savings.EMPTY_TITLE
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -497,11 +499,17 @@ class FixedExpenseTextTest {
     }
 
     @Test
-    fun `고정저축 빈 화면과 분류 없음은 저축 화면의 다른 탭과 같은 말이다`() {
-        assertEquals("아직 저축이 없어요", savings.emptyTitle(october, today))
-        assertEquals("8월까지는 저축이 없어요", savings.emptyTitle(YearMonth.of(2026, 8), today))
+    fun `고정저축 빈 화면은 저축이 아예 없다고 하지 않는다`() {
+        // 이 탭은 고른 달 앞 몇 해의 저축 지출만 읽는다. 옛 저축이나 꺼낸 돈만 있으면 내역 탭에는 저축이 보이는데 이 탭은 빈다.
+        assertEquals("고정저축으로 등록한 저축이 없어요", savings.emptyTitle(october, today))
+        assertEquals("8월까지는 고정저축으로 등록한 저축이 없어요", savings.emptyTitle(YearMonth.of(2026, 8), today))
+        assertNotEquals(EMPTY_TITLE, savings.emptyTitle(october, today))
+        assertTrue(savings.emptyBody, "'저축' 분류로 적으면" in savings.emptyBody)
+    }
+
+    @Test
+    fun `고정저축 분류 없음은 저축 화면의 다른 탭과 같은 말이다`() {
         assertEquals("저축 분류가 없어요", savings.noCategoryTitle)
         assertEquals("분류 관리에서 '저축' 분류를 다시 만들면, 그 분류로 적은 돈을 여기서 볼 수 있어요.", savings.noCategoryBody)
-        assertTrue(savings.emptyBody, "'저축' 분류로 적으면" in savings.emptyBody)
     }
 }

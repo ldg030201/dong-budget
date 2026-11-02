@@ -459,9 +459,13 @@ internal sealed interface FixedTexts {
         // 저축 화면의 내역 · 통계 탭과 같은 말이다
         override val noCategoryBody = "분류 관리에서 '저축' 분류를 다시 만들면, 그 분류로 적은 돈을 여기서 볼 수 있어요."
 
-        // 저축 화면의 내역 · 통계 탭 빈 화면('아직 저축이 없어요')과 같은 말로 맞춘다
-        override fun emptyTitle(month: YearMonth, today: LocalDate) =
-            if (month == YearMonth.from(today)) "아직 저축이 없어요" else "${monthLabel(month, today)}까지는 저축이 없어요"
+        // 저축 화면의 내역 탭은 모든 저축(꺼낸 돈 포함)을 읽고 이 탭은 고른 달 앞 몇 해([fixedHistoryStart])의 저축 지출만 읽는다.
+        // 내역 탭처럼 '저축이 없어요' 라고 하면 옛 저축만 있을 때 바로 옆 탭에 보이는 저축을 없다고 하게 되어, 고정지출 탭처럼 이 탭이 보는 것으로 좁혀 말한다.
+        override fun emptyTitle(month: YearMonth, today: LocalDate) = if (month == YearMonth.from(today)) {
+            "고정저축으로 등록한 저축이 없어요"
+        } else {
+            "${monthLabel(month, today)}까지는 고정저축으로 등록한 저축이 없어요"
+        }
 
         override val emptyBody = "적금·청약처럼 매달 넣는 돈을 '저축' 분류로 적으면, 여기서 목록에 넣을지 물어보고 이번 달에 냈는지 보여 줘요."
 
