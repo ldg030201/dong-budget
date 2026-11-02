@@ -131,8 +131,11 @@ internal fun BottomMenuEditor(menu: BottomMenu, onChange: (BottomMenu) -> Unit, 
                     )
                 },
         ) {
-            // 넣을 수 있는 메뉴 칸은 하단 메뉴 여섯 칸(홈 · 가운데 넷 · 전체)과 같은 너비로 왼쪽부터 늘어놓는다
-            val traySlot = maxWidth / SLOTS_PER_ROW
+            // 넣을 수 있는 메뉴 칸은 하단 메뉴 여섯 칸(홈 · 가운데 넷 · 전체)처럼 테두리 안쪽 너비를 여섯으로 나눠 왼쪽부터 늘어놓는다.
+            // 위 판은 양 끝이 늘 짧은 이름(홈 · 전체)이라 끝까지 쓰지만, 이 칸은 첫 칸 · 끝 칸에도 네 글자('카드실적')가 와서
+            // 안쪽 여백 없이 두면 좁은 화면(320dp)에서 글자가 둥근 테두리에 닿는다. 좌우 안쪽 여백은 위아래와 같다.
+            val trayInset = BudgetTheme.spacing.inlineGap
+            val traySlot = (maxWidth - trayInset * 2) / SLOTS_PER_ROW
             Column {
                 Row(
                     modifier =
@@ -162,7 +165,7 @@ internal fun BottomMenuEditor(menu: BottomMenu, onChange: (BottomMenu) -> Unit, 
                         .heightIn(min = TRAY_MIN_HEIGHT)
                         .border(BudgetTheme.size.underline, BudgetTheme.colors.divider, RoundedCornerShape(BudgetTheme.radius.block))
                         .onGloballyPositioned { layout.tray = it }
-                        .padding(vertical = BudgetTheme.spacing.inlineGap),
+                        .padding(trayInset),
                     contentAlignment = Alignment.CenterStart,
                 ) {
                     if (shownMenu.hidden.isEmpty()) {
