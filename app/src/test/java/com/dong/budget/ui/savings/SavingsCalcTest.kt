@@ -4,10 +4,13 @@ import com.dong.budget.data.db.SAVINGS_CATEGORY_CODE
 import com.dong.budget.data.db.TransactionListItem
 import com.dong.budget.data.db.TransactionType
 import com.dong.budget.data.db.TransactionType.REFUND
+import com.dong.budget.data.db.isSavings
 import com.dong.budget.testing.day
 import com.dong.budget.testing.tx
 import com.dong.budget.ui.home.ComparisonScope
 import com.dong.budget.ui.home.Totals
+import com.dong.budget.ui.home.comparisonWindow
+import com.dong.budget.ui.home.totals
 import com.dong.budget.ui.stats.GroupKey
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -111,6 +114,31 @@ class SavingsCalcTest {
             ).stats
         assertEquals(SavingsComparison(150_000, ComparisonScope.SAME_DAY), stats.comparison)
         assertEquals(550_000L, stats.total)
+    }
+
+    @Test
+    fun `지난달 대비는 홈의 지난달 비교와 같은 범위로 센다`() {
+        // 홈은 지출과 저축이 섞인 거래로 범위를 정한다. 그 범위 안의 저축만 센 것이 저축 화면의 지난달 대비와 같아야 한다.
+        val february = listOf(saved("2026-02-05", 100_000), saved("2026-02-28", 50_000), tx("2026-02-10", 9_000, categoryId = 1))
+        // 3월 31일 것은 오늘 뒤 날짜로 미리 적은 저축이다(3월 20일에 볼 때)
+        val march = listOf(saved("2026-03-03", 200_000), saved("2026-03-31", 300_000), tx("2026-03-02", 8_000, categoryId = 1))
+        val cases =
+            listOf(
+                // 이번 달: 지난달 같은 날까지, 지난달이 짧으면 지난달 말일까지
+                Triple(YearMonth.of(2026, 3), day("2026-03-20"), SavingsComparison(100_000, ComparisonScope.SAME_DAY)),
+                Triple(YearMonth.of(2026, 3), day("2026-03-31"), SavingsComparison(350_000, ComparisonScope.SAME_DAY)),
+                // 지나간 달: 한 달 전체끼리
+                Triple(YearMonth.of(2026, 3), day("2026-04-02"), SavingsComparison(350_000, ComparisonScope.WHOLE_MONTH)),
+            )
+        for ((month, today, expected) in cases) {
+            val window = comparisonWindow(month, today, march, february)!!
+            val home = SavingsComparison(window.current.totals().savings - window.previous.totals().savings, window.scope)
+
+            val savings = savingsComparison(month, today, march.filter { it.isSavings }, february.filter { it.isSavings })
+
+            assertEquals("$today", expected, savings)
+            assertEquals("$today", home, savings)
+        }
     }
 
     @Test

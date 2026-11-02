@@ -3,7 +3,7 @@ package com.dong.budget.ui.savings
 import com.dong.budget.data.db.TransactionListItem
 import com.dong.budget.data.db.isSavings
 import com.dong.budget.ui.history.historyMonths
-import com.dong.budget.ui.home.ComparisonScope
+import com.dong.budget.ui.home.comparisonWindow
 import com.dong.budget.ui.home.localDate
 import com.dong.budget.ui.home.totals
 import com.dong.budget.ui.stats.calc.Grouping
@@ -76,11 +76,11 @@ internal fun savingsStats(month: YearMonth, today: LocalDate, byMonth: Map<YearM
 }
 
 /**
- * 지난달 대비. 홈의 지난달 비교(comparisonWindow)와 같은 범위다. 이번 달은 오늘까지 모은 돈을 지난달 같은 날까지와 견준다
+ * 지난달 대비. 범위는 홈의 지난달 비교와 같은 [comparisonWindow] 가 정한다. 이번 달은 오늘까지 모은 돈을 지난달 같은 날까지와 견준다
  * (지난달이 짧으면 지난달 마지막 날까지). 지난달 전체와 견주면 달 초에는 늘 덜 모은 것으로 나온다.
  * 날짜를 앞으로 적어 둔 저축은 아직 모은 돈이 아니라 뺀다.
  *
- * 홈의 비교는 저축뿐인 지난달을 빈 달로 봐서 그대로 쓸 수 없다(저축만 넘기면 늘 비교하지 않는다).
+ * 홈의 비교는 저축뿐인 지난달을 빈 달로 봐서(저축만 넘기면 늘 비교하지 않는다) 빈 달은 저축이 없는 달로만 본다.
  *
  * @return 오지 않은 달이거나 지난달에 저축이 없으면 null. 지난달이 비었는데 견주면 이번 달 저축 전체가 '더 모은 돈' 으로 나온다.
  */
@@ -89,14 +89,7 @@ internal fun savingsComparison(
     today: LocalDate,
     current: List<TransactionListItem>,
     previous: List<TransactionListItem>,
-): SavingsComparison? {
-    val thisMonth = YearMonth.from(today)
-    if (month.isAfter(thisMonth) || previous.isEmpty()) return null
-    if (month.isBefore(thisMonth)) {
-        return SavingsComparison(current.totals().savings - previous.totals().savings, ComparisonScope.WHOLE_MONTH)
+): SavingsComparison? =
+    comparisonWindow(month, today, current, previous, isEmptyMonth = List<TransactionListItem>::isEmpty)?.let { window ->
+        SavingsComparison(window.current.totals().savings - window.previous.totals().savings, window.scope)
     }
-    val cutoff = minOf(today.dayOfMonth, month.minusMonths(1).lengthOfMonth())
-    val now = current.filter { !it.localDate().isAfter(today) }.totals().savings
-    val before = previous.filter { it.localDate().dayOfMonth <= cutoff }.totals().savings
-    return SavingsComparison(now - before, ComparisonScope.SAME_DAY)
-}

@@ -118,7 +118,9 @@ data class ComparisonWindow(val scope: ComparisonScope, val current: List<Transa
  * 월초에는 늘 크게 덜 쓴 것으로 나와서 쓸모가 없다.
  * 지난달이 이번 달보다 짧으면(예: 3월 31일 ↔ 2월) 지난달 마지막 날까지로 맞춘다.
  *
- * @return 비교할 수 없으면 null. 아직 오지 않은 달이거나, 지난달 기록이 하나도 없을 때다(저축뿐이어도 없는 것으로 본다).
+ * @param isEmptyMonth 지난달이 비었는지. 비었으면 견주지 않는다. 기본은 지출 비교의 규칙(기록이 없거나 저축뿐인 달)이고,
+ *   저축 화면의 지난달 대비는 저축만 넘겨 기록이 없을 때만 빈 달로 본다.
+ * @return 비교할 수 없으면 null. 아직 오지 않은 달이거나, 지난달이 비었을 때다([isEmptyMonth]).
  *   지난달이 비어 있는데 비교하면 이번 달 지출 전체가 '더 쓴 돈' 으로 나와 오해를 부른다.
  *   통계는 저축을 거른 거래로 같은 범위를 정하므로, 저축뿐인 지난달을 여기서도 빈 달로 봐야 홈과 통계의 비교가 같다.
  */
@@ -127,9 +129,10 @@ fun comparisonWindow(
     today: LocalDate,
     current: List<TransactionListItem>,
     previous: List<TransactionListItem>,
+    isEmptyMonth: (List<TransactionListItem>) -> Boolean = { rows -> rows.all { it.isSavings } },
 ): ComparisonWindow? {
     val thisMonth = YearMonth.from(today)
-    if (month.isAfter(thisMonth) || previous.all { it.isSavings }) return null
+    if (month.isAfter(thisMonth) || isEmptyMonth(previous)) return null
     if (month.isBefore(thisMonth)) return ComparisonWindow(ComparisonScope.WHOLE_MONTH, current, previous)
 
     val cutoff = minOf(today.dayOfMonth, month.minusMonths(1).lengthOfMonth())
