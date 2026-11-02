@@ -121,6 +121,21 @@ class SavingsCalcTest {
     }
 
     @Test
+    fun `해는 서울 날짜로 가른다`() {
+        // 서울 1월 1일 0시는 UTC 로 아직 12월 31일 15시다. UTC 로 거르면 새해 첫 저축이 지난해로 간다.
+        val lastNight = saved("2025-12-31T23:59", 100_000)
+        val newYear = saved("2026-01-01T00:00", 200_000)
+
+        val lastYear = build(october, lastNight, newYear, year = 2025).history
+        assertEquals(100_000L, lastYear.total)
+        assertEquals(listOf(YearMonth.of(2025, 12)), lastYear.months.map { it.month })
+
+        val thisYear = build(october, lastNight, newYear).history
+        assertEquals(200_000L, thisYear.total)
+        assertEquals(listOf(YearMonth.of(2026, 1)), thisYear.months.map { it.month })
+    }
+
+    @Test
     fun `저축이 없으면 내역도 통계도 비어 있다`() {
         val state = build(october)
         assertTrue(state.loaded)
