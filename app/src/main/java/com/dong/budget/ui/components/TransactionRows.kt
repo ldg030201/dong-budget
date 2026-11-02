@@ -13,6 +13,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import com.dong.budget.data.db.TransactionListItem
 import com.dong.budget.data.db.TransactionType
+import com.dong.budget.data.db.isSavings
 import com.dong.budget.ui.format.formatDayHeader
 import com.dong.budget.ui.format.formatSignedAmount
 import com.dong.budget.ui.format.formatTime
@@ -55,7 +56,7 @@ private fun ListHeader(text: String) {
 }
 
 /**
- * 거래 한 줄. 분류 뱃지, 가게(없으면 분류) 이름, 부제, 부호 붙은 금액.
+ * 거래 한 줄. 분류 뱃지, 가게(없으면 분류) 이름, 부제, 부호 붙은 금액(저축은 부호 없이).
  * @param onClick null 이면 누를 수 없는 줄이다(거래 상세에서 지금 보고 있는 거래).
  * @param title 이름 자리. 기본은 가게(없으면 분류) 이름. 같은 가게만 모은 목록은 날짜를 넣어 넘긴다.
  * @param subtitle 이름 아래 한 줄. 기본은 '오후 2:22 · 식비 · 하나카드'. 날짜가 섞인 목록은 날짜를 넣어 넘긴다.
@@ -83,9 +84,9 @@ fun TransactionRow(
         trailing = {
             Column(horizontalAlignment = Alignment.End) {
                 Text(
-                    text = formatSignedAmount(item.type, item.amount),
+                    text = formatSignedAmount(item.type, item.amount, savings = item.isSavings),
                     style = BudgetTheme.amount.medium,
-                    color = transactionAmountColor(item.type, colorExpense),
+                    color = transactionAmountColor(item.type, colorExpense, savings = item.isSavings),
                 )
                 if (amountCaption != null) {
                     Text(
@@ -109,13 +110,17 @@ fun TransactionRow(
 
 /**
  * 거래 한 건 금액의 글자색. 들어온 돈(수입·환불)은 수입색, 지출은 [colorExpense] 면 지출색이고 아니면 본문색이다.
- * 거래 줄과 거래 상세의 큰 금액이 같이 쓴다.
+ * 저축([savings], isSavings)은 쓴 돈도 들어온 돈도 아니라 이체처럼 본문색이다. 거래 줄과 거래 상세의 큰 금액이 같이 쓴다.
  */
 @Composable
-fun transactionAmountColor(type: TransactionType, colorExpense: Boolean = false): Color = when (type) {
-    TransactionType.INCOME, TransactionType.REFUND -> BudgetTheme.colors.income
-    TransactionType.EXPENSE -> if (colorExpense) BudgetTheme.colors.expense else BudgetTheme.colors.textPrimary
-    TransactionType.TRANSFER -> BudgetTheme.colors.textPrimary
+fun transactionAmountColor(type: TransactionType, colorExpense: Boolean = false, savings: Boolean = false): Color = if (savings) {
+    BudgetTheme.colors.textPrimary
+} else {
+    when (type) {
+        TransactionType.INCOME, TransactionType.REFUND -> BudgetTheme.colors.income
+        TransactionType.EXPENSE -> if (colorExpense) BudgetTheme.colors.expense else BudgetTheme.colors.textPrimary
+        TransactionType.TRANSFER -> BudgetTheme.colors.textPrimary
+    }
 }
 
 /** 거래의 이름. 가게, 없으면 분류 이름이다. 거래 줄과 거래 상세의 머리가 같이 쓴다. */

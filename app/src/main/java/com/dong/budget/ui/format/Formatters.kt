@@ -23,11 +23,16 @@ fun formatAmount(amount: Long): String = String.format(KOREA, "%,d", amount)
 /**
  * 거래 한 건의 금액에 부호를 붙인다. 들어온 돈(수입·환불)은 +, 쓴 돈(지출)은 - 다.
  * 이체는 내 계좌끼리 옮긴 것이라 부호를 붙이지 않는다.
+ * @param savings '저축' 분류로 적은 거래인지(isSavings). 쓴 돈이 아니라 모아 둔 돈이라 이체처럼 부호를 붙이지 않는다(꺼낸 돈도 같다).
  */
-fun formatSignedAmount(type: TransactionType, amount: Long): String = when (type) {
-    TransactionType.INCOME, TransactionType.REFUND -> "+${formatAmount(amount)}원"
-    TransactionType.EXPENSE -> "-${formatAmount(amount)}원"
-    TransactionType.TRANSFER -> "${formatAmount(amount)}원"
+fun formatSignedAmount(type: TransactionType, amount: Long, savings: Boolean = false): String = if (savings) {
+    "${formatAmount(amount)}원"
+} else {
+    when (type) {
+        TransactionType.INCOME, TransactionType.REFUND -> "+${formatAmount(amount)}원"
+        TransactionType.EXPENSE -> "-${formatAmount(amount)}원"
+        TransactionType.TRANSFER -> "${formatAmount(amount)}원"
+    }
 }
 
 /**

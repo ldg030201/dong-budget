@@ -30,6 +30,7 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextAlign
 import com.dong.budget.data.db.TransactionListItem
 import com.dong.budget.data.db.TransactionType
+import com.dong.budget.data.db.isSavings
 import com.dong.budget.ui.category.AddTarget
 import com.dong.budget.ui.components.BudgetTextButton
 import com.dong.budget.ui.components.BudgetTopAppBar
@@ -139,7 +140,7 @@ private fun DetailContent(state: TransactionDetailUiState.Shown, onOpenTransacti
 }
 
 /**
- * 머리. 큰 분류 뱃지 아래에 가게 이름과 부호 붙은 큰 금액.
+ * 머리. 큰 분류 뱃지 아래에 가게 이름과 부호 붙은 큰 금액(저축은 부호 없이).
  * 화면 읽기는 이름과 금액을 한 번에 읽고, 상단 바에 제목이 없는 대신 이 머리를 화면 제목(heading)으로 건너뛸 수 있다.
  */
 @Composable
@@ -160,9 +161,9 @@ private fun DetailHeader(item: TransactionListItem) {
         )
         Spacer(Modifier.height(BudgetTheme.spacing.tightGap))
         Text(
-            text = formatSignedAmount(item.type, item.amount),
+            text = formatSignedAmount(item.type, item.amount, savings = item.isSavings),
             style = BudgetTheme.amount.large,
-            color = transactionAmountColor(item.type),
+            color = transactionAmountColor(item.type, savings = item.isSavings),
         )
     }
 }

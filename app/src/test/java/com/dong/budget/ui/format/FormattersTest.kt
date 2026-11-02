@@ -78,11 +78,14 @@ class FormattersTest {
     }
 
     @Test
-    fun `거래 금액은 들어오면 +, 나가면 -, 이체는 부호가 없다`() {
+    fun `거래 금액은 들어오면 +, 나가면 -, 이체와 저축은 부호가 없다`() {
         assertEquals("+3,000원", formatSignedAmount(TransactionType.INCOME, 3_000))
         assertEquals("+3,000원", formatSignedAmount(TransactionType.REFUND, 3_000))
         assertEquals("-55,000원", formatSignedAmount(TransactionType.EXPENSE, 55_000))
         assertEquals("10,000원", formatSignedAmount(TransactionType.TRANSFER, 10_000))
+        // 저축은 쓴 돈이 아니라 이체처럼 부호가 없다. 꺼낸 돈(저축 환불)도 같다.
+        assertEquals("50,000원", formatSignedAmount(TransactionType.EXPENSE, 50_000, savings = true))
+        assertEquals("50,000원", formatSignedAmount(TransactionType.REFUND, 50_000, savings = true))
     }
 
     @Test
