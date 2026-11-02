@@ -316,6 +316,13 @@ fun backupOf(
     val categoryUuids = categories.associate { it.id to it.uuid }
     val paymentUuids = paymentMethods.associate { it.id to it.uuid }
     val transactionUuids = transactions.associate { it.id to it.uuid }
+    // 종류가 늘면 여기서 컴파일이 멈춘다. 새 종류를 담을 칸을 정하지 않으면 그 줄이 백업에서 빠지고 되살릴 때 사라진다.
+    val (fixedExpenses, fixedSavings) = fixedMerchants.partition {
+        when (it.kind) {
+            FixedKind.EXPENSE -> true
+            FixedKind.SAVINGS -> false
+        }
+    }
     return Backup(
         appVersion = appVersion,
         exportedAt = formatBackupTime(exportedAt),
@@ -354,8 +361,8 @@ fun backupOf(
                 updatedAt = formatBackupTime(t.updatedAt),
             )
         },
-        fixedMerchants = fixedMerchants.filter { it.kind == FixedKind.EXPENSE }.map { it.toBackup() },
-        fixedSavings = fixedMerchants.filter { it.kind == FixedKind.SAVINGS }.map { it.toBackup() },
+        fixedMerchants = fixedExpenses.map { it.toBackup() },
+        fixedSavings = fixedSavings.map { it.toBackup() },
     )
 }
 
