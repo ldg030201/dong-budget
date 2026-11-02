@@ -16,6 +16,7 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxSize
@@ -230,29 +231,8 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
     // 위에 다른 화면이 올라오는 동안 연달아 누른 탭은 받지 않는다(서브플로우와 같은 규칙).
     val menuPage: @Composable (MenuItem) -> Unit = { item ->
         when (item) {
-            // '등록하기' 는 지난번 값으로 채운 등록창을, 줄은 그 가게의 가장 최근 거래 상세를 연다.
-            // '고정지출' 분류를 지웠으면 다시 만들러 분류 관리를 연다. '등록' · '안 함' · 빼기 · 해지 · 되돌리기는 고정지출 목록을 고친다.
-            MenuItem.FIXED_EXPENSE -> {
-                // 고정저축 탭과 같은 클래스라 한 ViewModelStore 에 같이 있어도 부딪히지 않게 종류로 열쇠를 박는다
-                val fixedViewModel: FixedExpenseViewModel =
-                    viewModel(key = "fixed:${FixedKind.EXPENSE}", factory = fixedExpenseViewModelFactory(container, FixedKind.EXPENSE))
-                val fixedState by fixedViewModel.uiState.collectAsStateWithLifecycle()
-                val settled = rememberSettled()
-                FixedExpenseScreen(
-                    state = fixedState,
-                    onPreviousMonth = fixedViewModel::showPreviousMonth,
-                    onNextMonth = fixedViewModel::showNextMonth,
-                    onThisMonth = fixedViewModel::showThisMonth,
-                    onRegister = { prefill -> if (settled()) navigator.go(TransactionEditorKey(prefill = prefill)) },
-                    onOpenTransaction = { id -> if (settled()) navigator.go(TransactionDetailKey(id)) },
-                    onOpenCategories = { if (settled()) navigator.go(CategoryManageKey) },
-                    onRegisterMerchant = fixedViewModel::register,
-                    onDeclineMerchant = fixedViewModel::decline,
-                    onRemoveMerchant = fixedViewModel::remove,
-                    onEndMerchant = fixedViewModel::end,
-                    onRestoreMerchant = fixedViewModel::restore,
-                )
-            }
+            // 등록창 · 거래 상세 · 분류 관리를 열고 고정지출 목록을 고친다(저축 화면의 고정저축 칸과 같은 화면)
+            MenuItem.FIXED_EXPENSE -> FixedPage(kind = FixedKind.EXPENSE, container = container, navigator = navigator)
 
             // 처음이면 연봉 공개 주의 안내, 잠겨 있으면 PIN·지문, 그 뒤에야 월급을 그린다
             MenuItem.SALARY ->
@@ -485,8 +465,17 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
                                 // '저축' 분류를 지웠으면 다시 만들러 분류 관리를 연다
                                 onOpenCategories = { if (settled()) navigator.go(CategoryManageKey) },
                                 onBack = navigator::goBack,
-                                // 고정저축 칸은 아직 빈 자리다
-                                fixedContent = { Box(Modifier.fillMaxSize()) },
+                                // 고정저축 칸은 고정지출 화면을 고정저축 종류로 그린다. 탭 머리와 상단 인셋은 저축 화면이 맡고,
+                                // 아래 떠 있는 메뉴에 가리지 않게 받은 여백만큼 띄운다. 화면 모델은 그 칸을 처음 열 때 이 엔트리에 생긴다.
+                                fixedContent = { contentPadding ->
+                                    FixedPage(
+                                        kind = FixedKind.SAVINGS,
+                                        container = container,
+                                        navigator = navigator,
+                                        showHeader = false,
+                                        contentPadding = contentPadding,
+                                    )
+                                },
                             )
                         }
 
@@ -999,7 +988,45 @@ private fun salaryViewModelFactory(container: AppContainer) = viewModelFactory {
 }
 
 // ── 고정지출 · 고정저축 탭 화면 모델 ──
-// 고정지출 · 고정저축 탭의 화면 모델 공장을 여기에 둔다(카드실적 것은 파일 맨 끝).
+// 고정지출 · 고정저축 탭의 화면과 화면 모델 공장을 여기에 둔다(카드실적 것은 파일 맨 끝).
+
+/**
+ * 고정지출 · 고정저축([kind]) 탭. 고정지출은 아래 메뉴의 탭(또는 따로 연 화면)이고, 고정저축은 저축 화면 안의 칸이라 탭 머리를 끄고([showHeader])
+ * 받은 여백([contentPadding])만큼 띄운다. 화면 모델은 이것을 그리는 엔트리(셸 · 따로 연 화면 · 저축)와 같이 산다. 두 탭이 같은 클래스라
+ * 한 ViewModelStore 에 같이 있어도 부딪히지 않게 종류로 열쇠를 박는다.
+ *
+ * '등록하기' 는 지난번 값으로 채운 등록창을, 줄은 그 가게의 가장 최근 거래 상세를 연다. 그 분류('고정지출' · '저축')를 지웠으면
+ * 다시 만들러 분류 관리를 연다. '등록' · '안 함' · 빼기 · 해지 · 되돌리기는 그 종류의 목록을 고친다.
+ * 위에 다른 화면이 올라오는 동안 연달아 누른 것은 받지 않는다(자리 잡은 뒤에만, 서브플로우와 같은 규칙).
+ */
+@Composable
+private fun FixedPage(
+    kind: FixedKind,
+    container: AppContainer,
+    navigator: Navigator,
+    showHeader: Boolean = true,
+    contentPadding: PaddingValues = PaddingValues(),
+) {
+    val fixedViewModel: FixedExpenseViewModel = viewModel(key = "fixed:$kind", factory = fixedExpenseViewModelFactory(container, kind))
+    val fixedState by fixedViewModel.uiState.collectAsStateWithLifecycle()
+    val settled = rememberSettled()
+    FixedExpenseScreen(
+        state = fixedState,
+        onPreviousMonth = fixedViewModel::showPreviousMonth,
+        onNextMonth = fixedViewModel::showNextMonth,
+        onThisMonth = fixedViewModel::showThisMonth,
+        onRegister = { prefill -> if (settled()) navigator.go(TransactionEditorKey(prefill = prefill)) },
+        onOpenTransaction = { id -> if (settled()) navigator.go(TransactionDetailKey(id)) },
+        onOpenCategories = { if (settled()) navigator.go(CategoryManageKey) },
+        onRegisterMerchant = fixedViewModel::register,
+        onDeclineMerchant = fixedViewModel::decline,
+        onRemoveMerchant = fixedViewModel::remove,
+        onEndMerchant = fixedViewModel::end,
+        onRestoreMerchant = fixedViewModel::restore,
+        showHeader = showHeader,
+        contentPadding = contentPadding,
+    )
+}
 
 /** [kind] 탭(고정지출 · 고정저축)의 화면 모델 공장. 목록 저장소는 종류마다 따로고, 화면 모델은 그 저장소의 종류를 따라 분류를 읽는다. */
 private fun fixedExpenseViewModelFactory(container: AppContainer, kind: FixedKind) = viewModelFactory {
