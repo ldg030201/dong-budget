@@ -1,5 +1,6 @@
 package com.dong.budget.ui.detail
 
+import com.dong.budget.data.db.SAVINGS_CATEGORY_CODE
 import com.dong.budget.data.db.TransactionListItem
 import com.dong.budget.data.db.TransactionType.INCOME
 import com.dong.budget.data.db.TransactionType.REFUND
@@ -48,9 +49,24 @@ class TransactionDetailTextTest {
     }
 
     @Test
+    fun `저축은 부호 없이 모은 돈을 적고 꺼낸 돈이 더 많으면 -로 적는다`() {
+        val place =
+            placeOf(
+                tx("2026-09-20", 300_000, merchant = "적금", categoryCode = SAVINGS_CATEGORY_CODE),
+                tx("2026-08-20", 300_000, merchant = "적금", categoryCode = SAVINGS_CATEGORY_CODE),
+            )
+        assertEquals("최근 1년 · 2번 · 모두 600,000원 · 한 번에 평균 300,000원", samePlaceSummary(place))
+        val withdrawn = placeOf(tx("2026-09-20", 50_000, REFUND, merchant = "적금", categoryCode = SAVINGS_CATEGORY_CODE))
+        assertEquals("최근 1년 · -50,000원", samePlaceSummary(withdrawn))
+    }
+
+    @Test
     fun `1년 안에 내역이 없으면 요약 대신 안내를 쓴다`() {
         val place = placeOf(tx("2024-05-01", 5_000, merchant = "스타벅스"))
         assertNull(samePlaceSummary(place))
         assertEquals("최근 1년 동안 같은 곳에서 쓴 내역이 없어요", samePlaceEmptyText(place))
+        assertEquals("최근 1년 동안 같은 곳에서 받은 내역이 없어요", samePlaceEmptyText(placeOf(tx("2024-05-01", 5_000, INCOME, merchant = "회사"))))
+        val savings = placeOf(tx("2024-05-01", 5_000, merchant = "적금", categoryCode = SAVINGS_CATEGORY_CODE))
+        assertEquals("최근 1년 동안 같은 곳에서 모은 내역이 없어요", samePlaceEmptyText(savings))
     }
 }

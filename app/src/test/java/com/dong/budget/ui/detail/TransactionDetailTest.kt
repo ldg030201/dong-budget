@@ -1,10 +1,12 @@
 package com.dong.budget.ui.detail
 
+import com.dong.budget.data.db.SAVINGS_CATEGORY_CODE
 import com.dong.budget.data.db.TransactionType.INCOME
 import com.dong.budget.data.db.TransactionType.REFUND
 import com.dong.budget.data.db.TransactionType.TRANSFER
 import com.dong.budget.testing.day
 import com.dong.budget.testing.tx
+import com.dong.budget.ui.stats.calc.Measure
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -78,6 +80,35 @@ class TransactionDetailTest {
         assertEquals(2, place.count)
         assertEquals(15_000L, place.averageTicket)
         assertEquals(3, place.months.single().items.size)
+    }
+
+    @Test
+    fun `저축과 지출은 같은 가게라도 서로 섞지 않는다`() {
+        // 같은 은행 이름으로 적은 적금(저축)과 수수료(지출)
+        val deposit = tx("2026-09-20", 300_000, merchant = "카카오뱅크", categoryCode = SAVINGS_CATEGORY_CODE)
+        val fee = tx("2026-09-21", 500, merchant = "카카오뱅크")
+        val rows =
+            listOf(
+                deposit,
+                fee,
+                tx("2026-08-20", 300_000, merchant = "카카오 뱅크", categoryCode = SAVINGS_CATEGORY_CODE),
+                // 꺼낸 돈(저축 환불)은 모은 돈에서 빼고 횟수에 넣지 않는다
+                tx("2026-08-25", 100_000, REFUND, merchant = "카카오뱅크", categoryCode = SAVINGS_CATEGORY_CODE),
+                tx("2026-08-01", 1_000, merchant = "카카오뱅크"),
+            )
+
+        val savings = requireNotNull(samePlace(deposit, rows, start))
+        assertEquals(Measure.SAVINGS, savings.measure)
+        assertEquals(false, savings.income)
+        assertEquals(500_000L, savings.amount)
+        assertEquals(2, savings.count)
+        assertEquals(300_000L, savings.averageTicket)
+        assertEquals(listOf(deposit, rows[3], rows[2]), savings.months.flatMap { it.items })
+
+        val spent = requireNotNull(samePlace(fee, rows, start))
+        assertEquals(Measure.EXPENSE, spent.measure)
+        assertEquals(1_500L, spent.amount)
+        assertEquals(listOf(fee, rows[4]), spent.months.flatMap { it.items })
     }
 
     @Test
