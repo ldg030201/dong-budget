@@ -77,6 +77,7 @@ import com.dong.budget.navigation.Navigator
 import com.dong.budget.navigation.PatchNotesKey
 import com.dong.budget.navigation.SalaryPinSetupKey
 import com.dong.budget.navigation.SalarySettingsKey
+import com.dong.budget.navigation.SavingsKey
 import com.dong.budget.navigation.SettingsKey
 import com.dong.budget.navigation.ShellKey
 import com.dong.budget.navigation.StatisticsKey
@@ -133,6 +134,9 @@ import com.dong.budget.ui.salary.SalarySettingsScreen
 import com.dong.budget.ui.salary.SalarySettingsViewModel
 import com.dong.budget.ui.salary.SalaryTabGate
 import com.dong.budget.ui.salary.SalaryViewModel
+import com.dong.budget.ui.savings.SavingsScreen
+import com.dong.budget.ui.savings.SavingsTab
+import com.dong.budget.ui.savings.SavingsViewModel
 import com.dong.budget.ui.settings.AdvancedSettingsScreen
 import com.dong.budget.ui.settings.AdvancedSettingsViewModel
 import com.dong.budget.ui.settings.AppInfoRoute
@@ -299,8 +303,8 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
                 )
             }
 
-            // 홈·전체는 셸이 직접 그리고, 통계는 탭이 아니다
-            MenuItem.HOME, MenuItem.STATISTICS, MenuItem.MORE -> Unit
+            // 홈·전체는 셸이 직접 그리고, 통계·저축은 탭이 아니다
+            MenuItem.HOME, MenuItem.STATISTICS, MenuItem.SAVINGS, MenuItem.MORE -> Unit
         }
     }
 
@@ -367,6 +371,7 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
                                 onOpenCategories = { navigator.go(CategoryManageKey) },
                                 onOpenStatistics = { navigator.go(StatisticsKey()) },
                                 onOpenStatisticsAt = { month -> navigator.go(StatisticsKey(month.year, month.monthValue)) },
+                                onOpenSavings = { navigator.go(SavingsKey) },
                                 onOpenPage = { item -> navigator.go(MenuPageKey(item)) },
                                 onOpenSettings = { navigator.go(SettingsKey) },
                                 onOpenPatchNotes = { navigator.go(PatchNotesKey) },
@@ -456,6 +461,29 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
                                 onOpenTransaction = { id -> if (settled()) navigator.go(TransactionDetailKey(id)) },
                                 onBack = navigator::goBack,
                                 autoPickDay = autoSettings[AutoOption.STATS_DAY],
+                            )
+                        }
+
+                        // 저축은 통계와 같은 틀(셸 위에 나타나는 화면과 떠 있는 하위 메뉴)이다. 하위 탭은 여기서 들고 있어 거래 상세에 다녀와도
+                        // 그대로고, 저축을 나갔다 오면 첫 칸 '내역' 부터 다시 본다. 통계와 같은 이유로 자리 잡은 뒤(RESUMED)에만 탭 선택과 줄 누름을 받는다.
+                        entry<SavingsKey>(metadata = subflowTransitions()) {
+                            val viewModel: SavingsViewModel = viewModel(factory = savingsViewModelFactory(container))
+                            val state by viewModel.uiState.collectAsStateWithLifecycle()
+                            var tab by rememberSaveable { mutableStateOf(SavingsTab.HISTORY) }
+                            val settled = rememberSettled()
+                            SavingsScreen(
+                                state = state,
+                                selectedTab = tab,
+                                onSelectTab = { selected -> if (settled()) tab = selected },
+                                onPreviousMonth = viewModel::showPreviousMonth,
+                                onNextMonth = viewModel::showNextMonth,
+                                onThisMonth = viewModel::showThisMonth,
+                                onOpenTransaction = { id -> if (settled()) navigator.go(TransactionDetailKey(id)) },
+                                // '저축' 분류를 지웠으면 다시 만들러 분류 관리를 연다
+                                onOpenCategories = { if (settled()) navigator.go(CategoryManageKey) },
+                                onBack = navigator::goBack,
+                                // 고정저축 칸은 아직 빈 자리다
+                                fixedContent = { Box(Modifier.fillMaxSize()) },
                             )
                         }
 
@@ -1049,6 +1077,10 @@ private fun statsDetailViewModelFactory(container: AppContainer, key: StatsDetai
             key = key,
         )
     }
+}
+
+private fun savingsViewModelFactory(container: AppContainer) = viewModelFactory {
+    initializer { SavingsViewModel(container.transactionRepository, container.categoryRepository) }
 }
 
 // ── 카드실적 화면 모델 ──

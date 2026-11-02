@@ -7,13 +7,14 @@ import com.dong.budget.data.settings.MenuItem.HISTORY
 import com.dong.budget.data.settings.MenuItem.HOME
 import com.dong.budget.data.settings.MenuItem.MORE
 import com.dong.budget.data.settings.MenuItem.SALARY
+import com.dong.budget.data.settings.MenuItem.SAVINGS
 import com.dong.budget.data.settings.MenuItem.STATISTICS
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
 
 class BottomMenuEditTest {
-    private val menu = BottomMenu.DEFAULT // 홈 · 월급 · 통계 · 고정지출 · 전체 | 카드실적 · 내역
+    private val menu = BottomMenu.DEFAULT // 홈 · 월급 · 통계 · 고정지출 · 전체 | 카드실적 · 내역 · 저축
 
     @Test
     fun `하단 메뉴 안에서 옮기면 그 자리에 서고 나머지가 비킨다`() {
@@ -27,10 +28,10 @@ class BottomMenuEditTest {
     fun `아래 칸으로 옮기면 빠지고, 위 판으로 옮기면 들어간다`() {
         val removed = menu.moveTo(STATISTICS, MenuSpot.Hidden(1))
         assertEquals(listOf(SALARY, FIXED_EXPENSE), removed.shown)
-        assertEquals(listOf(CARD_PERFORMANCE, STATISTICS, HISTORY), removed.hidden)
+        assertEquals(listOf(CARD_PERFORMANCE, STATISTICS, HISTORY, SAVINGS), removed.hidden)
         val added = menu.moveTo(HISTORY, MenuSpot.Shown(1))
         assertEquals(listOf(SALARY, HISTORY, STATISTICS, FIXED_EXPENSE), added.shown)
-        assertEquals(listOf(CARD_PERFORMANCE), added.hidden)
+        assertEquals(listOf(CARD_PERFORMANCE, SAVINGS), added.hidden)
     }
 
     @Test
@@ -66,8 +67,8 @@ class BottomMenuEditTest {
         assertEquals(listOf(SALARY, FIXED_EXPENSE, STATISTICS), menu.moveBy(STATISTICS, 1)!!.shown)
         assertNull(menu.moveBy(SALARY, -1))
         assertNull(menu.moveBy(FIXED_EXPENSE, 1))
-        assertEquals(listOf(HISTORY, CARD_PERFORMANCE), menu.moveBy(CARD_PERFORMANCE, 1)!!.hidden)
-        assertNull(menu.moveBy(HISTORY, 1))
+        assertEquals(listOf(HISTORY, CARD_PERFORMANCE, SAVINGS), menu.moveBy(CARD_PERFORMANCE, 1)!!.hidden)
+        assertNull(menu.moveBy(SAVINGS, 1))
         assertNull(menu.moveBy(HOME, 1))
     }
 }

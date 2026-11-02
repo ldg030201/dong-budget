@@ -455,7 +455,7 @@ class BackupCodecTest {
         assertTrue(
             text,
             "\"settings\":{\"themeMode\":\"DARK\",\"weekStart\":\"MONDAY\"," +
-                "\"bottomMenu\":\"history,salary|statistics,fixed_expense,card_performance\"," +
+                "\"bottomMenu\":\"history,salary|statistics,fixed_expense,card_performance,savings\"," +
                 "\"autoOptions\":{\"auto_capture_prompt\":true,\"auto_capture_deposit\":false," in text,
         )
         assertTrue(text, "\"auto_backup_before_replace\":false," in text)

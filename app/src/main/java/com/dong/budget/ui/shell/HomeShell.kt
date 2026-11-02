@@ -37,7 +37,7 @@ import java.time.YearMonth
  *
  * 아래 메뉴는 사용자가 고른 차림([menu])이다. 홈과 전체는 늘 양 끝에 있다.
  * 메뉴는 아래 메뉴에 있으면 탭으로 바뀌고, 없으면(전체 목록·홈의 바로가기로 열 때) 셸 위에 따로 연다([onOpenPage]).
- * 통계는 탭이 아니라 늘 셸 위에 연다.
+ * 통계 · 저축은 탭이 아니라 늘 셸 위에 연다.
  *
  * 인셋 규칙: 여기서는 인셋을 비워두고 각 탭 화면이 상단 인셋을 직접 처리한다.
  * 콘텐츠가 상태바 아래까지 올라가 보이게 하려는 의도다.
@@ -45,6 +45,7 @@ import java.time.YearMonth
  *
  * @param onOpenStatistics 아래 메뉴의 '통계'. 탭을 바꾸지 않고 통계 화면을 셸 위에 연다.
  * @param onOpenStatisticsAt 홈 요약의 지난달 비교 줄. 홈에서 보던 달의 통계를 연다.
+ * @param onOpenSavings 아래 메뉴(또는 전체)의 '저축'. 탭을 바꾸지 않고 저축 화면을 셸 위에 연다.
  * @param onOpenPage 아래 메뉴에 없는 메뉴를 셸 위에 연다(뒤로 가기가 있는 같은 화면)
  * @param pageContent 홈·전체가 아닌 탭 화면. 탭을 처음 열 때 그 화면 모델이 만들어지게
  *   부르는 쪽(DongBudgetApp)이 채운다. 셸 위에 따로 열 때도 같은 것을 쓴다.
@@ -66,6 +67,7 @@ fun HomeShell(
     onOpenCategories: () -> Unit,
     onOpenStatistics: () -> Unit,
     onOpenStatisticsAt: (YearMonth) -> Unit,
+    onOpenSavings: () -> Unit,
     onOpenPage: (MenuItem) -> Unit,
     onOpenSettings: () -> Unit,
     onOpenPatchNotes: () -> Unit,
@@ -94,10 +96,12 @@ fun HomeShell(
         scope.launch { middleState.animateScrollToItem(target) }
     }
 
-    /** 메뉴를 연다. 통계는 셸 위에, 아래 메뉴에 있는 탭은 그 탭으로, 없으면 셸 위에 따로 연다. */
+    /** 메뉴를 연다. 통계 · 저축은 셸 위에, 아래 메뉴에 있는 탭은 그 탭으로, 없으면 셸 위에 따로 연다. */
     fun open(item: MenuItem) {
         when {
-            !item.isTab -> onOpenStatistics()
+            item == MenuItem.STATISTICS -> onOpenStatistics()
+
+            item == MenuItem.SAVINGS -> onOpenSavings()
 
             item in menu -> {
                 selectedTab = item

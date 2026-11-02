@@ -26,6 +26,7 @@ val MenuItem.label: String
         MenuItem.FIXED_EXPENSE -> "고정지출"
         MenuItem.CARD_PERFORMANCE -> "카드실적"
         MenuItem.HISTORY -> "내역"
+        MenuItem.SAVINGS -> "저축"
         MenuItem.MORE -> "전체"
     }
 
@@ -38,10 +39,11 @@ val MenuItem.description: String
         MenuItem.FIXED_EXPENSE -> "매달 나가는 돈을 냈는지 봐요"
         MenuItem.CARD_PERFORMANCE -> "카드마다 실적을 얼마나 채웠는지 봐요"
         MenuItem.HISTORY -> "모든 거래를 모아 보고 가게·금액으로 찾아요"
+        MenuItem.SAVINGS -> "모은 돈을 내역·통계·고정저축으로 봐요"
         MenuItem.MORE -> "모든 메뉴와 설정을 모아 봐요"
     }
 
-/** 전체 목록의 둥근 아이콘 바탕색(분류 색 팔레트 이름). 항목마다 달리해 한눈에 구분되게 한다. 내역의 빈 화면도 쓴다. */
+/** 전체 목록의 둥근 아이콘 바탕색(분류 색 팔레트 이름). 항목마다 달리해 한눈에 구분되게 한다. 내역의 빈 화면도 쓴다(저축 화면은 같은 색을 따로 둔다). */
 val MenuItem.color: String
     get() = when (this) {
         MenuItem.HOME -> "indigo"
@@ -50,12 +52,13 @@ val MenuItem.color: String
         MenuItem.FIXED_EXPENSE -> "green"
         MenuItem.CARD_PERFORMANCE -> "blue"
         MenuItem.HISTORY -> "pink"
+        MenuItem.SAVINGS -> "amber"
         MenuItem.MORE -> "gray"
     }
 
 /**
- * 칸 아이콘. 월급은 기본 수입 분류 '급여', 고정지출은 기본 지출 분류 '고정지출', 카드실적은 기본 카드, 내역은 결제 등록 알림과 같은 아이콘이다
- * (Material Symbols 는 리소스라 여기서 읽는다).
+ * 칸 아이콘. 월급은 기본 수입 분류 '급여', 고정지출은 기본 지출 분류 '고정지출', 카드실적은 기본 카드, 내역은 결제 등록 알림,
+ * 저축은 기본 지출 분류 '저축' 과 같은 아이콘이다(Material Symbols 는 리소스라 여기서 읽는다).
  */
 @Composable
 fun MenuItem.icon(): ImageVector = when (this) {
@@ -65,6 +68,7 @@ fun MenuItem.icon(): ImageVector = when (this) {
     MenuItem.FIXED_EXPENSE -> ImageVector.vectorResource(R.drawable.ic_sym_event_repeat)
     MenuItem.CARD_PERFORMANCE -> ImageVector.vectorResource(R.drawable.ic_sym_credit_card)
     MenuItem.HISTORY -> ImageVector.vectorResource(R.drawable.ic_sym_receipt_long)
+    MenuItem.SAVINGS -> ImageVector.vectorResource(R.drawable.ic_sym_savings)
     MenuItem.MORE -> Icons.Filled.Menu
 }
 

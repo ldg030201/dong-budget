@@ -27,14 +27,17 @@ enum class MenuItem(val key: String) {
     /** 모든 거래를 최근 것부터 모아 보고 찾는다. 처음 차림에는 없고, 홈의 '전체보기' 로도 연다. */
     HISTORY("history"),
 
+    /** 저축. 통계처럼 탭이 아니라 입구다. 누르면 저축 화면(내역 · 통계 · 고정저축)이 셸 위로 올라온다. 처음 차림에는 없다. */
+    SAVINGS("savings"),
+
     MORE("more"),
     ;
 
     /** 늘 그 자리(홈은 맨 앞, 전체는 맨 뒤)에 있어 빼거나 옮길 수 없는 칸 */
     val fixed: Boolean get() = this == HOME || this == MORE
 
-    /** 아래 메뉴에서 누르면 셸 안의 탭으로 바뀌는 칸. 아니면(통계) 셸 위에 화면을 연다. */
-    val isTab: Boolean get() = this != STATISTICS
+    /** 아래 메뉴에서 누르면 셸 안의 탭으로 바뀌는 칸. 아니면(통계 · 저축) 셸 위에 화면을 연다. */
+    val isTab: Boolean get() = this != STATISTICS && this != SAVINGS
 
     companion object {
         /** 넣고 빼고 옮길 수 있는 칸. 처음 보는 칸이 '넣을 수 있는 메뉴' 에 들어가는 순서이기도 하다. */
