@@ -41,6 +41,38 @@ fun MonthStepper(
     nextEnabled: Boolean = true,
     trailing: @Composable () -> Unit = {},
 ) {
+    PeriodStepper(
+        period = month,
+        title = ::formatMonth,
+        previousDescription = "이전 달",
+        nextDescription = "다음 달",
+        onPrevious = onPreviousMonth,
+        onNext = onNextMonth,
+        modifier = modifier,
+        nextEnabled = nextEnabled,
+        trailing = trailing,
+    )
+}
+
+/**
+ * 기간 고르기 줄의 틀. ‹ 제목 › 와 오른쪽 끝 자리([trailing]). 달 고르기([MonthStepper])가 쓴다.
+ * 기간을 넘기면 제목이 넘긴 방향으로 밀려 바뀌어서 기간은 앞뒤를 견줄 수 있어야 한다.
+ * @param title 기간을 제목 글로. 화면 읽기가 기간마다 건너뛸 수 있게 제목으로 둔다.
+ * @param previousDescription ‹ 의 화면 읽기 이름("이전 달")
+ * @param nextDescription › 의 화면 읽기 이름("다음 달")
+ */
+@Composable
+private fun <T : Comparable<T>> PeriodStepper(
+    period: T,
+    title: (T) -> String,
+    previousDescription: String,
+    nextDescription: String,
+    onPrevious: () -> Unit,
+    onNext: () -> Unit,
+    modifier: Modifier,
+    nextEnabled: Boolean,
+    trailing: @Composable () -> Unit,
+) {
     Row(
         modifier =
         modifier
@@ -50,18 +82,18 @@ fun MonthStepper(
     ) {
         BudgetIconButton(
             icon = Icons.AutoMirrored.Filled.KeyboardArrowLeft,
-            contentDescription = "이전 달",
-            onClick = onPreviousMonth,
+            contentDescription = previousDescription,
+            onClick = onPrevious,
         )
-        // 달을 넘기면 제목이 넘긴 방향으로 밀려 바뀐다. '9월' → '10월' 처럼 폭이 달라져도
+        // 기간을 넘기면 제목이 넘긴 방향으로 밀려 바뀐다. '9월' → '10월' 처럼 폭이 달라져도
         // 오른쪽 화살표가 한 번에 튀지 않고 따라 움직인다(SizeTransform).
         AnimatedContent(
-            targetState = month,
+            targetState = period,
             transitionSpec = { slideByDirection().using(SizeTransform(clip = false)) },
-            label = "monthTitle",
+            label = "periodTitle",
         ) { shown ->
             Text(
-                text = formatMonth(shown),
+                text = title(shown),
                 style = MaterialTheme.typography.titleLarge,
                 color = BudgetTheme.colors.textPrimary,
                 modifier = Modifier.padding(horizontal = BudgetTheme.spacing.tightGap).semantics { heading() },
@@ -69,8 +101,8 @@ fun MonthStepper(
         }
         BudgetIconButton(
             icon = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-            contentDescription = "다음 달",
-            onClick = onNextMonth,
+            contentDescription = nextDescription,
+            onClick = onNext,
             enabled = nextEnabled,
         )
         Spacer(Modifier.weight(1f))
