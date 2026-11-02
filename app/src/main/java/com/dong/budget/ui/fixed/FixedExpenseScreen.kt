@@ -74,7 +74,7 @@ import com.dong.budget.ui.theme.slideByDirection
  * '고정지출' 분류와 탭의 목록은 따로다. 분류로 적은 곳 가운데 고정지출 목록에 등록한 곳만 판에 보이고, 처음 보는 곳은 등록할지 묻는다.
  *
  * 위에서부터
- * - 탭 머리와 달 줄. 이번 달보다 뒤로는 넘기지 않고, 지난 달을 보면 오른쪽에 '이번 달' 이 나온다.
+ * - 탭 머리([showHeader])와 달 줄. 이번 달보다 뒤로는 넘기지 않고, 지난 달을 보면 오른쪽에 '이번 달' 이 나온다.
  * - 고정지출로 등록할까요?: '고정지출' 분류로 적었는데 목록에 없는 곳(등록 안 한 뒤 새로 낸 곳 포함). 줄마다 '등록' · '안 함'. 없으면 숨긴다.
  * - 요약: "6개 중 4개 냈어요", 낸 만큼 차는 막대, 낸 돈 · 낼 돈. 목록에 넣은 곳이 아직 없으면 그렇다고만 적는다.
  * - 아직 안 냈어요 · 냈어요 · 이번 달엔 안 내요 · 한동안 안 냈어요(접힌 채 시작). 빈 묶음은 숨긴다.
@@ -85,7 +85,8 @@ import com.dong.budget.ui.theme.slideByDirection
  * - 해지한 곳(접힌 채 시작): 해지한 곳(다시 묻는 곳은 빼고). 줄마다 '되돌리기' 가 있어 다시 등록한다.
  * - 등록 안 한 곳(접힌 채 시작): '안 함' 을 눌렀거나 뺀 곳. 줄마다 '등록' 이 있어 잘못 뺀 것을 되돌린다.
  *
- * 상단 인셋은 이 화면이, 하단은 셸의 아래 메뉴가 처리한다(HomeShell).
+ * 고정지출 탭이면 상단 인셋은 이 화면이, 하단은 셸의 아래 메뉴가 처리한다(HomeShell). 저축 화면 안의 고정저축 칸이면 상단은 저축 화면이,
+ * 하단은 저축 화면이 넘긴 여백([contentPadding])이 처리한다.
  *
  * @param onRegister '등록하기'. 채울 값을 넘긴다. 사용자가 확인하고 저장해야 거래가 된다.
  * @param onOpenTransaction 줄을 누르면 그 가게의 가장 최근 고정지출 거래
@@ -95,6 +96,9 @@ import com.dong.budget.ui.theme.slideByDirection
  * @param onRemoveMerchant 판의 줄을 길게 눌러 빼기(확인한 뒤)
  * @param onEndMerchant 판의 줄의 '해지', 빼기 확인 창의 '해지'(확인한 뒤)
  * @param onRestoreMerchant 해지한 줄의 '되돌리기'
+ * @param showHeader 탭 머리를 그리고 상단 인셋을 이 화면이 빼는지. 저축 화면 안에서는 끈다(상단 인셋은 저축 화면이 이미 뺐고,
+ *   이름은 아래 떠 있는 메뉴의 칸이 보여 준다).
+ * @param contentPadding 바깥이 비워 달라는 여백. 저축 화면은 아래 떠 있는 메뉴에 가리지 않을 만큼을 넘긴다. 목록 아래와 빈 화면에 더한다.
  */
 @Composable
 fun FixedExpenseScreen(
@@ -111,6 +115,8 @@ fun FixedExpenseScreen(
     onEndMerchant: (String) -> Unit,
     onRestoreMerchant: (String) -> Unit,
     modifier: Modifier = Modifier,
+    showHeader: Boolean = true,
+    contentPadding: PaddingValues = PaddingValues(),
 ) {
     // '한동안 안 냈어요' · '해지한 곳' · '등록 안 한 곳' 을 펼쳤는지. 잘 안 볼 것들이라 접은 채 시작하고, 달을 넘겨도 사용자가 고른 대로 둔다.
     var stoppedOpen by rememberSaveable { mutableStateOf(false) }
@@ -176,12 +182,17 @@ fun FixedExpenseScreen(
             onDismiss = { ending = null },
         )
     }
-    Column(modifier = modifier.fillMaxSize().statusBarsPadding()) {
-        TabHeader(title = texts.tabTitle)
+    Column(modifier = modifier.fillMaxSize().then(if (showHeader) Modifier.statusBarsPadding() else Modifier)) {
+        if (showHeader) TabHeader(title = texts.tabTitle)
         // 첫 계산 전에는 비워 둔다. 빈 상태 안내가 잠깐 보였다 사라지지 않게 한다.
         if (!state.loaded) return@Column
         if (!state.hasCategory) {
-            FixedEmpty(kind = state.kind, title = texts.noCategoryTitle, body = texts.noCategoryBody) {
+            FixedEmpty(
+                kind = state.kind,
+                title = texts.noCategoryTitle,
+                body = texts.noCategoryBody,
+                modifier = Modifier.padding(contentPadding),
+            ) {
                 BudgetPrimaryButton(text = OPEN_CATEGORIES_TEXT, onClick = onOpenCategories)
             }
             return@Column
@@ -204,7 +215,12 @@ fun FixedExpenseScreen(
             label = "fixedMonth",
         ) { shown ->
             if (shown.isEmpty) {
-                FixedEmpty(kind = shown.kind, title = texts.emptyTitle(shown.month, shown.today), body = texts.emptyBody)
+                FixedEmpty(
+                    kind = shown.kind,
+                    title = texts.emptyTitle(shown.month, shown.today),
+                    body = texts.emptyBody,
+                    modifier = Modifier.padding(contentPadding),
+                )
             } else {
                 BoardList(
                     state = shown,
@@ -215,6 +231,7 @@ fun FixedExpenseScreen(
                     onToggleEnded = { endedOpen = !endedOpen },
                     onToggleDeclined = { declinedOpen = !declinedOpen },
                     actions = actions,
+                    contentPadding = contentPadding,
                 )
             }
         }
@@ -237,7 +254,10 @@ private class RowActions(
     val onRestoreMerchant: (String) -> Unit,
 )
 
-/** [stoppedOpen] · [endedOpen] · [declinedOpen] 은 접는 세 묶음('한동안 안 냈어요' · '해지한 곳' · '등록 안 한 곳')을 펼쳤는지 */
+/**
+ * [stoppedOpen] · [endedOpen] · [declinedOpen] 은 접는 세 묶음('한동안 안 냈어요' · '해지한 곳' · '등록 안 한 곳')을 펼쳤는지.
+ * [contentPadding] 의 아래는 묶음 사이 간격 뒤에 더 띄운다(저축 화면의 떠 있는 메뉴).
+ */
 @Composable
 private fun BoardList(
     state: FixedExpenseUiState,
@@ -248,11 +268,16 @@ private fun BoardList(
     onToggleEnded: () -> Unit,
     onToggleDeclined: () -> Unit,
     actions: RowActions,
+    contentPadding: PaddingValues,
 ) {
     val board = state.board
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(top = BudgetTheme.spacing.inlineGap, bottom = BudgetTheme.spacing.sectionGap),
+        contentPadding =
+        PaddingValues(
+            top = BudgetTheme.spacing.inlineGap,
+            bottom = BudgetTheme.spacing.sectionGap + contentPadding.calculateBottomPadding(),
+        ),
     ) {
         askGroup(state, actions)
         animatedItem(key = SUMMARY_KEY) { SummaryBlock(state = state) }
@@ -664,13 +689,19 @@ private fun FoldHeader(title: String, count: Int, expanded: Boolean, onToggle: (
  * 고정지출은 '고정지출' 줄, 고정저축은 저축 화면 안의 칸이라 '저축' 줄(저축 화면의 다른 탭 빈 화면과 같다)을 따른다.
  */
 @Composable
-private fun FixedEmpty(kind: FixedKind, title: String, body: String, action: (@Composable () -> Unit)? = null) {
+private fun FixedEmpty(
+    kind: FixedKind,
+    title: String,
+    body: String,
+    modifier: Modifier = Modifier,
+    action: (@Composable () -> Unit)? = null,
+) {
     val (icon, color) =
         when (kind) {
             FixedKind.EXPENSE -> R.drawable.ic_sym_event_repeat to EXPENSE_BADGE_COLOR
             FixedKind.SAVINGS -> R.drawable.ic_sym_savings to SAVINGS_BADGE_COLOR
         }
-    TabEmptyState(iconRes = icon, color = color, title = title, body = body, action = action)
+    TabEmptyState(iconRes = icon, color = color, title = title, body = body, modifier = modifier, action = action)
 }
 
 // 목록의 고정 줄 key. 달마다 묶음이 숨었다 나타나도 스크롤 기준이 흔들리지 않게 고정한다.
