@@ -13,8 +13,10 @@ import com.dong.budget.data.db.FixedMerchantEntity
 import com.dong.budget.data.db.FixedMerchantState
 import com.dong.budget.data.db.fixedHistoryEnd
 import com.dong.budget.data.db.fixedHistoryStart
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -85,13 +87,16 @@ data class FixedExpenseUiState(
  * 달을 바꾸면 새 계산이 끝날 때까지 이전 달 화면을 그대로 둔다(빈 화면이 깜빡이지 않게).
  *
  * @param clock 지금 시각. 테스트에서 날짜를 고정하려고 바꿀 수 있게 둔다.
+ * @param scope 화면 모델이 도는 범위([viewModelScope], 화면 모델이 사라지면 끝난다). 기본은 메인 스레드이고, 메인 스레드가 없는
+ *   JVM 테스트에서 기본 풀로 돌리려고 바꿀 수 있게 둔다.
  */
 class FixedExpenseViewModel(
     transactions: TransactionRepository,
     categories: CategoryRepository,
     private val fixedMerchants: FixedMerchantRepository,
     private val clock: Clock = Clock.system(BudgetTime.ZONE),
-) : ViewModel() {
+    scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate),
+) : ViewModel(scope) {
     /**
      * 사용자가 고른 지난 달. null 이면 '이번 달' 을 따라간다(통계와 같은 규칙).
      * 그래서 이번 달을 보던 중에 자정이 지나 달이 바뀌면 새 달로 넘어가고, 일부러 지난 달을 보고 있으면 그대로 둔다.
