@@ -5,6 +5,7 @@ import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -487,7 +488,7 @@ private fun FixedRow(item: FixedExpenseItem, state: FixedExpenseUiState, actions
 
 /**
  * 판 줄의 부제 아래. 덧붙임 한 줄([note], 두 줄까지. 부제는 한 줄)과 그 아래 '등록하기' · '해지'.
- * 버튼 둘을 금액 옆에 두면 좁은 화면(320dp)에서 이름이 너무 줄어 묻는 줄처럼 부제 아래에 둔다.
+ * 버튼 둘을 금액 옆에 두면 좁은 화면(320dp)에서 이름이 너무 줄어 묻는 줄처럼 부제 아래에 둔다([ButtonRow]).
  */
 @Composable
 private fun RowExtras(
@@ -509,7 +510,7 @@ private fun RowExtras(
             )
         }
         if (canRegister || canEnd) {
-            Row(horizontalArrangement = Arrangement.spacedBy(BudgetTheme.spacing.inlineGap)) {
+            ButtonRow {
                 if (canRegister) {
                     BudgetSmallButton(
                         text = REGISTER_TEXT,
@@ -530,6 +531,20 @@ private fun RowExtras(
                 }
             }
         }
+    }
+}
+
+/**
+ * 줄의 부제 아래 작은 버튼들. 부제 아래도 오른쪽 금액만큼 좁아서, 금액이 크고 화면이 좁으면(320dp 에서 1,000,000원,
+ * 큰 글자) 한 줄에 다 들어가지 않는다. 그러면 버튼을 찌그러뜨리지 않고 다음 줄로 넘긴다.
+ */
+@Composable
+private fun ButtonRow(content: @Composable () -> Unit) {
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(BudgetTheme.spacing.inlineGap),
+        verticalArrangement = Arrangement.spacedBy(BudgetTheme.spacing.tightGap),
+    ) {
+        content()
     }
 }
 
@@ -592,7 +607,7 @@ private fun CandidateRow(candidate: FixedCandidate, state: FixedExpenseUiState, 
             )
         },
         note = {
-            Row(horizontalArrangement = Arrangement.spacedBy(BudgetTheme.spacing.inlineGap)) {
+            ButtonRow {
                 if (mode == CandidateMode.ENDED) {
                     BudgetSmallButton(
                         text = RESTORE_TEXT,
