@@ -19,7 +19,7 @@ import java.time.Instant
         PaymentMethodEntity::class,
         FixedMerchantEntity::class,
     ],
-    version = 7,
+    version = 8,
     exportSchema = true,
     autoMigrations = [
         // 1 → 2: 분류에 아이콘·색 칸을 추가하고 기본 분류를 새 목록으로 바꾼다.
@@ -39,6 +39,9 @@ import java.time.Instant
         // 6 → 7: 고정지출 목록(fixed_merchants)을 둔다. 고정지출 탭은 이제 등록한 곳만 보인다. 표는 Room 이 만들고,
         // 올리는 날 탭에 보이던 곳을 등록하는 것은 Migration6To7 이 한다.
         AutoMigration(from = 6, to = 7, spec = Migration6To7::class),
+        // 7 → 8: 고정지출 목록에 종류(고정지출 · 고정저축)와 해지한 때를 둔다. 열쇠가 (종류, 가게)로 바뀌어 Room 이 표를 새로 만들어
+        // 옮긴다(있던 줄은 모두 고정지출 · 해지 안 함이고 정한 때는 그대로다). 정리할 데이터는 없다.
+        AutoMigration(from = 7, to = 8),
     ],
 )
 @TypeConverters(Converters::class)
@@ -273,6 +276,7 @@ class Migration5To6 : AutoMigrationSpec {
  * - 올리는 날 탭에 보이던 곳(아직 안 냈어요 · 냈어요 · 이번 달엔 안 내요 · 한동안 안 냈어요 모두)을 등록한다([registerShownFixedMerchants]).
  *   그래서 올린 뒤에도 탭이 그대로이고, 고정지출이 아니게 된 곳은 사용자가 탭에서 뺀다.
  * - 한 번만 돈다. 그 뒤에 새로 '고정지출' 분류로 적은 곳은 탭이 등록할지 묻는다.
+ * - DB 를 6 에서 8 까지 한 번에 올려도 이 정리는 DB 7 표(종류 · 해지한 때 칸이 없다)에서 돈다. 7 → 8 은 그 뒤에 표를 옮긴다.
  *
  * 주의: [Migration1To2] 와 같은 함정이 있다(드라이버를 바꾸면 onPostMigrate(SupportSQLiteDatabase) 가 조용히 건너뛰어진다).
  */

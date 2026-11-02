@@ -9,10 +9,12 @@ import com.dong.budget.data.db.DEFAULT_CATEGORIES
 import com.dong.budget.data.db.DEFAULT_INCOME_SOURCES
 import com.dong.budget.data.db.DEFAULT_PAYMENT_METHODS
 import com.dong.budget.data.db.FIXED_CATEGORY_CODE
+import com.dong.budget.data.db.FixedKind
 import com.dong.budget.data.db.FixedMerchantEntity
 import com.dong.budget.data.db.FixedMerchantState
 import com.dong.budget.data.db.PaymentMethodEntity
 import com.dong.budget.data.db.PaymentMethodType
+import com.dong.budget.data.db.SAVINGS_CATEGORY_CODE
 import com.dong.budget.data.db.TransactionEntity
 import com.dong.budget.data.db.TransactionType
 import com.dong.budget.data.db.toEntity
@@ -27,7 +29,8 @@ import java.time.Instant
 
 /**
  * 백업을 되살린 뒤 들어온 곳 정리(settleIncomeSources)와 고정지출 목록 등록(registerShownFixedMerchants)이 복원 거래 안에서
- * 실제 SQLite 로 DB 5 → 6 · 6 → 7 과 같게 도는지 본다. 데이터 초기화가 고정지출 목록을 비우는지도 본다.
+ * 실제 SQLite 로 DB 5 → 6 · 6 → 7 과 같게 도는지 본다. 고정 목록 정리가 종류(고정지출 · 고정저축)마다 따로 도는지,
+ * 데이터 초기화가 두 목록을 다 비우는지도 본다.
  * 기기에서 돈다. 메모리 DB 를 써서 기기에 있는 실제 가계부(dong-budget.db)는 건드리지 않는다.
  */
 @RunWith(AndroidJUnit4::class)
@@ -117,6 +120,7 @@ class BackupRestoreTest {
 
     private val fixed = categories.first { it.code == FIXED_CATEGORY_CODE }
     private val food = categories.first { it.code == "FOOD" }
+    private val savings = categories.first { it.code == SAVINGS_CATEGORY_CODE }
 
     /** [at] (UTC)에 [merchant] 에서 낸 지출. 분류는 [category] 다. */
     private fun spend(uuid: String, merchant: String, at: String, category: Long = fixed.id): TransactionEntity {
@@ -182,15 +186,40 @@ class BackupRestoreTest {
             listOf("넷플릭스", "오래된구독", "스타벅스", "지운곳").map { FixedMerchantEntity(it, FixedMerchantState.DECLINED, decided) }
         repository.restore(backupOf(categories, expenseMethods, spends, "2.0.0", Instant.parse("2026-10-16T03:00:00Z"), list))
 
-        assertEquals(2, database.fixedMerchantDao().prune())
+        assertEquals(2, database.fixedMerchantDao().prune(FixedKind.EXPENSE))
 
         assertEquals(listOf("넷플릭스", "오래된구독"), database.backupDao().fixedMerchants().map { it.merchantKey })
     }
 
     @Test
-    fun `데이터 초기화는 고정지출 목록도 비운다`() = runBlocking {
+    fun `고정 목록 정리는 그 종류 목록만 지우고 다른 종류의 같은 가게는 그대로 둔다`() = runBlocking {
+        val decided = Instant.parse("2026-10-01T00:00:00Z")
+        // 넷플릭스는 '고정지출' 지출만, 적금은 '저축' 지출만 있다. 두 곳 모두 두 목록에 다 정해 두었다.
+        val saving = spend("s1", "적금", "2026-10-25T03:00:00Z", category = savings.id)
+        repository.restore(backupOf(categories, expenseMethods, spends + saving, "2.0.0", Instant.parse("2026-10-16T03:00:00Z")))
+        val dao = database.fixedMerchantDao()
+        listOf("넷플릭스", "적금").forEach { key ->
+            FixedKind.entries.forEach { kind -> dao.upsert(FixedMerchantEntity(key, FixedMerchantState.DECLINED, decided, kind)) }
+        }
+
+        assertEquals(1, dao.prune(FixedKind.EXPENSE))
+        assertEquals(
+            listOf(FixedKind.EXPENSE to "넷플릭스", FixedKind.SAVINGS to "넷플릭스", FixedKind.SAVINGS to "적금"),
+            database.backupDao().fixedMerchants().map { it.kind to it.merchantKey },
+        )
+
+        assertEquals(1, dao.prune(FixedKind.SAVINGS))
+        assertEquals(
+            listOf(FixedKind.EXPENSE to "넷플릭스", FixedKind.SAVINGS to "적금"),
+            database.backupDao().fixedMerchants().map { it.kind to it.merchantKey },
+        )
+    }
+
+    @Test
+    fun `데이터 초기화는 고정지출과 고정저축 목록을 다 비운다`() = runBlocking {
         repository.restore(backupOf(categories, expenseMethods, spends, "2.0.0", Instant.now()).copy(fixedMerchants = null))
         database.fixedMerchantDao().upsert(FixedMerchantEntity("유튜브", FixedMerchantState.DECLINED, Instant.now()))
+        database.fixedMerchantDao().upsert(FixedMerchantEntity("적금", FixedMerchantState.REGISTERED, Instant.now(), FixedKind.SAVINGS))
 
         repository.resetToDefaults()
 

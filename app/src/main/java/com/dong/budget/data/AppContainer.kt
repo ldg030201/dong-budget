@@ -12,6 +12,7 @@ import com.dong.budget.data.capture.CaptureNotifier
 import com.dong.budget.data.capture.CaptureStore
 import com.dong.budget.data.capture.PaymentCapture
 import com.dong.budget.data.db.BudgetDatabase
+import com.dong.budget.data.db.FixedKind
 import com.dong.budget.data.devlog.DevLog
 import com.dong.budget.data.devlog.LogTag
 import com.dong.budget.data.lock.PinLock
@@ -63,7 +64,10 @@ class AppContainer(context: Context) {
     val paymentMethodRepository by lazy { PaymentMethodRepository(database.paymentMethodDao()) }
 
     /** 고정지출 탭에 보일 곳(고정지출 목록) */
-    val fixedMerchantRepository by lazy { FixedMerchantRepository(database.fixedMerchantDao()) }
+    val fixedMerchantRepository by lazy { FixedMerchantRepository(database.fixedMerchantDao(), FixedKind.EXPENSE) }
+
+    /** 고정저축 탭에 보일 곳(고정저축 목록). 고정지출 목록과 한 표에 종류만 달리 둔다. */
+    val fixedSavingsRepository by lazy { FixedMerchantRepository(database.fixedMerchantDao(), FixedKind.SAVINGS) }
 
     val settingsRepository by lazy { SettingsRepository(context) }
 

@@ -1,7 +1,9 @@
 package com.dong.budget.data.db
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
+import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
 
@@ -21,6 +23,20 @@ class FixedMerchantsTest {
         val merchants = listOf(" 오래된 구독", "Netflix", null)
         assertEquals(listOf("헬스장", "지운곳"), staleFixedMerchants(stored, merchants))
         assertEquals(emptyList<String>(), staleFixedMerchants(emptyList(), merchants))
+    }
+
+    @Test
+    fun `종류마다 그 탭이 모아 보는 분류로 정리하고 DB 에 적는 이름은 바꾸지 않는다`() {
+        assertEquals(FIXED_CATEGORY_CODE, FixedKind.EXPENSE.categoryCode)
+        assertEquals(SAVINGS_CATEGORY_CODE, FixedKind.SAVINGS.categoryCode)
+        // 종류 · 상태는 이름 글로 저장된다. DB 7 까지의 줄은 SQL 기본값 'EXPENSE' 로 고정지출이 되고,
+        // 백업의 상태 글은 옛 앱이 모르는 것('ENDED')만 건너뛴다
+        assertEquals(listOf("EXPENSE", "SAVINGS"), FixedKind.entries.map { it.name })
+        assertEquals(listOf("REGISTERED", "DECLINED", "ENDED"), FixedMerchantState.entries.map { it.name })
+        // 새 줄은 고정지출 · 해지 안 함이 기본이다(SQL 기본값과 같다)
+        val row = FixedMerchantEntity("넷플릭스", FixedMerchantState.REGISTERED, Instant.EPOCH)
+        assertEquals(FixedKind.EXPENSE, row.kind)
+        assertNull(row.endedAt)
     }
 
     @Test

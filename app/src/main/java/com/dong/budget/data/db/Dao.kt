@@ -51,11 +51,15 @@ internal const val EXPENSE_WITH_CATEGORY_CODE = "t.categoryId IN (SELECT id FROM
 
 /**
  * 코드가 :code 인 분류로 적은 지출의 가게 이름들(기간 없이 모두). 뒤에 조건을 붙여 쓸 수 있다.
- * 고정지출 목록 정리(FixedMerchantDao)와 등록(registerShownFixedMerchants, Room 밖)이 같은 글을 쓴다.
+ * 고정 목록 정리(FixedMerchantDao, 종류의 분류 코드로)와 고정지출 등록(registerShownFixedMerchants, Room 밖)이 같은 글을 쓴다.
  */
 internal const val MERCHANTS_WITH_CATEGORY_CODE_SQL = "SELECT DISTINCT t.merchant FROM transactions t WHERE " + EXPENSE_WITH_CATEGORY_CODE
 
-/** 고정지출 목록에 정해 둔 곳들의 열쇠. FixedMerchantDao 와 registerShownFixedMerchants(Room 밖)가 같은 글을 쓴다. */
+/**
+ * 고정 목록에 정해 둔 곳들의 열쇠. 종류를 가리지 않는다. registerShownFixedMerchants(Room 밖)만 쓴다.
+ * 그 함수는 DB 6 → 7 마이그레이션 안에서 DB 7 표(종류 칸이 없다)에 돌아서 종류로 거르면 옛 가계부를 올릴 때 앱이 안 열린다.
+ * 앱의 조회는 종류로 거르는 FixedMerchantDao 의 것을 쓴다.
+ */
 internal const val FIXED_MERCHANT_KEYS_SQL = "SELECT merchantKey FROM fixed_merchants"
 
 /** [TransactionListItem] 의 칸들. 고정지출 탭은 여기에 처음 적은 때를 더해 읽는다([FixedExpenseRow]). */
@@ -433,35 +437,43 @@ interface PaymentMethodDao {
     }
 }
 
-/** 고정지출 목록([FixedMerchantEntity]) */
+/** 고정 목록([FixedMerchantEntity]). 고정지출 · 고정저축이 한 표에 있어서 모든 조회 · 정리가 종류([FixedKind])를 가린다. */
 @Dao
 interface FixedMerchantDao {
-    /** 정해 둔 곳 모두. 고정지출 탭이 따라간다. */
-    @Query("SELECT * FROM fixed_merchants")
-    fun observeAll(): Flow<List<FixedMerchantEntity>>
+    /** [kind] 목록에 정해 둔 곳 모두. 그 탭이 따라간다. */
+    @Query("SELECT * FROM fixed_merchants WHERE kind = :kind")
+    fun observeAll(kind: FixedKind): Flow<List<FixedMerchantEntity>>
 
-    /** 한 곳을 정한다. 이미 정한 곳이면 새로 정한 것으로 바꾼다. */
+    /** 한 곳을 정한다. 같은 종류에 이미 정한 곳이면 새로 정한 것으로 바꾼다(해지한 때도 새 줄 그대로다). */
     @Upsert
     suspend fun upsert(merchant: FixedMerchantEntity)
+
+    /**
+     * 해지한 곳을 해지한 채로 두고 정한 때만 [at] 으로 바꾼다(해지한 때는 그대로다).
+     * @return 바꾼 줄 수. 그 곳이 해지한 곳이 아니면 0
+     */
+    @Query("UPDATE fixed_merchants SET decidedAt = :at WHERE kind = :kind AND merchantKey = :key AND state = 'ENDED'")
+    suspend fun keepEnded(kind: FixedKind, key: String, at: Instant): Int
 
     @Query(MERCHANTS_WITH_CATEGORY_CODE_SQL)
     suspend fun merchantsWithCategoryCode(code: String): List<String?>
 
-    @Query(FIXED_MERCHANT_KEYS_SQL)
-    suspend fun keys(): List<String>
+    @Query("SELECT merchantKey FROM fixed_merchants WHERE kind = :kind")
+    suspend fun keys(kind: FixedKind): List<String>
 
-    @Query("DELETE FROM fixed_merchants WHERE merchantKey IN (:keys)")
-    suspend fun delete(keys: List<String>)
+    @Query("DELETE FROM fixed_merchants WHERE kind = :kind AND merchantKey IN (:keys)")
+    suspend fun delete(kind: FixedKind, keys: List<String>)
 
     /**
-     * '고정지출' 분류 지출이 하나도 남지 않은 곳(거래를 지웠거나 다른 분류로 옮겼다)을 목록에서 지운다([staleFixedMerchants]).
-     * 그 뒤에 그곳을 다시 '고정지출' 분류로 적으면 처음 보는 곳처럼 등록할지 묻는다. 기간은 보지 않는다(오래전에만 낸 곳도 남긴다).
+     * [kind] 목록에서 그 분류([FixedKind.categoryCode]) 지출이 하나도 남지 않은 곳(거래를 지웠거나 다른 분류로 옮겼다)을 지운다
+     * ([staleFixedMerchants]). 다른 종류 목록의 같은 가게는 건드리지 않는다.
+     * 그 뒤에 그곳을 다시 그 분류로 적으면 처음 보는 곳처럼 등록할지 묻는다. 기간은 보지 않는다(오래전에만 낸 곳도 남긴다).
      * @return 지운 곳의 수
      */
     @Transaction
-    suspend fun prune(): Int {
-        val stale = staleFixedMerchants(keys(), merchantsWithCategoryCode(FIXED_CATEGORY_CODE))
-        if (stale.isNotEmpty()) delete(stale)
+    suspend fun prune(kind: FixedKind): Int {
+        val stale = staleFixedMerchants(keys(kind), merchantsWithCategoryCode(kind.categoryCode))
+        if (stale.isNotEmpty()) delete(kind, stale)
         return stale.size
     }
 }
@@ -481,7 +493,8 @@ interface BackupDao {
     @Query("SELECT * FROM transactions ORDER BY occurredAt, id")
     suspend fun transactions(): List<TransactionEntity>
 
-    @Query("SELECT * FROM fixed_merchants ORDER BY merchantKey")
+    /** 고정지출 · 고정저축 목록 모두. 백업이 종류마다 따로 적는다. */
+    @Query("SELECT * FROM fixed_merchants ORDER BY kind, merchantKey")
     suspend fun fixedMerchants(): List<FixedMerchantEntity>
 
     @Query("SELECT COUNT(*) FROM transactions")
@@ -489,7 +502,7 @@ interface BackupDao {
 
     /**
      * 거래를 먼저 지운다. 분류·결제수단을 먼저 지우면 외래키(SET NULL)가 곧 지울 거래를 하나하나 고친다.
-     * 고정지출 목록도 지운다(가계부와 같이 바뀌어야 맞는 목록이다).
+     * 고정지출 · 고정저축 목록도 지운다(가계부와 같이 바뀌어야 맞는 목록이다).
      */
     @Transaction
     suspend fun deleteAll() {

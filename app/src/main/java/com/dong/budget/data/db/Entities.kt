@@ -181,21 +181,52 @@ data class PaymentMethodEntity(
     @ColumnInfo(defaultValue = "1") val performanceStartDay: Int = 1,
 ) : StyledItem
 
-/** 고정지출 목록에서 한 곳을 어떻게 정했는지 */
+/**
+ * 고정 목록의 종류. 고정지출 탭과 고정저축 탭이 한 표(fixed_merchants)를 종류로 나눠 쓴다.
+ * 이름이 DB 와 백업에 글로 저장되므로 바꾸지 않는다.
+ * @property categoryCode 그 탭이 모아 보는 분류의 코드. 목록 정리(FixedMerchantDao.prune)도 이 분류 지출이 남았는지 본다.
+ */
+enum class FixedKind(val categoryCode: String) {
+    /** 고정지출. '고정지출' 분류 지출을 본다 */
+    EXPENSE(FIXED_CATEGORY_CODE),
+
+    /** 고정저축. '저축' 분류 지출을 본다 */
+    SAVINGS(SAVINGS_CATEGORY_CODE),
+}
+
+/** 고정 목록에서 한 곳을 어떻게 정했는지 */
 enum class FixedMerchantState {
-    /** 고정지출 탭에 보인다 */
+    /** 탭에 보인다 */
     REGISTERED,
 
-    /** 탭에 넣지 않는다. 묻던 것에 '안 함' 을 눌렀거나 탭에서 뺐다. 정한 뒤에 그곳의 '고정지출' 지출이 새로 생기면 다시 묻는다. */
+    /** 탭에 넣지 않는다. 묻던 것에 '안 함' 을 눌렀거나 탭에서 뺐다. 정한 뒤에 그곳의 그 분류 지출이 새로 생기면 다시 묻는다. */
     DECLINED,
+
+    /**
+     * 해지했다. 해지 전에 낸 마지막 결제의 몫 달까지는 탭에 그대로 보이고, 그다음 달부터는 '해지한 곳' 에만 있다.
+     * 정한 뒤에 그곳의 그 분류 지출이 새로 생기면 다시 등록할지 묻는다. 옛 앱(1.9.1 까지)은 백업의 이 상태를 몰라 그 줄만 건너뛰고 다시 묻는다.
+     */
+    ENDED,
 }
 
 /**
- * 고정지출 목록(DB 7). '고정지출' 분류와 따로, 고정지출 탭에 어느 곳을 보일지 정해 둔다.
- * 분류는 거래마다 그대로 두고, 탭은 등록한 곳의 '고정지출' 분류 지출만 센다. 정한 적 없는 곳은 탭이 등록할지 묻는다.
+ * 고정 목록(DB 7, 종류 · 해지한 때는 DB 8). 분류와 따로, 고정지출 탭 · 고정저축 탭에 어느 곳을 보일지 종류마다 정해 둔다.
+ * 분류는 거래마다 그대로 두고, 탭은 등록한 곳의 그 분류([FixedKind.categoryCode]) 지출만 센다. 정한 적 없는 곳은 탭이 등록할지 묻는다.
+ * 열쇠가 (종류, 가게)라 같은 가게를 고정지출과 고정저축에 따로 정한다.
  *
- * @property merchantKey 고정지출 탭이 가게를 묶는 열쇠([fixedMerchantKey]). 가게 이름 없이 적은 지출은 [NO_MERCHANT_KEY] 다.
- * @property decidedAt 정한 때. [FixedMerchantState.DECLINED] 면 이때 뒤에 낸(그리고 적은) '고정지출' 지출이 생겨야 다시 묻는다.
+ * @property merchantKey 탭이 가게를 묶는 열쇠([fixedMerchantKey]). 가게 이름 없이 적은 지출은 [NO_MERCHANT_KEY] 다.
+ * @property decidedAt 마지막으로 정한 때. [FixedMerchantState.DECLINED] · [FixedMerchantState.ENDED] 면 이때 뒤에 낸(그리고 적은)
+ *   그 분류 지출이 생겨야 다시 묻는다.
+ * @property kind 어느 탭의 목록인지. DB 7 까지의 줄은 모두 고정지출이다(SQL 기본값).
+ *   SQL 기본값과 Kotlin 기본값이 같아야 칸을 더할 때와 새로 만들 때 같은 줄이 된다.
+ * @property endedAt 해지한 때. [FixedMerchantState.ENDED] 일 때만 있다. 이때 뒤에 낸(그리고 적은) 것이 아닌 결제가 해지 전 결제다.
+ *   해지한 곳에 다시 물은 것에 '안 함' 을 누르면 [decidedAt] 만 바뀌어 둘이 달라진다.
  */
-@Entity(tableName = "fixed_merchants")
-data class FixedMerchantEntity(@PrimaryKey val merchantKey: String, val state: FixedMerchantState, val decidedAt: Instant)
+@Entity(tableName = "fixed_merchants", primaryKeys = ["kind", "merchantKey"])
+data class FixedMerchantEntity(
+    val merchantKey: String,
+    val state: FixedMerchantState,
+    val decidedAt: Instant,
+    @ColumnInfo(defaultValue = "EXPENSE") val kind: FixedKind = FixedKind.EXPENSE,
+    @ColumnInfo(defaultValue = "NULL") val endedAt: Instant? = null,
+)

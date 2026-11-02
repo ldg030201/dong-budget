@@ -1,6 +1,7 @@
 package com.dong.budget.data.db
 
 import android.database.Cursor
+import android.database.sqlite.SQLiteConstraintException
 import androidx.room.testing.MigrationTestHelper
 import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -17,7 +18,7 @@ import java.time.LocalDate
 import java.time.YearMonth
 
 /**
- * 0.1.2 이하(DB 1)·1.6.1 이하(DB 2)·1.7.0(DB 4)·1.8.1 이하(DB 5)·1.9.0(DB 6)에서 올리는 사용자의 가계부가 마이그레이션 뒤에도 그대로 남는지 실제 SQLite 로 확인한다.
+ * 0.1.2 이하(DB 1)·1.6.1 이하(DB 2)·1.7.0(DB 4)·1.8.1 이하(DB 5)·1.9.0(DB 6)·1.9.1(DB 7)에서 올리는 사용자의 가계부가 마이그레이션 뒤에도 그대로 남는지 실제 SQLite 로 확인한다.
  *
  * 옛 앱이 첫 설치 때 넣던 기본 분류·결제수단(v0.1.2 의 SeedCallback)을 그대로 만들고, 거래를 몇 건 넣은 뒤 2·3·4 로 올린다.
  * 원칙은 '거래는 하나도 잃지 않는다' 다(Migration1To2).
@@ -472,6 +473,53 @@ class MigrationTest {
         assertEquals(2, db.count("SELECT COUNT(*) FROM transactions"))
         assertEquals("INCOME 통장", db.paymentOf("i-account"))
         assertEquals(listOf("넷플릭스"), db.strings("SELECT merchantKey FROM fixed_merchants"))
+    }
+
+    @Test
+    fun `7 에서 8 로 올리면 고정지출 목록은 모두 고정지출 종류로 남고 해지한 때는 비어 있다`() {
+        helper.createDatabase(TEST_DB, 7).apply {
+            // 1.9.1 의 목록: 등록 · 등록 안 함 · 이름 없이 묶인 곳(빈 열쇠)
+            execSQL("INSERT INTO fixed_merchants (merchantKey, state, decidedAt) VALUES ('넷플릭스', 'REGISTERED', 1000)")
+            execSQL("INSERT INTO fixed_merchants (merchantKey, state, decidedAt) VALUES ('헬스장', 'DECLINED', 2000)")
+            execSQL("INSERT INTO fixed_merchants (merchantKey, state, decidedAt) VALUES ('', 'REGISTERED', 3000)")
+            close()
+        }
+        val db = helper.runMigrationsAndValidate(TEST_DB, 8, true)
+
+        // 정한 것 · 정한 때는 그대로다
+        assertEquals(
+            listOf("EXPENSE||REGISTERED|3000", "EXPENSE|넷플릭스|REGISTERED|1000", "EXPENSE|헬스장|DECLINED|2000"),
+            db.strings("SELECT kind || '|' || merchantKey || '|' || state || '|' || decidedAt FROM fixed_merchants ORDER BY merchantKey"),
+        )
+        assertEquals(0, db.count("SELECT COUNT(*) FROM fixed_merchants WHERE endedAt IS NOT NULL"))
+
+        // 열쇠가 (종류, 가게)라 같은 가게를 고정저축으로도 정할 수 있고, 같은 종류에는 두 번 넣지 못한다
+        db.execSQL("INSERT INTO fixed_merchants (kind, merchantKey, state, decidedAt) VALUES ('SAVINGS', '넷플릭스', 'REGISTERED', 4000)")
+        val twice =
+            runCatching {
+                db.execSQL("INSERT INTO fixed_merchants (kind, merchantKey, state, decidedAt) VALUES ('EXPENSE', '넷플릭스', 'DECLINED', 5000)")
+            }
+        assertTrue("같은 종류에 같은 가게가 두 번 들어갔다", twice.exceptionOrNull() is SQLiteConstraintException)
+        assertEquals(listOf("EXPENSE", "SAVINGS"), db.strings("SELECT kind FROM fixed_merchants WHERE merchantKey = '넷플릭스' ORDER BY kind"))
+    }
+
+    @Test
+    fun `옛 가계부를 6 에서 8 까지 한 번에 올려도 고정지출은 등록되고 종류는 고정지출이다`() {
+        // 6 → 7 의 보이던 곳 등록은 DB 7 표(종류 칸이 없다)에서 돈다. 종류 칸을 쓰면 여기서 올리기가 깨진다.
+        helper.createDatabase(TEST_DB, 6).apply {
+            seedCategoriesLikeVersion6()
+            insertExpense("f1", YearMonth.now(BudgetTime.ZONE), "넷플릭스")
+            insertExpense("e1", YearMonth.now(BudgetTime.ZONE), "적금", categoryCode = SAVINGS_CATEGORY_CODE)
+            close()
+        }
+        val db = helper.runMigrationsAndValidate(TEST_DB, 8, true)
+        assertEquals(2, db.count("SELECT COUNT(*) FROM transactions"))
+        // '저축' 분류로 적은 곳은 고정저축 탭이 묻고 등록한다(미리 등록하지 않는다)
+        assertEquals(
+            listOf("EXPENSE 넷플릭스 REGISTERED"),
+            db.strings("SELECT kind || ' ' || merchantKey || ' ' || state FROM fixed_merchants"),
+        )
+        assertEquals(0, db.count("SELECT COUNT(*) FROM fixed_merchants WHERE endedAt IS NOT NULL"))
     }
 
     /** 1.9.0 이 첫 설치 때 넣던 기본 분류(고정지출 · 식비 포함) */
