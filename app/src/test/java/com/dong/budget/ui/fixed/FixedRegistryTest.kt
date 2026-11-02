@@ -1,5 +1,6 @@
 package com.dong.budget.ui.fixed
 
+import com.dong.budget.data.db.FixedKind
 import com.dong.budget.data.db.FixedMerchantEntity
 import com.dong.budget.data.db.FixedMerchantState
 import com.dong.budget.data.db.NO_MERCHANT_KEY
@@ -422,5 +423,77 @@ class FixedRegistryTest {
         assertTrue(split.ended.isEmpty())
         assertTrue(split.candidates.isEmpty())
         assertTrue(split.boardRows(YearMonth.of(2024, 6)).isEmpty())
+    }
+
+    // ── 판 줄 버튼 ──
+
+    /** 화면 모델이 만드는 것과 같은 [month] 화면 상태 */
+    private fun state(split: FixedRegistrySplit, month: YearMonth = october) =
+        FixedExpenseUiState.of(FixedKind.EXPENSE, month, today, hasCategory = true, split = split)
+
+    @Test
+    fun `이번 달 판 줄은 아직 안 낸 줄에 등록하기를 두고 안 냈거나 한동안 안 낸 줄에 해지를 둔다`() {
+        val rows =
+            monthly("넷플릭스", 5, 17_000, 5..9) + monthly("헬스장", 10, 55_000) + monthly("왓챠", 3, 9_900, 3..5) +
+                listOf("2025-03-14", "2026-03-14").map { pay(it, "자동차보험", 800_000) } +
+                (5..9).map { pay("2026-%02d-20".format(it), null, 30_000) }
+        val registry = listOf("넷플릭스", "헬스장", "왓챠", "자동차보험", NO_MERCHANT_KEY).associate { registered(it) }
+
+        val state = state(split(rows, registry))
+
+        // 열쇠 → (상태, '등록하기', '해지')
+        val buttons =
+            keysOn(state.board).associateWith { key ->
+                val item = state.board.itemOf(key)!!
+                Triple(item.status, state.canRegister(item), state.canEnd(item))
+            }
+        assertEquals(
+            mapOf(
+                "넷플릭스" to Triple(FixedStatus.DUE, true, true),
+                // 가게 이름 없이 묶인 것은 무엇을 등록할지 몰라 '등록하기' 가 없다
+                NO_MERCHANT_KEY to Triple(FixedStatus.DUE, false, true),
+                "헬스장" to Triple(FixedStatus.PAID, false, false),
+                "자동차보험" to Triple(FixedStatus.NOT_THIS_MONTH, false, false),
+                "왓챠" to Triple(FixedStatus.STOPPED, false, true),
+            ),
+            buttons,
+        )
+        assertTrue(buttons.keys.none(state::isEnded))
+    }
+
+    @Test
+    fun `해지한 곳의 판 줄은 끝 달까지 등록하기도 해지도 두지 않고 길게 눌러도 해지를 고르지 않는다`() {
+        // 5월부터 매달 5일에 내다 7월은 빠뜨렸고 9월 20일에 해지했다. 끝 달(9월)까지 보이는 7월 판에 그 달은 '안 냈어요' 다.
+        val rows = monthly("넷플릭스", 5, 17_000, 5..9).filterNot { it.occurredAt in seoulInstant("2026-07-01")..seoulInstant("2026-08-01") }
+        val july = YearMonth.of(2026, 7)
+
+        val ended = state(split(rows, mapOf(ended("넷플릭스", "2026-09-20"))), july)
+
+        val item = ended.board.itemOf("넷플릭스")!!
+        assertEquals(FixedStatus.DUE, item.status)
+        assertTrue(ended.isEnded("넷플릭스"))
+        assertFalse(ended.canEnd(item))
+        assertFalse(ended.canRegister(item))
+
+        // 등록한 채였으면 같은 줄에 해지를 둔다(지난 달이라 등록하기는 없다)
+        val registered = state(split(rows, mapOf(registered("넷플릭스"))), july)
+        val same = registered.board.itemOf("넷플릭스")!!
+        assertFalse(registered.isEnded("넷플릭스"))
+        assertTrue(registered.canEnd(same))
+        assertFalse(registered.canRegister(same))
+    }
+
+    @Test
+    fun `끝 달이 이번 달인 해지한 곳의 아직 안 낸 줄에도 등록하기를 두지 않는다`() {
+        // 지금 계산은 끝 달에 낸 것이 있어 그 달을 냈어요로 두지만, 그 줄이 아직 안 냈어요여도 남은 차례를 더 내지 않는다.
+        // 판에 보이는 해지한 곳의 열쇠는 고른 달마다 다르다(끝 달 뒤에는 없다).
+        val state = state(split(monthly("넷플릭스", 5, 17_000, 5..9), mapOf(registered("넷플릭스"))))
+        val item = state.board.due.single()
+        assertTrue(state.canRegister(item))
+
+        val ended = state.copy(endedKeys = setOf("넷플릭스"))
+
+        assertFalse(ended.canRegister(item))
+        assertFalse(ended.canEnd(item))
     }
 }

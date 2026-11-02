@@ -161,7 +161,7 @@ fun FixedExpenseScreen(
             onDismiss = { removing = null },
             // 그만 낸 곳을 빼려던 것일 수 있어 해지도 고르게 한다. 이미 고른 것이라 해지 확인 창을 한 번 더 띄우지 않는다.
             // 해지한 곳(끝 달까지 보이는 줄)은 다시 해지할 것이 없어 두지 않는다.
-            extraLabel = END_TEXT.takeIf { item.key !in state.endedKeys },
+            extraLabel = END_TEXT.takeUnless { state.isEnded(item.key) },
             onExtra = {
                 removing = null
                 onEndMerchant(item.key)
@@ -451,11 +451,9 @@ private fun SummaryLine(label: String, amount: Long) {
 private fun FixedRow(item: FixedExpenseItem, state: FixedExpenseUiState, actions: RowActions) {
     val note = rowNote(item, state.month, state.today)
     val status = rowStatus(item, state.month, state.today)
-    // 해지한 곳(끝 달까지 보이는 줄)은 남은 차례를 더 내지 않으니 '등록하기' 도 '해지' 도 두지 않는다
-    val ended = item.key in state.endedKeys
-    val canRegister = !ended && item.status == FixedStatus.DUE && state.isThisMonth && item.merchant != null
-    // 안 냈거나 한동안 안 낸 줄은 그만둔 것일 수 있어 해지를 바로 누르게 한다(냈거나 안 내는 달인 줄은 길게 눌러서)
-    val canEnd = !ended && (item.status == FixedStatus.DUE || item.status == FixedStatus.STOPPED)
+    // 버튼 규칙은 화면 상태가 정한다(해지한 곳은 둘 다 없다)
+    val canRegister = state.canRegister(item)
+    val canEnd = state.canEnd(item)
     // 이번 달 돈이 아닌 줄(안 내는 달, 그만둔 것)은 금액을 흐리게 둔다
     val quiet = item.status == FixedStatus.NOT_THIS_MONTH || item.status == FixedStatus.STOPPED
     BudgetListItem(
@@ -475,7 +473,7 @@ private fun FixedRow(item: FixedExpenseItem, state: FixedExpenseUiState, actions
         onClickLabel = ROW_CLICK_LABEL,
         onClick = { actions.onOpenTransaction(item.latestId) },
         onLongClick = { actions.onRemove(item.key) },
-        onLongClickLabel = if (ended) state.texts.removeActionLabel else state.texts.removeOrEndActionLabel,
+        onLongClickLabel = if (state.isEnded(item.key)) state.texts.removeActionLabel else state.texts.removeOrEndActionLabel,
         // 줄과 띄우는 간격은 BudgetListItem 이 둔다
         trailing = {
             Text(

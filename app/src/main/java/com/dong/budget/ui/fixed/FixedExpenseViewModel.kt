@@ -70,6 +70,20 @@ data class FixedExpenseUiState(
     /** 보여 줄 것이 하나도 없는지(등록한 곳 · 물을 곳 · 등록 안 한 곳 · 해지한 곳 모두 없다) */
     val isEmpty: Boolean get() = board.isEmpty && candidates.isEmpty() && declined.isEmpty() && ended.isEmpty()
 
+    /**
+     * 판 줄 [key] 가 끝 달까지 보이는 해지한 곳인지([endedKeys], 고른 달마다 다르다). 그 줄은 남은 차례를 더 내지 않으니
+     * '등록하기' 도 '해지' 도 두지 않고, 길게 눌러 띄운 빼기 확인 창에도 '해지' 를 두지 않는다(다시 해지할 것이 없다).
+     */
+    fun isEnded(key: String): Boolean = key in endedKeys
+
+    /** 판 줄 [item] 에 '등록하기' 를 둘지. 이번 달에 아직 안 낸 줄이다. 가게 이름 없이 묶인 것은 무엇을 등록할지 몰라 두지 않는다. */
+    fun canRegister(item: FixedExpenseItem): Boolean =
+        !isEnded(item.key) && item.status == FixedStatus.DUE && isThisMonth && item.merchant != null
+
+    /** 판 줄 [item] 에 '해지' 를 둘지. 안 냈거나 한동안 안 낸 줄은 그만둔 것일 수 있어 바로 누르게 한다(냈거나 안 내는 달인 줄은 길게 눌러서). */
+    fun canEnd(item: FixedExpenseItem): Boolean =
+        !isEnded(item.key) && (item.status == FixedStatus.DUE || item.status == FixedStatus.STOPPED)
+
     companion object {
         /** 첫 계산 전 자리 값 */
         fun loading(kind: FixedKind, today: LocalDate): FixedExpenseUiState = FixedExpenseUiState(
@@ -80,6 +94,21 @@ data class FixedExpenseUiState(
             hasCategory = true,
             board = FixedExpenseBoard(),
         )
+
+        /** 목록으로 나눈 지출([split])로 [month] 를 [today] 에 본 상태. 화면 모델이 계산을 마칠 때마다 만든다. */
+        fun of(kind: FixedKind, month: YearMonth, today: LocalDate, hasCategory: Boolean, split: FixedRegistrySplit): FixedExpenseUiState =
+            FixedExpenseUiState(
+                kind = kind,
+                loaded = true,
+                month = month,
+                today = today,
+                hasCategory = hasCategory,
+                board = split.board(month, today),
+                candidates = split.candidates,
+                declined = split.declined,
+                ended = split.endedPlaces,
+                endedKeys = split.endedKeysIn(month),
+            )
     }
 }
 
@@ -156,19 +185,7 @@ class FixedExpenseViewModel(
                 ) { has, fixedRows, registry ->
                     val rows = fixedRows.map { it.item }
                     val created = fixedRows.associate { it.item.id to it.createdAt }
-                    val split = splitByRegistry(rows, registry, created, today)
-                    FixedExpenseUiState(
-                        kind = kind,
-                        loaded = true,
-                        month = month,
-                        today = today,
-                        hasCategory = has,
-                        board = split.board(month, today),
-                        candidates = split.candidates,
-                        declined = split.declined,
-                        ended = split.endedPlaces,
-                        endedKeys = split.endedKeysIn(month),
-                    )
+                    FixedExpenseUiState.of(kind, month, today, has, splitByRegistry(rows, registry, created, today))
                 }
                     // 계산만 기본 풀에서 한다. 조회는 Room 이 자기 스레드에서 한다.
                     .flowOn(Dispatchers.Default)
