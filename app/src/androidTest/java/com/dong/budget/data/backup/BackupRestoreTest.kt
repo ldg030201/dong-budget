@@ -239,6 +239,21 @@ class BackupRestoreTest {
     }
 
     @Test
+    fun `고정지출 목록 정리는 해지한 곳도 고정지출 지출이 남지 않았으면 지운다`() = runBlocking {
+        val ended = Instant.parse("2026-10-01T00:00:00Z")
+        // 넷플릭스는 해지했어도 '고정지출' 지출이 남아 있고(해지한 곳 묶음에 둔다), 스타벅스는 다른 분류로만 적었다
+        val list = listOf("넷플릭스", "스타벅스").map { FixedMerchantEntity(it, FixedMerchantState.ENDED, ended, endedAt = ended) }
+        repository.restore(backupOf(categories, expenseMethods, spends, "2.0.0", Instant.parse("2026-10-16T03:00:00Z"), list))
+
+        assertEquals(1, database.fixedMerchantDao().prune(FixedKind.EXPENSE))
+
+        assertEquals(
+            listOf(FixedMerchantEntity("넷플릭스", FixedMerchantState.ENDED, ended, endedAt = ended)),
+            database.backupDao().fixedMerchants(),
+        )
+    }
+
+    @Test
     fun `고정 목록 정리는 그 종류 목록만 지우고 다른 종류의 같은 가게는 그대로 둔다`() = runBlocking {
         val decided = Instant.parse("2026-10-01T00:00:00Z")
         // 넷플릭스는 '고정지출' 지출만, 적금은 '저축' 지출만 있다. 두 곳 모두 두 목록에 다 정해 두었다.
