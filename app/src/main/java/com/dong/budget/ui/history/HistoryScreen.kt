@@ -17,6 +17,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
@@ -110,13 +112,14 @@ fun HistoryScreen(
                     body = "'${state.query.trim()}'(으)로 찾은 거래가 없어요.\n가게 이름이나 금액을 다르게 적어 보세요.",
                 )
 
-            else -> HistoryList(state = state, onOpenTransaction = onOpenTransaction)
+            else -> HistorySearchList(state = state, onOpenTransaction = onOpenTransaction)
         }
     }
 }
 
+/** 내역 탭의 목록. 찾는 중이면 맨 위에 맞은 건수와 합을 적는다. */
 @Composable
-private fun HistoryList(state: HistoryUiState, onOpenTransaction: (Long) -> Unit) {
+private fun HistorySearchList(state: HistoryUiState, onOpenTransaction: (Long) -> Unit) {
     val listState = rememberLazyListState()
     val focusManager = LocalFocusManager.current
     // 목록을 끌면 키보드를 내린다. 찾은 것을 훑어볼 때 키보드가 절반을 가리지 않게 한다.
@@ -131,19 +134,37 @@ private fun HistoryList(state: HistoryUiState, onOpenTransaction: (Long) -> Unit
             listState.scrollToItem(0)
         }
     }
-    LazyColumn(
-        state = listState,
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(bottom = BudgetTheme.spacing.sectionGap),
-    ) {
+    HistoryList(months = state.months, today = state.today, onOpenTransaction = onOpenTransaction, listState = listState) {
         if (state.searching) {
             item(key = SUMMARY_KEY) { SearchSummary(count = state.count, totals = state.totals) }
         }
-        state.months.forEach { month ->
+    }
+}
+
+/**
+ * 달별 거래 목록. 달 머리(이번 달·9월·2025년 12월, 그 달 합)는 그 달을 지나는 동안 위에 붙어 있고, 그 아래 날짜 구분선과 거래 줄.
+ * 거래 줄을 누르면 [onOpenTransaction]. 내역 탭과 저축의 내역 탭이 같이 쓴다.
+ *
+ * @param contentPadding 목록 둘레 여백. 떠 있는 메뉴 밑에 깔리면 아래를 그만큼(floatingBarClearance) 비운다.
+ * @param header 달 묶음 위에 둘 줄(찾은 건수, 모은 돈 요약). key 는 달 머리 · 날짜 줄('month-' · 'day-')과 겹치지 않는 글로 준다.
+ */
+@Composable
+internal fun HistoryList(
+    months: List<HistoryMonth>,
+    today: LocalDate,
+    onOpenTransaction: (Long) -> Unit,
+    modifier: Modifier = Modifier,
+    listState: LazyListState = rememberLazyListState(),
+    contentPadding: PaddingValues = PaddingValues(bottom = BudgetTheme.spacing.sectionGap),
+    header: LazyListScope.() -> Unit = {},
+) {
+    LazyColumn(state = listState, modifier = modifier.fillMaxSize(), contentPadding = contentPadding) {
+        header()
+        months.forEach { month ->
             // 달 머리는 그 달을 지나는 동안 위에 붙어 있어 지금 몇 월을 보는지 알 수 있다
-            stickyHeader(key = "month-${month.month}") { MonthTitle(month = month, today = state.today) }
+            stickyHeader(key = "month-${month.month}") { MonthTitle(month = month, today = today) }
             month.days.forEach { day ->
-                item(key = "day-${day.date}") { DayHeader(date = day.date, today = state.today) }
+                item(key = "day-${day.date}") { DayHeader(date = day.date, today = today) }
                 // 거래 줄은 날마다 한 번에 넘긴다. 줄마다 하나씩 넘기면 검색어를 칠 때마다 모든 거래의 열쇠를 바로 만든다.
                 // 열쇠는 거래 번호(Long)라 다른 줄의 글자 열쇠와 겹치지 않는다.
                 items(day.items, key = { it.id }) { item -> TransactionRow(item = item, onClick = { onOpenTransaction(item.id) }) }

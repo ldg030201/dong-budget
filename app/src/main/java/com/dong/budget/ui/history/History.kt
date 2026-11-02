@@ -75,20 +75,21 @@ fun searchIndex(items: List<TransactionListItem>): List<SearchableItem> = items.
 fun buildHistory(index: List<SearchableItem>, query: String, today: LocalDate): HistoryUiState {
     val terms = searchTerms(query)
     val matched = if (terms.isEmpty()) index.map { it.item } else index.filter { it.matches(terms) }.map { it.item }
-    val months =
-        groupByDay(matched)
-            .groupBy { YearMonth.from(it.date) }
-            .map { (month, days) -> HistoryMonth(month, days, days.flatMap { it.items }.totals()) }
     return HistoryUiState(
         loaded = true,
         query = query,
-        months = months,
+        months = historyMonths(matched),
         count = matched.size,
         totals = matched.totals(),
         hasAny = index.isNotEmpty(),
         today = today,
     )
 }
+
+/** [items] 를 달마다(최근 달부터) 묶는다. 달 안은 날짜별로 묶는다. 내역과 저축 내역이 같이 쓴다. */
+internal fun historyMonths(items: List<TransactionListItem>): List<HistoryMonth> = groupByDay(items)
+    .groupBy { YearMonth.from(it.date) }
+    .map { (month, days) -> HistoryMonth(month, days, days.flatMap { it.items }.totals()) }
 
 /**
  * 검색 낱말 하나(작은 글자로).
