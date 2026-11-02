@@ -1,5 +1,6 @@
 package com.dong.budget.ui.fixed
 
+import com.dong.budget.data.db.FixedKind
 import com.dong.budget.data.db.TransactionListItem
 import com.dong.budget.data.db.fixedHistoryEnd
 import com.dong.budget.data.db.fixedHistoryStart
@@ -155,7 +156,7 @@ class FixedExpensesCrossCheckTest {
         val rows = bill("보험", 50_000, 3, YearMonth.of(2025, 1), SEP) + bill("보험", 45_000, 20, YearMonth.of(2025, 1), AUG)
         for (date in listOf("2026-10-01", "2026-10-02")) {
             val today = day(date)
-            val saved = rows + paid("보험", fixedExpensePrefill(view(rows, OCT, today), today).amount, date)
+            val saved = rows + paid("보험", fixedExpensePrefill(view(rows, OCT, today), today, FixedKind.EXPENSE).amount, date)
             assertEquals(date, "PAID 1/1 50000", short(view(saved, OCT, today)))
             assertEquals(date, "PAID 1/2 50000", short(view(saved, SEP, today)))
         }
@@ -277,7 +278,7 @@ class FixedExpensesCrossCheckTest {
         val kept = bill("통신", 33_000, 21, JAN, SEP) + bill("통신", 33_000, 21, NOV, MAR27) + bill("통신", 33_000, 21, JAN, AUG)
         for (date in listOf("2026-10-01", "2026-10-02", "2026-10-12")) {
             val today = day(date)
-            val saved = kept + paid("통신", fixedExpensePrefill(view(kept, OCT, today), today).amount, date)
+            val saved = kept + paid("통신", fixedExpensePrefill(view(kept, OCT, today), today, FixedKind.EXPENSE).amount, date)
             assertEquals(date, "PAID 1/1 33000", short(view(saved, OCT, today)))
             assertEquals(date, "PAID 1/2 33000", short(view(saved, SEP, today)))
             for (later in listOf("2026-10-25", "2026-11-25")) {

@@ -1,6 +1,7 @@
 package com.dong.budget.ui.fixed
 
 import com.dong.budget.data.db.BudgetTime
+import com.dong.budget.data.db.FixedKind
 import com.dong.budget.data.db.TransactionListItem
 import com.dong.budget.data.db.fixedHistoryEnd
 import com.dong.budget.data.db.fixedHistoryStart
@@ -60,7 +61,7 @@ class FixedExpensesVerifyTest {
         assertEquals(FixedStatus.DUE, november.status)
         assertEquals(33_000L * 22, november.amount)
         assertNull(rowNote(november, YearMonth.of(2026, 11), sunday))
-        val prefill = fixedExpensePrefill(november, sunday)
+        val prefill = fixedExpensePrefill(november, sunday, FixedKind.EXPENSE)
         assertEquals(33_000L, prefill.amount)
         assertEquals(sunday, BudgetTime.toLocalDate(Instant.ofEpochMilli(prefill.occurredAtMillis)))
         val mwf = setOf(DayOfWeek.MONDAY, DayOfWeek.WEDNESDAY, DayOfWeek.FRIDAY)
@@ -352,7 +353,7 @@ class FixedExpensesVerifyTest {
         assertEquals(listOf(1, LAST_DAY), october.usualDays)
         assertEquals(1, october.paidCount)
         assertEquals(30_000L, october.amount)
-        assertEquals(30_000L, fixedExpensePrefill(october, day("2026-10-15")).amount)
+        assertEquals(30_000L, fixedExpensePrefill(october, day("2026-10-15"), FixedKind.EXPENSE).amount)
         assertEquals(FixedStatus.PAID, view(insurer, YearMonth.of(2026, 10), day("2026-10-31")).status)
         assertEquals(80_000L, view(insurer, YearMonth.of(2026, 10), day("2026-10-31")).amount)
         assertEquals(30_000L, view(insurer, YearMonth.of(2026, 11), day("2026-11-15")).amount)

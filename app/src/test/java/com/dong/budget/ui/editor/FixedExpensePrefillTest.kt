@@ -2,7 +2,10 @@ package com.dong.budget.ui.editor
 
 import com.dong.budget.data.db.BudgetTime
 import com.dong.budget.data.db.FIXED_CATEGORY_CODE
+import com.dong.budget.data.db.FixedKind
+import com.dong.budget.data.db.SAVINGS_CATEGORY_CODE
 import com.dong.budget.data.db.TransactionListItem
+import com.dong.budget.data.db.TransactionType
 import com.dong.budget.data.db.fixedHistoryEnd
 import com.dong.budget.data.db.fixedHistoryStart
 import com.dong.budget.navigation.EditorPrefill
@@ -62,7 +65,7 @@ class FixedExpensePrefillTest {
     @Test
     fun `지난번 가게·금액·결제수단과 고정지출 분류로 채운 지출 등록창이다`() {
         val today = day("2026-10-27")
-        val prefill = fixedExpensePrefill(item(netflix, today), today)
+        val prefill = fixedExpensePrefill(item(netflix, today), today, FixedKind.EXPENSE)
         assertEquals(PrefillSource.FIXED_EXPENSE, prefill.source)
         assertEquals(FIXED_CATEGORY_CODE, prefill.categoryCode)
         assertEquals(17_000L, prefill.amount)
@@ -78,16 +81,30 @@ class FixedExpensePrefillTest {
     }
 
     @Test
+    fun `고정저축 등록하기는 저축 분류와 고정저축 출처로 채우고 나머지는 고정지출과 같다`() {
+        val today = day("2026-10-27")
+        val savings = item(listOf(tx("2026-09-25T07:30", 300_000, categoryId = 7, paymentId = 12, merchant = "청년 적금")), today)
+        val prefill = fixedExpensePrefill(savings, today, FixedKind.SAVINGS)
+        assertEquals(PrefillSource.FIXED_SAVINGS, prefill.source)
+        assertEquals(SAVINGS_CATEGORY_CODE, prefill.categoryCode)
+        // 저축도 지출 등록창이다(저축은 지출 분류다)
+        assertEquals(TransactionType.EXPENSE, prefill.source.type)
+        // 금액 · 가게 · 날짜 · 결제수단은 고정지출 등록하기와 같다
+        val expense = fixedExpensePrefill(savings, today, FixedKind.EXPENSE)
+        assertEquals(expense.copy(source = PrefillSource.FIXED_SAVINGS, categoryCode = SAVINGS_CATEGORY_CODE), prefill)
+    }
+
+    @Test
     fun `평소 날짜가 지났으면 그날, 시각은 지난번 거래의 시각이다`() {
         val today = day("2026-10-27")
-        val prefill = fixedExpensePrefill(item(netflix, today), today)
+        val prefill = fixedExpensePrefill(item(netflix, today), today, FixedKind.EXPENSE)
         assertEquals(LocalDateTime.of(2026, 10, 25, 7, 30), at(prefill.occurredAtMillis))
     }
 
     @Test
     fun `평소 날짜가 아직이면 앞날로 적히지 않게 오늘이다`() {
         val today = day("2026-10-02")
-        val prefill = fixedExpensePrefill(item(netflix, today), today)
+        val prefill = fixedExpensePrefill(item(netflix, today), today, FixedKind.EXPENSE)
         assertEquals(LocalDateTime.of(2026, 10, 2, 7, 30), at(prefill.occurredAtMillis))
     }
 
@@ -100,7 +117,7 @@ class FixedExpensePrefillTest {
             )
         // 11월은 30일까지다
         val today = day("2026-11-30")
-        val prefill = fixedExpensePrefill(item(rows, today), today)
+        val prefill = fixedExpensePrefill(item(rows, today), today, FixedKind.EXPENSE)
         assertEquals(LocalDateTime.of(2026, 11, 30, 12, 0), at(prefill.occurredAtMillis))
     }
 
@@ -112,7 +129,7 @@ class FixedExpensePrefillTest {
                 tx("2026-09-30T09:00", 120_000, categoryId = 4, merchant = "관리비"),
             )
         val today = day("2026-10-31")
-        val prefill = fixedExpensePrefill(item(rows, today), today)
+        val prefill = fixedExpensePrefill(item(rows, today), today, FixedKind.EXPENSE)
         assertEquals(LocalDateTime.of(2026, 10, 31, 9, 0), at(prefill.occurredAtMillis))
     }
 
@@ -123,13 +140,16 @@ class FixedExpensePrefillTest {
                 tx(it, 17_000, categoryId = 4, merchant = "넷플릭스")
             }
         val today = day("2026-10-26")
-        assertEquals(17_000L, fixedExpensePrefill(item(rows, today), today).amount)
+        assertEquals(17_000L, fixedExpensePrefill(item(rows, today), today, FixedKind.EXPENSE).amount)
     }
 
     @Test
     fun `같은 날 몇 번을 눌러도 같은 값이다`() {
         val today = day("2026-10-27")
-        assertEquals(fixedExpensePrefill(item(netflix, today), today), fixedExpensePrefill(item(netflix, today), today))
+        assertEquals(
+            fixedExpensePrefill(item(netflix, today), today, FixedKind.EXPENSE),
+            fixedExpensePrefill(item(netflix, today), today, FixedKind.EXPENSE),
+        )
     }
 
     @Test
@@ -137,7 +157,7 @@ class FixedExpensePrefillTest {
         val today = day("2026-10-27")
         val nameless = item(listOf(tx("2026-09-05", 3_000, categoryId = 4, merchant = null)), today)
         assertEquals(FixedStatus.DUE, nameless.status)
-        val prefill = fixedExpensePrefill(nameless, today)
+        val prefill = fixedExpensePrefill(nameless, today, FixedKind.EXPENSE)
         assertEquals("", prefill.merchant)
         assertNull(prefill.paymentMethodId)
     }
@@ -146,7 +166,7 @@ class FixedExpensePrefillTest {
     fun `한 달에 여러 번 낸 합이 12자리를 넘으면 등록창이 받는 가장 큰 금액으로 자른다`() {
         val rows = List(2) { tx("2026-09-05", 900_000_000_000, categoryId = 4, merchant = "큰돈") }
         val today = day("2026-10-27")
-        assertEquals(999_999_999_999L, fixedExpensePrefill(item(rows, today), today).amount)
+        assertEquals(999_999_999_999L, fixedExpensePrefill(item(rows, today), today, FixedKind.EXPENSE).amount)
     }
 
     @Test
@@ -155,7 +175,7 @@ class FixedExpensePrefillTest {
         val today = day("2026-10-02")
         val before = view(netflix, october, today)
         assertEquals(FixedStatus.DUE, before.status)
-        val rows = netflix + saved(fixedExpensePrefill(before, today))
+        val rows = netflix + saved(fixedExpensePrefill(before, today, FixedKind.EXPENSE))
         val after = view(rows, october, today)
         assertEquals(FixedStatus.PAID, after.status)
         assertEquals(17_000L, after.amount)
@@ -183,7 +203,7 @@ class FixedExpensePrefillTest {
                 generateSequence(month.atDay(1)) { it.plusDays(1) }.takeWhile { it < usualDateOf(month, usual) }.forEach { today ->
                     val known = history.filter { it.localDate().isBefore(today) }
                     val before = view(known, month, today)
-                    val rows = known + saved(fixedExpensePrefill(before, today))
+                    val rows = known + saved(fixedExpensePrefill(before, today, FixedKind.EXPENSE))
                     val after = view(rows, month, today)
                     val previous = month.minusMonths(1)
                     if (!dues.getValue(previous).isBefore(today)) {
@@ -216,7 +236,7 @@ class FixedExpensePrefillTest {
         val before = view(rows, october, today)
         assertEquals(FixedStatus.DUE, before.status)
         assertEquals(YearMonth.of(2026, 9), before.missedMonth)
-        val saved = rows + saved(fixedExpensePrefill(before, today))
+        val saved = rows + saved(fixedExpensePrefill(before, today, FixedKind.EXPENSE))
         assertEquals(FixedStatus.PAID, view(saved, YearMonth.of(2026, 9), today).status)
         val after = view(saved, october, today)
         assertEquals(FixedStatus.DUE, after.status)
@@ -240,7 +260,7 @@ class FixedExpensePrefillTest {
         val october = YearMonth.of(2026, 10)
         listOf(day("2026-10-20"), day("2026-10-30")).forEach { today ->
             val before = view(rows, october, today)
-            val prefill = fixedExpensePrefill(before, today)
+            val prefill = fixedExpensePrefill(before, today, FixedKind.EXPENSE)
             assertEquals("$today", 30_000L, prefill.amount)
             assertEquals("$today", minOf(today, day("2026-10-28")), at(prefill.occurredAtMillis).toLocalDate())
             val after = view(rows + saved(prefill), october, today)

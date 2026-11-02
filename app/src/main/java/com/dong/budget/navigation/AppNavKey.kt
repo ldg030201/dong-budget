@@ -77,6 +77,9 @@ enum class PrefillSource(val type: TransactionType) {
 
     /** 토스 입금 알림(수입). 보낸 사람이 내용, 들어온 통장이 들어온 곳이다. */
     DEPOSIT_ALERT(TransactionType.INCOME),
+
+    /** 고정저축 탭의 '등록하기'(지출). 지난번 고정저축의 가게(상품)·금액·결제수단으로 채우고 분류는 '저축' 이다. */
+    FIXED_SAVINGS(TransactionType.EXPENSE),
 }
 
 /** 거래 등록/수정. transactionId 가 null 이면 새로 등록하는 것이다. prefill 이 있으면 그 값으로 채워 연다. */

@@ -73,6 +73,7 @@ private fun AppNavKey.logName(): String = when (this) {
                 PrefillSource.DEPOSIT_ALERT -> "등록창(입금 알림에서)"
                 PrefillSource.PAYDAY -> "등록창(월급날)"
                 PrefillSource.FIXED_EXPENSE -> "등록창(고정지출)"
+                PrefillSource.FIXED_SAVINGS -> "등록창(고정저축)"
             }
         }
 

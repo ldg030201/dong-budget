@@ -516,7 +516,7 @@ private fun RowExtras(
                     BudgetSmallButton(
                         text = REGISTER_TEXT,
                         // 누를 때마다 같은 값이 나와서(평소 날짜·지난번 시각) 연달아 눌러도 등록창이 두 번 쌓이지 않는다
-                        onClick = { actions.onRegister(fixedExpensePrefill(item, state.today)) },
+                        onClick = { actions.onRegister(fixedExpensePrefill(item, state.today, state.kind)) },
                         modifier = Modifier.semantics { contentDescription = registerLabel(item.name) },
                         // 이 탭에서 주로 할 일이라 회색 '해지' 와 갈리게 연한 남색으로 둔다(알림 목록의 '모두 읽음' 과 같다)
                         container = MaterialTheme.colorScheme.primaryContainer,

@@ -1,5 +1,6 @@
 package com.dong.budget.ui.fixed
 
+import com.dong.budget.data.db.FixedKind
 import com.dong.budget.data.db.TransactionListItem
 import com.dong.budget.data.db.fixedHistoryEnd
 import com.dong.budget.data.db.fixedHistoryStart
@@ -142,7 +143,7 @@ class FixedExpensesRecheckTest {
             val due = view(lines, october, today)
             assertEquals(date, FixedStatus.DUE, due.status)
             assertEquals(date, 45_000L, due.amount)
-            val prefill = fixedExpensePrefill(due, today)
+            val prefill = fixedExpensePrefill(due, today, FixedKind.EXPENSE)
             assertEquals(date, 45_000L, prefill.amount)
             val saved = lines + paid("통신사", prefill.amount, date)
             val after = view(saved, october, today)

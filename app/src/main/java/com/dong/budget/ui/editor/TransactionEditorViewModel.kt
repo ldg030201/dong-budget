@@ -58,7 +58,7 @@ const val SALARY_ALREADY_REGISTERED_MESSAGE = "이번 달 월급은 이미 등�
 
 /** 이 출처로 채운 거래가 이미 가계부에 있을 때의 안내. 등록창과 알림을 눌러 들어올 때가 같이 쓴다. */
 fun PrefillSource.alreadyRegisteredMessage(): String = when (this) {
-    PrefillSource.PAYMENT_ALERT, PrefillSource.FIXED_EXPENSE -> ALREADY_REGISTERED_MESSAGE
+    PrefillSource.PAYMENT_ALERT, PrefillSource.FIXED_EXPENSE, PrefillSource.FIXED_SAVINGS -> ALREADY_REGISTERED_MESSAGE
     PrefillSource.DEPOSIT_ALERT -> DEPOSIT_ALREADY_REGISTERED_MESSAGE
     PrefillSource.PAYDAY -> SALARY_ALREADY_REGISTERED_MESSAGE
 }
