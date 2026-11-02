@@ -456,7 +456,8 @@ internal sealed interface FixedTexts {
 
         override val noCategoryTitle = "저축 분류가 없어요"
 
-        override val noCategoryBody = "분류 관리에서 '저축' 분류를 다시 만들면, 그 분류로 적은 저축을 여기서 볼 수 있어요."
+        // 저축 화면의 내역 · 통계 탭과 같은 말이다
+        override val noCategoryBody = "분류 관리에서 '저축' 분류를 다시 만들면, 그 분류로 적은 돈을 여기서 볼 수 있어요."
 
         // 저축 화면의 내역 · 통계 탭 빈 화면('아직 저축이 없어요')과 같은 말로 맞춘다
         override fun emptyTitle(month: YearMonth, today: LocalDate) =

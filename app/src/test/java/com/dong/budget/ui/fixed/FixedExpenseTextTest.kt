@@ -501,7 +501,7 @@ class FixedExpenseTextTest {
         assertEquals("아직 저축이 없어요", savings.emptyTitle(october, today))
         assertEquals("8월까지는 저축이 없어요", savings.emptyTitle(YearMonth.of(2026, 8), today))
         assertEquals("저축 분류가 없어요", savings.noCategoryTitle)
-        assertEquals("분류 관리에서 '저축' 분류를 다시 만들면, 그 분류로 적은 저축을 여기서 볼 수 있어요.", savings.noCategoryBody)
+        assertEquals("분류 관리에서 '저축' 분류를 다시 만들면, 그 분류로 적은 돈을 여기서 볼 수 있어요.", savings.noCategoryBody)
         assertTrue(savings.emptyBody, "'저축' 분류로 적으면" in savings.emptyBody)
     }
 }
