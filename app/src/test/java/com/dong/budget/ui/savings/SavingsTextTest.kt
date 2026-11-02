@@ -56,6 +56,11 @@ class SavingsTextTest {
         assertEquals("토스뱅크, 300,000원, 모은 돈의 42퍼센트, 3건", paymentDescription(toss))
         assertNull(paymentNote(toss))
 
+        // 지출 통계의 결제수단 줄처럼 한 번에 평균을 덧붙인다(보이는 줄은 줄여서, 화면 읽기는 1원까지)
+        val averaged = toss.copy(averageTicket = 100_000)
+        assertEquals("42% · 3건 · 한 번에 평균 10만원", paymentSummary(averaged))
+        assertEquals("토스뱅크, 300,000원, 모은 돈의 42퍼센트, 3건, 한 번에 평균 100,000원", paymentDescription(averaged))
+
         val cash = entry(GroupKey.Id(2), "현금", -50_000, share = null, count = 1)
         assertEquals("꺼낸 돈이 더 많아요", paymentSummary(cash))
         assertEquals("현금, -50,000원, 꺼낸 돈이 더 많아요", paymentDescription(cash))

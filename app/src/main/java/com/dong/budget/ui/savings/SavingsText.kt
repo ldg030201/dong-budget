@@ -65,18 +65,22 @@ internal const val PAYMENT_TITLE = "결제수단별"
 /** 결제수단 도넛 가운데 위 글자 */
 internal const val DONUT_CAPTION = "모은 돈"
 
-/** 결제수단 줄 둘째 줄. "42% · 3건". 꺼낸 돈이 더 많은 결제수단은 비율 대신 "꺼낸 돈이 더 많아요" */
+/**
+ * 결제수단 줄 둘째 줄. "42% · 3건 · 한 번에 평균 10만원"(지출 통계의 결제수단 줄과 같은 꼴). 평균은 넣은 돈만으로 잰다([BreakdownEntry.averageTicket]).
+ * 꺼낸 돈이 더 많은 결제수단은 비율 대신 "꺼낸 돈이 더 많아요"
+ */
 fun paymentSummary(entry: BreakdownEntry): String {
     val share = entry.share ?: return WITHDRAWN_MORE_TEXT
-    return "${formatShare(share)} · ${entry.count}건"
+    return listOfNotNull(formatShare(share), "${entry.count}건", entry.averageTicket?.let { "한 번에 평균 ${formatCompactWon(it)}" })
+        .joinToString(" · ")
 }
 
 /** 지운 결제수단으로 적은 저축이 '결제수단 없음' 에 모인다는 안내. 아니면 null */
 fun paymentNote(entry: BreakdownEntry): String? = if (entry.key == GroupKey.None) "지운 결제수단으로 적은 저축도 여기에 모여요" else null
 
 /**
- * 결제수단 줄을 화면 읽기가 한 번에 읽을 문장. 보이는 줄과 같은 순서다.
- * "토스뱅크, 300,000원, 모은 돈의 42퍼센트, 3건" / "현금, -50,000원, 꺼낸 돈이 더 많아요"
+ * 결제수단 줄을 화면 읽기가 한 번에 읽을 문장. 보이는 줄과 같은 순서이고 금액은 줄이지 않는다.
+ * "토스뱅크, 300,000원, 모은 돈의 42퍼센트, 3건, 한 번에 평균 100,000원" / "현금, -50,000원, 꺼낸 돈이 더 많아요"
  */
 fun paymentDescription(entry: BreakdownEntry): String = buildList {
     add(entry.name)
@@ -87,6 +91,7 @@ fun paymentDescription(entry: BreakdownEntry): String = buildList {
     } else {
         add("모은 돈의 ${spokenShare(share)}")
         add("${entry.count}건")
+        entry.averageTicket?.let { add("한 번에 평균 ${formatAmount(it)}원") }
     }
     paymentNote(entry)?.let(::add)
 }.joinToString(", ")
