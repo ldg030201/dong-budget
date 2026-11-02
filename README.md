@@ -27,7 +27,7 @@
 - 💰 **[실시간 월급](docs/guide/salary.md)** — 일하는 동안 오늘 번 돈이 초마다 올라간다. PIN·지문으로 잠근다
 - 📊 **[통계](docs/guide/statistics.md)** — 한눈에 · 월별 · 일별 · 분류 · 결제수단
 - 🐷 **[저축](docs/guide/savings.md)** — '저축' 분류로 적은 돈은 쓴 돈에서 빼고 따로 모은다. 내역 · 통계 · 고정저축
-- 🗓️ **[고정지출](docs/guide/fixed-expenses.md)** — 매달 나가는 돈을 이번 달에 냈는지. 넣을 곳은 직접 고르고, 날짜와 금액은 지난 기록으로 짐작한다
+- 🗓️ **[고정지출](docs/guide/fixed-expenses.md)** — 매달 나가는 돈을 이번 달에 냈는지. 넣을 곳은 직접 고르고 그만 낸 곳은 해지한다. 날짜와 금액은 지난 기록으로 짐작한다
 - 💳 **[카드실적](docs/guide/card-performance.md)** — 카드마다 다음 실적 구간까지 얼마 더 쓰면 되는지
 - 🗂️ **[분류 관리](docs/guide/categories.md)** · ⚙️ **[설정](docs/guide/settings.md)** — 아이콘과 색, 아래 메뉴 차림, 백업 · 복원, 앱 잠금
 
