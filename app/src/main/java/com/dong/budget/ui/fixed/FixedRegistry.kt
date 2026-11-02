@@ -26,8 +26,8 @@ import java.time.YearMonth
 // ─────────────────────────────────────────────────────────────────────
 
 /**
- * 판에 없는(묻거나 등록 안 했거나 해지한) 한 곳. 가장 최근 '고정지출' 분류 지출([latest])로 보여 준다.
- * @property key 고정지출 탭이 묶는 열쇠([fixedMerchantKey]). 목록에 이 열쇠로 정한다.
+ * 판에 없는(묻거나 등록 안 했거나 해지한) 한 곳. 가장 최근 그 분류('고정지출' · '저축') 지출([latest])로 보여 준다.
+ * @property key 고정지출 · 고정저축 탭이 묶는 열쇠([fixedMerchantKey]). 목록에 이 열쇠로 정한다.
  * @property name 보이는 이름([fixedMerchantName]). 이름 없이 묶인 것은 [NO_MERCHANT_NAME]
  * @property latest 가장 최근 지출. 줄을 누르면 이 거래의 상세가 열리고, 뱃지 · 결제수단 · 금액도 이것으로 보여 준다.
  */

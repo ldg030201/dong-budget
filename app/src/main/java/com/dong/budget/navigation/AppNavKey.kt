@@ -34,13 +34,13 @@ data object ShellKey : AppNavKey
  *   수입으로 여는 곳(입금 알림·월급날)이면 들어온 곳에서 찾는다(입금 알림은 통장 이름).
  *   '카드·통장 이름으로 미리 고르기' 를 껐으면 null 이다.
  * @property memo 채울 메모(할부). '할부는 메모에 적기' 를 껐으면 null 이다.
- * @property dedupKey 같은 결제를 두 번 등록하지 않게 거래에 함께 저장한다. 막을 열쇠가 없는 곳(고정지출)은 null 이다.
+ * @property dedupKey 같은 결제를 두 번 등록하지 않게 거래에 함께 저장한다. 막을 열쇠가 없는 곳(고정지출 · 고정저축)은 null 이다.
  *   빈 글("")을 넣으면 안 된다. 거래의 UNIQUE 인덱스에 걸려 두 번째 저장부터 막힌다.
  * @property guessCategory 같은 가게(입금이면 보낸 사람)로 전에 등록한 같은 종류(지출·수입) 거래의 분류를 미리 고를지
  * @property addMissingCard [paymentName] 과 같은 결제수단이 없을 때 '신규' 로 골라 두고 저장할 때 만들지. 아니면 비워 둔다.
  * @property source 어디서 채운 값인지. 입금 알림·월급날이면 수입으로 연다.
  * @property categoryCode 미리 고를 기본 분류의 코드(월급날이면 급여 'SALARY'). 사용자가 지웠으면 비워 둔다.
- * @property paymentMethodId 이름 대신 번호로 고를 결제수단(고정지출은 지난번 결제수단). 그사이 지웠으면 비어 보이고 사용자가 고른다.
+ * @property paymentMethodId 이름 대신 번호로 고를 결제수단(고정지출 · 고정저축은 지난번 결제수단). 그사이 지웠으면 비어 보이고 사용자가 고른다.
  *   [paymentName] 과 같이 주지 않는다.
  *
  * 칸을 늘릴 때는 맨 뒤에 기본값을 달아 둔다. 앱이 다시 떠서 되살리는 옛 백스택에는 새 칸이 없다.

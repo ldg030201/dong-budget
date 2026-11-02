@@ -21,18 +21,18 @@ import java.time.YearMonth
 const val NO_MERCHANT_KEY = ""
 
 /**
- * 고정지출 탭이 가게를 묶는 열쇠. 많이 쓴 곳과 같은 열쇠([merchantKey])이고, 이름이 없으면 모두 [NO_MERCHANT_KEY] 하나다.
- * 고정지출 목록이 이 열쇠를 저장하므로, 규칙을 바꾸면 저장해 둔 목록과 어긋난다.
+ * 고정지출 · 고정저축 탭이 가게를 묶는 열쇠. 많이 쓴 곳과 같은 열쇠([merchantKey])이고, 이름이 없으면 모두 [NO_MERCHANT_KEY] 하나다.
+ * 고정지출 · 고정저축 목록이 이 열쇠를 저장하므로, 규칙을 바꾸면 저장해 둔 목록과 어긋난다.
  */
 fun fixedMerchantKey(merchant: String?): String = merchantKey(merchant) ?: NO_MERCHANT_KEY
 
-/** 고정지출 탭이 고른 달 앞으로 읽는 달 수. 매년(직전 간격 최대 13) + 한 달 늦음(1) + 그 앞 해(12) + 첫 달 몫을 전달 말에 낸 것(1) */
+/** 고정지출 · 고정저축 탭이 고른 달 앞으로 읽는 달 수. 매년(직전 간격 최대 13) + 한 달 늦음(1) + 그 앞 해(12) + 첫 달 몫을 전달 말에 낸 것(1) */
 internal const val FIXED_HISTORY_MONTHS = 27L
 
 /**
  * [month] 를 계산하려면 읽어야 하는 첫 달. 매년 내는 것이 한 달 늦어진 때에도 그 앞 해의 결제까지 보여야 매년인 줄 알 수 있어서,
  * 고른 달 앞으로 [FIXED_HISTORY_MONTHS] 달을 읽는다. 첫 달 몫을 전달 말에 미리 냈을 수도 있어 한 달 더 읽는다.
- * 고정지출 계산(ui/fixed)과 목록 등록([registerShownFixedMerchants])이 같이 쓴다.
+ * 고정지출 · 고정저축 계산(ui/fixed)과 고정지출 목록 등록([registerShownFixedMerchants])이 같이 쓴다.
  */
 fun fixedHistoryStart(month: YearMonth): YearMonth = month.minusMonths(FIXED_HISTORY_MONTHS)
 

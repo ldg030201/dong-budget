@@ -37,7 +37,7 @@ data class TransactionListItem(
 )
 
 /**
- * 고정지출 탭의 한 줄. 목록 줄에 처음 적은 때를 더했다. '등록 안 함' 뒤에 새로 적은 지출인지는 이 탭만 봐서,
+ * 고정지출 · 고정저축 탭의 한 줄. 목록 줄에 처음 적은 때를 더했다. '등록 안 함' 뒤에 새로 적은 지출인지는 이 두 탭만 봐서,
  * 모든 화면이 쓰는 목록 줄([TransactionListItem])에는 두지 않는다.
  */
 data class FixedExpenseRow(@Embedded val item: TransactionListItem, val createdAt: Instant)
@@ -62,7 +62,7 @@ internal const val MERCHANTS_WITH_CATEGORY_CODE_SQL = "SELECT DISTINCT t.merchan
  */
 internal const val FIXED_MERCHANT_KEYS_SQL = "SELECT merchantKey FROM fixed_merchants"
 
-/** [TransactionListItem] 의 칸들. 고정지출 탭은 여기에 처음 적은 때를 더해 읽는다([FixedExpenseRow]). */
+/** [TransactionListItem] 의 칸들. 고정지출 · 고정저축 탭은 여기에 처음 적은 때를 더해 읽는다([FixedExpenseRow]). */
 private const val LIST_ITEM_COLUMNS =
     """
                t.id, t.type, t.amount, t.occurredAt, t.occurredDate,
