@@ -1,6 +1,8 @@
 package com.dong.budget.ui.savings
 
+import androidx.annotation.DrawableRes
 import androidx.compose.runtime.Immutable
+import com.dong.budget.R
 import com.dong.budget.ui.history.HistoryMonth
 import com.dong.budget.ui.home.ComparisonScope
 import com.dong.budget.ui.stats.Breakdown
@@ -12,6 +14,21 @@ import java.time.YearMonth
 // 저축 화면이 그리는 값. 모두 '저축' 분류 거래(isSavings)에서 순수 함수(SavingsCalc)로 계산한다.
 // 금액은 모은 돈(저축 − 꺼낸 돈, Totals.savings)이다. 꺼낸 돈(저축 분류의 환불)이 더 많으면 음수다.
 // ─────────────────────────────────────────────────────────────────────
+
+/**
+ * 저축 안의 하위 메뉴. 아래 떠 있는 메뉴에 이 순서로 선다.
+ * @property paneTitle 탭을 바꿀 때 화면 읽기가 알리는 이름. 내역 메뉴 · 통계와 가리게 '저축' 을 붙인다.
+ */
+enum class SavingsTab(val label: String, @DrawableRes val icon: Int, val paneTitle: String) {
+    /** 저축 거래를 달마다 늘어놓는다. 들어오면 이 칸부터 본다. 내역 메뉴와 같은 아이콘이다. */
+    HISTORY("내역", R.drawable.ic_sym_receipt_long, "저축 내역"),
+
+    /** 고른 달 모은 돈을 상품 · 결제수단으로 나눠 본다. 통계 메뉴와 같은 아이콘이다. */
+    STATS("통계", R.drawable.ic_sym_bar_chart, "저축 통계"),
+
+    /** 매달 넣는 저축(적금 · 청약 등)을 그 달 냈는지 본다. 고정지출 메뉴와 같은 아이콘이다. */
+    FIXED("고정저축", R.drawable.ic_sym_event_repeat, "고정저축"),
+}
 
 /**
  * 저축 화면(내역 · 통계 탭)의 상태. 고정저축 탭은 따로 읽는다.
