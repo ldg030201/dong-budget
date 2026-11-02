@@ -411,7 +411,7 @@ private fun SummaryLine(label: String, amount: Long) {
 /**
  * 가게 한 줄. 뱃지(지난번 결제수단, 없으면 분류), 이름, 부제(언제·어느 카드), 덧붙임 한 줄(지났어요·올랐어요 등), 오른쪽에 금액.
  * 덧붙임 아래에 이번 달에 아직 안 냈으면 '등록하기' 를, 안 냈거나 한동안 안 냈으면 '해지' 를 둔다([RowExtras]).
- * 가게 이름 없이 묶인 것은 무엇을 등록할지 몰라 '등록하기' 를 두지 않는다. 해지한 곳(끝 달까지 보이는 줄)에는 '해지' 를 두지 않는다.
+ * 가게 이름 없이 묶인 것은 무엇을 등록할지 몰라 '등록하기' 를 두지 않는다. 해지한 곳(끝 달까지 보이는 줄)에는 둘 다 두지 않는다.
  * 길게 누르면 고정지출 목록에서 뺄지 묻는다(지난 거래의 분류는 그대로다). 해지한 곳이 아니면 그 창에서 해지할 수도 있다.
  *
  * 화면 읽기는 줄을 한 번에 읽고 상태(냈어요·아직 안 냈어요 등)를 덧붙인다. 묶음 제목뿐 아니라 줄마다 상태를 글로 알린다.
@@ -422,9 +422,10 @@ private fun SummaryLine(label: String, amount: Long) {
 private fun FixedRow(item: FixedExpenseItem, state: FixedExpenseUiState, actions: RowActions) {
     val note = rowNote(item, state.month, state.today)
     val status = rowStatus(item, state.month, state.today)
-    val canRegister = item.status == FixedStatus.DUE && state.isThisMonth && item.merchant != null
-    // 안 냈거나 한동안 안 낸 줄은 그만둔 것일 수 있어 해지를 바로 누르게 한다(냈거나 안 내는 달인 줄은 길게 눌러서)
+    // 해지한 곳(끝 달까지 보이는 줄)은 남은 차례를 더 내지 않으니 '등록하기' 도 '해지' 도 두지 않는다
     val ended = item.key in state.endedKeys
+    val canRegister = !ended && item.status == FixedStatus.DUE && state.isThisMonth && item.merchant != null
+    // 안 냈거나 한동안 안 낸 줄은 그만둔 것일 수 있어 해지를 바로 누르게 한다(냈거나 안 내는 달인 줄은 길게 눌러서)
     val canEnd = !ended && (item.status == FixedStatus.DUE || item.status == FixedStatus.STOPPED)
     // 이번 달 돈이 아닌 줄(안 내는 달, 그만둔 것)은 금액을 흐리게 둔다
     val quiet = item.status == FixedStatus.NOT_THIS_MONTH || item.status == FixedStatus.STOPPED
