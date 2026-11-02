@@ -54,8 +54,6 @@ import com.dong.budget.ui.components.TabEmptyState
 import com.dong.budget.ui.components.TabHeader
 import com.dong.budget.ui.components.TransactionRow
 import com.dong.budget.ui.format.formatAmount
-import com.dong.budget.ui.format.formatNetExpense
-import com.dong.budget.ui.format.formatSignedTotal
 import com.dong.budget.ui.format.monthLabel
 import com.dong.budget.ui.home.Totals
 import com.dong.budget.ui.shell.color
@@ -227,7 +225,7 @@ private fun SearchSummary(count: Int, totals: Totals) {
 }
 
 /**
- * 달 머리. 왼쪽에 달 이름, 오른쪽에 그 달(찾는 중이면 맞은 거래) 지출·수입 합. 위에 붙어 있는 동안 아래 줄이 비치지 않게 바탕을 칠한다.
+ * 달 머리. 왼쪽에 달 이름, 오른쪽에 그 달(찾는 중이면 맞은 거래) 지출·수입·저축 합. 위에 붙어 있는 동안 아래 줄이 비치지 않게 바탕을 칠한다.
  * 화면 읽기가 달마다 건너뛸 수 있게 제목으로 둔다.
  */
 @Composable
@@ -253,12 +251,6 @@ private fun MonthTitle(month: HistoryMonth, today: LocalDate) {
         }
     }
 }
-
-/** "지출 -45,000원 · 수입 +3,000원". 0 인 쪽은 뺀다. 둘 다 0(이체만)이면 null */
-private fun totalsText(totals: Totals): String? = listOfNotNull(
-    totals.expense.takeIf { it != 0L }?.let { "지출 ${formatNetExpense(it)}" },
-    totals.income.takeIf { it != 0L }?.let { "수입 ${formatSignedTotal(it)}" },
-).joinToString(" · ").ifEmpty { null }
 
 private const val SUMMARY_KEY = "summary"
 

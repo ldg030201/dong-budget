@@ -1,5 +1,6 @@
 package com.dong.budget.ui.history
 
+import com.dong.budget.data.db.SAVINGS_CATEGORY_CODE
 import com.dong.budget.data.db.TransactionType.INCOME
 import com.dong.budget.data.db.TransactionType.REFUND
 import com.dong.budget.testing.day
@@ -7,6 +8,7 @@ import com.dong.budget.testing.tx
 import com.dong.budget.ui.home.Totals
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.YearMonth
@@ -76,6 +78,51 @@ class HistoryTest {
         assertEquals(2, state.count)
         // 지출 4,500 − 환불 4,500
         assertEquals(Totals(expense = 0), state.totals)
+    }
+
+    @Test
+    fun `저축은 지출로 찾히지 않고 저축으로 찾히며 합계에서는 저축 칸에 모인다`() {
+        // 분류 이름을 '적금통장' 으로 바꾼 저축 분류. 코드가 그대로라 저축이다.
+        val deposit =
+            tx(
+                "2026-10-03",
+                300_000,
+                merchant = "카카오뱅크",
+                categoryId = 7,
+                categoryName = "적금통장",
+                categoryCode = SAVINGS_CATEGORY_CODE,
+            )
+        val withdraw =
+            tx(
+                "2026-10-04",
+                100_000,
+                REFUND,
+                merchant = "카카오뱅크",
+                categoryId = 7,
+                categoryName = "적금통장",
+                categoryCode = SAVINGS_CATEGORY_CODE,
+            )
+        val index = searchIndex(all + deposit + withdraw)
+
+        assertEquals(listOf(coffee, lunch, rent), buildHistory(index, "지출", today).matched())
+        assertEquals(listOf(withdraw, deposit), buildHistory(index, "저축", today).matched())
+        // 환불 낱말도 저축 환불은 저축이다
+        assertEquals(listOf(refund), buildHistory(index, "환불", today).matched())
+
+        val october = buildHistory(index, "", today).months.first()
+        assertEquals(Totals(expense = 13_500, savings = 200_000), october.totals)
+        assertEquals(Totals(savings = 200_000), buildHistory(index, "카카오뱅크", today).totals)
+    }
+
+    @Test
+    fun `합계 글은 0 인 쪽을 빼고 저축은 부호 없이 따로 적는다`() {
+        assertEquals("지출 -45,000원 · 수입 +3,000원", totalsText(Totals(expense = 45_000, income = 3_000)))
+        assertEquals("지출 -45,000원 · 저축 300,000원", totalsText(Totals(expense = 45_000, savings = 300_000)))
+        // 저축만 찾으면 저축만 남는다(전에는 건수만 남았다)
+        assertEquals("저축 300,000원", totalsText(Totals(savings = 300_000)))
+        // 꺼낸 돈이 더 많으면 - 가 붙는다
+        assertEquals("저축 -50,000원", totalsText(Totals(savings = -50_000)))
+        assertNull(totalsText(Totals()))
     }
 
     @Test

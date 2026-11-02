@@ -2,6 +2,10 @@ package com.dong.budget.ui.history
 
 import com.dong.budget.data.db.TransactionListItem
 import com.dong.budget.data.db.TransactionType
+import com.dong.budget.data.db.isSavings
+import com.dong.budget.ui.format.formatAmount
+import com.dong.budget.ui.format.formatNetExpense
+import com.dong.budget.ui.format.formatSignedTotal
 import com.dong.budget.ui.home.DayGroup
 import com.dong.budget.ui.home.Totals
 import com.dong.budget.ui.home.groupByDay
@@ -19,7 +23,7 @@ import java.time.YearMonth
  * @property query 검색어. 비었으면 모든 거래를 보여 준다.
  * @property months 달마다 묶은 거래(최근 달부터). 달 안은 날짜별로 묶는다.
  * @property count 보여 주는 거래 수(검색했으면 맞은 수)
- * @property totals 보여 주는 거래의 지출·수입 합. 검색 결과 줄에 적는다.
+ * @property totals 보여 주는 거래의 지출·수입·저축 합. 검색 결과 줄에 적는다.
  * @property hasAny 거래가 하나라도 있는지. 없으면 '아직 거래가 없어요', 있는데 검색에 안 맞으면 '맞는 내역이 없어요'
  */
 data class HistoryUiState(
@@ -40,8 +44,18 @@ data class HistoryUiState(
     }
 }
 
-/** 내역의 한 달. 달 머리에 그 달의 지출·수입 합을 적는다. */
+/** 내역의 한 달. 달 머리에 그 달의 지출·수입·저축 합을 적는다([totalsText]). */
 data class HistoryMonth(val month: YearMonth, val days: List<DayGroup>, val totals: Totals)
+
+/**
+ * 달 머리 · 찾는 중 요약 줄의 합계 글. "지출 -45,000원 · 수입 +3,000원 · 저축 300,000원". 0 인 쪽은 뺀다. 모두 0(이체만)이면 null.
+ * 저축은 쓴 돈이 아니라 지출에 들지 않아 따로 적는다. 거래 줄처럼 부호 없이 적고, 꺼낸 돈이 더 많을 때만 "-" 가 붙는다.
+ */
+internal fun totalsText(totals: Totals): String? = listOfNotNull(
+    totals.expense.takeIf { it != 0L }?.let { "지출 ${formatNetExpense(it)}" },
+    totals.income.takeIf { it != 0L }?.let { "수입 ${formatSignedTotal(it)}" },
+    totals.savings.takeIf { it != 0L }?.let { "저축 ${formatAmount(it)}원" },
+).joinToString(" · ").ifEmpty { null }
 
 /**
  * 검색에 쓰는 거래 한 건. 가게·메모·분류·결제수단·거래 종류를 작은 글자로 이어 둔 글과 금액 글을 함께 든다.
@@ -49,7 +63,7 @@ data class HistoryMonth(val month: YearMonth, val days: List<DayGroup>, val tota
  * 이어 둔 글은 줄바꿈으로 나눈다. 검색 낱말에는 빈칸이 없어 두 칸에 걸쳐 맞는 일이 없다.
  */
 class SearchableItem(val item: TransactionListItem) {
-    internal val text: String = listOfNotNull(item.merchant, item.memo, item.categoryName, item.paymentMethodName, item.type.word)
+    internal val text: String = listOfNotNull(item.merchant, item.memo, item.categoryName, item.paymentMethodName, item.typeWord)
         .joinToString("\n") { it.lowercase() }
     internal val amount: String = item.amount.toString()
 }
@@ -90,19 +104,26 @@ internal fun searchTerms(query: String): List<SearchTerm> =
     query.trim().lowercase().split(WHITESPACE).filter { it.isNotEmpty() }.map(::SearchTerm)
 
 /**
- * 거래가 검색 낱말([terms])에 모두 맞는지. 낱말마다 가게·메모·분류·결제수단·거래 종류(지출·수입·이체·환불) 중 한 곳에 들어 있으면 된다.
+ * 거래가 검색 낱말([terms])에 모두 맞는지. 낱말마다 가게·메모·분류·결제수단·거래 종류(지출·수입·이체·환불·저축) 중 한 곳에 들어 있으면 된다.
  * 숫자만 있는 낱말은 금액에 들어 있어도 맞는다.
  */
 internal fun SearchableItem.matches(terms: List<SearchTerm>): Boolean =
     terms.all { term -> term.text in text || term.amountDigits?.let { it in amount } == true }
 
-/** 거래 종류를 가리키는 말. '환불' 로 찾으면 환불 거래가 나온다. */
-private val TransactionType.word: String
-    get() = when (this) {
-        TransactionType.EXPENSE -> "지출"
-        TransactionType.INCOME -> "수입"
-        TransactionType.TRANSFER -> "이체"
-        TransactionType.REFUND -> "환불"
+/**
+ * 거래 종류를 가리키는 말. '환불' 로 찾으면 환불 거래가 나온다.
+ * 저축([isSavings])은 쓴 돈이 아니라 '지출' 대신 '저축' 이다('지출' 로 찾으면 안 나오고, 분류 이름을 바꿔도 '저축' 으로 찾힌다).
+ */
+private val TransactionListItem.typeWord: String
+    get() = if (isSavings) {
+        "저축"
+    } else {
+        when (type) {
+            TransactionType.EXPENSE -> "지출"
+            TransactionType.INCOME -> "수입"
+            TransactionType.TRANSFER -> "이체"
+            TransactionType.REFUND -> "환불"
+        }
     }
 
 private val WHITESPACE = Regex("\\s+")
