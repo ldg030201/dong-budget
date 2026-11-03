@@ -45,11 +45,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.ui.text.style.LineBreak
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
 import com.dong.budget.R
 import com.dong.budget.data.update.AppVersion
 import com.dong.budget.data.update.NewerNotes
@@ -377,23 +380,63 @@ private fun StatusBadge(text: String, content: Color, container: Color) {
     )
 }
 
-/** 꼬리표와 설명 한 줄. 화면 읽기는 '추가, 달력에 …' 처럼 한 번에 읽는다. */
+/**
+ * 꼬리표와 설명. 설명은 맥락마다 나눈 줄([Change.text] 의 줄)을 쌓는다.
+ * 첫 줄이 요점이고 다음 줄은 덧붙이는 말이라 한 단계 옅게 둔다. 나눈 줄 사이는 저절로 넘어간 줄과 구분되게 조금 띄운다(항목 사이보다 좁게).
+ * 줄 안에서 넘기는 것은 폭에 맡긴다. 폰마다 폭이 달라도 [BALANCED_BY_PHRASE] 로 어절 단위로, 줄 길이를 고르게 넘긴다.
+ * 보통은 꼬리표 옆에 설명을 두고, 화면 폭이 [STACK_BELOW] 보다 좁은 폰(320dp 등)에서는 꼬리표 아래에 두어 설명이 폭을 다 쓰게 한다.
+ * 폭은 화면(창) 너비로 본다. 이 줄은 세로 선 높이를 재는 줄(IntrinsicSize) 안에 있어서 BoxWithConstraints 처럼 폭을 받아 다시 그리는 것을 쓸 수 없다.
+ * 화면 읽기는 '추가, 달력에 …' 처럼 한 번에 읽는다.
+ */
 @Composable
 private fun ChangeRow(change: Change) {
-    Row(
-        modifier = Modifier.fillMaxWidth().semantics(mergeDescendants = true) {},
-        verticalAlignment = Alignment.Top,
-    ) {
-        KindTag(change.kind)
-        Spacer(Modifier.width(BudgetTheme.spacing.inlineGap))
-        Text(
-            text = change.text,
-            style = MaterialTheme.typography.bodyMedium,
-            color = BudgetTheme.colors.textPrimary,
-            modifier = Modifier.weight(1f),
-        )
+    val modifier = Modifier.fillMaxWidth().semantics(mergeDescendants = true) {}
+    if (LocalConfiguration.current.screenWidthDp.dp < STACK_BELOW) {
+        Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(BudgetTheme.spacing.tightGap)) {
+            KindTag(change.kind)
+            ChangeLines(change)
+        }
+    } else {
+        Row(modifier = modifier, verticalAlignment = Alignment.Top) {
+            KindTag(change.kind)
+            Spacer(Modifier.width(BudgetTheme.spacing.inlineGap))
+            ChangeLines(change, Modifier.weight(1f))
+        }
     }
 }
+
+/** 설명 줄들. 첫 줄은 진하게, 다음 줄은 옅게 */
+@Composable
+private fun ChangeLines(change: Change, modifier: Modifier = Modifier) {
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(BudgetTheme.spacing.tightGap)) {
+        val style = MaterialTheme.typography.bodyMedium.copy(lineBreak = BALANCED_BY_PHRASE)
+        change.text.lines().forEachIndexed { index, line ->
+            Text(
+                text = line.keepSeparatorsAttached(),
+                style = style,
+                color = if (index == 0) BudgetTheme.colors.textPrimary else BudgetTheme.colors.textSecondary,
+            )
+        }
+    }
+}
+
+/**
+ * 꼬리표를 설명 위로 올리는 화면 폭. 이보다 좁으면 꼬리표를 옆에 둘 때 설명 칸이 한 줄에 열 글자 남짓으로 좁아진다
+ * (320dp 폰은 올리고, 360dp 이상 폰은 옆에 둔다).
+ */
+private val STACK_BELOW = 340.dp
+
+/**
+ * 띄어 쓴 가운뎃점(' · ')과 꺾쇠(' > ')를 앞 낱말에 붙인다(앞의 빈칸을 줄이 안 바뀌는 빈칸으로).
+ * 폭에 따라 줄이 어디서 넘어가든 '· 청약을' · '> 하단 메뉴' 처럼 기호로 시작하는 줄이 생기지 않고, 기호 뒤에서만 넘어간다.
+ */
+private fun String.keepSeparatorsAttached(): String = replace(" · ", "\u00A0· ").replace(" > ", "\u00A0> ")
+
+/**
+ * 바뀐 점 설명의 줄 넘김. 본문처럼 어절 단위로 끊되, 줄 길이를 고르게 맞춰 끝 줄에 '나와요' 같은 어절 하나만 남지 않게 한다.
+ * 좁은 폰이든 넓은 화면이든 그 폭에서 고르게 넘어간다.
+ */
+private val BALANCED_BY_PHRASE = LineBreak.Paragraph.copy(strategy = LineBreak.Strategy.Balanced, wordBreak = LineBreak.WordBreak.Phrase)
 
 /**
  * 종류 꼬리표. 색만으로 구분하지 않고 글자를 함께 쓴다.
