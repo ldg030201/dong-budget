@@ -54,6 +54,9 @@ enum class PatchMenu(val label: String) {
     EDITOR("거래 등록"),
     STATISTICS("통계"),
 
+    /** 1.10.0 에서 생긴 메뉴 '저축'('저축' 분류로 적은 돈의 내역 · 통계 · 고정저축) */
+    SAVINGS("저축"),
+
     /** 1.7.0 에서 생긴 아래 메뉴 '고정지출' */
     FIXED_EXPENSES("고정지출"),
 
@@ -92,13 +95,41 @@ private fun menu(menu: PatchMenu, vararg changes: Change) = MenuChanges(menu, ch
 private fun newMenu(menu: PatchMenu, vararg changes: Change) = MenuChanges(menu, changes.toList(), isNew = true)
 
 /**
- * 최신 버전이 맨 위. 메뉴는 앱 화면 순서(홈 → 월급 → 내역 → 거래 상세 → 거래 등록 → 통계 → 고정지출 → 카드실적 → 분류 관리 → 전체 →
+ * 최신 버전이 맨 위. 메뉴는 앱 화면 순서(홈 → 월급 → 내역 → 거래 상세 → 거래 등록 → 통계 → 저축 → 고정지출 → 카드실적 → 분류 관리 → 전체 →
  * 패치노트 → 개발자 모드 → 설정 → 공통)로 적는다.
  * 메뉴 안의 항목은 화면에서 종류 순서(추가 → 개선 → 수정 → 오류수정)로 다시 정렬되므로 적는 순서는 자유다.
  * 그 버전에서 처음 생긴 메뉴는 [newMenu] 로 적는다(메뉴 이름 옆 '신규'). 첫 버전(0.1.0)은 모두 처음이라 붙이지 않는다.
  */
 val PATCH_NOTES: List<Release> =
     listOf(
+        Release(
+            version = "1.10.0",
+            date = LocalDate.of(2026, 11, 3),
+            menus =
+            listOf(
+                newMenu(
+                    PatchMenu.SAVINGS,
+                    added("'저축' 분류로 적은 돈을 모아 보는 메뉴예요", "전체에서 열고, 설정 > 하단 메뉴에서 아래 메뉴에 넣을 수 있어요"),
+                    added("내역 · 통계 · 고정저축으로 나눠 봐요", "내역: 해마다 모은 돈", "통계: 달마다 모은 돈 · 최근 6개월 · 상품별 · 결제수단별", "고정저축: 매달 넣는 적금 · 청약을 고정지출처럼"),
+                    changed("'저축' 분류로 적은 돈은 이제 쓴 돈으로 세지 않아요", "홈 · 내역 · 통계 · 월급 · 카드실적의 합계에서 빠지고, 목록에는 '-' 없이 '50,000원'처럼 보여요"),
+                    changed("내역에서 '저축'으로 찾으면 저축 거래만 나와요", "저축 거래의 최근 내역에는 같은 곳에 모은 저축만 모여요"),
+                ),
+                menu(
+                    PatchMenu.FIXED_EXPENSES,
+                    added(
+                        "'아직 안 냈어요' · '한동안 안 냈어요' 줄에 '해지' 버튼이 생겼어요(줄을 길게 눌러도 돼요)",
+                        "해지한 곳은 마지막으로 낸 달까지만 보이고, 맨 아래 '해지한 곳'에서 되돌릴 수 있어요",
+                        "해지한 뒤 다시 내면 등록할지 물어요",
+                    ),
+                    changed("'등록하기' 버튼이 이름 아래 줄로 옮겨 가 '해지' 버튼과 나란히 있어요"),
+                ),
+                menu(
+                    PatchMenu.SETTINGS,
+                    added("백업에 고정저축 목록과 해지 상태도 담아요", "개인정보처리방침에도 더했어요"),
+                    fixed("좁은 화면의 하단 메뉴 편집에서 '넣을 수 있는 메뉴' 첫 칸 글자가 테두리에 닿던 것을 고쳤어요"),
+                ),
+            ),
+        ),
         Release(
             version = "1.9.1",
             date = LocalDate.of(2026, 10, 16),

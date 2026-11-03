@@ -322,6 +322,7 @@ private fun PatchMenu.iconRes(): Int = when (this) {
     PatchMenu.DETAIL -> R.drawable.ic_sym_receipt_long
     PatchMenu.EDITOR -> R.drawable.ic_sym_edit_note
     PatchMenu.STATISTICS -> R.drawable.ic_sym_bar_chart
+    PatchMenu.SAVINGS -> R.drawable.ic_sym_savings
     PatchMenu.FIXED_EXPENSES -> R.drawable.ic_sym_event_repeat
     PatchMenu.CARD_PERFORMANCE -> R.drawable.ic_sym_credit_card
     PatchMenu.CATEGORIES -> R.drawable.ic_sym_category
@@ -347,6 +348,9 @@ private fun PatchMenu.color(): String = when (this) {
     PatchMenu.EDITOR -> "green"
 
     PatchMenu.STATISTICS -> "orange"
+
+    // 전체 메뉴의 저축 줄과 같은 색(공통과 겹치지만 아이콘이 다르다)
+    PatchMenu.SAVINGS -> "amber"
 
     // 전체 메뉴의 고정지출 · 카드실적 줄과 같은 색(월급 · 홈과 겹치지만 아이콘이 다르다)
     PatchMenu.FIXED_EXPENSES -> "green"
