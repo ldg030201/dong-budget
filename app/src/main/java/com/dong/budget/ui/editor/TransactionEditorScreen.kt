@@ -57,6 +57,7 @@ import com.dong.budget.ui.components.InputPanelBox
 import com.dong.budget.ui.components.NavButtonStyle
 import com.dong.budget.ui.components.NumberKeypad
 import com.dong.budget.ui.components.SegmentedToggle
+import com.dong.budget.ui.components.panelAccepts
 import com.dong.budget.ui.format.formatAmount
 import com.dong.budget.ui.format.formatDate
 import com.dong.budget.ui.format.formatKoreanWon
@@ -362,11 +363,17 @@ fun TransactionEditorScreen(
                     .imePadding()
                     .navigationBarsPadding(),
             ) {
+                // 닫히거나 다른 판으로 바뀌며 사라지는 입력판도 전환 동안 누름을 받는다.
+                // 받으면 닫은 판의 값(금액·분류·결제수단·날짜·시간)이 모르는 사이 바뀌므로 지금 열린 판의 누름만 받는다(panelAccepts).
                 AnimatedInputPanel(panel = panel) { current ->
                     when (current) {
                         EditorPanel.AMOUNT ->
                             InputPanelBox {
-                                NumberKeypad(onDigit = onDigit, onDelete = onDeleteDigit, onClear = onClearAmount)
+                                NumberKeypad(
+                                    onDigit = { if (panelAccepts(panel, current)) onDigit(it) },
+                                    onDelete = { if (panelAccepts(panel, current)) onDeleteDigit() },
+                                    onClear = { if (panelAccepts(panel, current)) onClearAmount() },
+                                )
                             }
 
                         EditorPanel.CATEGORY ->
@@ -375,10 +382,12 @@ fun TransactionEditorScreen(
                                     items = state.categories,
                                     selectedId = state.categoryId,
                                     onSelect = { id ->
-                                        onSelectCategory(id)
-                                        panel = null
+                                        if (panelAccepts(panel, current)) {
+                                            onSelectCategory(id)
+                                            panel = null
+                                        }
                                     },
-                                    onAdd = { onOpenAdd(AddTarget.CATEGORY) },
+                                    onAdd = { if (panelAccepts(panel, current)) onOpenAdd(AddTarget.CATEGORY) },
                                     modifier = Modifier.fillMaxSize(),
                                 )
                             }
@@ -389,11 +398,13 @@ fun TransactionEditorScreen(
                                     items = state.paymentMethods,
                                     selectedId = state.selectedPaymentMethod?.id,
                                     onSelect = { id ->
-                                        onSelectPaymentMethod(id)
-                                        panel = null
+                                        if (panelAccepts(panel, current)) {
+                                            onSelectPaymentMethod(id)
+                                            panel = null
+                                        }
                                     },
                                     // 수입이면 들어온 곳을 만든다
-                                    onAdd = { onOpenAdd(state.paymentAddTarget) },
+                                    onAdd = { if (panelAccepts(panel, current)) onOpenAdd(state.paymentAddTarget) },
                                     modifier = Modifier.fillMaxSize(),
                                     // 알림에서 읽은 카드는 저장해야 생기지만, 다른 것을 골랐다가도 되돌아올 수 있게 표에 미리 둔다
                                     preview =
@@ -404,8 +415,10 @@ fun TransactionEditorScreen(
                                             color = state.pendingPaymentColor,
                                             selected = state.isPendingPaymentSelected,
                                             onSelect = {
-                                                onSelectPendingPayment()
-                                                panel = null
+                                                if (panelAccepts(panel, current)) {
+                                                    onSelectPendingPayment()
+                                                    panel = null
+                                                }
                                             },
                                         )
                                     },
@@ -416,14 +429,20 @@ fun TransactionEditorScreen(
                             DatePanel(
                                 date = BudgetTime.toLocalDate(state.occurredAt),
                                 onPick = { date ->
-                                    onDateChange(date)
-                                    panel = null
+                                    if (panelAccepts(panel, current)) {
+                                        onDateChange(date)
+                                        panel = null
+                                    }
                                 },
                             )
 
                         EditorPanel.TIME -> {
                             val time = BudgetTime.toLocalTime(state.occurredAt)
-                            TimePanel(hour = time.hour, minute = time.minute, onChange = onTimeChange)
+                            TimePanel(
+                                hour = time.hour,
+                                minute = time.minute,
+                                onChange = { hour, minute -> if (panelAccepts(panel, current)) onTimeChange(hour, minute) },
+                            )
                         }
                     }
                 }
