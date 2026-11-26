@@ -12,6 +12,7 @@ package com.dong.budget.data.capture
  *     (2026-11-26 사용자 스크린샷. 둘째 줄이던 잔액이 줄을 바꾸지 않고 빈칸 하나를 두고 첫 줄 끝에 붙어 온다)
  * 잔액은 둘째 줄에 오든 가게 끝에 붙어 오든 같은 '잔액 N원(카드)' 조각([BALANCE])으로 읽는다.
  * 가게 끝에 붙은 잔액은 어느 모양에서 오든 떼고, 괄호 안은 카드 이름으로 쓴다([trailingBalancePattern]).
+ * 다만 열쇠([CapturedPayment.dedupKey])는 잔액을 떼기 전 가게로 만든다. 1.10.0 이 같은 알림으로 만든 열쇠와 같게 하기 위함이다.
  * 이 모양과 딱 맞을 때만 읽는다([PaymentParser]).
  */
 object TossPaymentParser : PaymentParser {
@@ -68,6 +69,10 @@ object TossPaymentParser : PaymentParser {
         val card = parts.card ?: balance?.balanceCard()
         val (merchant, installment) = withoutBalance.cutEnd(installmentPattern)
         val months = installment?.let { (it.groupValues[1].ifEmpty { it.groupValues[2] }).toIntOrNull()?.takeIf { n -> n > 1 } }
+        // 잔액을 뗀 알림의 열쇠는 떼기 전 첫 줄 가게로 만든다. 1.10.0 은 잔액을 떼지 않은 가게로 열쇠를 만들었다(잔액이 끝에 있어 할부 표시도 안 맞았다).
+        // 같은 알림은 업데이트 전후로 같은 열쇠여야, 다시 연결될 때 알림창에 남은 그 알림을 읽어도 이미 물어본 결제로 알아본다.
+        // 열쇠가 바뀌면 '같은 결제 한 번만' 을 끈 사람에게 이미 등록했거나 지운 결제를 다시 묻는다. 가게([CapturedPayment.merchant])는 뗀 것을 쓴다.
+        val keyMerchant = if (balance == null) merchant else parts.merchant
 
         return CapturedPayment(
             amount = amount,
@@ -75,7 +80,7 @@ object TossPaymentParser : PaymentParser {
             merchant = merchant,
             installmentMonths = months,
             occurredAtMillis = postedAtMillis,
-            dedupKey = "toss:$postedAtMillis:$amount:$merchant",
+            dedupKey = "toss:$postedAtMillis:$amount:$keyMerchant",
         )
     }
 

@@ -466,6 +466,16 @@ class PaymentCaptureTest {
     }
 
     @Test
+    fun `1_10_0 에서 물어본 잔액 붙은 토스 알림은 업데이트 뒤 다시 읽어도 묻지 않는다`() = runBlocking {
+        putRecord(daisoFrom1100)
+        // '같은 결제 한 번만' 을 끄면 열쇠로만 이미 물어본 결제를 알아본다
+        auto = auto.with(AutoOption.CAPTURE_DEDUPE, false)
+        // 업데이트 뒤 다시 연결돼 알림창에 남은 같은 알림을 읽는다
+        assertFalse(capture().post(DAISO_TITLE, DAISO_TEXT))
+        assertTrue(prompt.asked.isEmpty())
+    }
+
+    @Test
     fun `기록이 바뀌면 알림 목록을 다시 읽는다`() = runBlocking {
         val capture = capture()
         val seen = mutableListOf<Int>()
@@ -606,6 +616,23 @@ class PaymentCaptureTest {
         assertEquals(listOf(CaptureKind.PAYMENT), prompt.restored.map { it.kind })
     }
 
+    /** 기록을 바로 넣는다. 그 버전이 읽은 결제 그대로 남긴 모양이다. */
+    private fun putRecord(payment: CapturedPayment) =
+        prefs.edit().putString("prompted:${payment.dedupKey}", Json.encodeToString(OldEntry(payment, dismissed = false))).apply()
+
+    /**
+     * 1.10.0 이 [DAISO_TITLE]·[DAISO_TEXT] 알림을 읽어 남긴 결제. 가게 끝의 잔액을 떼지 못해 가게에 잔액이 붙고 카드는 비었다.
+     * 열쇠도 그 가게로 만들었다.
+     */
+    private val daisoFrom1100 get() = CapturedPayment(
+        amount = 12_000,
+        paymentName = null,
+        merchant = "(주)아성다이소 잔액 848,010원(토스뱅크 체크카드)",
+        installmentMonths = null,
+        occurredAtMillis = clock,
+        dedupKey = "toss:$clock:12000:(주)아성다이소 잔액 848,010원(토스뱅크 체크카드)",
+    )
+
     /** 1.8.1 까지의 결제 기록. 종류(kind) 칸이 없다. */
     @Serializable
     private data class OldPayment(
@@ -641,5 +668,11 @@ class PaymentCaptureTest {
         override fun dismiss(dedupKey: String) {
             dismissed += dedupKey
         }
+    }
+
+    private companion object {
+        /** 2026-11-26 에 받은 토스뱅크 체크카드 알림. 둘째 줄이던 잔액이 첫 줄 가게 끝에 붙어 온다. */
+        const val DAISO_TITLE = "36원 캐시백 🎉"
+        const val DAISO_TEXT = "12,000원 결제 | (주)아성다이소 잔액 848,010원(토스뱅크 체크카드)"
     }
 }
