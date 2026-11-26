@@ -13,7 +13,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import com.dong.budget.data.db.TransactionListItem
 import com.dong.budget.data.db.TransactionType
-import com.dong.budget.data.db.isSavings
+import com.dong.budget.data.db.amountType
 import com.dong.budget.ui.format.formatDayHeader
 import com.dong.budget.ui.format.formatSignedAmount
 import com.dong.budget.ui.format.formatTime
@@ -84,9 +84,9 @@ fun TransactionRow(
         trailing = {
             Column(horizontalAlignment = Alignment.End) {
                 Text(
-                    text = formatSignedAmount(item.type, item.amount, savings = item.isSavings),
+                    text = formatSignedAmount(item.amountType, item.amount),
                     style = BudgetTheme.amount.medium,
-                    color = transactionAmountColor(item.type, colorExpense, savings = item.isSavings),
+                    color = transactionAmountColor(item.amountType, colorExpense),
                 )
                 if (amountCaption != null) {
                     Text(
@@ -110,17 +110,13 @@ fun TransactionRow(
 
 /**
  * 거래 한 건 금액의 글자색. 들어온 돈(수입·환불)은 수입색, 지출은 [colorExpense] 면 지출색이고 아니면 본문색이다.
- * 저축([savings], isSavings)은 쓴 돈도 들어온 돈도 아니라 이체처럼 본문색이다. 거래 줄과 거래 상세의 큰 금액이 같이 쓴다.
+ * 저축(isSavings)은 쓴 돈도 들어온 돈도 아니라 부르는 쪽이 이체로 바꿔([amountType]) 넘기므로 본문색이다. 거래 줄과 거래 상세의 큰 금액이 같이 쓴다.
  */
 @Composable
-fun transactionAmountColor(type: TransactionType, colorExpense: Boolean = false, savings: Boolean = false): Color = if (savings) {
-    BudgetTheme.colors.textPrimary
-} else {
-    when (type) {
-        TransactionType.INCOME, TransactionType.REFUND -> BudgetTheme.colors.income
-        TransactionType.EXPENSE -> if (colorExpense) BudgetTheme.colors.expense else BudgetTheme.colors.textPrimary
-        TransactionType.TRANSFER -> BudgetTheme.colors.textPrimary
-    }
+fun transactionAmountColor(type: TransactionType, colorExpense: Boolean = false): Color = when (type) {
+    TransactionType.INCOME, TransactionType.REFUND -> BudgetTheme.colors.income
+    TransactionType.EXPENSE -> if (colorExpense) BudgetTheme.colors.expense else BudgetTheme.colors.textPrimary
+    TransactionType.TRANSFER -> BudgetTheme.colors.textPrimary
 }
 
 /** 거래의 이름. 가게, 없으면 분류 이름이다. 거래 줄과 거래 상세의 머리가 같이 쓴다. */

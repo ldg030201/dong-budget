@@ -108,6 +108,13 @@ val TransactionListItem.isSavings: Boolean
     get() = categoryCode == SAVINGS_CATEGORY_CODE && (type == TransactionType.EXPENSE || type == TransactionType.REFUND)
 
 /**
+ * 금액을 적을 때 따를 거래 종류. 저축([isSavings])은 쓴 돈이 아니라 모아 둔 돈이라 이체처럼 부호 없이 본문색으로 적는다(꺼낸 돈도 같다).
+ * 거래 줄과 거래 상세의 큰 금액이 부호(formatSignedAmount)와 글자색(transactionAmountColor)에 넘긴다.
+ */
+val TransactionListItem.amountType: TransactionType
+    get() = if (isSavings) TransactionType.TRANSFER else type
+
+/**
  * 기본 분류.
  *
  * 새로 설치할 때(SeedCallback)와 옛 DB 를 올릴 때(Migration1To2) 모두 이 목록을 쓴다.

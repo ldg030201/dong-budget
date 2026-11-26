@@ -1,6 +1,9 @@
 package com.dong.budget.ui.format
 
+import com.dong.budget.data.db.SAVINGS_CATEGORY_CODE
 import com.dong.budget.data.db.TransactionType
+import com.dong.budget.data.db.amountType
+import com.dong.budget.testing.tx
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import java.time.DayOfWeek
@@ -83,9 +86,13 @@ class FormattersTest {
         assertEquals("+3,000원", formatSignedAmount(TransactionType.REFUND, 3_000))
         assertEquals("-55,000원", formatSignedAmount(TransactionType.EXPENSE, 55_000))
         assertEquals("10,000원", formatSignedAmount(TransactionType.TRANSFER, 10_000))
-        // 저축은 쓴 돈이 아니라 이체처럼 부호가 없다. 꺼낸 돈(저축 환불)도 같다.
-        assertEquals("50,000원", formatSignedAmount(TransactionType.EXPENSE, 50_000, savings = true))
-        assertEquals("50,000원", formatSignedAmount(TransactionType.REFUND, 50_000, savings = true))
+        // 저축은 쓴 돈이 아니라 이체로 바꿔(amountType) 적어 부호가 없다. 꺼낸 돈(저축 환불)도 같다.
+        val deposit = tx("2026-09-01", 50_000, categoryCode = SAVINGS_CATEGORY_CODE)
+        val withdraw = tx("2026-09-02", 50_000, TransactionType.REFUND, categoryCode = SAVINGS_CATEGORY_CODE)
+        assertEquals(TransactionType.TRANSFER, deposit.amountType)
+        assertEquals(TransactionType.TRANSFER, withdraw.amountType)
+        assertEquals("50,000원", formatSignedAmount(deposit.amountType, deposit.amount))
+        assertEquals("50,000원", formatSignedAmount(withdraw.amountType, withdraw.amount))
     }
 
     @Test

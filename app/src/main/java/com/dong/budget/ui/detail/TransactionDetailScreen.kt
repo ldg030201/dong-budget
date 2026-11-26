@@ -30,7 +30,7 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextAlign
 import com.dong.budget.data.db.TransactionListItem
 import com.dong.budget.data.db.TransactionType
-import com.dong.budget.data.db.isSavings
+import com.dong.budget.data.db.amountType
 import com.dong.budget.ui.category.AddTarget
 import com.dong.budget.ui.components.BudgetTextButton
 import com.dong.budget.ui.components.BudgetTopAppBar
@@ -161,9 +161,9 @@ private fun DetailHeader(item: TransactionListItem) {
         )
         Spacer(Modifier.height(BudgetTheme.spacing.tightGap))
         Text(
-            text = formatSignedAmount(item.type, item.amount, savings = item.isSavings),
+            text = formatSignedAmount(item.amountType, item.amount),
             style = BudgetTheme.amount.large,
-            color = transactionAmountColor(item.type, savings = item.isSavings),
+            color = transactionAmountColor(item.amountType),
         )
     }
 }
