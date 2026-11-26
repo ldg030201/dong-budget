@@ -15,6 +15,9 @@
 # 둘 다 저장소에 커밋되지 않는다.
 
 set -euo pipefail
+# 값을 찾아 넣고 바로 빈 값인지 보는 대입($(… | …))은 끝에 '|| true' 를 붙인다.
+# set -e 아래에서는 파이프 안의 명령 하나만 실패해도(폴더가 없다 등) 대입이 실패로 끝나 그 자리에서 빠져나가서,
+# 다음 줄의 빈 값 검사가 띄우는 안내(fail)에 닿지 못한다.
 
 cd "$(git rev-parse --show-toplevel)"
 
@@ -65,7 +68,7 @@ TASKS=(:app:assembleGithubRelease)
 $BUILD_PLAY && TASKS+=(:app:bundlePlayRelease)
 ./gradlew --quiet "${TASKS[@]}"
 
-APK=$(find app/build/outputs/apk/github/release -name '*.apk' -type f | head -1)
+APK=$(find app/build/outputs/apk/github/release -name '*.apk' -type f | head -1) || true
 [ -n "$APK" ] || fail "APK 를 찾지 못했다."
 
 case "$APK" in
@@ -77,11 +80,11 @@ keystore.properties 의 storeFile 경로와 비밀번호를 확인하라.
 esac
 
 # ── 서명 확인 ───────────────────────────────────────────────────────────
-BUILD_TOOLS=$(ls -d "${ANDROID_HOME:-$HOME/Library/Android/sdk}"/build-tools/* 2>/dev/null | sort -V | tail -1)
+BUILD_TOOLS=$(ls -d "${ANDROID_HOME:-$HOME/Library/Android/sdk}"/build-tools/* 2>/dev/null | sort -V | tail -1) || true
 [ -n "$BUILD_TOOLS" ] || fail "build-tools 를 찾지 못했다. ANDROID_HOME 을 확인하라."
 
 FINGERPRINT=$("$BUILD_TOOLS/apksigner" verify --print-certs "$APK" 2>/dev/null \
-  | grep -m1 'SHA-256 digest' | awk '{print $NF}')
+  | grep -m1 'SHA-256 digest' | awk '{print $NF}') || true
 [ -n "$FINGERPRINT" ] || fail "서명을 확인할 수 없다."
 
 # ── 키가 바뀌지 않았는지 대조한다 ────────────────────────────────────────
@@ -117,10 +120,10 @@ fi
 # Play 앱 서명에도 이 키를 쓴다. 다른 키로 올리면 GitHub 에서 받은 앱 위에 Play 업데이트를 설치할 수 없다.
 # AAB 는 JAR 서명이라 apksigner 대신 keytool 로 본다. 지문은 'AB:CD:…' 로 나와서 APK 의 것과 모양을 맞춘다.
 if $BUILD_PLAY; then
-  AAB=$(find app/build/outputs/bundle/playRelease -name '*.aab' -type f | head -1)
+  AAB=$(find app/build/outputs/bundle/playRelease -name '*.aab' -type f | head -1) || true
   [ -n "$AAB" ] || fail "AAB 를 찾지 못했다."
   AAB_FINGERPRINT=$(keytool -printcert -jarfile "$AAB" 2>/dev/null \
-    | grep -m1 'SHA256:' | awk '{print $2}' | tr -d ':' | tr 'A-F' 'a-f')
+    | grep -m1 'SHA256:' | awk '{print $2}' | tr -d ':' | tr 'A-F' 'a-f') || true
   [ -n "$AAB_FINGERPRINT" ] || fail "서명되지 않은 AAB 가 나왔다 ($AAB)."
   [ "$AAB_FINGERPRINT" = "$FINGERPRINT" ] || fail "AAB 서명키가 APK 와 다르다.
 
