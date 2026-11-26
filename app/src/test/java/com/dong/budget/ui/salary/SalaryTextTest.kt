@@ -124,6 +124,22 @@ class SalaryTextTest {
     }
 
     @Test
+    fun `오늘 쓴 돈은 번 돈 옆이라 방향 부호를 붙이고 환불이 더 많으면 돌려받은 쪽 + 로 적는다`() {
+        assertEquals("-23,400원", spentTodayText(23_400))
+        // 전에는 부호 없이 '1,000원' 이라 쓴 돈처럼 읽혔다
+        assertEquals("+1,000원", spentTodayText(-1_000))
+        assertEquals("0원", spentTodayText(0))
+    }
+
+    @Test
+    fun `오늘 쓴 돈 화면 읽기는 말이 방향을 전해 쓴 돈에 부호를 붙이지 않는다`() {
+        // 전에는 화면 글을 그대로 읽어 쓴 돈을 '-23,400원' 으로, 환불이 더 많으면 부호 없이 '3,000원' 으로 읽었다
+        assertEquals("오늘 쓴 돈 23,400원, 번 돈의 18%를 썼어요", spokenSpentToday(128_340.0, 23_400))
+        assertEquals("오늘 쓴 돈 +3,000원, 오늘은 쓴 돈보다 환불받은 돈이 많아요", spokenSpentToday(10.0, -3_000))
+        assertEquals("오늘 쓴 돈 0원, 오늘은 아직 쓴 돈이 없어요", spokenSpentToday(10.0, 0))
+    }
+
+    @Test
     fun `일한 시간은 하루치를 넘으면 일하는 날로 센다`() {
         val day = 8 * 3600L
         assertEquals("1분 미만", workValue(20.0, day))

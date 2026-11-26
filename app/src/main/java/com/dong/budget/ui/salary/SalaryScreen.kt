@@ -47,13 +47,13 @@ import com.dong.budget.ui.components.TabEmptyState
 import com.dong.budget.ui.components.TabHeader
 import com.dong.budget.ui.components.TransactionRow
 import com.dong.budget.ui.components.sectionBlock
-import com.dong.budget.ui.format.formatAmount
 import com.dong.budget.ui.format.formatClock
 import com.dong.budget.ui.format.formatDayShort
 import com.dong.budget.ui.format.formatMonthDay
 import com.dong.budget.ui.format.formatNoticeTime
 import com.dong.budget.ui.stats.SectionNote
 import com.dong.budget.ui.stats.StatsSection
+import com.dong.budget.ui.stats.netExpenseColor
 import com.dong.budget.ui.theme.BudgetTheme
 import kotlinx.coroutines.flow.map
 import java.time.Clock
@@ -176,6 +176,7 @@ private fun EmptySalary(onOpenSettings: () -> Unit) {
 /**
  * 오늘. 지금 상태, 초마다 오르는 오늘 번 돈, 출근부터 퇴근까지 얼마나 왔는지, 오늘 쓴 돈.
  * 쓴 돈은 번 돈과 나란히 놓여서 빨갛게 쓴다(한 자리에 수입·지출이 함께 있을 때만 지출에 색을 쓰는 규칙).
+ * 환불받은 돈이 더 많으면 돈이 돌아온 것이라 홈 요약처럼 초록 + 로 쓴다.
  */
 @Composable
 private fun TodayCard(
@@ -222,8 +223,10 @@ private fun TodayCard(
             )
         }
         Spacer(Modifier.height(BudgetTheme.spacing.sectionPadding))
+        // 화면 읽기는 글자의 '-' 를 그대로 읽지 않게 말로 푼 문장을 읽힌다
+        val spokenSpent = spokenSpentToday(earnings.today, spentToday)
         Row(
-            modifier = Modifier.fillMaxWidth().semantics(mergeDescendants = true) {},
+            modifier = Modifier.fillMaxWidth().clearAndSetSemantics { contentDescription = spokenSpent },
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(modifier = Modifier.weight(1f)) {
@@ -231,9 +234,9 @@ private fun TodayCard(
                 HintText(spentLine(earnings.today, spentToday))
             }
             Text(
-                text = if (spentToday > 0) "-${formatAmount(spentToday)}원" else "${formatAmount(-spentToday)}원",
+                text = spentTodayText(spentToday),
                 style = BudgetTheme.amount.medium,
-                color = if (spentToday > 0) BudgetTheme.colors.expense else BudgetTheme.colors.textPrimary,
+                color = netExpenseColor(spentToday),
             )
         }
     }

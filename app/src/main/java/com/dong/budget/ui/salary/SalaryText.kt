@@ -8,6 +8,8 @@ import com.dong.budget.ui.format.formatClock
 import com.dong.budget.ui.format.formatDayShort
 import com.dong.budget.ui.format.formatDuration
 import com.dong.budget.ui.format.formatMonthDay
+import com.dong.budget.ui.format.formatNetExpense
+import com.dong.budget.ui.format.formatSpentAmount
 import com.dong.budget.ui.format.formatWeekdayFull
 import java.time.Duration
 import java.time.LocalDate
@@ -143,6 +145,19 @@ internal fun spentLine(earned: Double, spent: Long): String = when {
     spent > earned -> "번 돈보다 ${formatAmount((spent - floor(earned)).toLong())}원 더 썼어요"
     else -> "번 돈의 ${(spent * PERCENT / earned).roundToLong().coerceAtLeast(1)}%를 썼어요"
 }
+
+/**
+ * 오늘 쓴 돈. 번 돈(+) 옆에 놓여 홈 요약처럼 방향 부호를 붙인다. 쓴 돈은 "-23,400원", 없으면 "0원" 이다.
+ * 환불받은 돈이 더 많으면 돈이 돌아온 것이라 "+1,000원" 이다(부호 없이 적으면 쓴 돈으로 읽힌다). 색은 netExpenseColor 와 짝이다.
+ * @param spent 오늘 쓴 돈(지출 − 환불). 환불이 더 많으면 음수다.
+ */
+internal fun spentTodayText(spent: Long): String = formatNetExpense(spent)
+
+/**
+ * 화면 읽기로 읽을 오늘 쓴 돈과 견준 한 줄. 말이 '쓴 돈' 이라 쓴 돈에는 부호를 붙이지 않고('쓴 돈 마이너스' 로 읽히지 않게),
+ * 환불받은 돈이 더 많으면 "+3,000원" 이다(formatSpentAmount). "오늘 쓴 돈 23,400원, 번 돈의 18%를 썼어요"
+ */
+internal fun spokenSpentToday(earned: Double, spent: Long): String = "오늘 쓴 돈 ${formatSpentAmount(spent)}, ${spentLine(earned, spent)}"
 
 /**
  * 돈을 버는 데 드는 일한 시간. 하루치를 넘으면 일하는 날 수로 센다.
