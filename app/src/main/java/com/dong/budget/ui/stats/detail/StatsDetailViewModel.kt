@@ -22,6 +22,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.stateIn
 import java.time.Clock
 import java.time.LocalDate
@@ -46,7 +47,10 @@ class StatsDetailViewModel(
 ) : ViewModel() {
     private val month = MutableStateFlow(YearMonth.of(key.year, key.month))
 
-    /** 이 상세가 보는 분류(결제수단). 분류는 지출·수입 쪽 목록에서 찾는다. */
+    /**
+     * 이 상세가 보는 분류(결제수단). 분류는 지출·수입 쪽 목록에서 찾는다.
+     * 고른 달과 상관없어서, 달을 넘겨도 목록을 다시 읽지 않게 화면 모델이 살아 있는 동안 나눠 쓴다([firstRecord] 와 같이 멈추면 비운다).
+     */
     private val entity: Flow<DetailEntity> =
         when (key.dimension) {
             StatsDimension.EXPENSE_CATEGORY -> categoryRepository.observe(CategoryScope.EXPENSE)
@@ -54,6 +58,16 @@ class StatsDetailViewModel(
             StatsDimension.PAYMENT_METHOD -> paymentMethodRepository.observeAll()
         }.map { items: List<StyledItem> -> detailEntity(key.dimension, key.id, items) }
             .distinctUntilChanged()
+            .shareIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS, replayExpirationMillis = 0), replay = 1)
+
+    /**
+     * 통계의 기록 시작일. 고른 달과 상관없어서, 달을 넘겨도 거래 표 전체를 다시 훑지 않게 화면 모델이 살아 있는 동안 나눠 쓴다.
+     * 화면을 떠나 조회가 멈추면 남긴 값을 바로 비운다. 다시 들어올 때 지난 값으로 한 번 그리지 않고 새로 읽은 값을 기다린다.
+     */
+    private val firstRecord: Flow<LocalDate?> =
+        transactionRepository
+            .observeFirstRecordDate()
+            .shareIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS, replayExpirationMillis = 0), replay = 1)
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val uiState: StateFlow<StatsDetailUiState> =
@@ -62,7 +76,7 @@ class StatsDetailViewModel(
             .flatMapLatest { (month, today) ->
                 combine(
                     transactionRepository.observeMonths(month.minusMonths(TREND_MONTHS - 1L), month),
-                    transactionRepository.observeFirstRecordDate(),
+                    firstRecord,
                     entity,
                 ) { rows, firstRecord, entity ->
                     buildDetail(key.dimension, key.id, month, today, rows, firstRecord, entity)

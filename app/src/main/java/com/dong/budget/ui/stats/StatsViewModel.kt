@@ -8,6 +8,7 @@ import com.dong.budget.ui.stats.calc.TREND_MONTHS
 import com.dong.budget.ui.stats.calc.buildStatistics
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -15,6 +16,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.stateIn
 import java.time.Clock
 import java.time.LocalDate
@@ -42,6 +44,15 @@ class StatsViewModel(
      */
     private val pickedMonth = MutableStateFlow(initialMonth?.takeIf { it != YearMonth.now(clock) })
 
+    /**
+     * 통계의 기록 시작일. 고른 달과 상관없어서, 달을 넘겨도 거래 표 전체를 다시 훑지 않게 화면 모델이 살아 있는 동안 나눠 쓴다.
+     * 화면을 떠나 조회가 멈추면 남긴 값을 바로 비운다. 다시 들어올 때 지난 값으로 한 번 그리지 않고 새로 읽은 값을 기다린다.
+     */
+    private val firstRecord: Flow<LocalDate?> =
+        repository
+            .observeFirstRecordDate()
+            .shareIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS, replayExpirationMillis = 0), replay = 1)
+
     @OptIn(ExperimentalCoroutinesApi::class)
     val uiState: StateFlow<StatsUiState> =
         combine(pickedMonth, BudgetTime.today(clock)) { picked, today -> (picked ?: YearMonth.from(today)) to today }
@@ -49,7 +60,7 @@ class StatsViewModel(
             .flatMapLatest { (month, today) ->
                 // 최근 6개월 추이, 최근 3달 요일별, 올해 모아 보기를 한 번에 덮는 창. 1월이면 앞 해 8월부터, 12월이면 1월부터다.
                 val from = minOf(month.minusMonths(TREND_MONTHS - 1L), YearMonth.of(month.year, 1))
-                combine(repository.observeMonths(from, month), repository.observeFirstRecordDate()) { rows, firstRecord ->
+                combine(repository.observeMonths(from, month), firstRecord) { rows, firstRecord ->
                     buildStatistics(month, today, rows, firstRecord)
                 }
                     // 계산만 기본 풀에서 한다. 조회는 Room 이 자기 스레드에서 한다.
