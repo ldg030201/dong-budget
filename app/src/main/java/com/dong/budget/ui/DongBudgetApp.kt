@@ -538,8 +538,10 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
                         entry<SettingsKey> {
                             val viewModel: SettingsViewModel =
                                 viewModel(factory = settingsViewModelFactory(container))
-                            val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
-                            val newer by viewModel.newer.collectAsStateWithLifecycle()
+                            // 앱이 켜질 때부터 따라가는 테마 값이라 처음 그릴 때부터 저장된 칸에 있다
+                            val themeMode by container.themeMode.collectAsStateWithLifecycle()
+                            // 아직 설치하지 않은 새 버전. 앱 정보 줄에서 알린다. 없으면 null
+                            val newer by container.updates.newer.collectAsStateWithLifecycle()
                             val backup by viewModel.backup.collectAsStateWithLifecycle()
                             val lastBackup by container.backupHistory.last.collectAsStateWithLifecycle()
                             val backupSchedule by container.backupSchedule.collectAsStateWithLifecycle()
@@ -549,7 +551,7 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
 
                             SettingsScreen(
                                 themeMode = themeMode,
-                                currentVersion = viewModel.currentVersion,
+                                currentVersion = BuildConfig.VERSION_NAME,
                                 onThemeModeChange = viewModel::selectThemeMode,
                                 weekStart = weekStart,
                                 onWeekStartChange = viewModel::selectWeekStart,
@@ -1060,11 +1062,9 @@ private fun settingsViewModelFactory(container: AppContainer) = viewModelFactory
     initializer {
         SettingsViewModel(
             settingsRepository = container.settingsRepository,
-            updates = container.updates,
             backupRepository = container.backupRepository,
             backupStorage = container.backupStorage,
             backupExporter = container.backupExporter,
-            appThemeMode = container.themeMode,
             anyLockOn = { container.appLock.state.value.enabled || container.salaryLock.state.value.enabled },
         )
     }

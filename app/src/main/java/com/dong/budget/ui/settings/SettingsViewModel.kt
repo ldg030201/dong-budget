@@ -4,7 +4,6 @@ import android.net.Uri
 import android.os.Build
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.dong.budget.BuildConfig
 import com.dong.budget.data.backup.BackupCodec
 import com.dong.budget.data.backup.BackupExporter
 import com.dong.budget.data.backup.BackupRead
@@ -17,8 +16,6 @@ import com.dong.budget.data.devlog.DevLog
 import com.dong.budget.data.devlog.LogTag
 import com.dong.budget.data.settings.SettingsRepository
 import com.dong.budget.data.settings.ThemeMode
-import com.dong.budget.data.update.AppUpdates
-import com.dong.budget.data.update.UpdateNotice
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
@@ -44,22 +41,12 @@ data class BackupUiState(val busy: Boolean = false, val restore: RestorePreview?
 /** 설정 첫 화면. 화면 테마와 백업·복원을 다룬다. 새 버전 확인·설치는 앱 정보(배포처 소스의 AppInfoRoute)가 맡는다. */
 class SettingsViewModel(
     private val settingsRepository: SettingsRepository,
-    updates: AppUpdates,
     private val backupRepository: BackupRepository,
     private val backupStorage: BackupStorage,
     private val backupExporter: BackupExporter,
-    appThemeMode: StateFlow<ThemeMode> = MutableStateFlow(ThemeMode.SYSTEM),
     /** 이 폰에 앱 잠금이나 월급 잠금이 켜져 있는지. 복원 묻는 창이 잠금을 다시 켜라고 알릴지 정한다. */
     private val anyLockOn: () -> Boolean = { false },
 ) : ViewModel() {
-    /** 앱이 켜질 때부터 따라가는 테마 값이라 처음 그릴 때부터 저장된 칸에 있다 */
-    val themeMode: StateFlow<ThemeMode> = appThemeMode
-
-    val currentVersion: String = BuildConfig.VERSION_NAME
-
-    /** 아직 설치하지 않은 새 버전. 앱 정보 줄에서 알린다. 없으면 null */
-    val newer: StateFlow<UpdateNotice?> = updates.newer
-
     fun selectThemeMode(mode: ThemeMode) {
         viewModelScope.launch { settingsRepository.setThemeMode(mode) }
     }
