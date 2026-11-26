@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyItemScope
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -286,50 +287,31 @@ private fun BoardList(
         statusGroup(FixedStatus.DUE, board.due, state, actions)
         statusGroup(FixedStatus.PAID, board.paid, state, actions)
         statusGroup(FixedStatus.NOT_THIS_MONTH, board.notThisMonth, state, actions)
-        if (board.stopped.isNotEmpty()) {
-            animatedItem(key = STOPPED_KEY) {
-                FoldHeader(
-                    title = STOPPED_TITLE,
-                    count = board.stopped.size,
-                    expanded = stoppedOpen,
-                    onToggle = onToggleStopped,
-                )
-            }
-            if (stoppedOpen) {
-                animatedItems(items = board.stopped, key = ::itemKey) { item -> FixedRow(item = item, state = state, actions = actions) }
-            }
-        }
+        foldGroup(
+            key = STOPPED_KEY,
+            title = STOPPED_TITLE,
+            items = board.stopped,
+            expanded = stoppedOpen,
+            onToggle = onToggleStopped,
+            itemKey = ::itemKey,
+        ) { item -> FixedRow(item = item, state = state, actions = actions) }
         // 해지한 곳은 판에서 빠진 곳이라 판 바로 아래, 등록 안 한 곳보다 앞에 둔다
-        if (state.ended.isNotEmpty()) {
-            animatedItem(key = ENDED_KEY) {
-                FoldHeader(
-                    title = ENDED_TITLE,
-                    count = state.ended.size,
-                    expanded = endedOpen,
-                    onToggle = onToggleEnded,
-                )
-            }
-            if (endedOpen) {
-                animatedItems(items = state.ended, key = { "ended-${it.key}" }) { candidate ->
-                    CandidateRow(candidate = candidate, state = state, mode = CandidateMode.ENDED, actions = actions)
-                }
-            }
-        }
-        if (state.declined.isNotEmpty()) {
-            animatedItem(key = DECLINED_KEY) {
-                FoldHeader(
-                    title = DECLINED_TITLE,
-                    count = state.declined.size,
-                    expanded = declinedOpen,
-                    onToggle = onToggleDeclined,
-                )
-            }
-            if (declinedOpen) {
-                animatedItems(items = state.declined, key = { "declined-${it.key}" }) { candidate ->
-                    CandidateRow(candidate = candidate, state = state, mode = CandidateMode.DECLINED, actions = actions)
-                }
-            }
-        }
+        foldGroup(
+            key = ENDED_KEY,
+            title = ENDED_TITLE,
+            items = state.ended,
+            expanded = endedOpen,
+            onToggle = onToggleEnded,
+            itemKey = { "ended-${it.key}" },
+        ) { candidate -> CandidateRow(candidate = candidate, state = state, mode = CandidateMode.ENDED, actions = actions) }
+        foldGroup(
+            key = DECLINED_KEY,
+            title = DECLINED_TITLE,
+            items = state.declined,
+            expanded = declinedOpen,
+            onToggle = onToggleDeclined,
+            itemKey = { "declined-${it.key}" },
+        ) { candidate -> CandidateRow(candidate = candidate, state = state, mode = CandidateMode.DECLINED, actions = actions) }
         animatedItem(key = FOOTNOTE_KEY) {
             HintText(
                 text = state.texts.footnote,
@@ -381,6 +363,24 @@ private fun LazyListScope.statusGroup(status: FixedStatus, items: List<FixedExpe
 }
 
 private fun itemKey(item: FixedExpenseItem): String = "item-${item.key}"
+
+/**
+ * 접는 묶음 하나('한동안 안 냈어요' · '해지한 곳' · '등록 안 한 곳'). 제목([FoldHeader])과, 펼쳤으면([expanded]) 줄들([row]).
+ * 비었으면 아무것도 두지 않는다. [key] 는 제목 줄의 key, [itemKey] 는 줄마다의 key 다.
+ */
+private fun <T> LazyListScope.foldGroup(
+    key: String,
+    title: String,
+    items: List<T>,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    itemKey: (T) -> Any,
+    row: @Composable LazyItemScope.(T) -> Unit,
+) {
+    if (items.isEmpty()) return
+    animatedItem(key = key) { FoldHeader(title = title, count = items.size, expanded = expanded, onToggle = onToggle) }
+    if (expanded) animatedItems(items = items, key = itemKey, content = row)
+}
 
 /**
  * 요약. 고른 달에 낼 차례였던 것 중 몇 개를 냈는지 문장과 막대로, 그 아래 낸 돈과 (아직) 안 낸 돈.
