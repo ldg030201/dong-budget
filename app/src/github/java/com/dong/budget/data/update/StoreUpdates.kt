@@ -48,8 +48,10 @@ class StoreUpdates(private val context: Context, private val scope: CoroutineSco
         updateChecker.newer.map(::latestOf).stateIn(scope, SharingStarted.Eagerly, latestOf(updateChecker.newer.value))
     }
 
-    override val notice: Flow<UpdateNotice?>
-        get() = updateChecker.bannerVersion.map { version -> version?.let(UpdateNotice::Available) }
+    // 읽을 때마다 새로 만들지 않는다. 받는 쪽(홈)은 다른 Flow 를 받으면 처음부터 다시 따라간다.
+    override val notice: Flow<UpdateNotice?> by lazy {
+        updateChecker.bannerVersion.map { version -> version?.let(UpdateNotice::Available) }
+    }
 
     override val newerNotes: StateFlow<List<NewerNotes>> by lazy {
         updateChecker.newer.map(::notesOf).stateIn(scope, SharingStarted.Eagerly, notesOf(updateChecker.newer.value))
