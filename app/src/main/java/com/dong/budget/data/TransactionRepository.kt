@@ -101,7 +101,7 @@ class TransactionRepository(private val transactionDao: TransactionDao) {
 
     /** [start] 날(서울 0시)부터 가게 이름이 있는 거래. 앞으로의 날짜로 적은 거래도 들어온다. 거래 상세의 같은 곳 내역이 쓴다. */
     fun observeWithMerchantSince(start: LocalDate): Flow<List<TransactionListItem>> =
-        transactionDao.observeWithMerchantSince(start.atStartOfDay(BudgetTime.ZONE).toInstant())
+        transactionDao.observeWithMerchantSince(start.startInstant())
 
     /** 이 가게(입금이면 보낸 사람)로 가장 최근에 등록한 [type] 거래의 분류. 없으면 null */
     suspend fun lastCategoryIdForMerchant(merchant: String, type: TransactionType): Long? =
@@ -116,13 +116,13 @@ class TransactionRepository(private val transactionDao: TransactionDao) {
 
     /** [date] 하루(서울 0시~다음 날 0시)의 거래. 월급 탭의 '오늘 쓴 돈' 이 쓴다. */
     fun observeDay(date: LocalDate): Flow<List<TransactionListItem>> = transactionDao.observeBetween(
-        date.atStartOfDay(BudgetTime.ZONE).toInstant(),
-        date.plusDays(1).atStartOfDay(BudgetTime.ZONE).toInstant(),
+        date.startInstant(),
+        date.plusDays(1).startInstant(),
     )
 
     /** [today] 까지(앞으로의 날짜로 적은 거래는 빼고) 최근 지출 [limit] 건(저축은 빼고). 월급 탭의 최근 내역이 쓴다. */
     fun observeRecentExpenses(today: LocalDate, limit: Int): Flow<List<TransactionListItem>> =
-        transactionDao.observeRecentExpenses(today.plusDays(1).atStartOfDay(BudgetTime.ZONE).toInstant(), limit)
+        transactionDao.observeRecentExpenses(today.plusDays(1).startInstant(), limit)
 
     /**
      * 한 달 치 월급을 등록했는지. 월급날 알림·월급 탭으로 등록한 열쇠([key])가 있거나,
