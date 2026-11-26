@@ -6,6 +6,7 @@ import android.os.Build
 import android.util.Log
 import androidx.core.content.edit
 import com.dong.budget.BuildConfig
+import com.dong.budget.data.clipToLength
 import com.dong.budget.data.db.BudgetTime
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -79,7 +80,7 @@ object DevLog {
 
     private fun log(level: LogLevel, tag: String, message: String, error: Throwable?) {
         if (!initialized || (loaded && !on)) return
-        val text = (if (error == null) message else "$message\n${error.stackTraceToString()}").take(MAX_MESSAGE_CHARS)
+        val text = clipToLength(if (error == null) message else "$message\n${error.stackTraceToString()}", MAX_MESSAGE_CHARS)
         val entry = LogEntry(System.currentTimeMillis(), level, tag, text)
         // 개발판은 adb 로도 보이게 한다
         if (BuildConfig.DEBUG) Log.println(level.priority, LOGCAT_TAG, "[$tag] $text")
@@ -177,7 +178,7 @@ object DevLog {
                 at = System.currentTimeMillis(),
                 level = LogLevel.ERROR,
                 tag = LogTag.APP,
-                message = "앱이 멈췄어요 (${thread.name} 스레드)\n${error.stackTraceToString()}".take(MAX_MESSAGE_CHARS),
+                message = clipToLength("앱이 멈췄어요 (${thread.name} 스레드)\n${error.stackTraceToString()}", MAX_MESSAGE_CHARS),
             )
         target.appendText(encodeLogEntry(entry) + "\n")
     }

@@ -35,11 +35,11 @@ class PaymentMethodRepository(private val dao: PaymentMethodDao) {
         fun sameName(a: String, b: String): Boolean = a.replace(" ", "").equals(b.replace(" ", ""), ignoreCase = true)
 
         /**
-         * 알림에서 읽은 카드 이름을 결제수단 이름으로 다듬는다. 이름 길이 제한에 맞춰 뒤를 자른다.
+         * 알림에서 읽은 카드 이름을 결제수단 이름으로 다듬는다. 이름 길이 제한에 맞춰 뒤를 자른다(이모지를 반쪽으로 가르지 않게 [clipToLength]).
          * [findOrCreate] 와 등록창이 같은 이름으로 비교해야 '새로 추가돼요' 안내가 실제 동작과 맞는다.
          * @return 비어 있으면 null
          */
-        fun normalizeName(raw: String): String? = raw.trim().take(MAX_NAME_LENGTH).trim().ifEmpty { null }
+        fun normalizeName(raw: String): String? = clipToLength(raw.trim(), MAX_NAME_LENGTH).trim().ifEmpty { null }
 
         /**
          * 알림에서 읽은 카드 이름([normalizeName] 으로 다듬은 것)과 같은 결제수단. 없으면 null.

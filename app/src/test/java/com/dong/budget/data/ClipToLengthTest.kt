@@ -1,10 +1,10 @@
-package com.dong.budget.ui.components
+package com.dong.budget.data
 
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
 // 글자 칸의 길이 한도. 한도는 저장할 때의 길이 검사(name.length)와 같은 UTF-16 단위로 센다.
-class FormFieldTest {
+class ClipToLengthTest {
     @Test
     fun `한도 안이면 그대로 둔다`() {
         assertEquals("카페", clipToLength("카페", 20))
