@@ -46,19 +46,19 @@ internal fun DayRecordsSection(month: YearMonth, daily: DailyStats, onShowPeak: 
         if (daily.counted.isEmpty()) {
             SectionNote("아직 지나간 날이 없어요")
         } else {
-            val peak = daily.peak
+            val peak = daily.records.peak
             StatRow(
                 label = "하루 평균",
-                value = averageValue(daily.average),
-                valueColor = daily.average?.let { netExpenseColor(it) } ?: BudgetTheme.colors.textPrimary,
+                value = averageValue(daily.records.average),
+                valueColor = daily.records.average?.let { netExpenseColor(it) } ?: BudgetTheme.colors.textPrimary,
                 caption = countedCaption(daily.counted),
             )
             StatRow(
                 label = "쓴 날 평균",
-                value = averageValue(daily.spentDayAverage),
-                valueColor = daily.spentDayAverage?.let { netExpenseColor(it) } ?: BudgetTheme.colors.textPrimary,
+                value = averageValue(daily.records.spentDayAverage),
+                valueColor = daily.records.spentDayAverage?.let { netExpenseColor(it) } ?: BudgetTheme.colors.textPrimary,
                 // 쓴 날이 없으면 '돈을 쓴 0일 기준' 이 어색해서 뺀다
-                caption = daily.spentDays.takeIf { it > 0 }?.let(::spentDaysCaption),
+                caption = daily.records.spentDays.takeIf { it > 0 }?.let(::spentDaysCaption),
             )
             StatRow(
                 label = "가장 많이 쓴 날",
@@ -69,8 +69,8 @@ internal fun DayRecordsSection(month: YearMonth, daily: DailyStats, onShowPeak: 
             )
             StatRow(
                 label = "돈 안 쓴 날",
-                value = "${daily.noSpendDays ?: 0}일",
-                caption = noSpendCaption(daily.counted, daily.longestNoSpend),
+                value = "${daily.records.noSpendDays ?: 0}일",
+                caption = noSpendCaption(daily.counted, daily.records.longestNoSpend),
             )
             countedStartHint(month, daily.counted)?.let { HintText(it) }
         }

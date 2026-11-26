@@ -65,8 +65,8 @@ class BuildStatisticsTest {
         assertTrue(state.expenseByPayment.entries.isEmpty())
         assertTrue(state.daily.days.all { it.items.isEmpty() })
         // 저축만 한 날도 돈 안 쓴 날이다
-        assertEquals(0, state.daily.spentDays)
-        assertEquals(27, state.daily.noSpendDays)
+        assertEquals(0, state.daily.records.spentDays)
+        assertEquals(27, state.daily.records.noSpendDays)
     }
 
     @Test
@@ -81,7 +81,7 @@ class BuildStatisticsTest {
         assertEquals(listOf(10_000L), state.monthly.largest.map { it.amount })
         assertEquals(listOf("마트"), state.merchants.map { it.name })
         assertEquals(listOf(1), state.expenseByPayment.entries.map { it.count })
-        assertEquals(1, state.daily.spentDays)
+        assertEquals(1, state.daily.records.spentDays)
         assertTrue(state.daily.days[4].items.isEmpty())
     }
 
@@ -98,9 +98,9 @@ class BuildStatisticsTest {
         assertEquals(510_000L, state.expenseByCategory.total)
         assertEquals(500_000L, state.daily.days[24].expense)
         assertEquals(500_000L, state.daily.stackMax)
-        assertEquals(1_000L, state.daily.average)
-        assertEquals(day("2026-09-03"), state.daily.peak?.date)
-        assertEquals(9, state.daily.noSpendDays)
+        assertEquals(1_000L, state.daily.records.average)
+        assertEquals(day("2026-09-03"), state.daily.records.peak?.date)
+        assertEquals(9, state.daily.records.noSpendDays)
         assertEquals(10_000L, state.monthly.flow!!.thisMonth.last())
         assertEquals(10, state.monthly.flow!!.thisMonth.size)
         // 요일 창은 8월 1일~9월 10일이라 25일(금) 거래가 없다

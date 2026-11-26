@@ -118,7 +118,11 @@ private fun monthlyStats(
         comparison = compareSpending(month, today, current, previous),
         futureCount = futureCount,
         insights =
-        if (monthIsEmpty) emptyList() else insights(expenseByCategory, daily.weekday, daily.counted, daily.noSpendDays, goneCategories),
+        if (monthIsEmpty) {
+            emptyList()
+        } else {
+            insights(expenseByCategory, daily.weekday, daily.counted, daily.records.noSpendDays, goneCategories)
+        },
         flow = cumulativeFlow(month, today, current, previous),
         pace = pace(month, today, current, previous, firstRecord),
         trend = trend,
@@ -148,12 +152,7 @@ private fun dailyStats(
         stackMax = days.maxOfOrNull { it.segments.sum() } ?: 0L,
         defaultDay = defaultDay(period, today, records.peak, days),
         counted = counted,
-        average = records.average,
-        spentDays = records.spentDays,
-        spentDayAverage = records.spentDayAverage,
-        peak = records.peak,
-        noSpendDays = records.noSpendDays,
-        longestNoSpend = records.longestNoSpend,
+        records = records,
         weekday = weekdayStats(month, today, firstRecord, rows),
     )
 }

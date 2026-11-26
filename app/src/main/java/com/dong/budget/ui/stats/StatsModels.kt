@@ -193,12 +193,7 @@ fun GroupKey.detailKey(dimension: StatsDimension, month: YearMonth): StatsDetail
  * @property stackMax 하루 쌓은 높이(양수 조각의 합)의 최댓값
  * @property defaultDay 처음 고를 날(일). 이번 달은 오늘, 지나간 달은 가장 많이 쓴 날, 오지 않은 달은 기록이 있는 첫날
  * @property counted 평균 등에 넣는 날(일 범위). 기록 시작일부터 오늘까지로 자른다. 없으면 비어 있다.
- * @property average counted 안의 하루 평균 지출. counted 가 비었거나 음수면 null
- * @property spentDays counted 안에서 지출이 있었던 날 수
- * @property spentDayAverage 쓴 날 평균. 쓴 날이 없거나 환불이 더 많아 음수면 null
- * @property peak counted 안에서 가장 많이 쓴 날. 없으면 null
- * @property noSpendDays counted 안에서 지출이 없던 날 수. counted 가 비었으면 null
- * @property longestNoSpend 돈 안 쓴 날의 최장 연속 일수
+ * @property records counted 안의 하루 기록(하루 평균 · 쓴 날 · 가장 많이 쓴 날 · 돈 안 쓴 날). counted 가 비었으면 [DayRecords.NONE]
  * @property weekday 요일별 하루 평균. 창이 14일 미만이면 null
  */
 @Immutable
@@ -208,16 +203,34 @@ data class DailyStats(
     val stackMax: Long,
     val defaultDay: Int,
     val counted: IntRange,
+    val records: DayRecords,
+    val weekday: WeekdayStats?,
+) {
+    companion object {
+        val EMPTY = DailyStats(emptyList(), emptyList(), 0, 1, IntRange.EMPTY, DayRecords.NONE, null)
+    }
+}
+
+/**
+ * 하루 기록. [DailyStats.counted] 안의 날만 센다.
+ * @property average 하루 평균 지출. 센 날이 없거나 환불이 더 많아 음수면 null
+ * @property spentDays 지출(환불 말고)이 한 건이라도 있던 날 수
+ * @property spentDayAverage 쓴 날 평균 = 센 날의 지출 ÷ 쓴 날 수. 쓴 날이 없거나 음수면 null
+ * @property peak 하루 순지출이 가장 큰 날(0 보다 커야 한다). 같으면 이른 날
+ * @property noSpendDays 지출이 없던 날 수. 환불이나 수입만 있던 날도 센다. 센 날이 없으면 null
+ * @property longestNoSpend 돈 안 쓴 날의 최장 연속 일수
+ */
+data class DayRecords(
     val average: Long?,
     val spentDays: Int,
     val spentDayAverage: Long?,
     val peak: DayPeak?,
     val noSpendDays: Int?,
     val longestNoSpend: Int,
-    val weekday: WeekdayStats?,
 ) {
     companion object {
-        val EMPTY = DailyStats(emptyList(), emptyList(), 0, 1, IntRange.EMPTY, null, 0, null, null, null, 0, null)
+        /** 센 날이 없을 때 */
+        val NONE = DayRecords(null, 0, null, null, null, 0)
     }
 }
 

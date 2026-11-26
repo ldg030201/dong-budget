@@ -8,6 +8,7 @@ import com.dong.budget.ui.home.localDate
 import com.dong.budget.ui.home.totals
 import com.dong.budget.ui.stats.DayDetail
 import com.dong.budget.ui.stats.DayPeak
+import com.dong.budget.ui.stats.DayRecords
 import com.dong.budget.ui.stats.DayStack
 import com.dong.budget.ui.stats.GroupKey
 import com.dong.budget.ui.stats.Period
@@ -70,26 +71,11 @@ private fun dayDetails(items: List<TransactionListItem>, seriesIndex: Map<GroupK
 
 /**
  * 하루 기록. [counted] 안의 날만 센다.
- * @property average 하루 평균 지출. 센 날이 없거나 환불이 더 많아 음수면 null
- * @property spentDays 지출(환불 말고)이 한 건이라도 있던 날 수
- * @property spentDayAverage 쓴 날 평균 = 센 날의 지출 ÷ 쓴 날 수. 쓴 날이 없거나 음수면 null
- * @property peak 하루 순지출이 가장 큰 날(0 보다 커야 한다). 같으면 이른 날
- * @property noSpendDays 지출이 없던 날 수. 환불이나 수입만 있던 날도 센다. 센 날이 없으면 null
- * @property longestNoSpend 돈 안 쓴 날의 최장 연속 일수
+ * @param days [dayStacks] 의 결과(1일부터 말일까지)
  */
-data class DayRecords(
-    val average: Long?,
-    val spentDays: Int,
-    val spentDayAverage: Long?,
-    val peak: DayPeak?,
-    val noSpendDays: Int?,
-    val longestNoSpend: Int,
-)
-
-/** @param days [dayStacks] 의 결과(1일부터 말일까지) */
 fun dayRecords(counted: IntRange, days: List<DayStack>): DayRecords {
     val inRange = days.filter { it.date.dayOfMonth in counted }
-    if (inRange.isEmpty()) return DayRecords(null, 0, null, null, null, 0)
+    if (inRange.isEmpty()) return DayRecords.NONE
     val spent = inRange.map { day -> day.items.any { it.type == TransactionType.EXPENSE } }
     val spentDays = spent.count { it }
     val total = inRange.sumOf { it.expense }
