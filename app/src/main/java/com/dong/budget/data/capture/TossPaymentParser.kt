@@ -10,6 +10,7 @@ package com.dong.budget.data.capture
  *     (토스뱅크 체크카드. 캐시백이 붙으면 제목에 캐시백이, 본문에 결제 금액과 가게가, 둘째 줄 괄호에 카드 이름이 온다)
  *   제목: "48원 캐시백"          본문: "16,250원 결제 | 세븐일레븐 강동열린점 잔액 847,208원(토스뱅크 체크카드)"
  *     (2026-11-26 사용자 스크린샷. 둘째 줄이던 잔액이 줄을 바꾸지 않고 빈칸 하나를 두고 첫 줄 끝에 붙어 온다)
+ * 잔액은 둘째 줄에 오든 가게 끝에 붙어 오든 같은 '잔액 N원(카드)' 조각([BALANCE])으로 읽는다.
  * 가게 끝에 붙은 잔액은 어느 모양에서 오든 떼고, 괄호 안은 카드 이름으로 쓴다([trailingBalancePattern]).
  * 이 모양과 딱 맞을 때만 읽는다([PaymentParser]).
  */
@@ -26,8 +27,14 @@ object TossPaymentParser : PaymentParser {
     /** 캐시백 알림 본문 첫 줄. "2,300원 결제 | 세븐일레븐 강동열린점". 금액과 가게가 여기에 있다. */
     private val cashbackPaidPattern = Regex("""^([0-9][0-9,]*)\s*원\s*결제\s*\|\s*(.+)$""")
 
-    /** 캐시백 알림 본문 둘째 줄. "잔액 146,658원(토스뱅크 체크카드)". 괄호 안이 카드 이름이다. */
-    private val balancePattern = Regex("""^잔액\s*[0-9][0-9,]*\s*원\s*\((.+)\)$""")
+    /**
+     * 체크카드 알림의 '잔액 N원(카드)' 조각. 괄호 안이 카드 이름이고([balanceCard]), 괄호 없이 '잔액 N원' 만 와도 맞는다.
+     * 둘째 줄([balancePattern])과 가게 끝([trailingBalancePattern])이 같은 조각을 쓴다.
+     */
+    private const val BALANCE = """잔액\s*[0-9][0-9,]*\s*원(?:\s*\((.*)\))?"""
+
+    /** 캐시백 알림 본문 둘째 줄. "잔액 146,658원(토스뱅크 체크카드)". 괄호가 없거나 비었으면 카드 이름 없이 읽는다. */
+    private val balancePattern = Regex("^$BALANCE$")
 
     /**
      * 가게 끝에 이어 붙은 잔액. "세븐일레븐 강동열린점 잔액 847,208원(토스뱅크 체크카드)" 의 ' 잔액 …' 부분.
@@ -35,7 +42,7 @@ object TossPaymentParser : PaymentParser {
      * 앞에 빈칸이 있을 때만 뗀다. '잔액충전소' 처럼 가게 이름 안의 말은 건드리지 않는다.
      * 빈칸은 normalizeNotificationText 가 보통 공백 하나로 바꿔 두므로 그대로 적는다.
      */
-    private val trailingBalancePattern = Regex(""" 잔액\s*[0-9][0-9,]*\s*원(?:\s*\((.*)\))?$""")
+    private val trailingBalancePattern = Regex(" $BALANCE$")
 
     /**
      * 카드 이름과 가게 사이의 가운뎃점. 토스뱅크 알림이 쓴다. 화면에서 똑같아 보이는 글자가 여럿이라 모두 받는다.
@@ -54,18 +61,12 @@ object TossPaymentParser : PaymentParser {
         val parts = paymentParts(cleanTitle, lines) ?: cashbackParts(cleanTitle, lines) ?: return null
         val amount = parseAmount(parts.amountDigits) ?: return null
 
-        var merchant = parts.merchant
-        var card = parts.card
         // 첫 줄 끝에 이어 붙은 잔액을 뗀다. 괄호 안 카드 이름은 '카드 | 가게' 나 둘째 줄에서 카드를 못 읽었을 때만 쓴다.
-        trailingBalancePattern.find(merchant)?.let { match ->
-            card = card ?: match.groupValues[1].trim().ifEmpty { null }
-            merchant = merchant.removeRange(match.range).trim()
-        }
-        var months: Int? = null
-        installmentPattern.find(merchant)?.let { match ->
-            months = (match.groupValues[1].ifEmpty { match.groupValues[2] }).toIntOrNull()?.takeIf { it > 1 }
-            merchant = merchant.removeRange(match.range).trim()
-        }
+        // 잔액을 먼저 떼야 그 앞의 할부 표시가 가게 끝으로 나온다('가게(3개월) 잔액 1,000원').
+        val (withoutBalance, balance) = parts.merchant.cutEnd(trailingBalancePattern)
+        val card = parts.card ?: balance?.balanceCard()
+        val (merchant, installment) = withoutBalance.cutEnd(installmentPattern)
+        val months = installment?.let { (it.groupValues[1].ifEmpty { it.groupValues[2] }).toIntOrNull()?.takeIf { n -> n > 1 } }
 
         return CapturedPayment(
             amount = amount,
@@ -76,6 +77,15 @@ object TossPaymentParser : PaymentParser {
             dedupKey = "toss:$postedAtMillis:$amount:$merchant",
         )
     }
+
+    /** 끝에 [pattern] 이 맞으면 그 부분을 뗀 나머지와 맞은 것을, 맞지 않으면 그대로와 null 을 준다. */
+    private fun String.cutEnd(pattern: Regex): Pair<String, MatchResult?> {
+        val match = pattern.find(this) ?: return this to null
+        return removeRange(match.range).trim() to match
+    }
+
+    /** [BALANCE] 의 괄호 안 카드 이름. 괄호가 없거나 비었으면 null */
+    private fun MatchResult.balanceCard(): String? = groupValues[1].trim().ifEmpty { null }
 
     /** 알림에서 읽은 결제 조각. 금액은 아직 쉼표가 붙은 글자다. 가게 끝에는 할부 표시가 붙어 있을 수 있다. */
     private class Parts(val amountDigits: String, val card: String?, val merchant: String)
@@ -94,13 +104,13 @@ object TossPaymentParser : PaymentParser {
 
     /**
      * 제목이 '금액원 캐시백' 인 알림(토스뱅크 체크카드). 본문 첫 줄이 '금액원 결제 | 가게' 여야 한다.
-     * 카드 이름은 둘째 줄 '잔액 N원(카드)' 의 괄호에서 꺼낸다. 둘째 줄이 없거나 모양이 다르면 카드 이름 없이 읽는다.
-     * 잔액이 첫 줄 끝에 붙어 오면 가게에 섞여 있다. [parse] 가 떼면서 괄호의 카드 이름도 꺼낸다.
+     * 카드 이름은 둘째 줄 '잔액 N원(카드)' 의 괄호에서 꺼낸다([balanceCard]). 둘째 줄이 없거나 모양이 다르거나 괄호가 비었으면 카드 이름 없이 읽는다.
+     * 잔액이 첫 줄 끝에 붙어 오면 가게에 섞여 있다. [parse] 가 떼면서 같은 식으로 괄호의 카드 이름도 꺼낸다.
      */
     private fun cashbackParts(title: String, lines: List<String>): Parts? {
         if (!cashbackTitlePattern.matches(title)) return null
         val paid = cashbackPaidPattern.matchEntire(lines.firstOrNull() ?: return null) ?: return null
-        val card = lines.getOrNull(1)?.let { balancePattern.matchEntire(it) }?.groupValues?.get(1)?.trim()?.ifEmpty { null }
+        val card = lines.getOrNull(1)?.let { balancePattern.matchEntire(it) }?.balanceCard()
         return Parts(paid.groupValues[1], card, paid.groupValues[2].trim())
     }
 }
