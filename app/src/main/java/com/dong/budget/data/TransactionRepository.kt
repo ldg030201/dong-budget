@@ -9,7 +9,7 @@ import com.dong.budget.data.db.TransactionListItem
 import com.dong.budget.data.db.TransactionType
 import com.dong.budget.data.devlog.DevLog
 import com.dong.budget.data.devlog.LogTag
-import com.dong.budget.data.salary.salaryMonthOf
+import com.dong.budget.data.salary.dedupKeyFor
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -205,7 +205,7 @@ class TransactionRepository(private val transactionDao: TransactionDao) {
                 merchant = merchant.trimmedOrNull(),
                 memo = memo.trimmedOrNull(),
                 // 월급으로 등록한 거래를 수입이 아닌 것으로 고치면 더는 월급이 아니다. 그달 월급을 등록한 것으로 치지 않게 열쇠를 뗀다.
-                dedupKey = existing.dedupKey.takeUnless { salaryMonthOf(it.orEmpty()) != null && type != TransactionType.INCOME },
+                dedupKey = dedupKeyFor(type, existing.dedupKey),
                 updatedAt = Instant.now(),
             ),
         )

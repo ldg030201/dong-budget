@@ -1,5 +1,6 @@
 package com.dong.budget.data.salary
 
+import com.dong.budget.data.db.TransactionType
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -374,5 +375,15 @@ class SalaryTest {
         assertEquals((3_000_000.0 * worked / total).toLong(), joined.payFor(november))
         // 9월 29일에 맞추면 10월(입사 전)을 건너뛰고 11월 월급날(25일, 수) 알림을 맞춘다
         assertEquals(november to LocalDateTime.of(2026, 11, 25, 9, 0), joined.nextPaydayAlarm(at("2026-09-29T10:00:00"), notified = null))
+    }
+
+    @Test
+    fun `월급 열쇠는 수입에만 붙이고 다른 열쇠는 그대로 둔다`() {
+        val key = salaryKey(october)
+        assertEquals(key, dedupKeyFor(TransactionType.INCOME, key))
+        assertEquals(null, dedupKeyFor(TransactionType.EXPENSE, key))
+        assertEquals(null, dedupKeyFor(TransactionType.TRANSFER, key))
+        assertEquals("toss:1:1000:가게", dedupKeyFor(TransactionType.EXPENSE, "toss:1:1000:가게"))
+        assertEquals(null, dedupKeyFor(TransactionType.INCOME, null))
     }
 }

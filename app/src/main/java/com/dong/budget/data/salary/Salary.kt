@@ -1,5 +1,6 @@
 package com.dong.budget.data.salary
 
+import com.dong.budget.data.db.TransactionType
 import com.dong.budget.data.holiday.KoreanHolidays
 import java.time.DayOfWeek
 import java.time.LocalDate
@@ -357,6 +358,13 @@ fun salaryKey(month: YearMonth): String = "$SALARY_KEY_PREFIX$month"
 fun salaryMonthOf(key: String): YearMonth? = key.removePrefix(SALARY_KEY_PREFIX).takeIf { key.startsWith(SALARY_KEY_PREFIX) }?.let {
     runCatching { YearMonth.parse(it) }.getOrNull()
 }
+
+/**
+ * [type] 거래에 붙여 저장할 열쇠. 월급 열쇠([salaryKey])는 수입에만 붙인다. 월급날로 연 등록창이나 월급으로 등록한 거래를
+ * 수입이 아닌 것으로 바꿔 저장하면 더는 월급이 아니다. 그달 월급을 등록한 것으로 치지 않게 열쇠를 떼어 낸다. 다른 열쇠는 그대로 둔다.
+ */
+fun dedupKeyFor(type: TransactionType, key: String?): String? =
+    key?.takeUnless { salaryMonthOf(it) != null && type != TransactionType.INCOME }
 
 private const val SALARY_KEY_PREFIX = "salary:"
 

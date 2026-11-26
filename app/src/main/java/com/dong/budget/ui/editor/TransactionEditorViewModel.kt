@@ -17,6 +17,7 @@ import com.dong.budget.data.db.TransactionType
 import com.dong.budget.data.db.colors
 import com.dong.budget.data.devlog.DevLog
 import com.dong.budget.data.devlog.LogTag
+import com.dong.budget.data.salary.dedupKeyFor
 import com.dong.budget.data.settings.AutoOption
 import com.dong.budget.data.settings.AutoSettings
 import com.dong.budget.navigation.EditorPrefill
@@ -484,10 +485,7 @@ class TransactionEditorViewModel(
         viewModelScope.launch {
             if (transactionId == null) {
                 // 월급날로 연 등록창을 지출로 바꿔 저장하면 월급이 아니다. 그달 월급을 등록한 것으로 치지 않게 열쇠를 떼어 낸다.
-                val dedupKey = state.dedupKey.takeUnless {
-                    state.prefillSource == PrefillSource.PAYDAY &&
-                        state.type != TransactionType.INCOME
-                }
+                val dedupKey = dedupKeyFor(state.type, state.dedupKey)
                 // 이미 등록한 결제면 카드를 만들기 전에 멈춘다
                 if (dedupKey != null && repository.isRegistered(dedupKey)) {
                     rejectAlreadyRegistered(dedupKey)
