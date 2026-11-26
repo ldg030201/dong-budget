@@ -44,6 +44,7 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextOverflow
 import com.dong.budget.R
 import com.dong.budget.data.db.FixedKind
+import com.dong.budget.data.db.TransactionListItem
 import com.dong.budget.navigation.EditorPrefill
 import com.dong.budget.ui.components.BudgetListItem
 import com.dong.budget.ui.components.BudgetPrimaryButton
@@ -462,16 +463,7 @@ private fun FixedRow(item: FixedExpenseItem, state: FixedExpenseUiState, actions
         subtitle = rowSubtitle(item, state.month),
         modifier = Modifier.semantics { stateDescription = status },
         // 모두 같은 분류('고정지출' · '저축')라 분류 뱃지는 줄마다 같다. 어느 카드로 내는지가 더 잘 가려 준다.
-        leading = {
-            val latest = item.latest
-            LatestBadge(
-                latest.paymentMethodId,
-                latest.paymentMethodIcon,
-                latest.paymentMethodColor,
-                latest.categoryIcon,
-                latest.categoryColor,
-            )
-        },
+        leading = { LatestBadge(item.latest) },
         note =
         if (note != null || canRegister || canEnd) {
             { RowExtras(item = item, state = state, note = note, canRegister = canRegister, canEnd = canEnd, actions = actions) }
@@ -556,21 +548,15 @@ private fun ButtonRow(content: @Composable () -> Unit) {
 }
 
 /**
- * 줄의 뱃지. 가장 최근 거래의 결제수단, 없으면(비웠거나 지웠다) 분류. 판의 줄과 묻는 줄이 같이 써서
+ * 줄의 뱃지. 가장 최근 거래([latest])의 결제수단, 없으면(비웠거나 지웠다) 분류. 판의 줄과 묻는 줄이 같이 써서
  * 묻는 줄에서 등록해 판으로 옮겨 가도 아이콘이 그대로다.
  */
 @Composable
-private fun LatestBadge(
-    paymentMethodId: Long?,
-    paymentIcon: String?,
-    paymentColor: String?,
-    categoryIcon: String?,
-    categoryColor: String?,
-) {
-    if (paymentMethodId != null) {
-        CategoryBadge(icon = paymentIcon, color = paymentColor)
+private fun LatestBadge(latest: TransactionListItem) {
+    if (latest.paymentMethodId != null) {
+        CategoryBadge(icon = latest.paymentMethodIcon, color = latest.paymentMethodColor)
     } else {
-        CategoryBadge(icon = categoryIcon, color = categoryColor)
+        CategoryBadge(icon = latest.categoryIcon, color = latest.categoryColor)
     }
 }
 
@@ -603,16 +589,7 @@ private fun CandidateRow(candidate: FixedCandidate, state: FixedExpenseUiState, 
         title = candidate.name,
         subtitle = candidateSubtitle(candidate, state.today),
         modifier = spokenState?.let { shown -> Modifier.semantics { stateDescription = shown } } ?: Modifier,
-        leading = {
-            val latest = candidate.latest
-            LatestBadge(
-                latest.paymentMethodId,
-                latest.paymentMethodIcon,
-                latest.paymentMethodColor,
-                latest.categoryIcon,
-                latest.categoryColor,
-            )
-        },
+        leading = { LatestBadge(candidate.latest) },
         note = {
             ButtonRow {
                 if (mode == CandidateMode.ENDED) {
