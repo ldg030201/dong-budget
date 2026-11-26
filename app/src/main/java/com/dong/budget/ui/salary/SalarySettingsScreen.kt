@@ -40,6 +40,7 @@ import com.dong.budget.ui.components.InputPanelBox
 import com.dong.budget.ui.components.NumberKeypad
 import com.dong.budget.ui.components.SegmentedToggle
 import com.dong.budget.ui.components.SwitchRow
+import com.dong.budget.ui.components.panelAccepts
 import com.dong.budget.ui.editor.DatePanel
 import com.dong.budget.ui.editor.TimePanel
 import com.dong.budget.ui.format.formatAmount
@@ -244,34 +245,42 @@ fun SalarySettingsScreen(
                 Spacer(Modifier.height(BudgetTheme.spacing.sectionGap))
             }
 
+            // 닫히며 내려가거나 다른 입력판으로 바뀌며 사라지는 판도 그동안 누름을 받는다. 누르는 순간 열린 입력판을 읽어
+            // 그 판일 때만 받는다. 시계로 바뀌며 사라지는 날짜판의 칸이나 내려가는 키패드가 눌려 월급날·금액이 바뀌지 않게 한다.
             AnimatedInputPanel(panel = panel, modifier = Modifier.navigationBarsPadding()) { current ->
                 when (current) {
                     SalaryPanel.AMOUNT, SalaryPanel.TAKE_HOME -> {
                         val takeHome = current == SalaryPanel.TAKE_HOME
                         InputPanelBox {
                             NumberKeypad(
-                                onDigit = { onDigit(takeHome, it) },
-                                onDelete = { onDeleteDigit(takeHome) },
-                                onClear = { onClearAmount(takeHome) },
+                                onDigit = { if (panelAccepts(panel, current)) onDigit(takeHome, it) },
+                                onDelete = { if (panelAccepts(panel, current)) onDeleteDigit(takeHome) },
+                                onClear = { if (panelAccepts(panel, current)) onClearAmount(takeHome) },
                             )
                         }
                     }
 
-                    SalaryPanel.WORK_START -> TimeInput(settings.workStart) { onChange(settings.copy(workStart = it)) }
+                    SalaryPanel.WORK_START ->
+                        TimeInput(settings.workStart) { if (panelAccepts(panel, current)) onChange(settings.copy(workStart = it)) }
 
-                    SalaryPanel.WORK_END -> TimeInput(settings.workEnd) { onChange(settings.copy(workEnd = it)) }
+                    SalaryPanel.WORK_END ->
+                        TimeInput(settings.workEnd) { if (panelAccepts(panel, current)) onChange(settings.copy(workEnd = it)) }
 
-                    SalaryPanel.LUNCH_START -> TimeInput(settings.lunchStart) { onChange(settings.copy(lunchStart = it)) }
+                    SalaryPanel.LUNCH_START ->
+                        TimeInput(settings.lunchStart) { if (panelAccepts(panel, current)) onChange(settings.copy(lunchStart = it)) }
 
-                    SalaryPanel.LUNCH_END -> TimeInput(settings.lunchEnd) { onChange(settings.copy(lunchEnd = it)) }
+                    SalaryPanel.LUNCH_END ->
+                        TimeInput(settings.lunchEnd) { if (panelAccepts(panel, current)) onChange(settings.copy(lunchEnd = it)) }
 
                     SalaryPanel.PAYDAY ->
                         InputPanelBox {
                             DayOfMonthGrid(
                                 selected = settings.payday,
                                 onPick = { day ->
-                                    onChange(settings.copy(payday = day))
-                                    panel = null
+                                    if (panelAccepts(panel, current)) {
+                                        onChange(settings.copy(payday = day))
+                                        panel = null
+                                    }
                                 },
                                 describe = { day -> if (day == MAX_PAYDAY) "매달 31일, 없는 달은 말일" else "매달 ${day}일" },
                             )
@@ -283,16 +292,20 @@ fun SalarySettingsScreen(
                                 BudgetTextButton(
                                     text = "입사일 지우기",
                                     onClick = {
-                                        onChange(settings.copy(startDate = null))
-                                        panel = null
+                                        if (panelAccepts(panel, current)) {
+                                            onChange(settings.copy(startDate = null))
+                                            panel = null
+                                        }
                                     },
                                 )
                             }
                             DatePanel(
                                 date = settings.startDate ?: BudgetTime.toLocalDate(Instant.now()),
                                 onPick = { date: LocalDate ->
-                                    onChange(settings.copy(startDate = date))
-                                    panel = null
+                                    if (panelAccepts(panel, current)) {
+                                        onChange(settings.copy(startDate = date))
+                                        panel = null
+                                    }
                                 },
                             )
                         }
