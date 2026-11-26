@@ -47,10 +47,8 @@ enum class FixedStatus {
  * 고정지출 한 가게. 모두 고른 달까지의 기록으로 낸 값이다.
  *
  * @property key 묶는 열쇠([fixedMerchantKey]). 가게 이름 없이 적은 지출(백업으로만 들어온다)은 모두 [NO_MERCHANT_KEY] 하나로 묶는다.
- * @property name 보이는 이름. 가장 최근 거래의 가게 이름(앞뒤 공백을 뺀다), 이름이 없으면 [NO_MERCHANT_NAME]
- * @property merchant 등록창에 채울 가게 이름. 이름 없이 묶인 것은 null
+ * @property merchant 등록창에 채울 가게 이름. 가장 최근 거래의 가게 이름(앞뒤 공백을 뺀다, [fixedMerchantName])이고, 이름 없이 묶인 것은 null
  * @property cadence 몇 달마다 내는지. 1(매달), 2~10(그 달마다), 12(매년)
- * @property usualDay 평소 내는 날(1~31). 한 달에 두 차례 내면 이른 차례의 날이다. 그 달에 없는 날이면 말일로 보고, 쉬는 날이면 다음 영업일에 낸다.
  * @property usualDays 차례마다 평소 내는 날, 이른 차례부터(3일 · 28일). 한 달에 한 번이면 [usualDay] 하나다.
  * @property timesPerMonth 한 달에 서로 다른 날 여러 번 내는 자주 내는 가게(평일마다 내는 돌봄 · 주 3회 PT)면 한 달에 보통 몇 번 내는지.
  *   차례 없이 달력 달로 보아 그 달에 한 번이라도 냈으면 냈어요이고, 낼 돈은 가장 최근에 낸 달의 합이며 낼 날 알림이 없다. 그 밖에는 null
@@ -92,11 +90,9 @@ enum class FixedStatus {
 @Immutable
 data class FixedExpenseItem(
     val key: String,
-    val name: String,
     val merchant: String?,
     val status: FixedStatus,
     val cadence: Int,
-    val usualDay: Int,
     val usualDays: List<Int>,
     val timesPerMonth: Int?,
     val dueDay: Int,
@@ -117,6 +113,15 @@ data class FixedExpenseItem(
     val daysPastUsual: Int?,
     val latest: TransactionListItem,
 ) {
+    /** 보이는 이름. 가장 최근 거래의 가게 이름([merchant]), 이름이 없으면 [NO_MERCHANT_NAME] */
+    val name: String get() = merchant ?: NO_MERCHANT_NAME
+
+    /**
+     * 평소 내는 날(1~31, [usualDays] 의 첫 날). 한 달에 두 차례 내면 이른 차례의 날이다. 그 달에 없는 날이면 말일로 보고,
+     * 쉬는 날이면 다음 영업일에 낸다.
+     */
+    val usualDay: Int get() = usualDays.first()
+
     /**
      * 이 가게를 [month] 에 평소 내는 날(다음으로 낼 차례, [dueDay]). 그 달에 없는 날(2월 30일 등)이면 그 달 말일이다.
      * 쉬는 날이어도 밀지 않는다('등록하기' 날짜).
@@ -286,15 +291,12 @@ private fun fixedItem(
     val prepaidOn = shares[ahead]?.minOf { it.date }?.takeIf { status == FixedStatus.NOT_THIS_MONTH && it <= month.atEndOfMonth() }
     val lastPays = (shares.getValue(last) + extras[last].orEmpty()).sortedWith(paidByTime)
     val latest = (shares.filterKeys { it <= month }.values.flatten() + matching.extras.filter { it.month <= month }).maxWith(paidByTime)
-    val name = fixedMerchantName(key, latest.row.merchant)
     val item =
         FixedExpenseItem(
             key = key,
-            name = name ?: NO_MERCHANT_NAME,
-            merchant = name,
+            merchant = fixedMerchantName(key, latest.row.merchant),
             status = status,
             cadence = cadence,
-            usualDay = days.first(),
             usualDays = days,
             timesPerMonth = schedule.timesPerMonth,
             dueDay = days[state.open.firstOrNull() ?: state.dropped.lastOrNull()?.takeIf { unpaid } ?: split.indexOfFirst { it > 0 }],
