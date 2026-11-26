@@ -71,13 +71,7 @@ internal fun SummaryHead(monthly: MonthlyStats, month: YearMonth, today: LocalDa
                 style = BudgetTheme.amount.large,
                 color = netExpenseColor(expense),
             )
-            if (expense < 0) {
-                Text(
-                    text = REFUND_OVER_TEXT,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = BudgetTheme.colors.textSecondary,
-                )
-            }
+            if (expense < 0) HintText(REFUND_OVER_TEXT)
         }
         // 홈 요약과 같은 문장이다. 금액만 색을 입히고, 더/덜은 글자가 말한다.
         monthly.comparison?.let { comparison ->

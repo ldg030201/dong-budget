@@ -179,11 +179,7 @@ private fun BreakdownHeader(breakdown: Breakdown, dimension: StatsDimension, mon
                 style = BudgetTheme.amount.summary,
                 color = directedColor(breakdown.total, income = dimension == StatsDimension.INCOME_CATEGORY),
             )
-            Text(
-                text = entryCountText(breakdown.entries.size, dimension),
-                style = MaterialTheme.typography.bodySmall,
-                color = BudgetTheme.colors.textSecondary,
-            )
+            HintText(entryCountText(breakdown.entries.size, dimension))
         }
         if (breakdown.negativeCount > 0) HintText(negativeHint(breakdown.negativeCount, dimension))
     }

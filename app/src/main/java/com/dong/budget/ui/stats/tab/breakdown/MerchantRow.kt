@@ -61,13 +61,7 @@ fun MerchantRow(rank: Int, merchant: MerchantStat, modifier: Modifier = Modifier
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            Text(
-                text = merchantSubtitle(merchant),
-                style = MaterialTheme.typography.bodySmall,
-                color = BudgetTheme.colors.textSecondary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            SmallLine(merchantSubtitle(merchant), maxLines = 1)
         }
         Text(
             text = if (measure == Measure.SAVINGS) "${formatAmount(merchant.amount)}원" else formatNetExpense(merchant.amount),

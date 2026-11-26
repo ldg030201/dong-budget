@@ -159,16 +159,8 @@ private fun DetailHeader(state: StatsDetailUiState, monthLabel: String) {
                     )
                 }
             }
-            state.entry?.let { entry ->
-                Text(
-                    text = detailSummary(entry, state.dimension),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = BudgetTheme.colors.textSecondary,
-                )
-            }
-            state.change?.let { change ->
-                Text(text = changeText(change), style = MaterialTheme.typography.bodySmall, color = BudgetTheme.colors.textSecondary)
-            }
+            state.entry?.let { entry -> HintText(detailSummary(entry, state.dimension)) }
+            state.change?.let { change -> HintText(changeText(change)) }
         }
         if (state.entity.missing) HintText(missingHint(state.dimension))
         groupNote(state.key, state.dimension)?.let { HintText(it) }

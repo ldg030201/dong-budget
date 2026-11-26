@@ -114,9 +114,7 @@ private fun SummarySection(stats: SavingsStats, month: YearMonth, today: LocalDa
         ) {
             Text(text = savingsTitle(month, today), style = MaterialTheme.typography.bodyMedium, color = BudgetTheme.colors.textSecondary)
             Text(text = savedAmount(stats.total), style = BudgetTheme.amount.large, color = BudgetTheme.colors.textPrimary)
-            if (stats.total < 0) {
-                Text(text = WITHDRAWN_OVER_TEXT, style = MaterialTheme.typography.bodySmall, color = BudgetTheme.colors.textSecondary)
-            }
+            if (stats.total < 0) HintText(WITHDRAWN_OVER_TEXT)
         }
         stats.comparison?.let { comparison ->
             Text(text = comparisonSentence(comparison), style = MaterialTheme.typography.bodyMedium, color = BudgetTheme.colors.textPrimary)

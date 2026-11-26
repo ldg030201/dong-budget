@@ -26,6 +26,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
+import com.dong.budget.ui.components.HintText
 import com.dong.budget.ui.components.sectionBlock
 import com.dong.budget.ui.home.totalColor
 import com.dong.budget.ui.theme.BudgetTheme
@@ -80,13 +81,7 @@ fun SectionTitle(text: String, modifier: Modifier = Modifier, subtitle: String? 
             color = BudgetTheme.colors.textPrimary,
             modifier = Modifier.semantics { heading() },
         )
-        if (subtitle != null) {
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.bodySmall,
-                color = BudgetTheme.colors.textSecondary,
-            )
-        }
+        if (subtitle != null) HintText(subtitle)
     }
 }
 
@@ -131,13 +126,7 @@ fun StatRow(
                 style = MaterialTheme.typography.bodyMedium,
                 color = BudgetTheme.colors.textSecondary,
             )
-            if (caption != null) {
-                Text(
-                    text = caption,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = BudgetTheme.colors.textSecondary,
-                )
-            }
+            if (caption != null) HintText(caption)
         }
         Text(
             text = value,
