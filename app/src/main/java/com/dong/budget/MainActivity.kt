@@ -39,14 +39,14 @@ class MainActivity : ComponentActivity() {
 
         val container = (application as BudgetApplication).container
         setContent {
-            val settings = container.settingsRepository
-            // 저장값이 아직 도착하지 않은 동안에는 시스템 설정을 따른다.
+            // 앱이 켜질 때부터 따라가는 값이라, 화면을 돌려 다시 만들어질 때도 첫 프레임부터 고른 테마로 그린다.
+            // 저장값이 아직 도착하지 않은 동안(앱을 막 켰을 때)에는 '기기 설정' 이라 시스템 설정을 따른다.
             // XML 창 배경도 시스템 다크 모드를 따르므로 그동안 색이 어긋나지 않는다.
-            val themeMode by settings.themeMode.collectAsStateWithLifecycle(initialValue = null)
+            val themeMode by container.themeMode.collectAsStateWithLifecycle()
             val systemDark = isSystemInDarkTheme()
             val dark =
                 when (themeMode) {
-                    null, ThemeMode.SYSTEM -> systemDark
+                    ThemeMode.SYSTEM -> systemDark
                     ThemeMode.LIGHT -> false
                     ThemeMode.DARK -> true
                 }
