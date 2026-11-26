@@ -5,6 +5,7 @@ import com.dong.budget.data.card.MAX_PERFORMANCE_TIERS
 import com.dong.budget.ui.format.formatAmount
 import com.dong.budget.ui.format.formatKoreanWon
 import com.dong.budget.ui.format.formatMonth
+import com.dong.budget.ui.format.formatMonthDay
 import com.dong.budget.ui.format.formatSpentAmount
 import com.dong.budget.ui.stats.calc.TREND_MONTHS
 import java.time.LocalDate
@@ -60,12 +61,10 @@ internal fun periodName(month: YearMonth, today: LocalDate): String =
     if (month.year == today.year) "${month.monthValue}월 실적" else "${formatMonth(month)} 실적"
 
 /** 기간 날짜. "10월 1일 ~ 10월 31일" */
-internal fun periodRange(period: PerformancePeriod): String = "${monthDay(period.start)} ~ ${monthDay(period.lastDay)}"
+internal fun periodRange(period: PerformancePeriod): String = "${formatMonthDay(period.start)} ~ ${formatMonthDay(period.lastDay)}"
 
 /** 화면 읽기용 기간 날짜. "10월 1일부터 10월 31일까지" */
-internal fun spokenPeriodRange(period: PerformancePeriod): String = "${monthDay(period.start)}부터 ${monthDay(period.lastDay)}까지"
-
-private fun monthDay(date: LocalDate): String = "${date.monthValue}월 ${date.dayOfMonth}일"
+internal fun spokenPeriodRange(period: PerformancePeriod): String = "${formatMonthDay(period.start)}부터 ${formatMonthDay(period.lastDay)}까지"
 
 /**
  * 상세 기간 줄에서 오늘이 든 기간으로 돌아가는 버튼. 시작일이 1일이면 기간이 달력 달과 같아 통계처럼 "이번 달" 이다.
@@ -167,7 +166,7 @@ internal fun trackedCardDescription(item: TrackedCard, today: LocalDate): String
 
 /** 실적을 안 적은 카드 줄의 부제. "이번 달 123,000원 썼어요", 시작일을 바꿨으면 "9월 15일부터 …" */
 internal fun untrackedSubtitle(item: UntrackedCard): String {
-    val since = if (item.period.start.dayOfMonth == 1) "이번 달" else "${monthDay(item.period.start)}부터"
+    val since = if (item.period.start.dayOfMonth == 1) "이번 달" else "${formatMonthDay(item.period.start)}부터"
     return when {
         item.spent > 0 -> "$since ${formatAmount(item.spent)}원 썼어요"
         item.spent < 0 -> "$since 환불받은 돈이 더 많아요"

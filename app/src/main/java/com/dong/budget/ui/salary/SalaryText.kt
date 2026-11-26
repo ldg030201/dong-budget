@@ -7,6 +7,7 @@ import com.dong.budget.ui.format.formatAmount
 import com.dong.budget.ui.format.formatClock
 import com.dong.budget.ui.format.formatDayShort
 import com.dong.budget.ui.format.formatDuration
+import com.dong.budget.ui.format.formatMonthDay
 import com.dong.budget.ui.format.formatWeekdayFull
 import java.time.Duration
 import java.time.LocalDate
@@ -125,7 +126,7 @@ internal data class HourlyLine(val text: String, val spoken: String)
 internal fun periodCaption(earnings: Earnings): String {
     val start = earnings.periodStart ?: return ""
     val month = earnings.payMonth ?: return ""
-    val from = "${start.monthValue}월 ${start.dayOfMonth}일부터"
+    val from = "${formatMonthDay(start)}부터"
     if (earnings.periodTotal <= 0) return "$from · 이번 월급 기간에는 일하는 날이 없어요"
     val percent = floor(earnings.period * PERCENT / earnings.periodTotal + ROUNDING_SLACK_WON).toInt().coerceIn(0, PERCENT.toInt())
     return "$from · ${month.monthValue}월 월급 ${formatAmount(floor(earnings.periodTotal + ROUNDING_SLACK_WON).toLong())}원 중 $percent%"

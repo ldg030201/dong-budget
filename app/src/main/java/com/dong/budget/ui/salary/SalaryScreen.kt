@@ -50,6 +50,7 @@ import com.dong.budget.ui.components.sectionBlock
 import com.dong.budget.ui.format.formatAmount
 import com.dong.budget.ui.format.formatClock
 import com.dong.budget.ui.format.formatDayShort
+import com.dong.budget.ui.format.formatMonthDay
 import com.dong.budget.ui.format.formatNoticeTime
 import com.dong.budget.ui.stats.SectionNote
 import com.dong.budget.ui.stats.StatsSection
@@ -288,7 +289,7 @@ private fun TotalRow(label: String, amount: Double, caption: String) {
 /** 올해 언제부터 셌는지. 입사일이 올해면 그날부터, 아니면 1월 1일부터 */
 private fun yearCaption(settings: SalarySettings, today: LocalDate): String {
     val start = settings.startDate?.takeIf { it.year == today.year && !it.isAfter(today) }
-    return if (start == null) "1월 1일부터 셌어요" else "입사일 ${start.monthValue}월 ${start.dayOfMonth}일부터 셌어요"
+    return if (start == null) "1월 1일부터 셌어요" else "입사일 ${formatMonthDay(start)}부터 셌어요"
 }
 
 /** 월급날. 막 지났는데 아직 등록하지 않았으면 등록 버튼을 둔다. */

@@ -45,6 +45,7 @@ import com.dong.budget.ui.editor.TimePanel
 import com.dong.budget.ui.format.formatAmount
 import com.dong.budget.ui.format.formatClock
 import com.dong.budget.ui.format.formatKoreanWon
+import com.dong.budget.ui.format.formatMonthDay
 import com.dong.budget.ui.lock.LockControls
 import com.dong.budget.ui.lock.LockGroup
 import com.dong.budget.ui.settings.SettingsGroup
@@ -151,7 +152,7 @@ fun SalarySettingsScreen(
                 SettingsGroup("입사일") {
                     ActionRow(
                         title = "입사일",
-                        value = settings.startDate?.let { "${it.year}년 ${it.monthValue}월 ${it.dayOfMonth}일" } ?: "정하지 않음",
+                        value = settings.startDate?.let { "${it.year}년 ${formatMonthDay(it)}" } ?: "정하지 않음",
                         valueColor = valueColor(SalaryPanel.START_DATE),
                         onClick = { toggle(SalaryPanel.START_DATE) },
                         modifier = row(SalaryPanel.START_DATE),

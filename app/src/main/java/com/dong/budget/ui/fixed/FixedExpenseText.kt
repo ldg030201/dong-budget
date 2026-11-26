@@ -2,6 +2,8 @@ package com.dong.budget.ui.fixed
 
 import com.dong.budget.data.db.FixedKind
 import com.dong.budget.ui.format.formatAmount
+import com.dong.budget.ui.format.formatMonth
+import com.dong.budget.ui.format.formatMonthDay
 import com.dong.budget.ui.format.monthLabel
 import java.time.LocalDate
 import java.time.YearMonth
@@ -501,10 +503,10 @@ internal sealed interface FixedTexts {
 
 /** 보고 있는 달과 같은 해면 "7월 3일", 다른 해면 "2025년 7월 3일" */
 private fun dateText(date: LocalDate, month: YearMonth): String {
-    val day = "${date.monthValue}월 ${date.dayOfMonth}일"
+    val day = formatMonthDay(date)
     return if (date.year == month.year) day else "${date.year}년 $day"
 }
 
 /** 보고 있는 달과 같은 해면 "12월", 다른 해면 "2027년 3월" */
 private fun monthName(target: YearMonth, month: YearMonth): String =
-    if (target.year == month.year) "${target.monthValue}월" else "${target.year}년 ${target.monthValue}월"
+    if (target.year == month.year) "${target.monthValue}월" else formatMonth(target)

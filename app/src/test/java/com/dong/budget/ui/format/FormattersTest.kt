@@ -152,6 +152,12 @@ class FormattersTest {
     }
 
     @Test
+    fun `달과 날은 앞에 0을 채우지 않는다`() {
+        assertEquals("10월 1일", formatMonthDay(LocalDate.of(2026, 10, 1)))
+        assertEquals("9월 23일", formatMonthDay(LocalDate.of(2026, 9, 23)))
+    }
+
+    @Test
     fun `달 이름은 이번 달, 올해, 다른 해를 가린다`() {
         val today = LocalDate.of(2026, 9, 27)
         assertEquals("이번 달", monthLabel(YearMonth.of(2026, 9), today))

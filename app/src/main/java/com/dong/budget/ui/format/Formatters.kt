@@ -100,12 +100,15 @@ fun formatNoticeTime(instant: Instant, today: LocalDate): String {
         when (at.toLocalDate()) {
             today -> "오늘"
             today.minusDays(1) -> "어제"
-            else -> "${at.monthValue}월 ${at.dayOfMonth}일"
+            else -> formatMonthDay(at.toLocalDate())
         }
     return "$day ${timeFormatter.format(at)}"
 }
 
 fun formatMonth(month: YearMonth): String = "${month.year}년 ${month.monthValue}월"
+
+/** 달과 날. "10월 1일". 앞에 0을 채우지 않고, 연도와 요일은 붙이지 않는다(붙일 곳은 앞뒤에 따로 적는다). */
+fun formatMonthDay(date: LocalDate): String = "${date.monthValue}월 ${date.dayOfMonth}일"
 
 /**
  * 금액을 만 단위로 줄인다. 문장 안에서 대략의 크기만 전할 때 쓴다.
