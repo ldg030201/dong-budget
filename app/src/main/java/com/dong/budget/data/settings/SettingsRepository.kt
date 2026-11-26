@@ -21,7 +21,10 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import java.time.DayOfWeek
 
-private val Context.settingsDataStore by preferencesDataStore(name = "app_settings")
+/** 설정 파일(app_settings)이 깨졌을 때 기본값 파일로 바꾼다([resetWhenCorrupted]). 테스트도 같은 처리기로 연다. */
+internal val settingsCorruptionHandler = resetWhenCorrupted(LogTag.SETTINGS, "설정")
+
+private val Context.settingsDataStore by preferencesDataStore(name = "app_settings", corruptionHandler = settingsCorruptionHandler)
 
 /**
  * 앱 설정 저장소. 화면 테마와 자동 기능 스위치([AutoOption]), 자동 백업 주기, 아래 메뉴 차림을 다룬다.
@@ -39,7 +42,7 @@ class SettingsRepository internal constructor(private val store: DataStore<Prefe
 
     private val preferences: Flow<Preferences> =
         store.data
-            // 저장 파일이 깨졌을 때 앱이 죽지 않고 기본값으로 시작하게 한다.
+            // 저장 파일을 읽지 못할 때 앱이 죽지 않고 기본값으로 시작하게 한다. 깨진 파일은 처리기가 기본값 파일로 바꾼다(settingsCorruptionHandler).
             .catch { cause ->
                 if (cause is IOException) emit(emptyPreferences()) else throw cause
             }
@@ -94,6 +97,7 @@ class SettingsRepository internal constructor(private val store: DataStore<Prefe
     /**
      * 지금 설정 한 벌. 백업이 담는다. 저장소를 한 번만 읽어 칸끼리 어긋나지 않는다.
      * 설정 파일을 읽지 못하면 null 이다. 화면처럼 기본값으로 채우면 백업이 기본 설정을 담고, 그 백업을 되살릴 때 쓰던 설정을 기본값으로 덮어쓴다.
+     * 깨진 파일은 처리기가 기본값 파일로 바꿔 두므로(settingsCorruptionHandler) 그때는 정말 기본 설정이 된 것이라 기본 설정을 담는다.
      */
     suspend fun current(): AppSettings? = try {
         store.data.first().let { AppSettings(it.themeMode(), it.weekStart(), it.bottomMenu(), it.autoSettings(), it.backupSchedule()) }

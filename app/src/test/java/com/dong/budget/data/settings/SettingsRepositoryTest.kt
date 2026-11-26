@@ -6,6 +6,7 @@ import com.dong.budget.data.backup.BackupInterval
 import com.dong.budget.data.backup.BackupSchedule
 import com.dong.budget.data.backup.BackupSettings
 import com.dong.budget.data.backup.backupSettingsOf
+import com.dong.budget.testing.FailingPreferencesStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -29,10 +30,13 @@ class SettingsRepositoryTest {
 
     private val scopes = mutableListOf<CoroutineScope>()
 
-    /** 같은 파일을 두 저장소가 함께 열 수 없어서, 폰마다 다른 파일을 쓴다 */
+    /** 같은 파일을 두 저장소가 함께 열 수 없어서, 폰마다 다른 파일을 쓴다. 깨진 파일은 앱과 같은 처리기로 다룬다. */
     private fun repository(name: String = "app_settings"): SettingsRepository {
         val scope = CoroutineScope(Dispatchers.IO + SupervisorJob()).also(scopes::add)
-        val store = PreferenceDataStoreFactory.create(scope = scope) { folder.root.resolve("$name.preferences_pb") }
+        val store =
+            PreferenceDataStoreFactory.create(corruptionHandler = settingsCorruptionHandler, scope = scope) {
+                folder.root.resolve("$name.preferences_pb")
+            }
         return SettingsRepository(store)
     }
 
@@ -82,9 +86,22 @@ class SettingsRepositoryTest {
 
     @Test
     fun `설정 파일을 읽지 못하면 기본값이 아니라 없음으로 읽어 백업이 기본 설정을 담지 않는다`() = runBlocking {
-        // 깨진 설정 파일. 화면은 기본값으로 시작하지만 백업에는 기본값을 담으면 안 된다.
+        // 입출력 오류로 읽지 못했다. 화면은 기본값으로 시작하지만 백업에는 기본값을 담으면 안 된다.
+        val repository = SettingsRepository(FailingPreferencesStore(failRead = true))
+        assertEquals(ThemeMode.SYSTEM, repository.themeMode.first())
+        assertNull(repository.current())
+    }
+
+    @Test
+    fun `설정 파일이 깨졌으면 기본값 파일로 바꿔 읽고 바꾼 설정을 저장한다`() = runBlocking {
         folder.root.resolve("broken.preferences_pb").writeBytes(byteArrayOf(1, 2, 3, 4, 5, 6, 7))
-        assertNull(repository("broken").current())
+        val repository = repository("broken")
+        assertEquals(ThemeMode.SYSTEM, repository.themeMode.first())
+        // 전에는 쓰기가 깨진 파일을 먼저 읽다 CorruptionException 을 던져, 설정을 바꿀 때마다 앱이 죽었다
+        repository.setThemeMode(ThemeMode.DARK)
+        assertEquals(ThemeMode.DARK, repository.themeMode.first())
+        // 깨진 설정은 버렸으니 백업도 지금(바꾼 뒤의) 설정을 담는다
+        assertEquals(AppSettings(themeMode = ThemeMode.DARK), repository.current())
     }
 
     @Test

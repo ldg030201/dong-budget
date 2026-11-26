@@ -6,6 +6,8 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.dong.budget.data.devlog.LogTag
+import com.dong.budget.data.settings.resetWhenCorrupted
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -27,7 +29,7 @@ class SalaryRepository(private val context: Context) {
     /** 저장된 설정. 정한 적 없거나 읽을 수 없으면 기본값(금액 0, 아직 정하지 않음)이다. */
     val settings: Flow<SalarySettings> =
         context.salaryDataStore.data
-            // 저장 파일이 깨졌을 때 앱이 죽지 않고 기본값으로 시작하게 한다
+            // 저장 파일을 읽지 못할 때 앱이 죽지 않고 기본값으로 시작하게 한다. 깨진 파일은 처리기가 기본값 파일로 바꾼다(salaryDataStore).
             .catch { cause -> if (cause is IOException) emit(emptyPreferences()) else throw cause }
             .map { preferences -> preferences[key]?.let(::decode)?.toSettings() ?: SalarySettings() }
             .distinctUntilChanged()
@@ -61,7 +63,14 @@ class SalaryRepository(private val context: Context) {
     }
 }
 
-private val Context.salaryDataStore by preferencesDataStore(name = "salary")
+/**
+ * 월급 설정 파일. 깨졌으면 기본값(정하지 않음) 파일로 바꾼다([resetWhenCorrupted]). 그러면 정해 둔 월급 설정이 지워지지만, 깨진 파일은 읽을 수도 없어
+ * 이미 '정하지 않음' 으로 보이고 있다. 바꾸지 않으면 저장(edit)이 깨진 파일을 먼저 읽다 CorruptionException 을 던져, 월급을 다시 정할 때마다 앱이 죽는다.
+ */
+private val Context.salaryDataStore by preferencesDataStore(
+    name = "salary",
+    corruptionHandler = resetWhenCorrupted(LogTag.SALARY, "월급 설정"),
+)
 
 /**
  * 저장·백업용 월급 설정. 시각은 "09:00", 날짜는 "2026-09-15", 요일은 월=1…일=7 로 적는다.
