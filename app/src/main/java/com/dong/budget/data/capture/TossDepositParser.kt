@@ -23,7 +23,7 @@ object TossDepositParser : PaymentParser {
     override fun parse(title: CharSequence?, text: CharSequence?, postedAtMillis: Long): CapturedPayment? {
         val cleanTitle = normalizeNotificationText(title) ?: return null
         val amount = titlePattern.matchEntire(cleanTitle)?.groupValues?.get(1)?.let(::parseAmount) ?: return null
-        val detail = text?.lineSequence()?.firstNotNullOfOrNull(::normalizeNotificationText) ?: return null
+        val detail = notificationLines(text).firstOrNull() ?: return null
         val match = detailPattern.matchEntire(detail) ?: return null
         val sender = match.groupValues[1].trim().ifEmpty { return null }
         val account = match.groupValues[2].trim().replaceFirst(minePrefix, "").trim().ifEmpty { return null }

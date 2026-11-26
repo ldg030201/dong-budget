@@ -19,7 +19,7 @@ object KakaoPayPaymentParser : PaymentParser {
 
     override fun parse(title: CharSequence?, text: CharSequence?, postedAtMillis: Long): CapturedPayment? {
         if (normalizeNotificationText(title) != TITLE) return null
-        val detail = text?.lineSequence()?.firstNotNullOfOrNull(::normalizeNotificationText) ?: return null
+        val detail = notificationLines(text).firstOrNull() ?: return null
         val match = detailPattern.matchEntire(detail) ?: return null
         val merchant = match.groupValues[1].trim().ifEmpty { return null }
         val amount = parseAmount(match.groupValues[2]) ?: return null

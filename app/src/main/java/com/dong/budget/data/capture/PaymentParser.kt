@@ -110,5 +110,12 @@ internal fun normalizeNotificationText(value: CharSequence?): String? {
         .ifEmpty { null }
 }
 
+/**
+ * 알림 본문의 줄들. 줄마다 [normalizeNotificationText] 를 거치고 비는 줄은 뺀다(첫 것이 비지 않은 첫 줄이다). 본문이 없으면 비어 있다.
+ * 꺼내 볼 때 한 줄씩 다듬어서, 앞의 몇 줄만 보면 뒤의 줄은 다듬지 않는다.
+ */
+internal fun notificationLines(text: CharSequence?): Sequence<String> =
+    text?.lineSequence()?.mapNotNull(::normalizeNotificationText).orEmpty()
+
 private val invisible = Regex("[\\u200B-\\u200F\\u2060\\uFEFF]")
 private val spaces = Regex("[ \\t\\n\\r\\f\\u000B\\u00A0\\u2000-\\u200A\\u202F\\u205F\\u3000]+")

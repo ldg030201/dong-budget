@@ -57,7 +57,7 @@ object TossPaymentParser : PaymentParser {
     override fun parse(title: CharSequence?, text: CharSequence?, postedAtMillis: Long): CapturedPayment? {
         val cleanTitle = normalizeNotificationText(title) ?: return null
         // 결제 내용은 본문 첫 줄에 있다. 체크카드는 둘째 줄에 잔액이 붙거나('잔액 1,865,204원') 첫 줄 끝에 이어 붙는다.
-        val lines = text?.lineSequence()?.mapNotNull(::normalizeNotificationText)?.toList().orEmpty()
+        val lines = notificationLines(text).toList()
         val parts = paymentParts(cleanTitle, lines) ?: cashbackParts(cleanTitle, lines) ?: return null
         val amount = parseAmount(parts.amountDigits) ?: return null
 
