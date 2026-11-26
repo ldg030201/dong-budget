@@ -2,6 +2,7 @@ package com.dong.budget.ui.stats.calc
 
 import com.dong.budget.data.db.TransactionListItem
 import com.dong.budget.data.db.TransactionType
+import com.dong.budget.ui.home.LATEST_FIRST
 import com.dong.budget.ui.home.WEEK_ORDER
 import com.dong.budget.ui.home.dailyTotals
 import com.dong.budget.ui.home.localDate
@@ -58,7 +59,7 @@ private fun dayStack(
         refund = items.filter { it.type == TransactionType.REFUND }.sumOf { it.amount },
         segments = segments.map { it.coerceAtLeast(0) },
         details = details,
-        items = items.sortedWith(compareByDescending<TransactionListItem> { it.occurredAt }.thenByDescending { it.id }),
+        items = items.sortedWith(LATEST_FIRST),
         isFuture = date.isAfter(today),
     )
 }

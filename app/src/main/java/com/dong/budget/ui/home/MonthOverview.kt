@@ -53,12 +53,16 @@ data class DayGroup(val date: LocalDate, val items: List<TransactionListItem>)
 
 internal fun TransactionListItem.localDate(): LocalDate = BudgetTime.toLocalDate(occurredAt)
 
+/** 거래 최신순. 늦은 시각이 먼저고, 같은 시각이면 나중에 적은 것(큰 id)이 먼저다. 조회 쿼리의 ORDER BY occurredAt DESC, id DESC 와 같다. */
+internal val LATEST_FIRST: Comparator<TransactionListItem> =
+    compareByDescending<TransactionListItem> { it.occurredAt }.thenByDescending { it.id }
+
 /**
  * 날짜별로 묶는다. 날짜는 최신 → 오래된 순, 같은 날 안에서도 늦은 시각이 먼저다.
  * 조회 쿼리가 이미 이 순서로 주지만, 여기서 다시 정렬해 두 곳의 약속이 어긋나도 목록이 흐트러지지 않게 한다.
  */
 fun groupByDay(items: List<TransactionListItem>): List<DayGroup> = items
-    .sortedWith(compareByDescending<TransactionListItem> { it.occurredAt }.thenByDescending { it.id })
+    .sortedWith(LATEST_FIRST)
     .groupBy { it.localDate() }
     .map { (date, dayItems) -> DayGroup(date, dayItems) }
 

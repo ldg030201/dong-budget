@@ -2,6 +2,7 @@ package com.dong.budget.ui.stats.calc
 
 import com.dong.budget.data.db.TransactionListItem
 import com.dong.budget.data.db.TransactionType
+import com.dong.budget.ui.home.LATEST_FIRST
 import com.dong.budget.ui.home.dailyTotals
 import com.dong.budget.ui.home.localDate
 import com.dong.budget.ui.home.totals
@@ -127,7 +128,7 @@ private fun startsMidMonth(month: YearMonth, firstRecord: LocalDate?): Boolean =
 /** 이 달 지출 중 큰 것 [LARGEST_COUNT] 건. 금액이 같으면 늦게 쓴 것 → 나중에 적은 것(큰 id)이 먼저다. */
 fun largestExpenses(rows: List<TransactionListItem>): List<TransactionListItem> = rows
     .filter { it.type == TransactionType.EXPENSE }
-    .sortedWith(compareByDescending<TransactionListItem> { it.amount }.thenByDescending { it.occurredAt }.thenByDescending { it.id })
+    .sortedWith(compareByDescending<TransactionListItem> { it.amount }.then(LATEST_FIRST))
     .take(LARGEST_COUNT)
 
 /**

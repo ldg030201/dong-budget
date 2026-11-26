@@ -5,6 +5,7 @@ import com.dong.budget.data.db.TransactionListItem
 import com.dong.budget.data.db.TransactionType
 import com.dong.budget.data.db.isSavings
 import com.dong.budget.data.db.merchantKey
+import com.dong.budget.ui.home.LATEST_FIRST
 import com.dong.budget.ui.home.localDate
 import com.dong.budget.ui.stats.calc.Measure
 import com.dong.budget.ui.stats.calc.averageTicket
@@ -74,7 +75,7 @@ fun samePlace(current: TransactionListItem, rows: List<TransactionListItem>, sta
     val mine =
         rows
             .filter { measure.includes(it) && merchantKey(it.merchant) == key && !it.localDate().isBefore(start) }
-            .sortedWith(compareByDescending<TransactionListItem> { it.occurredAt }.thenByDescending { it.id })
+            .sortedWith(LATEST_FIRST)
     val income = measure == Measure.INCOME
     val count = mine.count { it.type == if (income) TransactionType.INCOME else TransactionType.EXPENSE }
     return SamePlace(
