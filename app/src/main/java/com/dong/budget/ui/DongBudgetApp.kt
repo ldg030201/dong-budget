@@ -811,12 +811,11 @@ private fun modalTransitions(): Map<String, Any> = NavDisplay.transitionSpec {
     slideInVertically(Motion.screen()) { height -> height } togetherWith
         ExitTransition.KeepUntilTransitionsFinished
 } +
-    NavDisplay.popTransitionSpec {
-        EnterTransition.None togetherWith slideOutVertically(Motion.screen()) { height -> height }
-    } +
-    NavDisplay.predictivePopTransitionSpec { _: Int ->
-        EnterTransition.None togetherWith slideOutVertically(Motion.screen()) { height -> height }
-    }
+    NavDisplay.popTransitionSpec { modalPop() } +
+    NavDisplay.predictivePopTransitionSpec { _: Int -> modalPop() }
+
+/** 등록창을 닫을 때(뒤로 가기 몸짓 포함). 모달만 아래로 내려가고 뒤 화면은 그 자리에 있다. */
+private fun modalPop(): ContentTransform = EnterTransition.None togetherWith slideOutVertically(Motion.screen()) { height -> height }
 
 /**
  * 통계·저축(아래 떠 있는 메뉴가 있는 서브플로우)은 셸을 그대로 둔 채 그 위에서 빠르게 나타나고 사라진다. 두 화면이 함께 흐려지는 순간을 만들지 않는다.
@@ -827,12 +826,12 @@ private fun modalTransitions(): Map<String, Any> = NavDisplay.transitionSpec {
 private fun subflowTransitions(): Map<String, Any> = NavDisplay.transitionSpec {
     fadeIn(tween(SUBFLOW_FADE_MS)) togetherWith ExitTransition.KeepUntilTransitionsFinished
 } +
-    NavDisplay.popTransitionSpec {
-        EnterTransition.None togetherWith fadeOut(tween(SUBFLOW_FADE_MS, delayMillis = SUBFLOW_EXIT_DELAY_MS))
-    } +
-    NavDisplay.predictivePopTransitionSpec { _: Int ->
-        EnterTransition.None togetherWith fadeOut(tween(SUBFLOW_FADE_MS, delayMillis = SUBFLOW_EXIT_DELAY_MS))
-    }
+    NavDisplay.popTransitionSpec { subflowPop() } +
+    NavDisplay.predictivePopTransitionSpec { _: Int -> subflowPop() }
+
+/** 통계·저축을 닫을 때(뒤로 가기 몸짓 포함). 그 화면만 흐려지고 아래 셸은 그 자리에 있다. */
+private fun subflowPop(): ContentTransform =
+    EnterTransition.None togetherWith fadeOut(tween(SUBFLOW_FADE_MS, delayMillis = SUBFLOW_EXIT_DELAY_MS))
 
 private const val SUBFLOW_FADE_MS = 200
 
