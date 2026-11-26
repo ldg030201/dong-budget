@@ -11,6 +11,7 @@ import com.dong.budget.ui.stats.BreakdownEntry
 import com.dong.budget.ui.stats.calc.breakdownLabel
 import com.dong.budget.ui.stats.calc.changeText
 import com.dong.budget.ui.stats.calc.entrySummary
+import com.dong.budget.ui.stats.tab.breakdown.groupNote
 import com.dong.budget.ui.stats.tab.breakdown.spokenShare
 import com.dong.budget.ui.stats.tab.breakdown.wholeName
 
@@ -63,6 +64,27 @@ fun crossTitle(dimension: StatsDimension): String? = when (dimension) {
     StatsDimension.PAYMENT_METHOD -> "분류별"
     StatsDimension.INCOME_CATEGORY -> null
 }
+
+/**
+ * 교차 비중 줄을 화면 읽기가 한 번에 읽을 문장. 보이는 줄과 같은 순서다.
+ * "현금, 312,000원, 식비 안에서 60퍼센트, 8건, 한 번에 평균 39,000원"
+ * 비율은 전체 지출이 아니라 이 상세 항목([detailName]) 거래 안의 몫이다. 탭의 줄처럼 '지출의 60퍼센트' 로 읽으면
+ * 전체 지출에서의 비중으로 들려서 기준을 이름으로 넣는다. 한 번에 평균은 보이는 줄처럼 결제수단 줄에만 붙는다.
+ * 환불이 더 많은 줄은 비율 대신 "환불받은 돈이 더 많아요" 다. 교차 비중은 증감이 없다.
+ */
+fun crossDescription(entry: BreakdownEntry, crossDimension: StatsDimension, detailName: String): String = buildList {
+    add(entry.name)
+    add(formatSpentAmount(entry.amount))
+    val share = entry.share
+    if (share == null) {
+        add(entrySummary(entry, crossDimension))
+    } else {
+        add("$detailName 안에서 ${spokenShare(share)}")
+        add("${entry.count}건")
+        entry.averageTicket?.takeIf { crossDimension == StatsDimension.PAYMENT_METHOD }?.let { add("한 번에 평균 ${formatAmount(it)}원") }
+    }
+    groupNote(entry.key, crossDimension)?.let(::add)
+}.joinToString(", ")
 
 /** 거래 목록 제목. "거래 12건" */
 fun transactionsTitle(count: Int): String = "거래 ${count}건"

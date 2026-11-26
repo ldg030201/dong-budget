@@ -34,17 +34,20 @@ import com.dong.budget.ui.components.animatedItems
 import com.dong.budget.ui.format.formatDirected
 import com.dong.budget.ui.format.formatNetExpense
 import com.dong.budget.ui.format.monthLabel
+import com.dong.budget.ui.stats.BreakdownEntry
 import com.dong.budget.ui.stats.SectionNote
 import com.dong.budget.ui.stats.SectionTitle
 import com.dong.budget.ui.stats.StatsSection
 import com.dong.budget.ui.stats.calc.changeText
+import com.dong.budget.ui.stats.calc.entrySummary
 import com.dong.budget.ui.stats.chart.TrendBar
 import com.dong.budget.ui.stats.chart.TrendBars
 import com.dong.budget.ui.stats.directedColor
 import com.dong.budget.ui.stats.netExpenseColor
-import com.dong.budget.ui.stats.tab.breakdown.BreakdownRow
 import com.dong.budget.ui.stats.tab.breakdown.MerchantRow
 import com.dong.budget.ui.stats.tab.breakdown.MerchantsSection
+import com.dong.budget.ui.stats.tab.breakdown.RankRow
+import com.dong.budget.ui.stats.tab.breakdown.SmallLine
 import com.dong.budget.ui.stats.tab.breakdown.groupNote
 import com.dong.budget.ui.stats.tab.monthly.TREND_TITLE
 import com.dong.budget.ui.theme.BudgetTheme
@@ -102,7 +105,7 @@ private fun DetailContent(state: StatsDetailUiState, onOpenTransaction: (Long) -
                     // 줄은 스스로 좌우 여백을 가진다(누를 수 있는 탭의 줄과 같은 부품)
                     SectionTitle(text = crossTitle, modifier = Modifier.padding(horizontal = BudgetTheme.spacing.screenHorizontal))
                     cross.entries.forEach { entry ->
-                        key(entry.key) { BreakdownRow(entry = entry, dimension = crossDimension, onClick = null) }
+                        key(entry.key) { CrossRow(entry = entry, dimension = crossDimension, detailName = state.entity.name) }
                     }
                 }
             }
@@ -164,6 +167,25 @@ private fun DetailHeader(state: StatsDetailUiState, monthLabel: String) {
         }
         if (state.entity.missing) HintText(missingHint(state.dimension))
         groupNote(state.key, state.dimension)?.let { HintText(it) }
+    }
+}
+
+/**
+ * ③ 교차 비중의 줄 하나. 탭의 순위 줄(BreakdownRow)과 같은 모양(RankRow)이고 누를 수 없다. 교차 비중은 늘 지출이고 증감이 없다.
+ * 비율이 전체 지출이 아니라 이 상세 항목 안의 몫이라, 화면 읽기는 탭의 줄처럼 '지출의 60퍼센트' 가 아니라
+ * '식비 안에서 60퍼센트' 로 읽는다([crossDescription]).
+ */
+@Composable
+private fun CrossRow(entry: BreakdownEntry, dimension: StatsDimension, detailName: String) {
+    RankRow(
+        entry = entry,
+        amount = formatDirected(entry.amount, income = false),
+        amountColor = directedColor(entry.amount, income = false),
+        description = crossDescription(entry, dimension, detailName),
+        onClick = null,
+    ) {
+        SmallLine(entrySummary(entry, dimension))
+        groupNote(entry.key, dimension)?.let { SmallLine(it) }
     }
 }
 

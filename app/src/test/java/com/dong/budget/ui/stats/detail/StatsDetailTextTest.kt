@@ -99,4 +99,23 @@ class StatsDetailTextTest {
         assertEquals(StatsDimension.EXPENSE_CATEGORY, StatsDimension.PAYMENT_METHOD.crossDimension)
         assertEquals(null, StatsDimension.INCOME_CATEGORY.crossDimension)
     }
+
+    @Test
+    fun `교차 비중의 줄은 전체 지출이 아니라 상세 항목 안의 비율로 읽는다`() {
+        // 식비 상세의 결제수단별 줄. 60% 는 식비 안에서의 몫이다.
+        val cash = BreakdownEntry(GroupKey.Id(7), "현금", null, null, 312_000, 8, 0.6, 39_000, change = null)
+        assertEquals("현금, 312,000원, 식비 안에서 60퍼센트, 8건, 한 번에 평균 39,000원", crossDescription(cash, StatsDimension.PAYMENT_METHOD, "식비"))
+        // 결제수단 상세의 분류별 줄은 보이는 줄처럼 한 번에 평균을 읽지 않는다
+        val food = BreakdownEntry(GroupKey.Id(1), "식비", null, null, 120_000, 4, 0.4, 30_000, change = null)
+        assertEquals("식비, 120,000원, 신한카드 안에서 40퍼센트, 4건", crossDescription(food, StatsDimension.EXPENSE_CATEGORY, "신한카드"))
+        // 환불이 더 많은 줄은 비율 대신 그렇다고 읽는다
+        val refunded = cash.copy(amount = -12_000, share = null)
+        assertEquals("현금, +12,000원, 환불받은 돈이 더 많아요", crossDescription(refunded, StatsDimension.PAYMENT_METHOD, "식비"))
+        // '결제수단 없음' 줄은 보이는 덧붙임도 읽는다
+        val none = cash.copy(key = GroupKey.None, name = "결제수단 없음")
+        assertEquals(
+            "결제수단 없음, 312,000원, 식비 안에서 60퍼센트, 8건, 한 번에 평균 39,000원, 지운 결제수단으로 적은 거래도 여기에 모여요",
+            crossDescription(none, StatsDimension.PAYMENT_METHOD, "식비"),
+        )
+    }
 }
