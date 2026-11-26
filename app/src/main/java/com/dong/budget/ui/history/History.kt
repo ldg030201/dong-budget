@@ -9,7 +9,6 @@ import com.dong.budget.ui.format.formatSignedTotal
 import com.dong.budget.ui.home.DayGroup
 import com.dong.budget.ui.home.Totals
 import com.dong.budget.ui.home.groupByDay
-import com.dong.budget.ui.home.totals
 import java.time.LocalDate
 import java.time.YearMonth
 
@@ -58,38 +57,55 @@ internal fun totalsText(totals: Totals): String? = listOfNotNull(
 ).joinToString(" · ").ifEmpty { null }
 
 /**
- * 검색에 쓰는 거래 한 건. 가게·메모·분류·결제수단·거래 종류를 작은 글자로 이어 둔 글과 금액 글을 함께 든다.
- * DB 가 새 목록을 줄 때 한 번만 만들어([searchIndex]), 검색어를 칠 때마다 거래마다 글을 다시 만들지 않는다.
+ * 검색에 쓰는 거래 한 건. 가게·메모·분류·결제수단·거래 종류를 작은 글자로 이어 둔 글과 금액 글, 거래한 날([date])을 함께 든다.
+ * DB 가 새 목록을 줄 때 한 번만 만들어([searchIndex]), 검색어를 칠 때마다 거래마다 글과 날짜를 다시 만들지 않는다.
  * 이어 둔 글은 줄바꿈으로 나눈다. 검색 낱말에는 빈칸이 없어 두 칸에 걸쳐 맞는 일이 없다.
  */
-class SearchableItem(val item: TransactionListItem) {
+class SearchableItem(val item: TransactionListItem, internal val date: LocalDate) {
     internal val text: String = listOfNotNull(item.merchant, item.memo, item.categoryName, item.paymentMethodName, item.typeWord)
         .joinToString("\n") { it.lowercase() }
     internal val amount: String = item.amount.toString()
 }
 
-/** 모든 거래의 검색용 목록. 순서는 그대로다. */
-fun searchIndex(items: List<TransactionListItem>): List<SearchableItem> = items.map(::SearchableItem)
+/**
+ * 모든 거래의 검색용 목록. 날짜별 목록([groupByDay])과 같은 순서(최신 → 오래된)로 두고, 거래한 날도 이때 한 번만 구한다.
+ * 그래서 검색어를 칠 때는 맞은 것을 거르고 미리 구한 날로 묶기만 한다(다시 정렬하거나 날짜를 다시 구하지 않는다).
+ */
+fun searchIndex(items: List<TransactionListItem>): List<SearchableItem> =
+    groupByDay(items).flatMap { day -> day.items.map { SearchableItem(it, day.date) } }
 
 /** [index](모든 거래) 중 [query] 에 맞는 것을 달·날짜로 묶는다 */
 fun buildHistory(index: List<SearchableItem>, query: String, today: LocalDate): HistoryUiState {
     val terms = searchTerms(query)
-    val matched = if (terms.isEmpty()) index.map { it.item } else index.filter { it.matches(terms) }.map { it.item }
+    val matched = if (terms.isEmpty()) index else index.filter { it.matches(terms) }
+    // 검색용 목록이 이미 날짜 순이라, 거른 뒤에도 순서가 그대로다
+    val months = matched.groupBy({ it.date }, { it.item }).map { (date, items) -> DayGroup(date, items) }.byMonth()
     return HistoryUiState(
         loaded = true,
         query = query,
-        months = historyMonths(matched),
+        months = months,
         count = matched.size,
-        totals = matched.totals(),
+        // 달 합을 더한다. 맞은 거래를 처음부터 다시 돌지 않는다(정수 덧셈이라 거래마다 더한 것과 같다).
+        totals =
+        Totals(
+            expense = months.sumOf { it.totals.expense },
+            income = months.sumOf { it.totals.income },
+            savings = months.sumOf { it.totals.savings },
+        ),
         hasAny = index.isNotEmpty(),
         today = today,
     )
 }
 
 /** [items] 를 달마다(최근 달부터) 묶는다. 달 안은 날짜별로 묶는다. 내역과 저축 내역이 같이 쓴다. */
-internal fun historyMonths(items: List<TransactionListItem>): List<HistoryMonth> = groupByDay(items)
-    .groupBy { YearMonth.from(it.date) }
-    .map { (month, days) -> HistoryMonth(month, days, days.flatMap { it.items }.totals()) }
+internal fun historyMonths(items: List<TransactionListItem>): List<HistoryMonth> = groupByDay(items).byMonth()
+
+/** 날짜별 묶음(최신 → 오래된)을 달마다 묶는다. 달 합은 날마다의 거래를 그대로 더한다(한 달치를 새 목록으로 옮겨 담지 않는다). */
+private fun List<DayGroup>.byMonth(): List<HistoryMonth> = groupBy { YearMonth.from(it.date) }
+    .map { (month, days) ->
+        val totals = days.fold(Totals()) { sum, day -> day.items.fold(sum) { acc, item -> acc + item } }
+        HistoryMonth(month, days, totals)
+    }
 
 /**
  * 검색 낱말 하나(작은 글자로).
