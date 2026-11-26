@@ -51,6 +51,7 @@ import com.dong.budget.ui.components.DayOfMonthGrid
 import com.dong.budget.ui.components.HintText
 import com.dong.budget.ui.components.InputPanelBox
 import com.dong.budget.ui.components.NumberKeypad
+import com.dong.budget.ui.components.panelAccepts
 import com.dong.budget.ui.settings.SettingsGroup
 import com.dong.budget.ui.theme.BudgetTheme
 import com.dong.budget.ui.theme.Motion

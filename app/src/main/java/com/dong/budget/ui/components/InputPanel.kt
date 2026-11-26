@@ -55,6 +55,13 @@ fun <T : Any> AnimatedInputPanel(panel: T?, modifier: Modifier = Modifier, conte
 }
 
 /**
+ * [AnimatedInputPanel] 이 그린 입력판 [shown] 의 누름을 받을지. 누르는 순간 열린 입력판([open])이 그것일 때만 받는다.
+ * 닫히며 내려가는 중(null)이거나 다른 입력판으로 바뀌며 사라지는 판도 전환 동안 누름을 받아서, 받으면 닫은 판의 값이 바뀌어 저장된다
+ * (사라지는 날짜판의 칸이 키패드 틈으로 눌려 날짜가 바뀌는 등). 월급 설정·카드 실적 편집이 같이 쓴다.
+ */
+fun <T : Any> panelAccepts(open: T?, shown: T): Boolean = open == shown
+
+/**
  * 키패드와 아이콘 표 입력판의 높이를 맞춘다.
  * 둘 사이를 오갈 때 아래 버튼이 위아래로 출렁이지 않게 하기 위함이다.
  * 달력과 시계는 이 높이에 들어가지 않아서 제 크기대로 둔다.

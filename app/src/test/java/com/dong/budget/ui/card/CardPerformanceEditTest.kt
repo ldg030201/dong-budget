@@ -2,6 +2,7 @@ package com.dong.budget.ui.card
 
 import androidx.lifecycle.SavedStateHandle
 import com.dong.budget.testing.day
+import com.dong.budget.ui.components.panelAccepts
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
