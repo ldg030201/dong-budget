@@ -7,6 +7,7 @@ import com.dong.budget.data.capture.PaymentCapture
 import com.dong.budget.data.db.BudgetTime
 import com.dong.budget.data.db.TransactionListItem
 import com.dong.budget.ui.inbox.observeInbox
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -14,6 +15,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import java.time.Clock
@@ -57,6 +59,8 @@ class HomeViewModel(
                     repository.observeMonth(month),
                     repository.observeMonth(month.minusMonths(1)),
                 ) { current, previous -> buildState(month, now, current, previous) }
+                    // 계산만 기본 풀에서 한다. 조회는 Room 이 자기 스레드에서 한다.
+                    .flowOn(Dispatchers.Default)
             }.stateIn(
                 scope = viewModelScope,
                 started = SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS),
