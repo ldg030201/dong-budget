@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageInstaller
 import androidx.core.content.FileProvider
+import com.dong.budget.data.suspendRunCatching
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.coroutineScope
@@ -68,9 +69,10 @@ class ApkInstaller(private val context: Context) {
      */
     suspend fun download(downloadUrl: String, version: String, expectedSize: Long, onProgress: (Float) -> Unit): Result<File> =
         withContext(Dispatchers.IO) {
-            runCatching {
+            // 취소는 실패로 바꾸지 않고 그대로 던진다(suspendRunCatching)
+            suspendRunCatching {
                 val target = fileFor(version)
-                if (target.isFile && (expectedSize <= 0 || target.length() == expectedSize)) return@runCatching target
+                if (target.isFile && (expectedSize <= 0 || target.length() == expectedSize)) return@suspendRunCatching target
 
                 directory.mkdirs()
                 val part = File.createTempFile(target.name, PART_SUFFIX, directory)

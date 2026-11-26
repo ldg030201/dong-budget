@@ -125,7 +125,7 @@ class AppContainer(context: Context) {
             // 첫 화면이 거래를 읽고 그리는 동안은 비켜 있는다. 백업은 앱을 연 동안에만 데이터가 바뀌어 조금 늦어도 잃는 것이 없다.
             delay(SCHEDULED_BACKUP_DELAY_MS)
             // 앱이 죽지 않게 받되, 계속 안 되는 까닭을 개발자 모드 기록에서 볼 수 있게 남긴다
-            runCatching { scheduledBackup.runIfDue() }.onFailure { DevLog.warn(LogTag.BACKUP, "자동 백업을 하지 못했어요", it) }
+            suspendRunCatching { scheduledBackup.runIfDue() }.onFailure { DevLog.warn(LogTag.BACKUP, "자동 백업을 하지 못했어요", it) }
         }
     }
 

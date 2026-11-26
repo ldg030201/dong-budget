@@ -3,6 +3,7 @@ package com.dong.budget.data.backup
 import com.dong.budget.data.db.BudgetTime
 import com.dong.budget.data.devlog.DevLog
 import com.dong.budget.data.devlog.LogTag
+import com.dong.budget.data.suspendRunCatching
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import java.time.Instant
@@ -36,7 +37,7 @@ class ScheduledBackup(
         if (!schedule().isDue(last, day) || !hasData()) return@withLock null
         save(BackupSchedule.fileName(day)).fold(
             onSuccess = { name ->
-                val deleted = runCatching {
+                val deleted = suspendRunCatching {
                     deleteOld()
                 }.onFailure { DevLog.warn(LogTag.BACKUP, "오래된 자동 백업을 지우지 못했어요", it) }.getOrDefault(0)
                 DevLog.info(LogTag.BACKUP, "자동 백업 · $name${if (deleted > 0) " · 오래된 파일 ${deleted}개 지움" else ""}")
