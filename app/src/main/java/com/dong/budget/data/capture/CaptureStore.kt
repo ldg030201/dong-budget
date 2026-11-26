@@ -170,7 +170,24 @@ class CaptureStore(private val prefs: SharedPreferences, private val now: () -> 
 
     private fun isExpired(entry: Entry): Boolean = now() - entry.payment.occurredAtMillis > RETENTION_MS
 
-    private fun decode(value: String): Entry? = runCatching { json.decodeFromString<Entry>(value) }.getOrNull()
+    /** 기록을 꺼내는 곳은 여기 하나다. 옛 버전이 잘못 읽어 남긴 결제는 여기서 고쳐 읽는다([withoutTossBalance]). */
+    private fun decode(value: String): Entry? =
+        runCatching { json.decodeFromString<Entry>(value) }.getOrNull()?.let { it.copy(payment = it.payment.withoutTossBalance()) }
+
+    /**
+     * 1.10.0 에서 받은 기록용. 1.10.0 은 토스가 가게 끝에 붙여 보낸 잔액을 떼지 못해, 가게가 '(주)아성다이소 잔액 848,010원(토스뱅크 체크카드)'
+     * 처럼 남고 카드는 비었다. 그대로 두면 알림 목록·되살린 묻는 알림·누르면 채우는 등록창에 잔액이 붙어 보인다.
+     * 읽을 때 파서와 같은 규칙으로 잔액을 떼고([TossPaymentParser.cutTrailingBalance]), 카드가 비었으면 잔액 괄호의 카드 이름으로 채운다.
+     * - 열쇠는 그대로 둔다. 기록·거래·알림이 이 열쇠로 같은 결제를 찾는다.
+     * - 고치려고 기록을 다시 쓰지는 않는다. 보관 기간([RETENTION_DAYS])이 지나면 저절로 사라진다(읽음 표시 등으로 쓸 때는 고친 모양으로 남는다).
+     * - 토스 결제 기록만 본다. 입금·카카오페이 기록은 다른 파서가 읽은 것이라 건드리지 않는다.
+     * - 할부 표시는 보지 않는다. 잔액이 붙어 오는 건 할부가 없는 체크카드 알림이다.
+     */
+    private fun CapturedPayment.withoutTossBalance(): CapturedPayment {
+        if (kind != CaptureKind.PAYMENT || !dedupKey.startsWith(TossPaymentParser.DEDUP_KEY_PREFIX)) return this
+        val cut = TossPaymentParser.cutTrailingBalance(merchant) ?: return this
+        return copy(merchant = cut.merchant, paymentName = paymentName ?: cut.card)
+    }
 
     /**
      * @property answered 답했는지. 0.1.6 에서 'dismissed' 라는 이름으로 저장했으므로 저장 이름은 그대로 둔다.

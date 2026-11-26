@@ -476,6 +476,49 @@ class PaymentCaptureTest {
     }
 
     @Test
+    fun `1_10_0 에서 받은 토스 결제 기록은 가게 끝 잔액을 떼고 카드 이름을 채워 읽는다`() {
+        putRecord(daisoFrom1100)
+        val saved = prefs.all.values.single()
+        val store = CaptureStore(prefs, now = { clock })
+        // 지금 파서가 같은 알림을 읽은 것과 같다. 열쇠는 1.10.0 그대로다.
+        val expected = TossPaymentParser.parse(DAISO_TITLE, DAISO_TEXT, clock)!!
+        assertEquals("(주)아성다이소", expected.merchant)
+        assertEquals("토스뱅크 체크카드", expected.paymentName)
+        assertEquals(daisoFrom1100.dedupKey, expected.dedupKey)
+        // 알림 목록, 누르면 채우는 등록창, 되살리는 묻는 알림 모두
+        assertEquals(listOf(expected), store.records().map { it.payment })
+        assertEquals(expected, store.find(daisoFrom1100.dedupKey))
+        assertEquals(listOf(expected), store.pending())
+        // 읽을 때만 고치고 기록은 다시 쓰지 않는다
+        assertEquals(saved, prefs.all.values.single())
+    }
+
+    @Test
+    fun `1_10_0 토스 결제 기록에 카드 이름이 있으면 그대로 두고 가게 끝 잔액만 뗀다`() {
+        // 1.10.0 이 '토스뱅크 체크카드 | 토스페이_게임_TOSS 잔액 1,865,204원', '하나카드 | 가게 잔액 1,000원(토스뱅크 체크카드)' 를 읽은 것
+        val game = "토스페이_게임_TOSS 잔액 1,865,204원"
+        putRecord(CapturedPayment(1_417, "토스뱅크 체크카드", game, null, clock, "toss:$clock:1417:$game"))
+        val shop = "가게 잔액 1,000원(토스뱅크 체크카드)"
+        putRecord(CapturedPayment(1_000, "하나카드", shop, null, clock - 1_000, "toss:${clock - 1_000}:1000:$shop"))
+
+        val records = CaptureStore(prefs, now = { clock }).records().map { it.payment }
+        assertEquals(listOf("토스페이_게임_TOSS", "가게"), records.map { it.merchant })
+        assertEquals(listOf("토스뱅크 체크카드", "하나카드"), records.map { it.paymentName })
+        assertEquals(listOf("toss:$clock:1417:$game", "toss:${clock - 1_000}:1000:$shop"), records.map { it.dedupKey })
+    }
+
+    @Test
+    fun `입금과 카카오페이 기록은 가게에 잔액 같은 말이 있어도 그대로 읽는다`() {
+        val sender = "이동건 잔액 1,000원(토스뱅크)"
+        val deposit = CapturedPayment(200_000, null, sender, null, clock, "toss-deposit:$clock:200000:$sender", CaptureKind.DEPOSIT)
+        val shop = "가게 잔액 1,000원(카드)"
+        val kakao = CapturedPayment(2_500, "카카오페이", shop, null, clock - 1_000, "kakaopay:${clock - 1_000}:2500:$shop")
+        putRecord(deposit)
+        putRecord(kakao)
+        assertEquals(listOf(deposit, kakao), CaptureStore(prefs, now = { clock }).records().map { it.payment })
+    }
+
+    @Test
     fun `기록이 바뀌면 알림 목록을 다시 읽는다`() = runBlocking {
         val capture = capture()
         val seen = mutableListOf<Int>()

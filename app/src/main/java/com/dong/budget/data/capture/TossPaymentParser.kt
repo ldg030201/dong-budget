@@ -65,9 +65,9 @@ object TossPaymentParser : PaymentParser {
 
         // 첫 줄 끝에 이어 붙은 잔액을 뗀다. 괄호 안 카드 이름은 '카드 | 가게' 나 둘째 줄에서 카드를 못 읽었을 때만 쓴다.
         // 잔액을 먼저 떼야 그 앞의 할부 표시가 가게 끝으로 나온다('가게(3개월) 잔액 1,000원').
-        val (withoutBalance, balance) = parts.merchant.cutEnd(trailingBalancePattern)
-        val card = parts.card ?: balance?.balanceCard()
-        val (merchant, installment) = withoutBalance.cutEnd(installmentPattern)
+        val balance = cutTrailingBalance(parts.merchant)
+        val card = parts.card ?: balance?.card
+        val (merchant, installment) = (balance?.merchant ?: parts.merchant).cutEnd(installmentPattern)
         val months = installment?.let { (it.groupValues[1].ifEmpty { it.groupValues[2] }).toIntOrNull()?.takeIf { n -> n > 1 } }
         // 잔액을 뗀 알림의 열쇠는 떼기 전 첫 줄 가게로 만든다. 1.10.0 은 잔액을 떼지 않은 가게로 열쇠를 만들었다(잔액이 끝에 있어 할부 표시도 안 맞았다).
         // 같은 알림은 업데이트 전후로 같은 열쇠여야, 다시 연결될 때 알림창에 남은 그 알림을 읽어도 이미 물어본 결제로 알아본다.
@@ -80,9 +80,24 @@ object TossPaymentParser : PaymentParser {
             merchant = merchant,
             installmentMonths = months,
             occurredAtMillis = postedAtMillis,
-            dedupKey = "toss:$postedAtMillis:$amount:$keyMerchant",
+            dedupKey = "$DEDUP_KEY_PREFIX$postedAtMillis:$amount:$keyMerchant",
         )
     }
+
+    /** 토스 결제 열쇠의 머리. 입금은 'toss-deposit:' 이라 이것으로 시작하지 않는다. CaptureStore 가 토스 결제 기록을 가려낼 때도 쓴다. */
+    internal const val DEDUP_KEY_PREFIX = "toss:"
+
+    /**
+     * 가게 끝에 이어 붙은 잔액([trailingBalancePattern])을 뗀다. 잔액이 붙지 않았으면 null.
+     * 파서와, 1.10.0 이 잔액을 떼지 못하고 남긴 기록을 읽는 CaptureStore 가 같은 규칙을 쓰도록 한 곳에 둔다.
+     */
+    internal fun cutTrailingBalance(merchant: String): BalanceCut? {
+        val (rest, match) = merchant.cutEnd(trailingBalancePattern)
+        return match?.let { BalanceCut(rest, it.balanceCard()) }
+    }
+
+    /** 가게 끝 잔액을 뗀 것. [card] 는 잔액 괄호 안의 카드 이름이고, 괄호가 없거나 비었으면 null */
+    internal class BalanceCut(val merchant: String, val card: String?)
 
     /** 끝에 [pattern] 이 맞으면 그 부분을 뗀 나머지와 맞은 것을, 맞지 않으면 그대로와 null 을 준다. */
     private fun String.cutEnd(pattern: Regex): Pair<String, MatchResult?> {
