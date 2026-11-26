@@ -49,6 +49,58 @@ class TossPaymentParserTest {
     }
 
     @Test
+    fun `잔액이 첫 줄 끝에 붙어 오면 가게에서 떼고 괄호 안을 카드로 읽는다`() {
+        // 2026-11-26 에 받은 실제 알림. 둘째 줄이던 잔액이 빈칸 하나를 두고 첫 줄 끝에 붙어 온다.
+        val seven =
+            TossPaymentParser.parse("48원 캐시백", "16,250원 결제 | 세븐일레븐 강동열린점 잔액 847,208원(토스뱅크 체크카드)", postedAt)!!
+        assertEquals(16_250L, seven.amount)
+        assertEquals("토스뱅크 체크카드", seven.paymentName)
+        assertEquals("세븐일레븐 강동열린점", seven.merchant)
+        assertEquals("toss:$postedAt:16250:세븐일레븐 강동열린점", seven.dedupKey)
+        // 같은 결제가 '금액원 결제' 알림으로도 오면 같은 결제로 본다
+        assertTrue(seven.isSamePaymentAs(TossPaymentParser.parse("16,250원 결제", "토스뱅크 체크카드 | 세븐일레븐 강동열린점", postedAt)!!))
+
+        // 같은 날 등록창에 '(주)아성다이소 잔액 848,010원(토스뱅크 체크카드)' 로 채워졌던 결제. 가게 이름 앞 괄호는 남긴다.
+        val daiso = TossPaymentParser.parse("36원 캐시백 🎉", "12,000원 결제 | (주)아성다이소 잔액 848,010원(토스뱅크 체크카드)", postedAt)!!
+        assertEquals(12_000L, daiso.amount)
+        assertEquals("토스뱅크 체크카드", daiso.paymentName)
+        assertEquals("(주)아성다이소", daiso.merchant)
+
+        // 줄 바꿈 자리에 특수 공백이 와도 뗀다
+        val nbsp = TossPaymentParser.parse("48원 캐시백", "16,250원 결제 | 세븐일레븐 잔액 847,208원 (토스뱅크 체크카드)", postedAt)!!
+        assertEquals("토스뱅크 체크카드", nbsp.paymentName)
+        assertEquals("세븐일레븐", nbsp.merchant)
+    }
+
+    @Test
+    fun `금액원 결제 알림도 가게 끝에 붙은 잔액을 뗀다`() {
+        // 카드 이름은 '카드 | 가게' 쪽이 먼저다
+        val withCard = TossPaymentParser.parse("1,417원 결제", "토스뱅크 체크카드 | 토스페이_게임_TOSS 잔액 1,865,204원", postedAt)!!
+        assertEquals("토스뱅크 체크카드", withCard.paymentName)
+        assertEquals("토스페이_게임_TOSS", withCard.merchant)
+        val bothCards = TossPaymentParser.parse("1,417원 결제", "하나카드 | 가게 잔액 1,000원(토스뱅크 체크카드)", postedAt)!!
+        assertEquals("하나카드", bothCards.paymentName)
+        assertEquals("가게", bothCards.merchant)
+        // '카드 | 가게' 가 아니면 잔액 괄호에서 카드를 읽는다
+        val noCard = TossPaymentParser.parse("12,000원 결제", "(주)아성다이소 잔액 848,010원(토스뱅크 체크카드)", postedAt)!!
+        assertEquals("토스뱅크 체크카드", noCard.paymentName)
+        assertEquals("(주)아성다이소", noCard.merchant)
+        // 잔액을 뗀 뒤 남은 할부 표시도 뗀다
+        val installment = TossPaymentParser.parse("30,000원 결제", "하나카드 | 가게(3개월) 잔액 1,000원", postedAt)!!
+        assertEquals("가게", installment.merchant)
+        assertEquals(3, installment.installmentMonths)
+    }
+
+    @Test
+    fun `가게 이름 안의 잔액이라는 말은 떼지 않는다`() {
+        // 끝에 빈칸과 '잔액 N원' 이 와야 뗀다
+        assertEquals("잔액충전소 강남점", TossPaymentParser.parse("5,000원 결제", "하나카드 | 잔액충전소 강남점", postedAt)!!.merchant)
+        assertEquals("가게 잔액 확인", TossPaymentParser.parse("5,000원 결제", "하나카드 | 가게 잔액 확인", postedAt)!!.merchant)
+        assertEquals("가게잔액 1,000원", TossPaymentParser.parse("5,000원 결제", "하나카드 | 가게잔액 1,000원", postedAt)!!.merchant)
+        assertEquals("가게 잔액 1,000원 남음", TossPaymentParser.parse("5,000원 결제", "하나카드 | 가게 잔액 1,000원 남음", postedAt)!!.merchant)
+    }
+
+    @Test
     fun `캐시백 알림은 제목 끝 기호가 달라도, 둘째 줄이 없어도 읽는다`() {
         listOf("6원 캐시백", "6원 캐시백 🎉", "6원 캐시백🎉", "6원 캐시백 🎁✨", "1,200원 캐시백 🎉\uFE0F", "6원 캐시백!").forEach { title ->
             val payment = TossPaymentParser.parse(title, "2,300원 결제 | 가게\n잔액 1,000원(토스뱅크 체크카드)", postedAt)
