@@ -133,55 +133,40 @@ fun PinLockScreen(
         )
     }
 
-    Column(modifier = modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
-        Column(
-            modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = BudgetTheme.spacing.screenHorizontal),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-        ) {
+    PinEntryLayout(
+        title = texts.lockedTitle,
+        hint = if (canBiometric) "PIN 4자리를 누르거나 지문으로 열어 주세요" else "PIN 4자리를 눌러 주세요",
+        pinLength = pin.length,
+        error = error,
+        onDigit = { digit ->
+            if (pin.length >= PinLock.PIN_LENGTH) return@PinEntryLayout
+            pin += digit
+            if (pin.length == PinLock.PIN_LENGTH) {
+                error =
+                    when (val attempt = onUnlock(pin)) {
+                        PinLock.Attempt.Ok -> null
+                        is PinLock.Attempt.Wrong -> "PIN이 맞지 않아요 (${attempt.remaining}번 남음)"
+                        is PinLock.Attempt.Blocked -> "너무 많이 틀렸어요. ${attempt.seconds}초 뒤에 다시 해 주세요"
+                    }
+                pin = ""
+            }
+        },
+        onDelete = { pin = pin.dropLast(1) },
+        onClear = { pin = "" },
+        corner = if (canBiometric) KeypadCorner.Action(R.drawable.ic_fingerprint, "지문으로 열기", promptBiometric) else KeypadCorner.Empty,
+        modifier = modifier,
+        top = {
             Icon(Icons.Filled.Lock, contentDescription = null, tint = BudgetTheme.colors.textSecondary)
             Spacer(Modifier.height(BudgetTheme.spacing.itemGap))
-            Text(
-                text = texts.lockedTitle,
-                style = MaterialTheme.typography.titleMedium,
-                color = BudgetTheme.colors.textPrimary,
-                modifier = Modifier.semantics { heading() },
-            )
-            Spacer(Modifier.height(BudgetTheme.spacing.inlineGap))
-            Text(
-                text = if (canBiometric) "PIN 4자리를 누르거나 지문으로 열어 주세요" else "PIN 4자리를 눌러 주세요",
-                style = MaterialTheme.typography.bodyMedium,
-                color = BudgetTheme.colors.textSecondary,
-                textAlign = TextAlign.Center,
-            )
-            Spacer(Modifier.height(BudgetTheme.spacing.sectionPadding))
-            PinDots(count = pin.length)
-            AnimatedErrorText(text = error, modifier = Modifier.padding(top = BudgetTheme.spacing.itemGap))
+        },
+        bottom = {
             BudgetTextButton(
                 text = "PIN을 잊었어요",
                 onClick = { if (forgot != null) askForgot = true else onForgot() },
                 color = BudgetTheme.colors.textSecondary,
             )
-        }
-        PinPad(
-            onDigit = { digit ->
-                if (pin.length >= PinLock.PIN_LENGTH) return@PinPad
-                pin += digit
-                if (pin.length == PinLock.PIN_LENGTH) {
-                    error =
-                        when (val attempt = onUnlock(pin)) {
-                            PinLock.Attempt.Ok -> null
-                            is PinLock.Attempt.Wrong -> "PIN이 맞지 않아요 (${attempt.remaining}번 남음)"
-                            is PinLock.Attempt.Blocked -> "너무 많이 틀렸어요. ${attempt.seconds}초 뒤에 다시 해 주세요"
-                        }
-                    pin = ""
-                }
-            },
-            onDelete = { pin = pin.dropLast(1) },
-            onClear = { pin = "" },
-            corner = if (canBiometric) KeypadCorner.Action(R.drawable.ic_fingerprint, "지문으로 열기", promptBiometric) else KeypadCorner.Empty,
-        )
-    }
+        },
+    )
 }
 
 /**
@@ -210,55 +195,87 @@ fun PinSetupScreen(texts: PinLockTexts, onDone: (pin: String, biometric: Boolean
         )
     }
 
+    PinEntryLayout(
+        title = if (first == null) "PIN 4자리를 정해 주세요" else "한 번 더 눌러 주세요",
+        hint = texts.setupHint,
+        pinLength = pin.length,
+        error = error,
+        onDigit = { digit ->
+            if (pin.length >= PinLock.PIN_LENGTH || confirmed != null) return@PinEntryLayout
+            pin += digit
+            if (pin.length < PinLock.PIN_LENGTH) return@PinEntryLayout
+            val entered = pin
+            pin = ""
+            val previous = first
+            when {
+                previous == null -> {
+                    first = entered
+                    error = null
+                }
+
+                previous == entered -> if (canBiometric) confirmed = entered else onDone(entered, false)
+
+                else -> {
+                    first = null
+                    error = "두 번 누른 PIN이 달라요. 처음부터 다시 정해 주세요"
+                }
+            }
+        },
+        onDelete = { pin = pin.dropLast(1) },
+        onClear = { pin = "" },
+        corner = KeypadCorner.Empty,
+        modifier = modifier,
+    )
+}
+
+/**
+ * PIN 잠금 화면과 PIN 정하기 화면의 틀. 가운데에 제목·안내·점·틀린 글을 두고, 아래에 키패드를 둔다.
+ * 누른 PIN 과 다 눌렀을 때 할 일은 각 화면이 들고 있다.
+ * @param pinLength 지금까지 누른 자리 수
+ * @param corner 키패드 왼쪽 아래 칸(지문이나 빈칸)
+ * @param top 제목 위에 둘 것(잠금 화면의 자물쇠)
+ * @param bottom 틀린 글 아래에 둘 것(잠금 화면의 'PIN을 잊었어요')
+ */
+@Composable
+private fun PinEntryLayout(
+    title: String,
+    hint: String,
+    pinLength: Int,
+    error: String?,
+    onDigit: (String) -> Unit,
+    onDelete: () -> Unit,
+    onClear: () -> Unit,
+    corner: KeypadCorner,
+    modifier: Modifier = Modifier,
+    top: @Composable () -> Unit = {},
+    bottom: @Composable () -> Unit = {},
+) {
     Column(modifier = modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally) {
         Column(
             modifier = Modifier.weight(1f).fillMaxWidth().padding(horizontal = BudgetTheme.spacing.screenHorizontal),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
+            top()
             Text(
-                text = if (first == null) "PIN 4자리를 정해 주세요" else "한 번 더 눌러 주세요",
+                text = title,
                 style = MaterialTheme.typography.titleMedium,
                 color = BudgetTheme.colors.textPrimary,
                 modifier = Modifier.semantics { heading() },
             )
             Spacer(Modifier.height(BudgetTheme.spacing.inlineGap))
             Text(
-                text = texts.setupHint,
+                text = hint,
                 style = MaterialTheme.typography.bodyMedium,
                 color = BudgetTheme.colors.textSecondary,
                 textAlign = TextAlign.Center,
             )
             Spacer(Modifier.height(BudgetTheme.spacing.sectionPadding))
-            PinDots(count = pin.length)
+            PinDots(count = pinLength)
             AnimatedErrorText(text = error, modifier = Modifier.padding(top = BudgetTheme.spacing.itemGap))
+            bottom()
         }
-        PinPad(
-            onDigit = { digit ->
-                if (pin.length >= PinLock.PIN_LENGTH || confirmed != null) return@PinPad
-                pin += digit
-                if (pin.length < PinLock.PIN_LENGTH) return@PinPad
-                val entered = pin
-                pin = ""
-                val previous = first
-                when {
-                    previous == null -> {
-                        first = entered
-                        error = null
-                    }
-
-                    previous == entered -> if (canBiometric) confirmed = entered else onDone(entered, false)
-
-                    else -> {
-                        first = null
-                        error = "두 번 누른 PIN이 달라요. 처음부터 다시 정해 주세요"
-                    }
-                }
-            },
-            onDelete = { pin = pin.dropLast(1) },
-            onClear = { pin = "" },
-            corner = KeypadCorner.Empty,
-        )
+        PinPad(onDigit = onDigit, onDelete = onDelete, onClear = onClear, corner = corner)
     }
 }
 
