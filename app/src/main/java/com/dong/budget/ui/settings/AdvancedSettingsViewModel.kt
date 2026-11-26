@@ -47,15 +47,16 @@ class AdvancedSettingsViewModel(
 
     private val _messages = Channel<String>(Channel.BUFFERED)
 
-    /** 한 번 띄우고 마는 알림(토스트). 초기화 결과를 알린다. */
+    /** 한 번 띄우고 마는 알림(토스트). 초기화 결과와 스위치를 저장하지 못한 것을 알린다. */
     val messages: Flow<String> = _messages.receiveAsFlow()
 
     /** 지우는 중. 두 번 눌러 두 번 지우지 않게 줄을 막는다. */
     private val _busy = MutableStateFlow(false)
     val busy: StateFlow<Boolean> = _busy.asStateFlow()
 
+    /** 저장 공간이 모자라 쓰지 못하면 앱을 죽이지 않고 알린다(saveSetting). 스위치는 저장소 값을 따라가 그대로 남는다. */
     fun setAuto(option: AutoOption, on: Boolean) {
-        viewModelScope.launch { settingsRepository.setAuto(option, on) }
+        viewModelScope.saveSetting(_messages) { settingsRepository.setAuto(option, on) }
     }
 
     fun askResetSettings() {

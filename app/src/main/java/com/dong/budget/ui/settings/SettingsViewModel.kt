@@ -47,16 +47,17 @@ class SettingsViewModel(
     /** 이 폰에 앱 잠금이나 월급 잠금이 켜져 있는지. 복원 묻는 창이 잠금을 다시 켜라고 알릴지 정한다. */
     private val anyLockOn: () -> Boolean = { false },
 ) : ViewModel() {
+    // 저장 공간이 모자라 쓰지 못하면 앱을 죽이지 않고 알린다(saveSetting)
     fun selectThemeMode(mode: ThemeMode) {
-        viewModelScope.launch { settingsRepository.setThemeMode(mode) }
+        viewModelScope.saveSetting(_messages) { settingsRepository.setThemeMode(mode) }
     }
 
     fun selectWeekStart(day: DayOfWeek) {
-        viewModelScope.launch { settingsRepository.setWeekStart(day) }
+        viewModelScope.saveSetting(_messages) { settingsRepository.setWeekStart(day) }
     }
 
     fun setBackupSchedule(schedule: BackupSchedule) {
-        viewModelScope.launch { settingsRepository.setBackupSchedule(schedule) }
+        viewModelScope.saveSetting(_messages) { settingsRepository.setBackupSchedule(schedule) }
     }
 
     private val _backup = MutableStateFlow(BackupUiState())
@@ -64,7 +65,7 @@ class SettingsViewModel(
 
     private val _messages = Channel<String>(Channel.BUFFERED)
 
-    /** 한 번 띄우고 마는 알림(토스트). 복사·저장·복원 결과를 알린다. */
+    /** 한 번 띄우고 마는 알림(토스트). 복사·저장·복원 결과와 설정을 저장하지 못한 것을 알린다. */
     val messages: Flow<String> = _messages.receiveAsFlow()
 
     /** 백업을 클립보드에 한 줄 JSON 으로 넣는다. 안드로이드 13 부터는 시스템이 복사했다고 알려 주므로 그 아래에서만 직접 알린다. */
