@@ -1,18 +1,16 @@
 package com.dong.budget.data.capture
 
-import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
-import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
-import androidx.core.content.ContextCompat
 import com.dong.budget.MainActivity
 import com.dong.budget.R
+import com.dong.budget.data.canPostNotification
+import com.dong.budget.data.hasPostPermission
 
 /**
  * '가계부에 등록할까요?' 알림. 결제와 입금이 같은 채널·제목을 쓰고 본문만 다르다.
@@ -34,18 +32,13 @@ class CaptureNotifier(private val context: Context) : CapturePrompt {
     }
 
     /**
-     * 알림을 보낼 수 있는지. 앱 알림 전체뿐 아니라 '결제·입금 등록' 채널만 꺼 둔 경우도 본다.
-     * 채널이 꺼진 채로 보내면 시스템이 예외 없이 버려서, 물어본 것으로 적혀도 사용자는 알림을 못 본다.
+     * 알림을 보낼 수 있는지. 앱 알림 전체뿐 아니라 '결제·입금 등록' 채널만 꺼 둔 경우도 본다([canPostNotification]).
+     * 채널이 꺼진 채로 보내면 물어본 것으로 적혀도 사용자는 알림을 못 본다.
      */
-    override fun canAsk(): Boolean {
-        if (!hasPermission() || !manager.areNotificationsEnabled()) return false
-        // 채널이 아직 없으면 보낼 때 만든다
-        val importance = manager.getNotificationChannel(CHANNEL_ID)?.importance ?: return true
-        return importance != NotificationManager.IMPORTANCE_NONE
-    }
+    override fun canAsk(): Boolean = canPostNotification(context, manager, CHANNEL_ID)
 
     override fun ask(payment: CapturedPayment, quietly: Boolean) {
-        if (!hasPermission()) return
+        if (!hasPostPermission(context)) return
         ensureChannel()
         // 제목은 짧게 두고, 금액과 가게를 본문 앞에 둔다. 알림을 접은 상태에서는 한 줄만 보여 뒤가 잘린다.
         // 입금은 금액 뒤에 '입금' 을 붙여 결제와 가른다. "200,000원 입금 · 이동건 · 토스뱅크 통장"
@@ -82,10 +75,6 @@ class CaptureNotifier(private val context: Context) : CapturePrompt {
     override fun dismiss(dedupKey: String) {
         manager.cancel(dedupKey, NOTIFICATION_ID)
     }
-
-    /** Android 13 부터 알림을 보내려면 사용자 허락이 필요하다. 그 전에는 따로 허락받지 않는다. */
-    private fun hasPermission(): Boolean = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
-        ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
 
     /**
      * 누르면 동계부를 여는 Intent. 결제 내용은 담지 않고 열쇠만 identifier 에 담는다(CaptureStore 참고).

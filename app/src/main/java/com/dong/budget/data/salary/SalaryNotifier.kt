@@ -1,18 +1,16 @@
 package com.dong.budget.data.salary
 
-import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
-import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
-import androidx.core.content.ContextCompat
 import com.dong.budget.MainActivity
 import com.dong.budget.R
+import com.dong.budget.data.canPostNotification
+import com.dong.budget.data.hasPostPermission
 import java.time.YearMonth
 import java.util.Locale
 
@@ -33,19 +31,15 @@ class SalaryNotifier(private val context: Context) {
         context.getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
     }
 
-    /** 알림을 보낼 수 있는지. 앱 알림 전체와 '월급날' 채널을 본다. 꺼진 채로 보내면 시스템이 말없이 버린다. */
-    fun canNotify(): Boolean {
-        if (!hasPermission() || !manager.areNotificationsEnabled()) return false
-        val importance = manager.getNotificationChannel(CHANNEL_ID)?.importance ?: return true
-        return importance != NotificationManager.IMPORTANCE_NONE
-    }
+    /** 알림을 보낼 수 있는지. 앱 알림 전체와 '월급날' 채널을 본다([canPostNotification]). */
+    fun canNotify(): Boolean = canPostNotification(context, manager, CHANNEL_ID)
 
     /**
      * [month] 월급날 알림을 띄운다. 잠금 화면에는 금액을 빼고 보인다.
      * @param amount 설정의 한 달 월급
      */
     fun show(month: YearMonth, amount: Long) {
-        if (!hasPermission()) return
+        if (!hasPostPermission(context)) return
         ensureChannel()
         val title = "월급 들어왔나요?"
         val detail = "${month.monthValue}월 월급 ${String.format(Locale.KOREA, "%,d", amount)}원 · 누르면 수입으로 등록해요"
@@ -86,9 +80,6 @@ class SalaryNotifier(private val context: Context) {
             .filter { it.id == NOTIFICATION_ID && it.tag?.let(::salaryMonthOf) != null }
             .forEach { manager.cancel(it.tag, NOTIFICATION_ID) }
     }
-
-    private fun hasPermission(): Boolean = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
-        ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
 
     /**
      * 누르면 동계부를 여는 Intent. 달만 identifier 에 담는다(금액은 열 때의 설정에서 다시 읽는다).
