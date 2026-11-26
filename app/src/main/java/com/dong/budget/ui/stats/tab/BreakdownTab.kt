@@ -33,6 +33,7 @@ import com.dong.budget.ui.stats.StatsSection
 import com.dong.budget.ui.stats.StatsUiState
 import com.dong.budget.ui.stats.calc.breakdownLabel
 import com.dong.budget.ui.stats.calc.emptyMonthText
+import com.dong.budget.ui.stats.calc.measure
 import com.dong.budget.ui.stats.calc.negativeHint
 import com.dong.budget.ui.stats.calc.nothingText
 import com.dong.budget.ui.stats.calc.singleSeriesSentence
@@ -217,7 +218,7 @@ private fun BreakdownChart(
                 BreakdownDonut(
                     breakdown = breakdown,
                     caption = dimension.wholeName(),
-                    income = dimension == StatsDimension.INCOME_CATEGORY,
+                    measure = dimension.measure,
                 )
         }
         if (showHints) {

@@ -22,6 +22,7 @@ import com.dong.budget.ui.stats.BreakdownEntry
 import com.dong.budget.ui.stats.StatRow
 import com.dong.budget.ui.stats.StatsEmpty
 import com.dong.budget.ui.stats.StatsSection
+import com.dong.budget.ui.stats.calc.Measure
 import com.dong.budget.ui.stats.chart.TrendBar
 import com.dong.budget.ui.stats.chart.TrendBars
 import com.dong.budget.ui.stats.chart.formatAxisWon
@@ -86,7 +87,9 @@ internal fun SavingsStatsTab(
                 animatedItem(key = TOTALS_KEY) { TotalsSection(stats = stats, month = state.month, today = state.today) }
             }
             if (stats.merchants.isNotEmpty()) {
-                animatedItem(key = MERCHANTS_KEY) { MerchantsSection(merchants = stats.merchants, title = MERCHANTS_TITLE, savings = true) }
+                animatedItem(key = MERCHANTS_KEY) {
+                    MerchantsSection(merchants = stats.merchants, title = MERCHANTS_TITLE, measure = Measure.SAVINGS)
+                }
             }
             if (stats.byPayment.entries.isNotEmpty()) {
                 animatedItem(key = PAYMENT_KEY) {
@@ -175,7 +178,7 @@ private fun PaymentSection(breakdown: Breakdown, monthLabel: String) {
                         color = BudgetTheme.colors.textPrimary,
                     )
 
-                else -> BreakdownDonut(breakdown = breakdown, caption = DONUT_CAPTION, income = false, savings = true)
+                else -> BreakdownDonut(breakdown = breakdown, caption = DONUT_CAPTION, measure = Measure.SAVINGS)
             }
             if (breakdown.negativeCount > 0) HintText(withdrawnHint(breakdown.negativeCount))
         }

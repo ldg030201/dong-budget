@@ -20,6 +20,7 @@ import com.dong.budget.ui.format.formatAmount
 import com.dong.budget.ui.format.formatNetExpense
 import com.dong.budget.ui.stats.MerchantStat
 import com.dong.budget.ui.stats.StatsSection
+import com.dong.budget.ui.stats.calc.Measure
 import com.dong.budget.ui.stats.calc.merchantSubtitle
 import com.dong.budget.ui.stats.netExpenseColor
 import com.dong.budget.ui.theme.BudgetTheme
@@ -30,10 +31,11 @@ import com.dong.budget.ui.theme.BudgetTheme
  *
  * 순위 칸은 뱃지(size.badge)와 같은 폭이라, 위 순위 목록의 뱃지와 세로로 줄이 맞는다.
  *
- * @param savings 저축 통계의 상품별 줄인지. 모은 돈은 쓴 돈이 아니라 거래 줄처럼 부호 없이 본문색으로 적는다.
+ * @param measure 무엇을 잰 줄인지. 많이 쓴 곳은 지출, 저축 통계의 상품별 줄은 저축([Measure.SAVINGS])이다.
+ *   모은 돈은 쓴 돈이 아니라 거래 줄처럼 부호 없이 본문색으로 적는다.
  */
 @Composable
-fun MerchantRow(rank: Int, merchant: MerchantStat, modifier: Modifier = Modifier, savings: Boolean = false) {
+fun MerchantRow(rank: Int, merchant: MerchantStat, modifier: Modifier = Modifier, measure: Measure = Measure.EXPENSE) {
     val description = merchantDescription(rank, merchant)
     Row(
         modifier =
@@ -68,9 +70,9 @@ fun MerchantRow(rank: Int, merchant: MerchantStat, modifier: Modifier = Modifier
             )
         }
         Text(
-            text = if (savings) "${formatAmount(merchant.amount)}원" else formatNetExpense(merchant.amount),
+            text = if (measure == Measure.SAVINGS) "${formatAmount(merchant.amount)}원" else formatNetExpense(merchant.amount),
             style = BudgetTheme.amount.medium,
-            color = if (savings) BudgetTheme.colors.textPrimary else netExpenseColor(merchant.amount),
+            color = if (measure == Measure.SAVINGS) BudgetTheme.colors.textPrimary else netExpenseColor(merchant.amount),
             modifier = Modifier.padding(start = BudgetTheme.spacing.inlineGap),
         )
     }
@@ -78,18 +80,18 @@ fun MerchantRow(rank: Int, merchant: MerchantStat, modifier: Modifier = Modifier
 
 /**
  * 많이 쓴 곳 섹션. 분류 탭과 상세가 같이 쓴다. 앞 섹션과는 sectionGap 만큼 띄운다.
- * 저축 통계는 제목을 '상품별' 로 바꾸고 [savings] 를 켜서 상품마다 모은 돈으로 쓴다.
+ * 저축 통계는 제목을 '상품별' 로 바꾸고 [measure] 를 [Measure.SAVINGS] 로 넘겨 상품마다 모은 돈으로 쓴다.
  */
 @Composable
 internal fun MerchantsSection(
     merchants: List<MerchantStat>,
     modifier: Modifier = Modifier,
     title: String = "많이 쓴 곳",
-    savings: Boolean = false,
+    measure: Measure = Measure.EXPENSE,
 ) {
     StatsSection(modifier = modifier.padding(top = BudgetTheme.spacing.sectionGap), title = title) {
         Column {
-            merchants.forEachIndexed { index, merchant -> MerchantRow(rank = index + 1, merchant = merchant, savings = savings) }
+            merchants.forEachIndexed { index, merchant -> MerchantRow(rank = index + 1, merchant = merchant, measure = measure) }
         }
     }
 }
