@@ -8,6 +8,9 @@ import com.dong.budget.data.salary.SalaryRepository
 import com.dong.budget.data.salary.SalarySettings
 import com.dong.budget.ui.components.appendAmountDigit
 import com.dong.budget.ui.components.deleteAmountDigit
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -19,6 +22,7 @@ import kotlinx.coroutines.withContext
 /**
  * 월급 설정. 바꾸는 대로 바로 저장한다(따로 저장 버튼이 없다).
  * 화면이 그리는 값은 여기 있는 것이 기준이다. 저장소에서 다시 읽은 값을 기다리면 키패드를 빨리 누를 때 숫자가 빠진다.
+ * 저장은 누른 차례대로 하고, 화면을 떠나도 끝까지 한다(마지막으로 누른 숫자가 빠지지 않게, [launchWrite]).
  */
 class SalarySettingsViewModel(
     private val repository: SalaryRepository,
@@ -43,8 +47,7 @@ class SalarySettingsViewModel(
     fun update(next: SalarySettings) {
         if (_settings.value == null) return
         _settings.value = next
-        // 저장은 부른 순서대로 끝난다(DataStore 가 쓰기를 차례로 처리한다)
-        viewModelScope.launch { repository.save(next) }
+        viewModelScope.launchWrite { repository.save(next) }
     }
 
     /** 금액 키패드. 앞의 0 은 떼고, 12자리를 넘으면 받지 않는다. [takeHome] 이면 실수령, 아니면 세전 금액을 고친다. */
@@ -75,8 +78,9 @@ class SalarySettingsViewModel(
     fun reset() {
         if (_settings.value == null) return
         _settings.value = SalarySettings()
-        viewModelScope.launch {
-            withContext(NonCancellable) { clearSalary() }
+        // 고친 값 저장과 같은 차례에 둔다(초기화 뒤에 누른 값이 먼저 쓰였다가 지워지지 않게)
+        viewModelScope.launchWrite {
+            clearSalary()
             DevLog.info(LogTag.SALARY, "월급 설정을 처음대로 돌렸어요")
         }
     }
@@ -86,3 +90,11 @@ class SalarySettingsViewModel(
         if (last != null && last != opened) DevLog.info(LogTag.SALARY, "월급 설정을 바꿨어요 · ${repository.describe(last)}")
     }
 }
+
+/**
+ * 저장 [write] 를 맡긴다. 화면을 떠나 화면 모델이 끝나도(이 범위가 끊겨도) 끝까지 한다.
+ * 끊기면 DataStore 가 아직 차례가 안 온 쓰기를 버려서, 키패드를 빨리 치고 바로 나가면 마지막 숫자가 저장되지 않았다.
+ * 부른 자리에서 바로 시작해(UNDISPATCHED) 부른 차례대로 DataStore 에 넘긴다. DataStore 는 받은 차례대로 써서 마지막 값이 마지막에 쓰인다.
+ */
+internal fun CoroutineScope.launchWrite(write: suspend () -> Unit): Job =
+    launch(start = CoroutineStart.UNDISPATCHED) { withContext(NonCancellable) { write() } }
