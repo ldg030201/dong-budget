@@ -4,7 +4,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.SizeTransform
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
@@ -14,8 +13,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ProgressIndicatorDefaults
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -114,15 +111,7 @@ private fun PlayUpdateStep(state: PlayUpdateState?, onUpdate: () -> Unit, onRest
                     trackColor = MaterialTheme.colorScheme.background,
                 )
             } else {
-                // 받은 양이 띄엄띄엄 알려져도 막대는 이어서 차오른다
-                val shown by animateFloatAsState(progress, ProgressIndicatorDefaults.ProgressAnimationSpec, label = "playDownloadProgress")
-                LinearProgressIndicator(
-                    progress = { shown },
-                    modifier = Modifier.fillMaxWidth(),
-                    color = MaterialTheme.colorScheme.primary,
-                    // 회색 판 위라 빈 트랙은 화면 바탕색으로 둔다
-                    trackColor = MaterialTheme.colorScheme.background,
-                )
+                UpdateProgressBar(progress)
             }
             Spacer(Modifier.height(BudgetTheme.spacing.inlineGap))
             HintText("받는 동안에도 앱을 쓸 수 있어요. 다 받으면 알려 드려요.")
@@ -144,11 +133,6 @@ private fun PlayUpdateStep(state: PlayUpdateState?, onUpdate: () -> Unit, onRest
 
         is PlayUpdateState.Failed -> UpdateStatusText(state.reason)
     }
-}
-
-@Composable
-private fun UpdateTitle(text: String) {
-    Text(text = text, style = MaterialTheme.typography.titleMedium, color = BudgetTheme.colors.textPrimary)
 }
 
 private const val PERCENT = 100

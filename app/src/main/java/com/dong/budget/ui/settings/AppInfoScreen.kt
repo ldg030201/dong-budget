@@ -1,20 +1,25 @@
 package com.dong.budget.ui.settings
 
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ProgressIndicatorDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalUriHandler
@@ -111,5 +116,25 @@ internal fun UpdateStatusText(text: String) {
         text = text,
         style = MaterialTheme.typography.bodyMedium,
         color = BudgetTheme.colors.textSecondary,
+    )
+}
+
+/** 업데이트 칸의 제목 글. "새 버전이 있어요" */
+@Composable
+internal fun UpdateTitle(text: String) {
+    Text(text = text, style = MaterialTheme.typography.titleMedium, color = BudgetTheme.colors.textPrimary)
+}
+
+/** 업데이트 칸의 내려받는 막대. [progress] 는 0~1 */
+@Composable
+internal fun UpdateProgressBar(progress: Float) {
+    // 내려받은 양이 띄엄띄엄 알려져도 막대는 이어서 차오른다
+    val shown by animateFloatAsState(progress, ProgressIndicatorDefaults.ProgressAnimationSpec, label = "downloadProgress")
+    LinearProgressIndicator(
+        progress = { shown },
+        modifier = Modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.primary,
+        // 회색 판 위라 빈 트랙은 화면 바탕색으로 둔다
+        trackColor = MaterialTheme.colorScheme.background,
     )
 }

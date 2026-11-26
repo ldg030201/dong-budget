@@ -2,19 +2,15 @@ package com.dong.budget.ui.settings
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.SizeTransform
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.text.selection.SelectionContainer
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ProgressIndicatorDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -146,11 +142,7 @@ private fun UpdateStep(
         is UpdateUiState.Available -> {
             val release = state.release
             Spacer(Modifier.height(BudgetTheme.spacing.inlineGap))
-            Text(
-                text = "새 버전(${release.version})이 있어요",
-                style = MaterialTheme.typography.titleMedium,
-                color = BudgetTheme.colors.textPrimary,
-            )
+            UpdateTitle("새 버전(${release.version})이 있어요")
             // 버튼을 바뀐 점보다 먼저 둔다.
             // 글이 길어져도 버튼이 화면 밖으로 밀려나지 않게 하기 위함이다.
             Spacer(Modifier.height(BudgetTheme.spacing.itemGap))
@@ -191,15 +183,7 @@ private fun UpdateStep(
         is UpdateUiState.Downloading -> {
             UpdateStatusText(if (state.progress >= 1f) "설치를 준비하고 있어요" else "${state.version} 버전을 내려받고 있어요")
             Spacer(Modifier.height(BudgetTheme.spacing.itemGap))
-            // 내려받은 양이 띄엄띄엄 알려져도 막대는 이어서 차오른다
-            val progress by animateFloatAsState(state.progress, ProgressIndicatorDefaults.ProgressAnimationSpec, label = "downloadProgress")
-            LinearProgressIndicator(
-                progress = { progress },
-                modifier = Modifier.fillMaxWidth(),
-                color = MaterialTheme.colorScheme.primary,
-                // 회색 판 위라 빈 트랙은 화면 바탕색으로 둔다
-                trackColor = MaterialTheme.colorScheme.background,
-            )
+            UpdateProgressBar(state.progress)
         }
 
         UpdateUiState.AwaitingInstall -> {
