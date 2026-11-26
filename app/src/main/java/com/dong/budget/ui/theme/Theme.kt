@@ -139,6 +139,23 @@ internal val LocalBudgetTokens =
         error("BudgetTheme 밖에서 토큰을 참조했다. 화면을 BudgetTheme 으로 감싸야 한다.")
     }
 
+/** [BudgetTheme] 이 넣은 밀도(글꼴 배율 고정). 따로 뜨는 창 안에서 [KeepAppDensity] 가 다시 넣는다. 테마 밖이면 null */
+private val LocalAppDensity = staticCompositionLocalOf<Density?> { null }
+
+/**
+ * 따로 뜨는 창(Dialog · ModalBottomSheet · Popup · DropdownMenu 등)의 내용을 감싸 [BudgetTheme] 의 밀도를 다시 넣는다.
+ *
+ * 이런 창은 AndroidComposeView 를 새로 만들고, 그 뷰가 LocalDensity 를 기기 설정 값으로 다시 넣어 바깥 값을 덮는다.
+ * 감싸지 않으면 테마가 고정한 글꼴 배율이 창 안에서만 풀려 기기 글꼴 크기를 따라 글자가 커진다.
+ * 다른 값(색·토큰 등)은 창 안으로 그대로 이어져서 밀도만 다시 넣으면 된다.
+ * 창을 새로 여는 곳은 내용을 꼭 이것으로 감싼다.
+ */
+@Composable
+fun KeepAppDensity(content: @Composable () -> Unit) {
+    val density = LocalAppDensity.current ?: LocalDensity.current
+    CompositionLocalProvider(LocalDensity provides density, content = content)
+}
+
 /** MaterialTheme 과 같은 방식으로 커스텀 토큰에 접근한다. */
 object BudgetTheme {
     val colors: BudgetColorTokens
@@ -181,14 +198,16 @@ fun BudgetTheme(darkTheme: Boolean, content: @Composable () -> Unit) {
             categoryPalette = if (darkTheme) DarkCategoryPalette else LightCategoryPalette,
         )
 
-    val density = LocalDensity.current
+    // 기기의 글꼴 크기 설정을 따르지 않고 고정한다.
+    // 에뮬레이터에서 확인한 화면이 모든 기기에서 그대로 나오게 하기 위함이다.
+    // 나중에 앱 안에 자체 글씨 크기 조절을 넣을 때 이 1f 를 설정값으로 바꾸면 된다.
+    // 따로 뜨는 창은 이 값을 덮어 쓰므로 [KeepAppDensity] 로 다시 넣는다.
+    val appDensity = Density(density = LocalDensity.current.density, fontScale = 1f)
 
     CompositionLocalProvider(
         LocalBudgetTokens provides tokens,
-        // 기기의 글꼴 크기 설정을 따르지 않고 고정한다.
-        // 에뮬레이터에서 확인한 화면이 모든 기기에서 그대로 나오게 하기 위함이다.
-        // 나중에 앱 안에 자체 글씨 크기 조절을 넣을 때 이 1f 를 설정값으로 바꾸면 된다.
-        LocalDensity provides Density(density = density.density, fontScale = 1f),
+        LocalDensity provides appDensity,
+        LocalAppDensity provides appDensity,
         // 리플을 끈다. 누름 표현은 Interaction.kt 의 눌림 축소로 통일한다.
         // 포커스 표시는 리플과 별개로 pressScaleClickable 이 직접 그린다.
         LocalRippleConfiguration provides null,

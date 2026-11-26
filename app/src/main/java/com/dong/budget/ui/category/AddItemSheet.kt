@@ -52,6 +52,7 @@ import com.dong.budget.ui.components.LocalAppLocked
 import com.dong.budget.ui.components.SectionLabel
 import com.dong.budget.ui.components.categoryIconRes
 import com.dong.budget.ui.theme.BudgetTheme
+import com.dong.budget.ui.theme.KeepAppDensity
 import com.dong.budget.ui.theme.Motion
 import com.dong.budget.ui.theme.pressScaleClickable
 
@@ -152,66 +153,69 @@ private fun AddItemSheetContent(
         containerColor = MaterialTheme.colorScheme.surface,
         tonalElevation = BudgetTheme.elevation.none,
     ) {
-        Column(
-            modifier =
-            Modifier
-                .fillMaxWidth()
-                // 시트는 키보드 높이를 알아서 빼주지 않는다. 빼지 않으면 이름을 입력하는 동안
-                // 아래쪽 아이콘과 '추가하기' 버튼이 키보드 뒤에 깔려 스크롤로도 닿을 수 없다.
-                .imePadding()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = BudgetTheme.spacing.screenHorizontal)
-                .padding(bottom = BudgetTheme.spacing.sectionPadding),
-        ) {
-            Text(
-                text = target.title,
-                style = MaterialTheme.typography.titleLarge,
-                color = BudgetTheme.colors.textPrimary,
-            )
-            Spacer(Modifier.height(BudgetTheme.spacing.sectionPadding))
+        // 시트는 따로 뜨는 창이라 테마의 글꼴 배율 고정이 풀려 기기 글꼴 크기를 따라 글자가 커진다. 다시 넣는다.
+        KeepAppDensity {
+            Column(
+                modifier =
+                Modifier
+                    .fillMaxWidth()
+                    // 시트는 키보드 높이를 알아서 빼주지 않는다. 빼지 않으면 이름을 입력하는 동안
+                    // 아래쪽 아이콘과 '추가하기' 버튼이 키보드 뒤에 깔려 스크롤로도 닿을 수 없다.
+                    .imePadding()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = BudgetTheme.spacing.screenHorizontal)
+                    .padding(bottom = BudgetTheme.spacing.sectionPadding),
+            ) {
+                Text(
+                    text = target.title,
+                    style = MaterialTheme.typography.titleLarge,
+                    color = BudgetTheme.colors.textPrimary,
+                )
+                Spacer(Modifier.height(BudgetTheme.spacing.sectionPadding))
 
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                // 고른 색과 아이콘이 실제로 어떻게 보일지 미리 보여준다
-                CategoryBadge(icon = icon, color = color, size = BudgetTheme.size.badgeLarge)
-                Spacer(Modifier.width(BudgetTheme.spacing.itemGap))
-                FormTextField(
-                    label = "이름",
-                    value = name,
-                    onValueChange = { name = it },
-                    placeholder = target.namePlaceholder,
-                    imeAction = ImeAction.Done,
-                    maxLength = MAX_NAME_LENGTH,
-                    modifier = Modifier.weight(1f),
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    // 고른 색과 아이콘이 실제로 어떻게 보일지 미리 보여준다
+                    CategoryBadge(icon = icon, color = color, size = BudgetTheme.size.badgeLarge)
+                    Spacer(Modifier.width(BudgetTheme.spacing.itemGap))
+                    FormTextField(
+                        label = "이름",
+                        value = name,
+                        onValueChange = { name = it },
+                        placeholder = target.namePlaceholder,
+                        imeAction = ImeAction.Done,
+                        maxLength = MAX_NAME_LENGTH,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+                AnimatedErrorText(error, Modifier.padding(top = BudgetTheme.spacing.tightGap))
+
+                SectionLabel("색")
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(BudgetTheme.spacing.inlineGap),
+                    verticalArrangement = Arrangement.spacedBy(BudgetTheme.spacing.inlineGap),
+                ) {
+                    CategoryStyle.COLORS.forEach { key ->
+                        ColorDot(key = key, selected = key == color, onClick = { color = key })
+                    }
+                }
+
+                SectionLabel("아이콘")
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(BudgetTheme.spacing.inlineGap),
+                    verticalArrangement = Arrangement.spacedBy(BudgetTheme.spacing.inlineGap),
+                ) {
+                    CategoryStyle.ICONS.forEach { key ->
+                        IconChoice(key = key, selected = key == icon, color = color, onClick = { icon = key })
+                    }
+                }
+
+                Spacer(Modifier.height(BudgetTheme.spacing.sectionGap))
+                BudgetPrimaryButton(
+                    text = "추가하기",
+                    onClick = { onSubmit(name, icon, color) },
+                    enabled = name.isNotBlank(),
                 )
             }
-            AnimatedErrorText(error, Modifier.padding(top = BudgetTheme.spacing.tightGap))
-
-            SectionLabel("색")
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(BudgetTheme.spacing.inlineGap),
-                verticalArrangement = Arrangement.spacedBy(BudgetTheme.spacing.inlineGap),
-            ) {
-                CategoryStyle.COLORS.forEach { key ->
-                    ColorDot(key = key, selected = key == color, onClick = { color = key })
-                }
-            }
-
-            SectionLabel("아이콘")
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(BudgetTheme.spacing.inlineGap),
-                verticalArrangement = Arrangement.spacedBy(BudgetTheme.spacing.inlineGap),
-            ) {
-                CategoryStyle.ICONS.forEach { key ->
-                    IconChoice(key = key, selected = key == icon, color = color, onClick = { icon = key })
-                }
-            }
-
-            Spacer(Modifier.height(BudgetTheme.spacing.sectionGap))
-            BudgetPrimaryButton(
-                text = "추가하기",
-                onClick = { onSubmit(name, icon, color) },
-                enabled = name.isNotBlank(),
-            )
         }
     }
 }

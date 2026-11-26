@@ -23,6 +23,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.dong.budget.ui.theme.BudgetTheme
+import com.dong.budget.ui.theme.KeepAppDensity
 import com.dong.budget.ui.theme.pressScaleClickable
 
 /**
@@ -60,74 +61,77 @@ fun ConfirmDialog(
         onDismissRequest = { if (cancelable) onDismiss() },
         properties = DialogProperties(dismissOnBackPress = cancelable, dismissOnClickOutside = cancelable),
     ) {
-        Surface(
-            shape = RoundedCornerShape(BudgetTheme.radius.sheet),
-            color = MaterialTheme.colorScheme.surface,
-            tonalElevation = BudgetTheme.elevation.none,
-        ) {
-            Column(
-                modifier =
-                Modifier.padding(
-                    start = BudgetTheme.spacing.screenHorizontal,
-                    end = BudgetTheme.spacing.screenHorizontal,
-                    top = BudgetTheme.spacing.sectionPadding * 1.5f,
-                    bottom = BudgetTheme.spacing.sectionPadding,
-                ),
+        // 창 안에서는 테마의 글꼴 배율 고정이 풀려 기기 글꼴 크기를 따라 글자가 커진다. 다시 넣는다.
+        KeepAppDensity {
+            Surface(
+                shape = RoundedCornerShape(BudgetTheme.radius.sheet),
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = BudgetTheme.elevation.none,
             ) {
-                // 글이 길어 화면에 다 안 들어가면 글만 스크롤한다. 버튼은 항상 아래에 보이게 둔다.
-                Column(modifier = Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())) {
-                    Text(
-                        text = title,
-                        style = MaterialTheme.typography.titleMedium,
-                        color = BudgetTheme.colors.textPrimary,
-                    )
-                    Spacer(Modifier.height(BudgetTheme.spacing.inlineGap))
-                    Text(
-                        text = message,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = BudgetTheme.colors.textSecondary,
-                    )
-                }
-                Spacer(Modifier.height(BudgetTheme.spacing.sectionPadding * 1.5f))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(BudgetTheme.spacing.inlineGap),
+                Column(
+                    modifier =
+                    Modifier.padding(
+                        start = BudgetTheme.spacing.screenHorizontal,
+                        end = BudgetTheme.spacing.screenHorizontal,
+                        top = BudgetTheme.spacing.sectionPadding * 1.5f,
+                        bottom = BudgetTheme.spacing.sectionPadding,
+                    ),
                 ) {
-                    DialogButton(
-                        label = confirmLabel,
-                        container = if (destructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
-                        content = if (destructive) MaterialTheme.colorScheme.onError else MaterialTheme.colorScheme.onPrimary,
-                        onClick = onConfirm,
-                        modifier = Modifier.weight(1f),
-                    )
-                    DialogButton(
-                        label = dismissLabel,
-                        container = BudgetTheme.colors.sectionBackground,
-                        content = BudgetTheme.colors.textPrimary,
-                        onClick = onDismiss,
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-                if (extraLabel != null) {
-                    Spacer(Modifier.height(BudgetTheme.spacing.inlineGap))
-                    // 보조 동작은 테두리 없는 글자 버튼으로 둔다. 확인·취소보다 눈에 덜 띄어야 한다.
-                    DialogButton(
-                        label = extraLabel,
-                        container = Color.Transparent,
-                        content = MaterialTheme.colorScheme.primary,
-                        onClick = onExtra,
+                    // 글이 길어 화면에 다 안 들어가면 글만 스크롤한다. 버튼은 항상 아래에 보이게 둔다.
+                    Column(modifier = Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())) {
+                        Text(
+                            text = title,
+                            style = MaterialTheme.typography.titleMedium,
+                            color = BudgetTheme.colors.textPrimary,
+                        )
+                        Spacer(Modifier.height(BudgetTheme.spacing.inlineGap))
+                        Text(
+                            text = message,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = BudgetTheme.colors.textSecondary,
+                        )
+                    }
+                    Spacer(Modifier.height(BudgetTheme.spacing.sectionPadding * 1.5f))
+                    Row(
                         modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-                if (footerLabel != null) {
-                    if (extraLabel == null) Spacer(Modifier.height(BudgetTheme.spacing.inlineGap))
-                    DialogButton(
-                        label = footerLabel,
-                        container = Color.Transparent,
-                        content = BudgetTheme.colors.textSecondary,
-                        onClick = onFooter,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
+                        horizontalArrangement = Arrangement.spacedBy(BudgetTheme.spacing.inlineGap),
+                    ) {
+                        DialogButton(
+                            label = confirmLabel,
+                            container = if (destructive) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                            content = if (destructive) MaterialTheme.colorScheme.onError else MaterialTheme.colorScheme.onPrimary,
+                            onClick = onConfirm,
+                            modifier = Modifier.weight(1f),
+                        )
+                        DialogButton(
+                            label = dismissLabel,
+                            container = BudgetTheme.colors.sectionBackground,
+                            content = BudgetTheme.colors.textPrimary,
+                            onClick = onDismiss,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                    if (extraLabel != null) {
+                        Spacer(Modifier.height(BudgetTheme.spacing.inlineGap))
+                        // 보조 동작은 테두리 없는 글자 버튼으로 둔다. 확인·취소보다 눈에 덜 띄어야 한다.
+                        DialogButton(
+                            label = extraLabel,
+                            container = Color.Transparent,
+                            content = MaterialTheme.colorScheme.primary,
+                            onClick = onExtra,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                    if (footerLabel != null) {
+                        if (extraLabel == null) Spacer(Modifier.height(BudgetTheme.spacing.inlineGap))
+                        DialogButton(
+                            label = footerLabel,
+                            container = Color.Transparent,
+                            content = BudgetTheme.colors.textSecondary,
+                            onClick = onFooter,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
                 }
             }
         }
