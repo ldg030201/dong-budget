@@ -232,11 +232,7 @@ data class SalarySettings(
      * [month] 의 월급날. 그 달에 [payday] 가 없으면 말일이고, 주말 · 공휴일([KoreanHolidays])이면 앞 영업일로 당긴다
      * (2026년 9월 25일 추석이면 23일). 1일이 쉬는 날이면 앞 달 말일쯤으로 넘어갈 수 있다.
      */
-    fun paydayIn(month: YearMonth): LocalDate {
-        var date = month.atDay(payday.coerceIn(1, month.lengthOfMonth()))
-        while (!KoreanHolidays.isBusinessDay(date)) date = date.minusDays(1)
-        return date
-    }
+    fun paydayIn(month: YearMonth): LocalDate = KoreanHolidays.previousBusinessDay(month.atDay(payday.coerceIn(1, month.lengthOfMonth())))
 
     /** [today] 나 그 뒤의 가장 가까운 월급날. 오늘이 월급날이면 오늘이다. */
     fun nextPayday(today: LocalDate): LocalDate {
