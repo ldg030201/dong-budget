@@ -5,7 +5,11 @@ import com.dong.budget.testing.FakePreferences
 import com.google.android.play.core.install.model.InstallErrorCode
 import com.google.android.play.core.install.model.InstallStatus
 import com.google.android.play.core.install.model.UpdateAvailability
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -152,5 +156,16 @@ class PlayUpdateCheckerTest {
         checker.check()
         assertEquals(PlayUpdateState.Failed(PlayUpdateRules.CHECK_FAILED_MESSAGE), checker.state.value)
         assertNull(checker.notice.first())
+    }
+
+    @Test
+    fun `묻는 동안 확인이 취소되면 실패로 남기지 않는다`() = runBlocking {
+        // StoreUpdates 가 Play 에 물을 때 쓰는 playFetch 로 감싼다. 화면을 나가 확인이 끊긴 경우다.
+        val checker = PlayUpdateChecker(fetch = playFetch { awaitCancellation() }, fromPlay = { true }, prefs = prefs)
+        val job = launch(start = CoroutineStart.UNDISPATCHED) { checker.check() }
+        assertTrue(checker.checking.value)
+        job.cancelAndJoin()
+        assertEquals(PlayUpdateState.Unknown, checker.state.value)
+        assertFalse(checker.checking.value)
     }
 }

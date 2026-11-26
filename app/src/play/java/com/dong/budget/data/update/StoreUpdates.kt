@@ -6,6 +6,7 @@ import android.content.Intent
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.IntentSenderRequest
 import androidx.core.net.toUri
+import com.dong.budget.data.suspendRunCatching
 import com.dong.budget.startFirst
 import com.google.android.play.core.appupdate.AppUpdateInfo
 import com.google.android.play.core.appupdate.AppUpdateManager
@@ -31,6 +32,12 @@ import kotlinx.coroutines.launch
 import kotlin.concurrent.thread
 
 /**
+ * Play 에 묻는 [request] 를 [PlayUpdateChecker] 가 받는 확인으로 감싼다. 실패는 결과로 돌려주고, 취소는 다시 던진다.
+ * runCatching 으로 감싸면 화면을 나가 확인이 끊기기만 해도 실패가 되어 앱 정보에 '새 버전을 확인하지 못했어요' 가 남는다.
+ */
+internal fun playFetch(request: suspend () -> PlayUpdateInfo): suspend () -> Result<PlayUpdateInfo> = { suspendRunCatching { request() } }
+
+/**
  * Play 배포의 새 버전 확인과 업데이트. Google Play 인앱 업데이트(FLEXIBLE)를 쓴다.
  * 받기와 설치는 Play 스토어가 한다. 앱은 새 버전이 있는지 묻고, 받기를 시작하고, 다 받으면 다시 시작하게 할 뿐이다.
  * 받는 동안 앱을 계속 쓸 수 있다.
@@ -44,7 +51,7 @@ class StoreUpdates(private val context: Context, private val scope: CoroutineSco
 
     val checker by lazy {
         PlayUpdateChecker(
-            fetch = { runCatching { infoOf(manager.requestAppUpdateInfo()) } },
+            fetch = playFetch { infoOf(manager.requestAppUpdateInfo()) },
             fromPlay = { isFromPlay },
             prefs = context.getSharedPreferences(PlayUpdateChecker.PREFS_NAME, Context.MODE_PRIVATE),
             errorCodeOf = { (it as? InstallException)?.errorCode },
