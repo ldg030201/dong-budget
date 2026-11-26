@@ -58,6 +58,7 @@ import com.dong.budget.data.update.AppVersion
 import com.dong.budget.data.update.NewerNotes
 import com.dong.budget.ui.components.BudgetPrimaryButton
 import com.dong.budget.ui.components.BudgetTopAppBar
+import com.dong.budget.ui.components.HintText
 import com.dong.budget.ui.components.IconBadge
 import com.dong.budget.ui.theme.BudgetTheme
 import com.dong.budget.ui.theme.CategorySwatch
@@ -238,10 +239,8 @@ private fun ReleaseCard(
                     badge()
                 }
                 if (date != null) {
-                    Text(
+                    HintText(
                         text = dateFormatter.format(date),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = BudgetTheme.colors.textSecondary,
                         modifier = Modifier.padding(top = BudgetTheme.spacing.tightGap),
                     )
                 }

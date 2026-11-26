@@ -171,7 +171,7 @@ private fun TrackedCardBlock(item: TrackedCard, today: LocalDate, onClick: () ->
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                Text(text = periodRange(item.period), style = MaterialTheme.typography.bodySmall, color = BudgetTheme.colors.textSecondary)
+                HintText(text = periodRange(item.period))
             }
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,

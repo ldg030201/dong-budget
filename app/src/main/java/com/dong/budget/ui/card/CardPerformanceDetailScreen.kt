@@ -169,7 +169,7 @@ private fun PeriodTitle(period: PerformancePeriod, today: LocalDate) {
             maxLines = 1,
             autoSize = TextAutoSize.StepBased(minFontSize = MIN_TITLE_SIZE, maxFontSize = titleStyle.fontSize),
         )
-        Text(text = periodRange(period), style = MaterialTheme.typography.bodySmall, color = BudgetTheme.colors.textSecondary)
+        HintText(text = periodRange(period))
     }
 }
 
@@ -316,7 +316,7 @@ private fun TierRow(order: String, amount: String, status: String?, reached: Boo
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(BudgetTheme.spacing.tightGap)) {
-            Text(text = order, style = MaterialTheme.typography.bodySmall, color = BudgetTheme.colors.textSecondary)
+            HintText(text = order)
             Text(text = amount, style = MaterialTheme.typography.bodyLarge, color = BudgetTheme.colors.textPrimary)
         }
         if (status != null) {

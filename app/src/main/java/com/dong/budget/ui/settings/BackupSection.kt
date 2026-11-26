@@ -9,8 +9,6 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.remember
@@ -20,6 +18,7 @@ import com.dong.budget.data.backup.LastBackup
 import com.dong.budget.data.db.BudgetTime
 import com.dong.budget.ui.components.ActionRow
 import com.dong.budget.ui.components.ConfirmDialog
+import com.dong.budget.ui.components.HintText
 import com.dong.budget.ui.components.SegmentedToggle
 import com.dong.budget.ui.components.SwitchRow
 import com.dong.budget.ui.theme.BudgetTheme
@@ -57,10 +56,8 @@ internal fun BackupSection(state: BackupUiState, lastBackup: LastBackup?, schedu
     val today = remember { LocalDate.now(BudgetTime.ZONE) }
 
     SettingsGroup("백업") {
-        Text(
+        HintText(
             text = lastBackupText(lastBackup, today),
-            style = MaterialTheme.typography.bodySmall,
-            color = BudgetTheme.colors.textSecondary,
             modifier = Modifier.padding(vertical = BudgetTheme.spacing.inlineGap),
         )
         ActionRow(

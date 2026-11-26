@@ -52,6 +52,7 @@ import com.dong.budget.data.settings.MenuItem
 import com.dong.budget.ui.components.BudgetIconButton
 import com.dong.budget.ui.components.DayHeader
 import com.dong.budget.ui.components.FormPlaceholder
+import com.dong.budget.ui.components.HintText
 import com.dong.budget.ui.components.TabEmptyState
 import com.dong.budget.ui.components.TabHeader
 import com.dong.budget.ui.components.TransactionRow
@@ -233,10 +234,8 @@ private fun SearchPlaceholder(visible: Boolean) {
 /** 찾는 중일 때 목록 위 한 줄. "12건 · 지출 -45,000원 · 수입 +3,000원" */
 @Composable
 private fun SearchSummary(count: Int, totals: Totals) {
-    Text(
+    HintText(
         text = listOfNotNull("${formatAmount(count.toLong())}건", totalsText(totals)).joinToString(" · "),
-        style = MaterialTheme.typography.bodySmall,
-        color = BudgetTheme.colors.textSecondary,
         modifier =
         Modifier
             .fillMaxWidth()
@@ -268,7 +267,7 @@ private fun MonthTitle(month: HistoryMonth, today: LocalDate) {
             modifier = Modifier.weight(1f),
         )
         totalsText(month.totals)?.let {
-            Text(text = it, style = MaterialTheme.typography.bodySmall, color = BudgetTheme.colors.textSecondary)
+            HintText(text = it)
         }
     }
 }

@@ -250,7 +250,7 @@ private fun StatusRow(status: WorkStatus, text: String) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Box(modifier = Modifier.size(BudgetTheme.size.noticeDot).drawBehind { drawCircle(dot) })
         Spacer(Modifier.width(BudgetTheme.spacing.inlineGap))
-        Text(text = text, style = MaterialTheme.typography.bodySmall, color = BudgetTheme.colors.textSecondary)
+        HintText(text = text)
     }
 }
 

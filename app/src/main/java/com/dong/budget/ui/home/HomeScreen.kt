@@ -70,6 +70,7 @@ import com.dong.budget.ui.components.BudgetIconButton
 import com.dong.budget.ui.components.BudgetTextButton
 import com.dong.budget.ui.components.ConfirmDialog
 import com.dong.budget.ui.components.DayHeader
+import com.dong.budget.ui.components.HintText
 import com.dong.budget.ui.components.LocalWeekStart
 import com.dong.budget.ui.components.MonthStepper
 import com.dong.budget.ui.components.TransactionRow
@@ -538,11 +539,7 @@ internal fun totalColor(signedAmount: Long): Color = when {
 @Composable
 private fun SummaryCell(label: String, value: String, valueColor: Color, modifier: Modifier = Modifier) {
     Column(modifier = modifier) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodySmall,
-            color = BudgetTheme.colors.textSecondary,
-        )
+        HintText(text = label)
         Spacer(Modifier.height(BudgetTheme.spacing.tightGap))
         Text(
             text = value,

@@ -71,7 +71,7 @@ fun SwitchRow(
         ) {
             Text(text = title, style = titleStyle, color = BudgetTheme.colors.textPrimary)
             if (description != null) {
-                Text(text = description, style = MaterialTheme.typography.bodySmall, color = BudgetTheme.colors.textSecondary)
+                HintText(text = description)
             }
         }
         // 흐림은 줄의 alpha 한 번만 맡는다. 스위치의 비활성 색까지 겹치면 켜진 모양이 바탕에 묻혀 고른 값이 안 보인다.

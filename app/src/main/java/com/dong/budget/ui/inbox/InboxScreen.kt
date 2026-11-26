@@ -42,6 +42,7 @@ import com.dong.budget.data.capture.CaptureStore
 import com.dong.budget.ui.components.BudgetSmallButton
 import com.dong.budget.ui.components.BudgetTopAppBar
 import com.dong.budget.ui.components.ConfirmDialog
+import com.dong.budget.ui.components.HintText
 import com.dong.budget.ui.components.NoticeDot
 import com.dong.budget.ui.format.formatNoticeTime
 import com.dong.budget.ui.theme.BudgetTheme
@@ -144,10 +145,8 @@ fun InboxScreen(
                             // 안내는 목록의 첫 줄로 둔다. 목록은 맨 위 줄을 기준으로 자리를 지키므로,
                             // 맨 위를 보던 중에 새 결제가 들어오면 이 줄 바로 아래에 보인다(위쪽 밖에 숨지 않는다).
                             item(key = CAPTION_KEY) {
-                                Text(
+                                HintText(
                                     text = "최근 ${CaptureStore.RETENTION_DAYS}일 동안 온 결제·입금 알림이에요",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = BudgetTheme.colors.textSecondary,
                                     modifier = Modifier.padding(
                                         horizontal = BudgetTheme.spacing.itemGap,
                                     ).padding(bottom = BudgetTheme.spacing.inlineGap),
@@ -249,15 +248,13 @@ private fun InboxRow(item: InboxItem, today: LocalDate, onClick: () -> Unit, mod
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
-            Text(
+            HintText(
                 text =
                 listOfNotNull(
                     payment.paymentName,
                     payment.installmentLabel,
                     formatNoticeTime(Instant.ofEpochMilli(payment.occurredAtMillis), today),
                 ).joinToString(" · "),
-                style = MaterialTheme.typography.bodySmall,
-                color = BudgetTheme.colors.textSecondary,
                 modifier = Modifier.padding(top = BudgetTheme.spacing.tightGap),
             )
         }

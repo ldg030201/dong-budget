@@ -89,10 +89,8 @@ fun TransactionRow(
                     color = transactionAmountColor(item.amountType, colorExpense),
                 )
                 if (amountCaption != null) {
-                    Text(
+                    HintText(
                         text = amountCaption,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = BudgetTheme.colors.textSecondary,
                         modifier = if (amountCaptionSpoken !=
                             null
                         ) {

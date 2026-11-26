@@ -68,7 +68,7 @@ fun ActionRow(
                 color = if (danger) BudgetTheme.colors.danger else BudgetTheme.colors.textPrimary,
             )
             if (description != null) {
-                Text(text = description, style = MaterialTheme.typography.bodySmall, color = BudgetTheme.colors.textSecondary)
+                HintText(text = description)
             }
         }
         if (value != null) {
