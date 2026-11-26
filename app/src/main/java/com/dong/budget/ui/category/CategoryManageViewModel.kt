@@ -7,7 +7,10 @@ import com.dong.budget.data.CategoryRepository
 import com.dong.budget.data.PaymentMethodRepository
 import com.dong.budget.data.db.CategoryScope
 import com.dong.budget.data.db.StyledItem
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -78,15 +81,27 @@ data class CategoryManageUiState(
     val showAdd: Boolean = false,
     val addError: String? = null,
     /** 지우기 전 확인을 받는 중인 항목 */
-    val pendingDelete: ManagedItem? = null,
+    val pendingDelete: PendingDelete? = null,
 ) {
     val usedColors: Set<String> get() = items.mapTo(mutableSetOf()) { it.color }
 }
 
+/**
+ * 지우기 전 확인을 받는 중인 항목과 그 항목이 있던 목록의 탭.
+ * 분류와 결제수단 표는 id 가 겹칠 수 있어서, 지울 저장소와 확인 창의 글은 지금 고른 탭이 아니라 [tab] 을 따른다.
+ */
+data class PendingDelete(val tab: ManageTab, val item: ManagedItem)
+
+/**
+ * 분류 관리 화면 모델.
+ * @param scope 화면 모델이 도는 범위([viewModelScope], 화면 모델이 사라지면 끝난다). 기본은 메인 스레드이고, 메인 스레드가 없는
+ *   JVM 테스트에서 기본 풀로 돌리려고 바꿀 수 있게 둔다.
+ */
 class CategoryManageViewModel(
     private val categoryRepository: CategoryRepository,
     private val paymentMethodRepository: PaymentMethodRepository,
-) : ViewModel() {
+    scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate),
+) : ViewModel(scope) {
     private val _uiState = MutableStateFlow(CategoryManageUiState())
     val uiState: StateFlow<CategoryManageUiState> = _uiState.asStateFlow()
 
@@ -148,20 +163,22 @@ class CategoryManageViewModel(
     /**
      * 끌어서 바꾼 순서를 저장한다. 옮길 수 있는 항목만 넘긴다('기타' 는 늘 맨 뒤).
      * 저장하면 목록 구독으로 바뀐 순서가 다시 들어온다.
+     * @param tab [items] 가 있던 목록의 탭. 탭을 누른 뒤 새 목록이 오기 전(또는 사라지는 중인 옛 목록)에 끌기를 마치면 지금 고른 탭과 다르다.
+     *   고른 탭의 저장소에 저장하면 다른 표의 같은 id 들의 순서가 섞인다.
      */
-    fun reorder(items: List<ManagedItem>) {
-        val tab = _uiState.value.tab
+    fun reorder(tab: ManageTab, items: List<ManagedItem>) {
         val orderedIds = items.filter { it.movable }.map { it.id }
-        // 저장이 끝나기 전에 목록이 예전 순서로 잠깐 되돌아가 보이지 않게 먼저 바꿔 둔다
-        _uiState.update { if (it.tab == tab) it.copy(items = items) else it }
+        // 저장이 끝나기 전에 목록이 예전 순서로 잠깐 되돌아가 보이지 않게 먼저 바꿔 둔다. 그려진 목록이 그 탭의 것일 때만.
+        _uiState.update { if (it.itemsTab == tab) it.copy(items = items) else it }
         viewModelScope.launch {
             if (tab.isPayment) paymentMethodRepository.reorder(orderedIds) else categoryRepository.reorder(orderedIds)
         }
     }
 
-    fun requestDelete(item: ManagedItem) {
+    /** @param tab [item] 이 있던 목록의 탭([reorder] 와 같은 까닭으로 지금 고른 탭과 다를 수 있다) */
+    fun requestDelete(tab: ManageTab, item: ManagedItem) {
         if (!item.deletable) return
-        _uiState.update { it.copy(pendingDelete = item) }
+        _uiState.update { it.copy(pendingDelete = PendingDelete(tab, item)) }
     }
 
     fun cancelDelete() {
@@ -169,12 +186,11 @@ class CategoryManageViewModel(
     }
 
     fun confirmDelete() {
-        val state = _uiState.value
-        val target = state.pendingDelete ?: return
+        val (tab, target) = _uiState.value.pendingDelete ?: return
         _uiState.update { it.copy(pendingDelete = null) }
         viewModelScope.launch {
             // 결제수단·들어온 곳은 비워 둘 수 있는 칸이라 걸린 거래에서 비우고, 분류는 '기타' 로 옮긴다
-            if (state.tab.isPayment) paymentMethodRepository.delete(target.id) else categoryRepository.delete(target.id)
+            if (tab.isPayment) paymentMethodRepository.delete(target.id) else categoryRepository.delete(target.id)
         }
     }
 }

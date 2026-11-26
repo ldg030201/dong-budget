@@ -62,29 +62,28 @@ fun CategoryManageScreen(
     onOpenAdd: () -> Unit,
     onDismissAdd: () -> Unit,
     onSubmitAdd: (name: String, icon: String, color: String) -> Unit,
-    onRequestDelete: (ManagedItem) -> Unit,
+    onRequestDelete: (ManageTab, ManagedItem) -> Unit,
     onCancelDelete: () -> Unit,
     onConfirmDelete: () -> Unit,
-    onReorder: (List<ManagedItem>) -> Unit,
+    onReorder: (ManageTab, List<ManagedItem>) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
     pickUnusedColor: Boolean = true,
 ) {
-    val isPayment = state.tab.isPayment
     // 조사가 붙은 꼴은 AddTarget 이 통째로 갖고 있다
     val noun = state.tab.addTarget.noun
-    val nounObject = state.tab.addTarget.nounObject
-    val nounBy = state.tab.addTarget.nounBy
 
-    state.pendingDelete?.let { target ->
+    state.pendingDelete?.let { (tab, target) ->
+        // 지우는 항목이 있던 목록의 탭으로 적는다. 탭을 누른 직후 옛 목록에서 누른 것이면 지금 고른 탭과 다르다.
+        val kind = tab.addTarget
         ConfirmDialog(
-            title = "'${target.name}' $nounObject 지울까요?",
+            title = "'${target.name}' ${kind.nounObject} 지울까요?",
             message =
             when {
-                target.transactionCount == 0 -> "이 $nounBy 적힌 거래는 없어요."
+                target.transactionCount == 0 -> "이 ${kind.nounBy} 적힌 거래는 없어요."
 
                 // 분류는 '기타' 로 옮기고, 결제수단·들어온 곳은 비워둘 수 있는 칸이라 비운다
-                isPayment -> "이 $nounBy 적힌 거래 ${target.transactionCount}건은 $noun 없이 남아요."
+                tab.isPayment -> "이 ${kind.nounBy} 적힌 거래 ${target.transactionCount}건은 ${kind.noun} 없이 남아요."
 
                 else -> "이 분류로 적힌 거래 ${target.transactionCount}건은 '기타'로 옮겨져요."
             },
@@ -131,11 +130,13 @@ fun CategoryManageScreen(
                 modifier = Modifier.weight(1f),
                 label = "manageTab",
             ) { (tab, items) ->
+                // 누르고 끈 것은 이 목록의 탭으로 넘긴다. 탭을 누른 뒤 새 목록이 오기 전이나 사라지는 중인 옛 목록에서도
+                // 그 목록의 표에서 지우고 순서를 바꾼다(지금 고른 탭의 표에는 같은 id 가 다른 항목일 수 있다).
                 ReorderableList(
                     tab = tab,
                     items = items,
-                    onRequestDelete = onRequestDelete,
-                    onReorder = onReorder,
+                    onRequestDelete = { onRequestDelete(tab, it) },
+                    onReorder = { onReorder(tab, it) },
                     modifier = Modifier.fillMaxSize(),
                 )
             }
