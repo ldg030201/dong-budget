@@ -4,11 +4,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import com.dong.budget.ui.components.ActionRow
-import com.dong.budget.ui.permission.AppPermission
 import com.dong.budget.ui.permission.NotificationPermission
 import com.dong.budget.ui.permission.PermissionDialog
 import com.dong.budget.ui.permission.STORE_PERMISSIONS
@@ -32,7 +32,10 @@ internal fun PermissionSection() {
         granted = SETTINGS_ORDER.associateWith { it.isGranted(context) }
         onPauseOrDispose {}
     }
-    var asking by remember { mutableStateOf<AppPermission?>(null) }
+    // 안내창을 띄운 권한. 화면을 돌려도 안내창이 닫히지 않게 저장 상태에 둔다.
+    // 배포처 권한(object)처럼 저장할 수 없는 것도 있어 이름으로 두고 찾아 쓴다(PermissionGate 와 같다).
+    var askingName by rememberSaveable { mutableStateOf<String?>(null) }
+    val asking = SETTINGS_ORDER.firstOrNull { it.name == askingName }
 
     SettingsGroup("권한") {
         SETTINGS_ORDER.forEach { permission ->
@@ -42,7 +45,7 @@ internal fun PermissionSection() {
                 description = permission.summary,
                 value = if (on) "켜짐" else "꺼짐",
                 valueColor = if (on) BudgetTheme.colors.textSecondary else BudgetTheme.colors.danger,
-                onClick = { if (on) openSettings(context, permission) else asking = permission },
+                onClick = { if (on) openSettings(context, permission) else askingName = permission.name },
             )
         }
     }
@@ -50,8 +53,8 @@ internal fun PermissionSection() {
     asking?.let { permission ->
         PermissionDialog(
             permission = permission,
-            onGoToSettings = { asking = null },
-            onLater = { asking = null },
+            onGoToSettings = { askingName = null },
+            onLater = { askingName = null },
         )
     }
 }
