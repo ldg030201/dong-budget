@@ -30,11 +30,7 @@ enum class Measure {
     SAVINGS,
     ;
 
-    fun includes(item: TransactionListItem): Boolean = when (this) {
-        EXPENSE -> (item.type == TransactionType.EXPENSE || item.type == TransactionType.REFUND) && !item.isSavings
-        INCOME -> item.type == TransactionType.INCOME
-        SAVINGS -> item.isSavings
-    }
+    fun includes(item: TransactionListItem): Boolean = item.measure == this
 
     /** [rows] 에서 이 쪽 금액. 들어오지 않는 행은 Totals 가 알아서 뺀다. */
     fun amountOf(rows: Iterable<TransactionListItem>): Long = rows.totals().let {
@@ -45,6 +41,21 @@ enum class Measure {
         }
     }
 }
+
+/**
+ * 이 거래가 어느 쪽에 드는지. 저축([isSavings])은 저축 쪽, 그 밖의 지출·환불은 지출 쪽, 수입은 수입 쪽,
+ * 이체는 어느 쪽도 아니다(null).
+ */
+val TransactionListItem.measure: Measure?
+    get() = if (isSavings) {
+        Measure.SAVINGS
+    } else {
+        when (type) {
+            TransactionType.EXPENSE, TransactionType.REFUND -> Measure.EXPENSE
+            TransactionType.INCOME -> Measure.INCOME
+            TransactionType.TRANSFER -> null
+        }
+    }
 
 /**
  * 무엇으로 묶을지.

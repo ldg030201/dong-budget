@@ -3,12 +3,12 @@ package com.dong.budget.ui.detail
 import androidx.compose.runtime.Immutable
 import com.dong.budget.data.db.TransactionListItem
 import com.dong.budget.data.db.TransactionType
-import com.dong.budget.data.db.isSavings
 import com.dong.budget.data.db.merchantKey
 import com.dong.budget.ui.home.LATEST_FIRST
 import com.dong.budget.ui.home.localDate
 import com.dong.budget.ui.stats.calc.Measure
 import com.dong.budget.ui.stats.calc.averageTicket
+import com.dong.budget.ui.stats.calc.measure
 import java.time.LocalDate
 import java.time.YearMonth
 
@@ -71,7 +71,7 @@ fun transactionDetail(item: TransactionListItem?, rows: List<TransactionListItem
  */
 fun samePlace(current: TransactionListItem, rows: List<TransactionListItem>, start: LocalDate): SamePlace? {
     val key = merchantKey(current.merchant) ?: return null
-    val measure = current.side() ?: return null
+    val measure = current.measure ?: return null
     val mine =
         rows
             .filter { measure.includes(it) && merchantKey(it.merchant) == key && !it.localDate().isBefore(start) }
@@ -85,18 +85,4 @@ fun samePlace(current: TransactionListItem, rows: List<TransactionListItem>, sta
         averageTicket = if (income || count < 2) null else averageTicket(mine),
         months = mine.groupBy { YearMonth.from(it.localDate()) }.map { (month, items) -> SamePlaceMonth(month, items) },
     )
-}
-
-/**
- * 이 거래가 어느 쪽에 드는지. 저축([isSavings])은 저축 쪽, 그 밖의 지출·환불은 지출 쪽, 수입은 수입 쪽,
- * 이체는 어느 쪽도 아니다(null).
- */
-private fun TransactionListItem.side(): Measure? = if (isSavings) {
-    Measure.SAVINGS
-} else {
-    when (type) {
-        TransactionType.EXPENSE, TransactionType.REFUND -> Measure.EXPENSE
-        TransactionType.INCOME -> Measure.INCOME
-        TransactionType.TRANSFER -> null
-    }
 }
