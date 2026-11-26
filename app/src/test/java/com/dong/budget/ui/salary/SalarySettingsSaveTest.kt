@@ -1,5 +1,6 @@
 package com.dong.budget.ui.salary
 
+import com.dong.budget.data.launchWrite
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers

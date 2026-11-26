@@ -4,20 +4,20 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dong.budget.data.devlog.DevLog
 import com.dong.budget.data.devlog.LogTag
+import com.dong.budget.data.launchWrite
 import com.dong.budget.data.salary.SalaryRepository
 import com.dong.budget.data.salary.SalarySettings
 import com.dong.budget.ui.components.appendAmountDigit
 import com.dong.budget.ui.components.deleteAmountDigit
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.CoroutineStart
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import java.io.IOException
 
 /**
  * 월급 설정. 바꾸는 대로 바로 저장한다(따로 저장 버튼이 없다).
@@ -33,6 +33,17 @@ class SalarySettingsViewModel(
     private val _settings = MutableStateFlow<SalarySettings?>(null)
     val settings: StateFlow<SalarySettings?> = _settings.asStateFlow()
 
+    private val _messages = Channel<String>(Channel.BUFFERED)
+
+    /** 한 번 띄우고 마는 알림(토스트). 저장 공간이 모자라 월급 설정을 저장하지 못했을 때 알린다. */
+    val messages: Flow<String> = _messages.receiveAsFlow()
+
+    /** 저장하지 못하면 앱을 죽이지 않고 로그에 남긴 뒤 알린다. 화면에는 고친 값이 남지만 다음에 열면 저장된 값으로 돌아간다. */
+    private fun saveFailed(e: IOException) {
+        DevLog.warn(LogTag.SALARY, SALARY_SAVE_FAILED_MESSAGE, e)
+        _messages.trySend(SALARY_SAVE_FAILED_MESSAGE)
+    }
+
     /** 화면을 열 때의 설정. 닫을 때 바뀌었으면 로그에 한 번 남긴다. */
     private var opened: SalarySettings? = null
 
@@ -47,7 +58,7 @@ class SalarySettingsViewModel(
     fun update(next: SalarySettings) {
         if (_settings.value == null) return
         _settings.value = next
-        viewModelScope.launchWrite { repository.save(next) }
+        viewModelScope.launchWrite(::saveFailed) { repository.save(next) }
     }
 
     /** 금액 키패드. 앞의 0 은 떼고, 12자리를 넘으면 받지 않는다. [takeHome] 이면 실수령, 아니면 세전 금액을 고친다. */
@@ -79,7 +90,7 @@ class SalarySettingsViewModel(
         if (_settings.value == null) return
         _settings.value = SalarySettings()
         // 고친 값 저장과 같은 차례에 둔다(초기화 뒤에 누른 값이 먼저 쓰였다가 지워지지 않게)
-        viewModelScope.launchWrite {
+        viewModelScope.launchWrite(::saveFailed) {
             clearSalary()
             DevLog.info(LogTag.SALARY, "월급 설정을 처음대로 돌렸어요")
         }
@@ -91,10 +102,5 @@ class SalarySettingsViewModel(
     }
 }
 
-/**
- * 저장 [write] 를 맡긴다. 화면을 떠나 화면 모델이 끝나도(이 범위가 끊겨도) 끝까지 한다.
- * 끊기면 DataStore 가 아직 차례가 안 온 쓰기를 버려서, 키패드를 빨리 치고 바로 나가면 마지막 숫자가 저장되지 않았다.
- * 부른 자리에서 바로 시작해(UNDISPATCHED) 부른 차례대로 DataStore 에 넘긴다. DataStore 는 받은 차례대로 써서 마지막 값이 마지막에 쓰인다.
- */
-internal fun CoroutineScope.launchWrite(write: suspend () -> Unit): Job =
-    launch(start = CoroutineStart.UNDISPATCHED) { withContext(NonCancellable) { write() } }
+/** 월급 설정을 파일에 쓰지 못했을 때 */
+internal const val SALARY_SAVE_FAILED_MESSAGE = "월급 설정을 저장하지 못했어요"

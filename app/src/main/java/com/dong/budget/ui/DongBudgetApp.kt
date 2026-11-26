@@ -608,6 +608,7 @@ fun DongBudgetApp(container: AppContainer, openRequest: OpenRequest? = null, onO
                             ) {
                                 val viewModel: SalarySettingsViewModel = viewModel(factory = salarySettingsViewModelFactory(container))
                                 val settings by viewModel.settings.collectAsStateWithLifecycle()
+                                ShowToasts(viewModel.messages)
                                 val settled = rememberSettled()
                                 SalarySettingsScreen(
                                     settings = settings,
