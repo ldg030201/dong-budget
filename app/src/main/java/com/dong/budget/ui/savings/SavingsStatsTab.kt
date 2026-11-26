@@ -22,7 +22,6 @@ import com.dong.budget.ui.stats.BreakdownEntry
 import com.dong.budget.ui.stats.StatRow
 import com.dong.budget.ui.stats.StatsEmpty
 import com.dong.budget.ui.stats.StatsSection
-import com.dong.budget.ui.stats.calc.TREND_MONTHS
 import com.dong.budget.ui.stats.chart.TrendBar
 import com.dong.budget.ui.stats.chart.TrendBars
 import com.dong.budget.ui.stats.chart.formatAxisWon
@@ -30,6 +29,7 @@ import com.dong.budget.ui.stats.tab.breakdown.BreakdownDonut
 import com.dong.budget.ui.stats.tab.breakdown.MerchantsSection
 import com.dong.budget.ui.stats.tab.breakdown.RankRow
 import com.dong.budget.ui.stats.tab.breakdown.SmallLine
+import com.dong.budget.ui.stats.tab.monthly.TREND_TITLE
 import com.dong.budget.ui.theme.BudgetTheme
 import java.time.LocalDate
 import java.time.YearMonth
@@ -209,8 +209,6 @@ private fun PaymentRow(entry: BreakdownEntry) {
         paymentNote(entry)?.let { SmallLine(it) }
     }
 }
-
-private const val TREND_TITLE = "최근 ${TREND_MONTHS}개월"
 
 private const val EMPTY_KEY = "empty"
 private const val SUMMARY_KEY = "summary"
