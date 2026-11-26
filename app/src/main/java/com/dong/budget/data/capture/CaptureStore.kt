@@ -61,27 +61,15 @@ class CaptureStore(private val prefs: SharedPreferences, private val now: () -> 
 
     /** 답한 결제로 적는다(사용자가 알림을 지움). 다시 띄우지 않는다. */
     @Synchronized
-    fun markAnswered(dedupKey: String) {
-        val entry = entry(dedupKey) ?: return
-        if (entry.answered) return
-        write(dedupKey, entry.copy(answered = true))
-    }
+    fun markAnswered(dedupKey: String) = change(dedupKey) { it.copy(answered = true) }
 
     /** 눌러 본 결제로 적는다(알림 목록이나 알림창에서 눌렀음). 새 알림 표시가 사라진다. */
     @Synchronized
-    fun markRead(dedupKey: String) {
-        val entry = entry(dedupKey) ?: return
-        if (entry.read) return
-        write(dedupKey, entry.copy(read = true))
-    }
+    fun markRead(dedupKey: String) = change(dedupKey) { it.copy(read = true) }
 
     /** 등록을 마친 결제. 답했고, 등록하며 봤으니 읽은 것이기도 하다. */
     @Synchronized
-    fun markRegistered(dedupKey: String) {
-        val entry = entry(dedupKey) ?: return
-        if (entry.answered && entry.read) return
-        write(dedupKey, entry.copy(answered = true, read = true))
-    }
+    fun markRegistered(dedupKey: String) = change(dedupKey) { it.copy(answered = true, read = true) }
 
     /**
      * 모두 읽음. 등록하지 않겠다는 뜻이라 모두 답한 것으로도 적는다(다시 띄우지 않는다).
@@ -93,10 +81,7 @@ class CaptureStore(private val prefs: SharedPreferences, private val now: () -> 
         val keys = dedupKeys.toSet()
         val changed = liveEntries().filter { it.payment.dedupKey in keys && !(it.answered && it.read) }
         if (changed.isEmpty()) return emptyList()
-        prefs.edit {
-            changed.forEach { putString(KEY_PREFIX + it.payment.dedupKey, json.encodeToString(it.copy(answered = true, read = true))) }
-        }
-        revision.update { it + 1 }
+        writeAll(changed.map { it.copy(answered = true, read = true) })
         return changed.filterNot { it.answered }.map { it.payment.dedupKey }
     }
 
@@ -126,12 +111,7 @@ class CaptureStore(private val prefs: SharedPreferences, private val now: () -> 
      */
     private fun hideEntries(entries: List<Entry>): List<Entry> {
         if (entries.isEmpty()) return emptyList()
-        prefs.edit {
-            entries.forEach {
-                putString(KEY_PREFIX + it.payment.dedupKey, json.encodeToString(it.copy(answered = true, read = true, hidden = true)))
-            }
-        }
-        revision.update { it + 1 }
+        writeAll(entries.map { it.copy(answered = true, read = true, hidden = true) })
         return entries
     }
 
@@ -148,6 +128,19 @@ class CaptureStore(private val prefs: SharedPreferences, private val now: () -> 
     private fun write(dedupKey: String, entry: Entry) {
         prefs.edit { putString(KEY_PREFIX + dedupKey, json.encodeToString(entry)) }
         revision.update { it + 1 }
+    }
+
+    /** 여러 기록을 한 번에 쓴다. 번호는 한 번만 올린다. 열쇠는 기록의 결제에서 꺼낸다. */
+    private fun writeAll(entries: List<Entry>) {
+        prefs.edit { entries.forEach { putString(KEY_PREFIX + it.payment.dedupKey, json.encodeToString(it)) } }
+        revision.update { it + 1 }
+    }
+
+    /** 기록 하나를 [transform] 으로 바꿔 쓴다. 기록이 없거나 지났거나, 이미 그 모습이면 쓰지 않는다(번호도 그대로). */
+    private inline fun change(dedupKey: String, transform: (Entry) -> Entry) {
+        val entry = entry(dedupKey) ?: return
+        val changed = transform(entry)
+        if (changed != entry) write(dedupKey, changed)
     }
 
     /** 기록 하나를 찾는다. 지났으면 그 자리에서 치운다. 켜 둔 알림 목록에서도 빠지게 하기 위함이다. */
