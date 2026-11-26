@@ -128,14 +128,8 @@ fun FixedExpenseScreen(
     // 빼려고 길게 누른 줄 · '해지' 를 누른 줄의 열쇠. 확인 창을 띄운다. 그사이 그 줄이 판에서 사라졌으면(거래를 지움 등) 창을 닫고 잊는다.
     var removing by rememberSaveable { mutableStateOf<String?>(null) }
     var ending by rememberSaveable { mutableStateOf<String?>(null) }
-    val removingItem = remember(removing, state.board) { removing?.let(state.board::itemOf) }
-    val endingItem = remember(ending, state.board) { ending?.let(state.board::itemOf) }
-    if (removing != null && removingItem == null && state.loaded) {
-        LaunchedEffect(removing) { removing = null }
-    }
-    if (ending != null && endingItem == null && state.loaded) {
-        LaunchedEffect(ending) { ending = null }
-    }
+    val removingItem = rememberPickedItem(removing, state) { removing = null }
+    val endingItem = rememberPickedItem(ending, state) { ending = null }
     // 줄에서 하는 일. 그릴 때마다 새로 만들면 줄들이 다시 그려져서(같은 값으로 보지 못해) 한 번만 만든다.
     val actions =
         remember(onRegister, onOpenTransaction, onRegisterMerchant, onDeclineMerchant, onRestoreMerchant) {
@@ -239,6 +233,19 @@ fun FixedExpenseScreen(
             }
         }
     }
+}
+
+/**
+ * 확인 창을 띄울 줄. 열쇠가 [key] 인 줄을 판에서 찾는다. 그사이 그 줄이 판에서 사라졌으면(거래를 지움 등) null 이고,
+ * [onGone] 으로 열쇠를 잊는다. 첫 계산 전([FixedExpenseUiState.loaded] 가 아직 아님)에는 잊지 않는다.
+ */
+@Composable
+private fun rememberPickedItem(key: String?, state: FixedExpenseUiState, onGone: () -> Unit): FixedExpenseItem? {
+    val item = remember(key, state.board) { key?.let(state.board::itemOf) }
+    if (key != null && item == null && state.loaded) {
+        LaunchedEffect(key) { onGone() }
+    }
+    return item
 }
 
 /**
