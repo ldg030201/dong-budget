@@ -6,6 +6,7 @@ import android.service.notification.StatusBarNotification
 import com.dong.budget.BudgetApplication
 import com.dong.budget.data.devlog.DevLog
 import com.dong.budget.data.devlog.LogTag
+import com.dong.budget.data.suspendRunCatching
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -51,7 +52,9 @@ class PaymentNotificationListener : NotificationListenerService() {
         val active =
             runCatching { activeNotifications }.onFailure { DevLog.warn(LogTag.CAPTURE, "알림창을 읽지 못했어요", it) }.getOrNull().orEmpty()
         val showing = active.filter(::isOurPrompt).mapNotNull { it.tag }.toSet()
-        runCatching { capture.restorePrompts(showing) }.onFailure { DevLog.error(LogTag.CAPTURE, "묻는 알림을 되살리다 오류가 났어요", it) }
+        // 서비스가 닫히거나 연결이 끊겨 취소되면 여기서 멈춘다. runCatching 이면 취소까지 오류로 적고 남은 알림을 계속 처리한다([handle] 도 같다).
+        suspendRunCatching { capture.restorePrompts(showing) }
+            .onFailure { DevLog.error(LogTag.CAPTURE, "묻는 알림을 되살리다 오류가 났어요", it) }
         // 알림창의 순서는 온 순서가 아닐 수 있다. 같은 결제가 알림 두 개로 왔으면 먼저 온 쪽을 묻도록 시각 순으로 본다.
         active.mapNotNull(::read).sortedBy { it.occurredAt }.forEach { handle(it) }
     }
@@ -81,8 +84,9 @@ class PaymentNotificationListener : NotificationListenerService() {
         scope.launch { handle(posted) }
     }
 
+    /** 취소는 오류로 받지 않는다. 서비스가 닫힌 뒤 남은 알림마다 '처리하다 오류가 났어요' 가 쌓이지 않게 하기 위함이다. */
     private suspend fun handle(posted: Posted) {
-        runCatching { capture.onNotification(posted.packageName, posted.titles, posted.texts, posted.occurredAt) }
+        suspendRunCatching { capture.onNotification(posted.packageName, posted.titles, posted.texts, posted.occurredAt) }
             .onFailure { DevLog.error(LogTag.CAPTURE, "결제 알림을 처리하다 오류가 났어요", it) }
     }
 
