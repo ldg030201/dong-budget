@@ -15,4 +15,10 @@ class CategoryStyleTest {
     fun `다 쓰였으면 회색이다`() {
         assertEquals(CategoryStyle.FALLBACK_COLOR, CategoryStyle.firstUnusedColor(CategoryStyle.COLORS.toSet()))
     }
+
+    @Test
+    fun `안 쓴 색을 끄면 새로 만드는 색은 늘 회색이다`() {
+        assertEquals("orange", CategoryStyle.newItemColor(setOf("red"), pickUnused = true))
+        assertEquals(CategoryStyle.FALLBACK_COLOR, CategoryStyle.newItemColor(setOf("red"), pickUnused = false))
+    }
 }

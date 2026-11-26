@@ -67,6 +67,12 @@ object CategoryStyle {
      * 추가 창의 처음 색과 알림에서 읽은 카드를 새로 만들 때의 색이 같은 규칙을 쓰게 한 곳에 둔다.
      */
     fun firstUnusedColor(used: Set<String>): String = COLORS.firstOrNull { it != FALLBACK_COLOR && it !in used } ?: FALLBACK_COLOR
+
+    /**
+     * 새로 만드는 분류·결제수단의 처음 색. [pickUnused] 면 [used] 와 겹치지 않는 색([firstUnusedColor]), 아니면 회색이다
+     * ('새 분류·결제수단은 안 쓴 색으로'). 추가 창 · 등록창의 새 결제수단 · 알림에서 읽은 카드를 만들 때가 같이 쓴다.
+     */
+    fun newItemColor(used: Set<String>, pickUnused: Boolean): String = if (pickUnused) firstUnusedColor(used) else FALLBACK_COLOR
 }
 
 /** 기본 분류 한 줄 */

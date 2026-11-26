@@ -198,11 +198,7 @@ data class EditorUiState(
      * 다시 그릴 때마다 읽혀서 상태 하나에 한 번만 구한다.
      */
     val pendingPaymentColor: String by lazy(LazyThreadSafetyMode.NONE) {
-        if (pickUnusedColor) {
-            CategoryStyle.firstUnusedColor(allPaymentMethods.inScope(pendingPaymentScope).colors())
-        } else {
-            CategoryStyle.FALLBACK_COLOR
-        }
+        CategoryStyle.newItemColor(allPaymentMethods.inScope(pendingPaymentScope).colors(), pickUnusedColor)
     }
 
     /** 결제수단 칸의 이름과 표의 + 가 여는 추가 시트. 수입이면 들어온 곳이다. */

@@ -114,7 +114,7 @@ fun AddItemSheet(
         target = current,
         visible = target != null,
         onHidden = { shown = null },
-        initialColor = if (pickUnusedColor) CategoryStyle.firstUnusedColor(usedColors) else CategoryStyle.FALLBACK_COLOR,
+        initialColor = CategoryStyle.newItemColor(usedColors, pickUnusedColor),
         error = error,
         onDismiss = onDismiss,
         onSubmit = onSubmit,

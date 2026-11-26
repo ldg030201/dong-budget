@@ -117,7 +117,7 @@ class PaymentMethodRepository(private val dao: PaymentMethodDao) {
         val name = normalizeName(rawName) ?: return null
         val existing = dao.getByScope(scope)
         findSameCard(existing, name)?.let { return it.id }
-        val color = if (pickUnusedColor) CategoryStyle.firstUnusedColor(existing.colors()) else CategoryStyle.FALLBACK_COLOR
+        val color = CategoryStyle.newItemColor(existing.colors(), pickUnusedColor)
         val (icon, type) = newItemStyle(scope)
         return when (val result = add(scope, name, icon, color, type)) {
             is AddResult.Added -> result.id
