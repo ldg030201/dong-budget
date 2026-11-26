@@ -60,7 +60,7 @@ internal fun rowSubtitle(item: FixedExpenseItem, month: YearMonth): String {
 
             FixedStatus.STOPPED -> "마지막 ${dateText(item.lastPaidOn, month)}"
         }
-    return listOfNotNull(main, item.paymentMethodName).joinToString(" · ")
+    return listOfNotNull(main, item.latest.paymentMethodName).joinToString(" · ")
 }
 
 /** 줄 부제 아래에 덧붙이는 한 줄의 뜻. 경고(지났거나 놓침)·오늘·그냥 알림 */

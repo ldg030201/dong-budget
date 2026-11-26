@@ -456,7 +456,7 @@ class FixedExpensesTest {
         assertEquals(2, item.lastPaidCount)
         assertEquals(1, item.cadence)
         // 결제수단은 가장 나중에 적은 거래를 따른다
-        assertEquals(11L, item.paymentMethodId)
+        assertEquals(11L, item.latest.paymentMethodId)
     }
 
     @Test
@@ -1074,9 +1074,9 @@ class FixedExpensesTest {
                 tx("2026-09-05T10:00", 1_000, categoryId = 4, paymentId = 12, merchant = "가", id = 102),
             )
         val item = only(rows)
-        assertEquals(102L, item.latestId)
-        assertEquals(12L, item.paymentMethodId)
-        assertEquals("결제12", item.paymentMethodName)
+        assertEquals(102L, item.latest.id)
+        assertEquals(12L, item.latest.paymentMethodId)
+        assertEquals("결제12", item.latest.paymentMethodName)
     }
 
     @Test

@@ -8,7 +8,6 @@ import com.dong.budget.data.db.fixedHistoryStart
 import com.dong.budget.data.db.fixedMerchantKey
 import com.dong.budget.data.holiday.KoreanHolidays
 import com.dong.budget.ui.home.localDate
-import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
 
@@ -86,11 +85,9 @@ enum class FixedStatus {
  *   지났으면 평소 날짜([usualDateIn])에서 며칠 지났는지(25일 것이 연휴로 28일에 나가는 달은 29일에 4). 낼 날이면 0, 아직이면 낼 날까지
  *   남은 날의 음수다. 함께 나가던 건 가운데 일부만 나간 차례는 평소 벌어짐이 끝나는 날이 낼 날이다(그 뒤엔 안 나간 것이라 지났다고 하지 않는다).
  *   그 밖에는 null
- * @property latestId 가장 최근 거래. 줄을 누르면 이 거래의 상세가 열리고, 거기서 같은 가게의 최근 1년 내역을 본다.
- * @property latestAt 가장 최근 거래의 때. '등록하기' 의 시각을 여기서 가져온다.
- * @property latestAmount 가장 최근 거래의 금액. 자주 내는 가게의 '등록하기' 는 한 달 합이 아니라 이 금액이다.
- * @property paymentMethodId 가장 최근 거래의 결제수단. 지웠거나 비웠으면 null이고, 이름·아이콘·색도 같다.
- * @property categoryIcon 가장 최근 거래의 분류 아이콘(결제수단이 없을 때 뱃지에 쓴다)
+ * @property latest 가장 최근 거래. 줄을 누르면 이 거래의 상세가 열리고, 거기서 같은 가게의 최근 1년 내역을 본다.
+ *   뱃지 · 부제의 결제수단(지웠거나 비웠으면 없고, 그러면 뱃지는 분류 아이콘)과 '등록하기' 의 시각 · 결제수단도 이 거래를 따른다.
+ *   자주 내는 가게의 '등록하기' 는 한 달 합이 아니라 이 거래의 금액이다.
  */
 @Immutable
 data class FixedExpenseItem(
@@ -118,15 +115,7 @@ data class FixedExpenseItem(
     val missedMonth: YearMonth?,
     val waitingMonth: YearMonth?,
     val daysPastUsual: Int?,
-    val latestId: Long,
-    val latestAt: Instant,
-    val latestAmount: Long,
-    val paymentMethodId: Long?,
-    val paymentMethodName: String?,
-    val paymentMethodIcon: String?,
-    val paymentMethodColor: String?,
-    val categoryIcon: String?,
-    val categoryColor: String?,
+    val latest: TransactionListItem,
 ) {
     /**
      * 이 가게를 [month] 에 평소 내는 날(다음으로 낼 차례, [dueDay]). 그 달에 없는 날(2월 30일 등)이면 그 달 말일이다.
@@ -332,15 +321,7 @@ private fun fixedItem(
             missedMonth = skipped?.takeIf { today.isAfter(dues.due(it, days.last())) },
             waitingMonth = skipped?.takeIf { !today.isAfter(dues.due(it, days.last())) },
             daysPastUsual = null,
-            latestId = latest.id,
-            latestAt = latest.row.occurredAt,
-            latestAmount = latest.amount,
-            paymentMethodId = latest.row.paymentMethodId,
-            paymentMethodName = latest.row.paymentMethodName,
-            paymentMethodIcon = latest.row.paymentMethodIcon,
-            paymentMethodColor = latest.row.paymentMethodColor,
-            categoryIcon = latest.row.categoryIcon,
-            categoryColor = latest.row.categoryColor,
+            latest = latest.row,
         )
     // 낼 날을 넘겼는지는 이번 달에만 센다. 지난 달은 이미 끝났다. 자주 내는 가게는 낼 날이 없다.
     if (status != FixedStatus.DUE || month != YearMonth.from(today) || frequent) return item

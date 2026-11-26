@@ -463,7 +463,14 @@ private fun FixedRow(item: FixedExpenseItem, state: FixedExpenseUiState, actions
         modifier = Modifier.semantics { stateDescription = status },
         // 모두 같은 분류('고정지출' · '저축')라 분류 뱃지는 줄마다 같다. 어느 카드로 내는지가 더 잘 가려 준다.
         leading = {
-            LatestBadge(item.paymentMethodId, item.paymentMethodIcon, item.paymentMethodColor, item.categoryIcon, item.categoryColor)
+            val latest = item.latest
+            LatestBadge(
+                latest.paymentMethodId,
+                latest.paymentMethodIcon,
+                latest.paymentMethodColor,
+                latest.categoryIcon,
+                latest.categoryColor,
+            )
         },
         note =
         if (note != null || canRegister || canEnd) {
@@ -472,7 +479,7 @@ private fun FixedRow(item: FixedExpenseItem, state: FixedExpenseUiState, actions
             null
         },
         onClickLabel = ROW_CLICK_LABEL,
-        onClick = { actions.onOpenTransaction(item.latestId) },
+        onClick = { actions.onOpenTransaction(item.latest.id) },
         onLongClick = { actions.onRemove(item.key) },
         onLongClickLabel = if (state.isEnded(item.key)) state.texts.removeActionLabel else state.texts.removeOrEndActionLabel,
         // 줄과 띄우는 간격은 BudgetListItem 이 둔다

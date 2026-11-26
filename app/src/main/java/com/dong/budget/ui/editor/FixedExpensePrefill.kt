@@ -28,10 +28,10 @@ import java.time.YearMonth
 fun fixedExpensePrefill(item: FixedExpenseItem, today: LocalDate, kind: FixedKind): EditorPrefill {
     val frequent = item.timesPerMonth != null
     val date = if (frequent) today else minOf(today, item.usualDateIn(YearMonth.from(today)))
-    val time = BudgetTime.toLocalTime(item.latestAt)
+    val time = BudgetTime.toLocalTime(item.latest.occurredAt)
     return EditorPrefill(
         // 한 달에 여러 번 낸 합이 등록창이 받는 가장 큰 금액을 넘을 수 있다
-        amount = (if (frequent) item.latestAmount else item.amount).coerceIn(0, MAX_AMOUNT),
+        amount = (if (frequent) item.latest.amount else item.amount).coerceIn(0, MAX_AMOUNT),
         merchant = item.merchant.orEmpty(),
         paymentName = null,
         memo = null,
@@ -45,6 +45,6 @@ fun fixedExpensePrefill(item: FixedExpenseItem, today: LocalDate, kind: FixedKin
             FixedKind.SAVINGS -> PrefillSource.FIXED_SAVINGS
         },
         categoryCode = kind.categoryCode,
-        paymentMethodId = item.paymentMethodId,
+        paymentMethodId = item.latest.paymentMethodId,
     )
 }
