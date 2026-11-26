@@ -30,7 +30,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Immutable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -48,6 +47,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LifecycleResumeEffect
+import androidx.lifecycle.compose.LifecycleStartEffect
 import com.dong.budget.R
 import com.dong.budget.data.lock.PinLock
 import com.dong.budget.ui.components.ActionRow
@@ -90,7 +90,7 @@ data class PinLockTexts(
 data class ForgotPinTexts(val title: String, val message: String, val confirmLabel: String)
 
 /**
- * 잠긴 화면. PIN 4자리를 누르면 바로 맞춰 본다. 지문을 켜 두었으면 열자마자 지문 창을 띄우고, 취소하면 PIN 으로 연다.
+ * 잠긴 화면. PIN 4자리를 누르면 바로 맞춰 본다. 지문을 켜 두었으면 열자마자(잠긴 채 앱을 나갔다 오면 다시) 지문 창을 띄우고, 취소하면 PIN 으로 연다.
  * @param onUnlock PIN 으로 풀어 본다
  * @param onBiometricSuccess 지문으로 풀었다
  * @param onForgot 'PIN 을 잊었어요'. [PinLockTexts.forgot] 이 있으면 한 번 더 물은 뒤에 부른다.
@@ -116,8 +116,13 @@ fun PinLockScreen(
 
     // 지문을 켜 두었으면 열자마자 지문 창을 띄운다. 앱 잠금 화면 아래에 깔린 잠금(월급)은 앱 잠금이 풀린 뒤에 띄운다.
     // 같이 띄우면 지문 창 두 개가 겹쳐, 손가락을 댄 지문이 아래 잠금만 풀고 앱 잠금은 그대로 남을 수 있다.
+    // 잠금 화면이 떠 있는 채 앱을 나갔다 오면 다시 띄운다(시스템은 앱이 뒤로 가면 지문 창을 닫는다). 그래서 처음 그릴 때와
+    // 앱이 다시 보일 때(ON_START)를 하나로 받는다. ON_RESUME 은 지문 창이 닫히며 다시 오기도 해서, 취소해도 또 뜰 수 있다.
     val underAppLock = LocalAppLocked.current
-    LaunchedEffect(canBiometric, underAppLock) { if (canBiometric && !underAppLock) promptBiometric() }
+    LifecycleStartEffect(canBiometric, underAppLock) {
+        if (canBiometric && !underAppLock) promptBiometric()
+        onStopOrDispose {}
+    }
 
     val forgot = texts.forgot
     if (askForgot && forgot != null) {
