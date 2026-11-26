@@ -57,7 +57,8 @@ object TossPaymentParser : PaymentParser {
     override fun parse(title: CharSequence?, text: CharSequence?, postedAtMillis: Long): CapturedPayment? {
         val cleanTitle = normalizeNotificationText(title) ?: return null
         // 결제 내용은 본문 첫 줄에 있다. 체크카드는 둘째 줄에 잔액이 붙거나('잔액 1,865,204원') 첫 줄 끝에 이어 붙는다.
-        val lines = notificationLines(text).toList()
+        // 줄은 제목이 결제·캐시백 모양으로 맞은 뒤에 쓰는 만큼만 다듬는다. 결제가 아닌 토스 알림(입금 등)의 본문은 다듬지 않고 넘긴다.
+        val lines = notificationLines(text)
         val parts = paymentParts(cleanTitle, lines) ?: cashbackParts(cleanTitle, lines) ?: return null
         val amount = parseAmount(parts.amountDigits) ?: return null
 
@@ -91,7 +92,7 @@ object TossPaymentParser : PaymentParser {
     private class Parts(val amountDigits: String, val card: String?, val merchant: String)
 
     /** 제목이 '금액원 결제' 인 알림. 본문 첫 줄이 '카드 | 가게' 나 '카드 ・ 가게' 다. 둘째 줄은 읽지 않는다. */
-    private fun paymentParts(title: String, lines: List<String>): Parts? {
+    private fun paymentParts(title: String, lines: Sequence<String>): Parts? {
         val amountDigits = titlePattern.matchEntire(title)?.groupValues?.get(1) ?: return null
         val detail = lines.firstOrNull() ?: return null
         // 카드 이름과 가게 사이는 '|' 로 나뉜다. 없으면 빈칸을 둔 가운뎃점으로 나뉜 것(토스뱅크)을 본다.
@@ -107,10 +108,11 @@ object TossPaymentParser : PaymentParser {
      * 카드 이름은 둘째 줄 '잔액 N원(카드)' 의 괄호에서 꺼낸다([balanceCard]). 둘째 줄이 없거나 모양이 다르거나 괄호가 비었으면 카드 이름 없이 읽는다.
      * 잔액이 첫 줄 끝에 붙어 오면 가게에 섞여 있다. [parse] 가 떼면서 같은 식으로 괄호의 카드 이름도 꺼낸다.
      */
-    private fun cashbackParts(title: String, lines: List<String>): Parts? {
+    private fun cashbackParts(title: String, lines: Sequence<String>): Parts? {
         if (!cashbackTitlePattern.matches(title)) return null
-        val paid = cashbackPaidPattern.matchEntire(lines.firstOrNull() ?: return null) ?: return null
-        val card = lines.getOrNull(1)?.let { balancePattern.matchEntire(it) }?.balanceCard()
+        val head = lines.take(2).toList()
+        val paid = cashbackPaidPattern.matchEntire(head.firstOrNull() ?: return null) ?: return null
+        val card = head.getOrNull(1)?.let { balancePattern.matchEntire(it) }?.balanceCard()
         return Parts(paid.groupValues[1], card, paid.groupValues[2].trim())
     }
 }
