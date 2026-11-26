@@ -967,7 +967,8 @@ private fun PinSetupPage(
     onClose: () -> Unit,
 ) {
     // 처음 켜는지 바꾸는지는 들어올 때 정해진다. PIN 을 정한 뒤 제목이 바뀌지 않게 붙잡아 둔다.
-    val changing = remember { lock.state.value.enabled }
+    // 화면을 돌려도 잇는다. 아니면 PIN 을 정한 뒤 2중 잠금을 묻는 채로 돌렸을 때 켜진 잠금을 다시 읽어 'PIN 바꾸기' 가 된다.
+    val changing = rememberSaveable { lock.state.value.enabled }
     var askDouble by rememberSaveable { mutableStateOf(false) }
     LockPage(title = if (changing) "PIN 바꾸기" else "PIN 정하기", onBack = onBack) {
         PinSetupScreen(
